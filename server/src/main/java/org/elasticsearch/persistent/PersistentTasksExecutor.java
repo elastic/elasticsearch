@@ -1,22 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 /**
@@ -25,16 +31,31 @@ import java.util.function.Predicate;
  */
 public abstract class PersistentTasksExecutor<Params extends PersistentTaskParams> {
 
-    private final String executor;
+    private final Executor executor;
     private final String taskName;
 
-    protected PersistentTasksExecutor(String taskName, String executor) {
+    protected PersistentTasksExecutor(String taskName, Executor executor) {
         this.taskName = taskName;
         this.executor = executor;
     }
 
     public String getTaskName() {
         return taskName;
+    }
+
+    public enum Scope {
+        /**
+         * The persistent task runs separately for each project
+         */
+        PROJECT,
+        /**
+         * The persistent task runs for the cluster itself with no project context
+         */
+        CLUSTER
+    }
+
+    public Scope scope() {
+        return Scope.PROJECT;
     }
 
     public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
@@ -44,7 +65,31 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * <p>
      * The default implementation returns the least loaded data node from amongst the collection of candidate nodes
      */
-    public Assignment getAssignment(Params params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+    public final Assignment getAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
+        assert (scope() == Scope.PROJECT && projectId != null) || (scope() == Scope.CLUSTER && projectId == null)
+            : "inconsistent project-id [" + projectId + "] and task scope [" + scope() + "]";
+        return doGetAssignment(params, candidateNodes, clusterState, projectId);
+    }
+
+    /**
+     * Returns the node id where the params has to be executed,
+     * <p>
+     * The default implementation returns the least loaded data node from amongst the collection of candidate nodes.
+     * <p>
+     * If {@link #scope()} returns CLUSTER, then {@link ProjectId} will be null.
+     * If {@link #scope()} returns PROJECT, then {@link ProjectId} will not be null.
+     */
+    protected Assignment doGetAssignment(
+        Params params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
+    ) {
         DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
@@ -54,7 +99,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     }
 
     /**
-     * Finds the least loaded node from amongs the candidate node collection
+     * Finds the least loaded node from amongst the candidate node collection
      * that satisfies the selector criteria
      */
     protected DiscoveryNode selectLeastLoadedNode(
@@ -64,14 +109,20 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        Map<String, Integer> numberOfTasksPerNode = getNumberOfTasksPerNode(clusterState, candidateNodes);
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
-                if (persistentTasks == null) {
+                if (numberOfTasksPerNode.isEmpty()) {
                     // We don't have any task running yet, pick the first available node
                     return node;
                 }
-                long numberOfTasks = persistentTasks.getNumberOfTasksOnNode(node.getId(), taskName);
+                assert numberOfTasksPerNode.containsKey(node.getId())
+                    : "numberOfTasksPerNode should be initialised with all candidate nodes";
+                int numberOfTasks = numberOfTasksPerNode.get(node.getId());
+                // If we find a node with no running tasks, we choose this one directly.
+                if (numberOfTasks == 0) {
+                    return node;
+                }
                 if (minLoad > numberOfTasks) {
                     minLoad = numberOfTasks;
                     minLoadedNode = node;
@@ -81,12 +132,44 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         return minLoadedNode;
     }
 
+    private Map<String, Integer> getNumberOfTasksPerNode(ClusterState clusterState, Collection<DiscoveryNode> candidateNodes) {
+        Map<String, Integer> numberOfTasksPerNode = new HashMap<>(candidateNodes.size());
+        candidateNodes.forEach(node -> numberOfTasksPerNode.put(node.getId(), 0));
+        Iterator<Tuple<ProjectId, PersistentTasks>> iterator = PersistentTasks.getAllTasks(clusterState).iterator();
+        while (iterator.hasNext()) {
+            Collection<PersistentTask<?>> tasks = iterator.next().v2().findTasks(taskName, PersistentTask::isAssigned);
+            for (var task : tasks) {
+                numberOfTasksPerNode.computeIfPresent(task.getExecutorNode(), (ignored, count) -> count + 1);
+            }
+        }
+        return numberOfTasksPerNode;
+    }
+
+    /**
+     * Whether this task should proactively be reassigned when its executing node is marked for shutdown.
+     * Automated reassignment allows for gap-free reassignment on a node (single cluster state update).
+     *
+     * <p>Returns {@code true} by default. Executors that manage their own shutdown handling must override
+     * this method to return {@code false} to preserve their existing behavior.
+     *
+     * <p><strong>Migration requirement:</strong> before removing a {@code return false} override, ensure
+     * that neither the executor nor any associated plugin or cluster-state listener independently handles
+     * node shutdown for this task (for example, by calling
+     * {@link AllocatedPersistentTask#markAsLocallyAborted}). Such bespoke handlers would race with the
+     * framework-level reassignment. If the handler fires first it will unassign the task and trigger a
+     * two-step unassign-then-reassign cycle, which is exactly the gap this mechanism is designed to
+     * eliminate.
+     */
+    public boolean automaticReassignmentOnShutdown() {
+        return true;
+    }
+
     /**
      * Checks the current cluster state for compatibility with the params
      * <p>
      * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
      */
-    public void validate(Params params, ClusterState clusterState) {}
+    public void validate(Params params, ClusterState clusterState, @Nullable ProjectId projectId) {}
 
     /**
      * Creates a AllocatedPersistentTask for communicating with task manager
@@ -117,7 +200,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      */
     protected abstract void nodeOperation(AllocatedPersistentTask task, Params params, @Nullable PersistentTaskState state);
 
-    public String getExecutor() {
+    public Executor getExecutor() {
         return executor;
     }
 }

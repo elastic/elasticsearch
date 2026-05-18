@@ -10,20 +10,21 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 
-import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -34,10 +35,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     public static final String NAME = "check-rollover-ready";
 
-    private final ByteSizeValue maxSize;
-    private final ByteSizeValue maxPrimaryShardSize;
-    private final TimeValue maxAge;
-    private final Long maxDocs;
+    public static final long MAX_PRIMARY_SHARD_DOCS = 200_000_000L;
+
+    private final RolloverConditions conditions;
 
     public WaitForRolloverReadyStep(
         StepKey key,
@@ -46,13 +46,32 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         ByteSizeValue maxSize,
         ByteSizeValue maxPrimaryShardSize,
         TimeValue maxAge,
-        Long maxDocs
+        Long maxDocs,
+        Long maxPrimaryShardDocs,
+        ByteSizeValue minSize,
+        ByteSizeValue minPrimaryShardSize,
+        TimeValue minAge,
+        Long minDocs,
+        Long minPrimaryShardDocs
     ) {
         super(key, nextStepKey, client);
-        this.maxSize = maxSize;
-        this.maxPrimaryShardSize = maxPrimaryShardSize;
-        this.maxAge = maxAge;
-        this.maxDocs = maxDocs;
+        this.conditions = RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
+    }
+
+    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, RolloverConditions conditions) {
+        super(key, nextStepKey, client);
+        this.conditions = conditions;
     }
 
     @Override
@@ -61,33 +80,35 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
+    public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        Index index = indexMetadata.getIndex();
+        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        final boolean targetFailureStore;
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().equals(index) == false) {
+            targetFailureStore = dataStream.isFailureStoreIndex(index.getName());
+            boolean isFailureStoreWriteIndex = index.equals(dataStream.getWriteFailureIndex());
+            if (isFailureStoreWriteIndex == false && dataStream.getWriteIndex().equals(index) == false) {
                 logger.warn(
-                    "index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",
                     index.getName(),
+                    targetFailureStore ? "failure store " : "",
                     dataStream.getName(),
-                    LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadata.index(index).getSettings())
+                    indexMetadata.getLifecyclePolicyName()
                 );
                 listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
             }
             rolloverTarget = dataStream.getName();
         } else {
-            IndexMetadata indexMetadata = metadata.index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "setting [%s] for index [%s] is empty or not defined",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                             index.getName()
@@ -125,7 +146,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
             boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
             if (indexingComplete) {
-                logger.trace(index + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
+                logger.trace("{} has lifecycle complete set, skipping {}", index, WaitForRolloverReadyStep.NAME);
                 // If this index is still the write index for this alias, skipping rollover and continuing with the policy almost certainly
                 // isn't what we want, as something likely still expects to be writing to this index.
                 // If the alias doesn't point to this index, that's okay as that will be the result if this index is using a
@@ -133,8 +154,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 if (aliasPointsToThisIndex && Boolean.TRUE.equals(isWriteIndex)) {
                     listener.onFailure(
                         new IllegalStateException(
-                            String.format(
-                                Locale.ROOT,
+                            Strings.format(
                                 "index [%s] has [%s] set to [true], but is still the write index for alias [%s]",
                                 index.getName(),
                                 LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE,
@@ -153,8 +173,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (aliasPointsToThisIndex == false) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "%s [%s] does not point to index [%s]",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                             rolloverAlias,
@@ -169,59 +188,95 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (Boolean.FALSE.equals(isWriteIndex)) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(Locale.ROOT, "index [%s] is not the write index for alias [%s]", index.getName(), rolloverAlias)
+                        Strings.format("index [%s] is not the write index for alias [%s]", index.getName(), rolloverAlias)
                     )
                 );
                 return;
             }
 
             rolloverTarget = rolloverAlias;
+            targetFailureStore = false;
         }
 
+        // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
+        // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
+        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(
+            state.cluster().metadata().settings()
+        );
+        RolloverRequest rolloverRequest = createRolloverRequest(
+            rolloverTarget,
+            masterTimeout,
+            rolloverOnlyIfHasDocuments,
+            targetFailureStore
+        );
+
+        getClient(state.projectId()).admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
+            final var conditionStatus = response.getConditionStatus();
+            final var conditionsMet = rolloverRequest.getConditions().areConditionsMet(conditionStatus);
+            if (conditionsMet) {
+                logger.info("index [{}] is ready for rollover, conditions: [{}]", index.getName(), conditionStatus);
+            } else {
+                logger.debug("index [{}] is not ready for rollover, conditions: [{}]", index.getName(), conditionStatus);
+            }
+            listener.onResponse(conditionsMet, EmptyInfo.INSTANCE);
+        }, listener::onFailure));
+    }
+
+    /**
+     * Builds a RolloverRequest that captures the various max_* and min_* conditions of this {@link WaitForRolloverReadyStep}.
+     * <p>
+     * To prevent empty indices from rolling over, a `min_docs: 1` condition will be injected if `rolloverOnlyIfHasDocuments` is true
+     * and the request doesn't already have an associated min_docs or min_primary_shard_docs condition.
+     *
+     * @param rolloverTarget             the index to rollover
+     * @param masterTimeout              the master timeout to use with the request
+     * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
+     *                                   (or min_primary_shard_docs) condition
+     * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
+     */
+    // visible for testing
+    RolloverRequest createRolloverRequest(
+        String rolloverTarget,
+        TimeValue masterTimeout,
+        boolean rolloverOnlyIfHasDocuments,
+        boolean targetFailureStore
+    ) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (maxSize != null) {
-            rolloverRequest.addMaxIndexSizeCondition(maxSize);
+        rolloverRequest.setConditions(applyDefaultConditions(conditions, rolloverOnlyIfHasDocuments));
+        if (targetFailureStore) {
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES));
         }
-        if (maxPrimaryShardSize != null) {
-            rolloverRequest.addMaxPrimaryShardSizeCondition(maxPrimaryShardSize);
-        }
-        if (maxAge != null) {
-            rolloverRequest.addMaxIndexAgeCondition(maxAge);
-        }
-        if (maxDocs != null) {
-            rolloverRequest.addMaxIndexDocsCondition(maxDocs);
-        }
-        getClient().admin()
-            .indices()
-            .rolloverIndex(
-                rolloverRequest,
-                ActionListener.wrap(
-                    response -> listener.onResponse(response.getConditionStatus().values().stream().anyMatch(i -> i), EmptyInfo.INSTANCE),
-                    listener::onFailure
-                )
-            );
+        return rolloverRequest;
     }
 
-    ByteSizeValue getMaxSize() {
-        return maxSize;
+    /**
+     * Apply default conditions to the set of user-defined conditions.
+     *
+     * @param conditions the existing conditions
+     * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
+     *                                   (or min_primary_shard_docs) condition
+     * @return the rollover conditions with the default conditions applied.
+     */
+    public static RolloverConditions applyDefaultConditions(RolloverConditions conditions, boolean rolloverOnlyIfHasDocuments) {
+        var builder = RolloverConditions.newBuilder(conditions);
+        if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
+            builder.addMinIndexDocsCondition(1L);
+        }
+        long currentMaxPrimaryShardDocs = conditions.getMaxPrimaryShardDocs() != null
+            ? conditions.getMaxPrimaryShardDocs()
+            : Long.MAX_VALUE;
+        builder.addMaxPrimaryShardDocsCondition(Math.min(currentMaxPrimaryShardDocs, MAX_PRIMARY_SHARD_DOCS));
+        return builder.build();
     }
 
-    ByteSizeValue getMaxPrimaryShardSize() {
-        return maxPrimaryShardSize;
-    }
-
-    TimeValue getMaxAge() {
-        return maxAge;
-    }
-
-    Long getMaxDocs() {
-        return maxDocs;
+    public RolloverConditions getConditions() {
+        return conditions;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode(), conditions);
     }
 
     @Override
@@ -233,23 +288,6 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             return false;
         }
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
-        return super.equals(obj)
-            && Objects.equals(maxSize, other.maxSize)
-            && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
-            && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs);
-    }
-
-    // We currently have no information to provide for this AsyncWaitStep, so this is an empty object
-    private static final class EmptyInfo implements ToXContentObject {
-
-        static final EmptyInfo INSTANCE = new EmptyInfo();
-
-        private EmptyInfo() {}
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder;
-        }
+        return super.equals(obj) && Objects.equals(conditions, other.conditions);
     }
 }

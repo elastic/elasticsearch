@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,7 +34,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -210,13 +212,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     /**
-     * Returns whether duplicate suggestions should be filtered out.
-     */
-    public boolean skipDuplicates() {
-        return skipDuplicates;
-    }
-
-    /**
      * Should duplicates be filtered or not. Defaults to {@code false}.
      */
     public CompletionSuggestionBuilder skipDuplicates(boolean skipDuplicates) {
@@ -305,7 +300,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     ) throws IOException {
         try (XContentParser contextParser = XContentHelper.createParser(parserConfig, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
             contextParser.nextToken();
-            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
+            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Maps.newMapWithExpectedSize(contextMappings.size());
             assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
             XContentParser.Token currentToken;
             String currentFieldName;
@@ -323,6 +318,11 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     @Override
     public String getWriteableName() {
         return SUGGESTION_NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
     @Override

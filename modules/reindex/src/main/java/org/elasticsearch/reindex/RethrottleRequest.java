@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -30,6 +31,10 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
      * that we might wait.
      */
     private Float requestsPerSecond;
+
+    /// Transient (not serialized) — chain-following runs entirely on the coordinator in
+    /// {@link TransportRethrottleAction#doExecute}. Fan-out sub-requests and UBQ/DBQ never set this.
+    private boolean followRelocations = false;
 
     public RethrottleRequest() {}
 
@@ -63,6 +68,15 @@ public class RethrottleRequest extends BaseTasksRequest<RethrottleRequest> {
             );
         }
         this.requestsPerSecond = requestsPerSecond;
+        return this;
+    }
+
+    public boolean followRelocations() {
+        return followRelocations;
+    }
+
+    public RethrottleRequest setFollowRelocations(boolean followRelocations) {
+        this.followRelocations = followRelocations;
         return this;
     }
 

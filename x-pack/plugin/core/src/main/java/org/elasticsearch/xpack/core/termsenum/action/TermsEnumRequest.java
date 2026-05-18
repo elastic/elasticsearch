@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,14 +25,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
+
 /**
  * A request to gather terms for a given field matching a string prefix
  */
-public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
+public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
-    public static int DEFAULT_SIZE = 10;
-    public static TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
+    public static final int DEFAULT_SIZE = 10;
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
 
     private String field;
     private String string = null;
@@ -110,6 +113,17 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
+        if (string != null) {
+            // length calculation using BytesRef length like in KeywordFieldMapper to check against MAX_TERM_LENGTH
+            if (new BytesRef(string).length > MAX_TERM_LENGTH) {
+                validationException = ValidateActions.addValidationError(
+                    "prefix string larger than "
+                        + MAX_TERM_LENGTH
+                        + " characters, which is the maximum allowed term length for keyword fields.",
+                    validationException
+                );
+            }
+        }
         if (field == null) {
             validationException = ValidateActions.addValidationError("field cannot be null", validationException);
         }
@@ -125,11 +139,6 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
 
     @Override
     public boolean allowsRemoteIndices() {
-        return true;
-    }
-
-    @Override
-    public boolean includeDataStreams() {
         return true;
     }
 

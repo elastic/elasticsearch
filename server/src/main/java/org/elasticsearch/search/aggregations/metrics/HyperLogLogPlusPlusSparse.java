@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -33,11 +34,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     HyperLogLogPlusPlusSparse(int precision, BigArrays bigArrays, long initialBuckets) {
         super(precision);
         this.lc = new LinearCounting(precision, bigArrays, initialBuckets);
-    }
-
-    @Override
-    public long maxOrd() {
-        return lc.sizes.size();
     }
 
     /** Needs to be called before adding elements into a bucket */
@@ -134,8 +130,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             return size;
         }
 
-        @Override
-        protected HashesIterator values(long bucketOrd) {
+        private HashesIterator values(long bucketOrd) {
             return new LinearCountingIterator(values.get(bucketOrd), size(bucketOrd));
         }
 

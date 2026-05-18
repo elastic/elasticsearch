@@ -105,10 +105,10 @@ public class Attachment implements MessageElement {
             title,
             titleLink,
             text,
-            fields,
+            Arrays.hashCode(fields),
             imageUrl,
             thumbUrl,
-            markdownSupportedFields,
+            Arrays.hashCode(markdownSupportedFields),
             actions
         );
     }
@@ -162,11 +162,7 @@ public class Attachment implements MessageElement {
             builder.field(XField.THUMB_URL.getPreferredName(), thumbUrl);
         }
         if (markdownSupportedFields != null) {
-            builder.startArray(XField.MARKDOWN_IN.getPreferredName());
-            for (String field : markdownSupportedFields) {
-                builder.value(field);
-            }
-            builder.endArray();
+            builder.array(XField.MARKDOWN_IN.getPreferredName(), markdownSupportedFields);
         }
         if (actions != null && actions.isEmpty() == false) {
             builder.startArray("actions");
@@ -315,10 +311,10 @@ public class Attachment implements MessageElement {
                 title,
                 titleLink,
                 text,
-                fields,
+                Arrays.hashCode(fields),
                 imageUrl,
                 thumbUrl,
-                markdownSupportedFields,
+                Arrays.hashCode(markdownSupportedFields),
                 actions
             );
         }

@@ -13,6 +13,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatTransformAction extends AbstractCatAction {
 
     @Override
@@ -59,7 +62,7 @@ public class RestCatTransformAction extends AbstractCatAction {
         GetTransformAction.Request request = new GetTransformAction.Request(id);
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
-        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id);
+        GetTransformStatsAction.Request statsRequest = new GetTransformStatsAction.Request(id, null, false);
         statsRequest.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
 
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
@@ -138,6 +141,10 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .build()
             )
             .addCell("source_index", TableColumnAttributeBuilder.builder("source index", false).setAliases("si", "sourceIndex").build())
+            .addCell(
+                "project_routing",
+                TableColumnAttributeBuilder.builder("source project routing filter", false).setAliases("pr", "projectRouting").build()
+            )
             .addCell("dest_index", TableColumnAttributeBuilder.builder("destination index", false).setAliases("di", "destIndex").build())
             .addCell("pipeline", TableColumnAttributeBuilder.builder("transform pipeline", false).setAliases("p").build())
             .addCell("description", TableColumnAttributeBuilder.builder("description", false).setAliases("d").build())
@@ -208,7 +215,7 @@ public class RestCatTransformAction extends AbstractCatAction {
             .endHeaders();
     }
 
-    private Table buildTable(GetTransformAction.Response response, GetTransformStatsAction.Response statsResponse) {
+    private static Table buildTable(GetTransformAction.Response response, GetTransformStatsAction.Response statsResponse) {
         Table table = getTableWithHeader();
         Map<String, TransformStats> statsById = statsResponse.getTransformsStats()
             .stream()
@@ -255,6 +262,7 @@ public class RestCatTransformAction extends AbstractCatAction {
                 .addCell(config.getCreateTime() == null ? null : Date.from(config.getCreateTime()))
                 .addCell(config.getVersion())
                 .addCell(String.join(",", config.getSource().getIndex()))
+                .addCell(config.getSource().getProjectRouting())
                 .addCell(config.getDestination().getIndex())
                 .addCell(config.getDestination().getPipeline())
                 .addCell(config.getDescription())

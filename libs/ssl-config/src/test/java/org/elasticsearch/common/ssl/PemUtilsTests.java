@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -23,6 +24,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -245,6 +247,20 @@ public class PemUtilsTests extends ESTestCase {
         SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.parsePrivateKey(path, TESTNODE_PASSWORD));
         assertThat(e.getMessage(), containsString("file is empty"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
+    }
+
+    public void testParsePKCS8PemString() throws Exception {
+        Key key = getKeyFromKeystore("EC");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        final Path path = getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem");
+        final String transportKeyPemString = Files.readAllLines(path)
+            .stream()
+            .filter(l -> l.contains("-----") == false)
+            .collect(Collectors.joining());
+        final PrivateKey privateKey = PemUtils.parsePKCS8PemString(transportKeyPemString);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
     }
 
     private Key getKeyFromKeystore(String algo) throws Exception {

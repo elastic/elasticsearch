@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cloud.gce;
 
+import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;
@@ -19,28 +20,26 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.util.SecurityUtils;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 public class GceInstancesServiceImpl implements GceInstancesService {
 
@@ -52,10 +51,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         true,
         Property.NodeScope
     );
-    public static final Setting<String> GCE_ROOT_URL = new Setting<>(
+    public static final Setting<String> GCE_ROOT_URL = Setting.simpleString(
         "cloud.gce.root_url",
         "https://www.googleapis.com",
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -69,16 +67,19 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
-                    Compute.Instances.List list = client().instances().list(project, zoneId);
-                    return list.execute();
-                });
-                // assist type inference
-                return instanceList.isEmpty() || instanceList.getItems() == null
-                    ? Collections.<Instance>emptyList()
-                    : instanceList.getItems();
+                String nextPageToken = null;
+                List<Instance> zoneInstances = new ArrayList<>();
+                do {
+                    Compute.Instances.List list = client().instances().list(project, zoneId).setPageToken(nextPageToken);
+                    InstanceList instanceList = list.execute();
+                    nextPageToken = instanceList.getNextPageToken();
+                    if (instanceList.isEmpty() == false && instanceList.getItems() != null) {
+                        zoneInstances.addAll(instanceList.getItems());
+                    }
+                } while (nextPageToken != null);
+                return zoneInstances;
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
+                logger.warn(() -> "Problem fetching instance list for zone " + zoneId, e);
                 logger.debug("Full exception:", e);
                 // assist type inference
                 return Collections.<Instance>emptyList();
@@ -108,6 +109,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     private final boolean validateCerts;
 
+    @SuppressWarnings("this-escape")
     public GceInstancesServiceImpl(Settings settings) {
         this.settings = settings;
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);
@@ -147,7 +149,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     String getAppEngineValueFromMetadataServer(String serviceURL) throws GeneralSecurityException, IOException {
         String metadata = GceMetadataService.GCE_HOST.get(settings);
-        GenericUrl url = Access.doPrivileged(() -> new GenericUrl(metadata + serviceURL));
+        GenericUrl url = new GenericUrl(metadata + serviceURL);
 
         HttpTransport httpTransport = getGceHttpTransport();
         HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
@@ -155,7 +157,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             .setConnectTimeout(500)
             .setReadTimeout(500)
             .setHeaders(new HttpHeaders().set("Metadata-Flavor", "Google"));
-        HttpResponse response = Access.doPrivilegedIOException(() -> request.execute());
+        HttpResponse response = request.execute();
         return headerContainsMetadataFlavor(response) ? response.parseAsString() : null;
     }
 
@@ -168,7 +170,12 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
             if (validateCerts) {
-                gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                // Manually load the certificates in the jks format instead of the default p12 which is not compatible with FIPS.
+                KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
+                try (var is = GoogleUtils.class.getResourceAsStream("google.jks")) {
+                    SecurityUtils.loadKeyStore(certTrustStore, is, "notasecret");
+                }
+                gceHttpTransport = new NetHttpTransport.Builder().trustCertificates(certTrustStore).build();
             } else {
                 // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
                 gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();
@@ -201,7 +208,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            Access.doPrivilegedIOException(credential::refreshToken);
+            credential.refreshToken();
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

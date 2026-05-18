@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.process;
@@ -22,11 +23,10 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ProcessProbeTests extends ESTestCase {
-    private final ProcessProbe probe = ProcessProbe.getInstance();
 
     public void testProcessInfo() {
         long refreshInterval = randomNonNegativeLong();
-        ProcessInfo info = probe.processInfo(refreshInterval);
+        ProcessInfo info = ProcessProbe.processInfo(refreshInterval);
         assertNotNull(info);
         assertEquals(refreshInterval, info.getRefreshInterval());
         assertEquals(jvmInfo().pid(), info.getId());
@@ -34,7 +34,7 @@ public class ProcessProbeTests extends ESTestCase {
     }
 
     public void testProcessStats() {
-        ProcessStats stats = probe.processStats();
+        ProcessStats stats = ProcessProbe.processStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
 

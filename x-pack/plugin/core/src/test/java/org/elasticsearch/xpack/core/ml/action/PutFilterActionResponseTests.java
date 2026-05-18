@@ -7,18 +7,23 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
 
 import java.io.IOException;
 
-public class PutFilterActionResponseTests extends AbstractSerializingTestCase<PutFilterAction.Response> {
+public class PutFilterActionResponseTests extends AbstractXContentSerializingTestCase<PutFilterAction.Response> {
 
     @Override
     protected PutFilterAction.Response createTestInstance() {
         return new PutFilterAction.Response(MlFilterTests.createRandom());
+    }
+
+    @Override
+    protected PutFilterAction.Response mutateInstance(PutFilterAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

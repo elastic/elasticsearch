@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
@@ -34,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add one or more {@link ApplicationPrivilege} objects to the security index
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     public RestPutPrivilegesAction(Settings settings, XPackLicenseState licenseState) {
@@ -42,10 +43,7 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(PUT, "/_security/privilege/").replaces(PUT, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
-            Route.builder(POST, "/_security/privilege/").replaces(POST, "/_xpack/security/privilege/", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(PUT, "/_security/privilege/"), new Route(POST, "/_security/privilege/"));
     }
 
     @Override
@@ -79,7 +77,7 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
                     result.get(privilege.getApplication()).put(name, Collections.singletonMap("created", created));
                 });
                 builder.map(result);
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

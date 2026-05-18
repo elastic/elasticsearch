@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.plugin;
 
 import org.gradle.api.Project;
+import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.io.File;
@@ -34,15 +37,14 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
-    private PluginType type = PluginType.ISOLATED;
-
-    private String javaOpts = "";
-
     /** Whether a license agreement must be accepted before this plugin can be installed. */
     private boolean isLicensed = false;
 
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
+
+    /** The optional deployment target of this plugin. */
+    private String deploymentTarget;
 
     /** A license file that should be included in the built plugin zip. */
     private File licenseFile;
@@ -54,6 +56,7 @@ public class PluginPropertiesExtension {
     private File noticeFile;
 
     private final Project project;
+    private CopySpec bundleSpec;
 
     public PluginPropertiesExtension(Project project) {
         this.project = project;
@@ -64,6 +67,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setName(String name) {
+        this.project.getExtensions().getByType(BasePluginExtension.class).getArchivesName().set(name);
         this.name = name;
     }
 
@@ -80,6 +84,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setDescription(String description) {
+        project.setDescription(description);
         this.description = description;
     }
 
@@ -103,22 +108,6 @@ public class PluginPropertiesExtension {
         this.hasNativeController = hasNativeController;
     }
 
-    public PluginType getType() {
-        return type;
-    }
-
-    public void setType(PluginType type) {
-        this.type = type;
-    }
-
-    public String getJavaOpts() {
-        return javaOpts;
-    }
-
-    public void setJavaOpts(String javaOpts) {
-        this.javaOpts = javaOpts;
-    }
-
     public boolean isLicensed() {
         return isLicensed;
     }
@@ -129,6 +118,14 @@ public class PluginPropertiesExtension {
 
     public boolean isRequiresKeystore() {
         return requiresKeystore;
+    }
+
+    public String getDeploymentTarget() {
+        return deploymentTarget;
+    }
+
+    public void setDeploymentTarget(String deploymentTarget) {
+        this.deploymentTarget = deploymentTarget;
     }
 
     public void setRequiresKeystore(boolean requiresKeystore) {
@@ -167,5 +164,13 @@ public class PluginPropertiesExtension {
 
     public void setExtendedPlugins(List<String> extendedPlugins) {
         this.extendedPlugins = extendedPlugins;
+    }
+
+    public void setBundleSpec(CopySpec bundleSpec) {
+        this.bundleSpec = bundleSpec;
+    }
+
+    public CopySpec getBundleSpec() {
+        return bundleSpec;
     }
 }

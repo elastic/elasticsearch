@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class QueryExplanationTests extends AbstractSerializingTestCase<QueryExplanation> {
+public class QueryExplanationTests extends AbstractXContentSerializingTestCase<QueryExplanation> {
 
     static QueryExplanation createRandomQueryExplanation(boolean isValid) {
         String index = "index_" + randomInt(1000);
@@ -40,6 +41,11 @@ public class QueryExplanationTests extends AbstractSerializingTestCase<QueryExpl
     @Override
     protected QueryExplanation createTestInstance() {
         return createRandomQueryExplanation();
+    }
+
+    @Override
+    protected QueryExplanation mutateInstance(QueryExplanation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

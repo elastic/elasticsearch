@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -23,7 +22,9 @@ import org.elasticsearch.xpack.enrich.LocalStateEnrich;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -58,17 +59,20 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
             request.add(searchRequest);
         }
 
-        MultiSearchResponse result = client().execute(
-            EnrichShardMultiSearchAction.INSTANCE,
-            new EnrichShardMultiSearchAction.Request(request)
-        ).actionGet();
-        assertThat(result.getResponses().length, equalTo(numSearches));
-        for (int i = 0; i < numSearches; i++) {
-            assertThat(result.getResponses()[i].isFailure(), is(false));
-            assertThat(result.getResponses()[i].getResponse().getHits().getTotalHits().value, equalTo(1L));
-            assertThat(result.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().size(), equalTo(1));
-            assertThat(result.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().get("key1"), equalTo("value1"));
-        }
+        assertResponse(
+            client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)),
+            response -> {
+                assertThat(response.getResponses().length, equalTo(numSearches));
+                for (int i = 0; i < numSearches; i++) {
+                    assertThat(response.getResponses()[i].isFailure(), is(false));
+                    assertThat(response.getResponses()[i].getResponse().getHits().getTotalHits().value(), equalTo(1L));
+                    Map<String, Object> sourceAsMap = response.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap();
+                    assertThat(sourceAsMap.size(), equalTo(1));
+                    assertThat(sourceAsMap.get("key1"), equalTo("value1"));
+                }
+            }
+        );
+
     }
 
     public void testNonEnrichIndex() throws Exception {
@@ -77,7 +81,7 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         request.add(new SearchRequest("index"));
         Exception e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet()
+            client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request))
         );
         assertThat(e.getMessage(), equalTo("Validation Failed: 1: index [index] is not an enrich index;"));
     }
@@ -89,7 +93,7 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         request.add(new SearchRequest(indexName));
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet()
+            client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request))
         );
         assertThat(e.getMessage(), equalTo("index [.enrich-1] should have 1 shard, but has 2 shards"));
     }

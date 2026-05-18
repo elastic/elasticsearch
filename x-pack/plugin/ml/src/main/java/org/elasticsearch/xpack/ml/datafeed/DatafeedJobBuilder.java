@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_CYCLES;
+import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_FLOOR;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 
 public class DatafeedJobBuilder {
@@ -47,6 +49,8 @@ public class DatafeedJobBuilder {
     private final ClusterService clusterService;
 
     private volatile long delayedDataCheckFreq;
+    private volatile int ccsStabilizationCycles;
+    private volatile long ccsStabilizationFloorMs;
 
     public DatafeedJobBuilder(
         Client client,
@@ -66,8 +70,13 @@ public class DatafeedJobBuilder {
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.delayedDataCheckFreq = DELAYED_DATA_CHECK_FREQ.get(settings).millis();
+        this.ccsStabilizationCycles = CCS_STABILIZATION_CYCLES.get(settings);
+        this.ccsStabilizationFloorMs = CCS_STABILIZATION_FLOOR.get(settings).millis();
         this.clusterService = Objects.requireNonNull(clusterService);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CCS_STABILIZATION_FLOOR, v -> this.ccsStabilizationFloorMs = v.millis());
     }
 
     private void setDelayedDataCheckFreq(TimeValue value) {
@@ -76,16 +85,16 @@ public class DatafeedJobBuilder {
 
     void build(TransportStartDatafeedAction.DatafeedTask task, DatafeedContext context, ActionListener<DatafeedJob> listener) {
         final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
-        final DatafeedConfig datafeedConfig = context.getDatafeedConfig();
-        final Job job = context.getJob();
-        final long latestFinalBucketEndMs = context.getRestartTimeInfo().getLatestFinalBucketTimeMs() == null
+        final DatafeedConfig datafeedConfig = context.datafeedConfig();
+        final Job job = context.job();
+        final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
-            : context.getRestartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs = context.getRestartTimeInfo().getLatestRecordTimeMs() == null
+            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+        final long latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs() == null
             ? -1
-            : context.getRestartTimeInfo().getLatestRecordTimeMs();
+            : context.restartTimeInfo().getLatestRecordTimeMs();
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
-            context.getTimingStats(),
+            context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
         );
 
@@ -115,6 +124,11 @@ public class DatafeedJobBuilder {
                 parentTaskAssigningClient,
                 xContentRegistry
             );
+            CrossClusterSearchStats crossClusterSearchStats = new CrossClusterSearchStats(
+                () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get()),
+                ccsStabilizationCycles,
+                java.time.Duration.ofMillis(ccsStabilizationFloorMs)
+            );
             DatafeedJob datafeedJob = new DatafeedJob(
                 job.getId(),
                 buildDataDescription(job),
@@ -130,8 +144,9 @@ public class DatafeedJobBuilder {
                 datafeedConfig.getMaxEmptySearches(),
                 latestFinalBucketEndMs,
                 latestRecordTimeMs,
-                context.getRestartTimeInfo().haveSeenDataPreviously(),
-                delayedDataCheckFreq
+                context.restartTimeInfo().haveSeenDataPreviously(),
+                delayedDataCheckFreq,
+                crossClusterSearchStats
             );
 
             listener.onResponse(datafeedJob);

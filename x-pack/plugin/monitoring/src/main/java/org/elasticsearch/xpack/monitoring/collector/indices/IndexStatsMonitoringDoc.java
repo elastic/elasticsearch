@@ -11,8 +11,9 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -71,6 +72,8 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
             builder.field("uuid", metadata.getIndexUUID());
             builder.field("created", metadata.getCreationDate());
             builder.field("status", health.getStatus().name().toLowerCase(Locale.ROOT));
+            builder.field("mode", IndexSettings.MODE.get(metadata.getSettings()).getName());
+            builder.field("codec", EngineConfig.INDEX_CODEC_SETTING.get(metadata.getSettings()));
 
             builder.startObject("shards");
             {
@@ -119,11 +122,13 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
         builder.endObject();
     }
 
-    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+    public static final Set<String> XCONTENT_FILTERS = Set.of(
         "index_stats.index",
         "index_stats.uuid",
         "index_stats.created",
         "index_stats.status",
+        "index_stats.mode",
+        "index_stats.codec",
         "index_stats.shards.total",
         "index_stats.shards.primaries",
         "index_stats.shards.replicas",

@@ -8,11 +8,15 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -44,7 +48,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     XPackLicenseState buildLicenseState(OperationMode mode, boolean active) {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(mode, active, null);
+        licenseState.update(new XPackLicenseStatus(mode, active, null));
         return licenseState;
     }
 
@@ -55,6 +59,12 @@ public class XPackLicenseStateTests extends ESTestCase {
     void assertAckMessages(String feature, OperationMode from, OperationMode to, int expectedMessages) {
         String[] gotMessages = XPackLicenseState.ACKNOWLEDGMENT_MESSAGES.get(feature).apply(from, to);
         assertEquals(expectedMessages, gotMessages.length);
+    }
+
+    void assertAckMessages(String feature, OperationMode from, OperationMode to, Set<String> expectedMessages) {
+        String[] gotMessages = XPackLicenseState.ACKNOWLEDGMENT_MESSAGES.get(feature).apply(from, to);
+        Set<String> actualMessages = Arrays.stream(gotMessages).collect(Collectors.toSet());
+        assertThat(actualMessages, equalTo(expectedMessages));
     }
 
     static <T> T randomFrom(T[] values, Predicate<T> filter) {
@@ -99,7 +109,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityAckStandardToBasic() {
-        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 0);
+        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 1);
     }
 
     public void testSecurityAckAnyToStandard() {
@@ -139,6 +149,41 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testCcrAckTrialOrPlatinumToNotTrialOrPlatinum() {
         assertAckMessages(XPackField.CCR, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+    }
+
+    public void testEsqlAckToTrialOrPlatinum() {
+        assertAckMessages(XPackField.ESQL, randomMode(), randomFrom(TRIAL, ENTERPRISE), 0);
+    }
+
+    public void testEsqlAckTrialOrEnterpriseToNotTrialOrEnterprise() {
+        for (OperationMode to : List.of(BASIC, STANDARD, GOLD, PLATINUM)) {
+            assertAckMessages(XPackField.ESQL, randomFrom(TRIAL, ENTERPRISE), to, Set.of("ES|QL cross-cluster search will be disabled."));
+        }
+    }
+
+    public void testInferenceAckMessageTrialOrEnterpriseToNotTrialOrEnterprise() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(TRIAL, ENTERPRISE), to, Set.of("The Inference API will be disabled"));
+        }
+    }
+
+    public void testInferenceAckMessageToTrialOrEnterprise() {
+        var fromAll = EnumSet.allOf(License.OperationMode.class);
+        for (OperationMode from : fromAll) {
+            assertAckMessages(XPackField.INFERENCE, from, randomFrom(TRIAL, ENTERPRISE), 0);
+        }
+    }
+
+    public void testInferenceAckMessageUnlicensedToUnlicensed() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(notTrialOrEnterprise), to, 0);
+        }
     }
 
     public void testExpiredLicense() {
@@ -225,7 +270,58 @@ public class XPackLicenseStateTests extends ESTestCase {
         lastUsed = licenseState.getLastUsed();
         assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
         assertThat(lastUsed.get(usage), equalTo(200L));
+
+        // updates to the last used timestamp only happen if the time has increased
+        currentTime.set(199);
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
+        assertThat(lastUsed.get(usage), equalTo(200L));
     }
+
+    public void testLastUsedMomentaryFeatureWithSameNameDifferentFamily() {
+        LicensedFeature.Momentary featureFamilyA = LicensedFeature.momentary("familyA", "goldFeature", GOLD);
+        LicensedFeature.Momentary featureFamilyB = LicensedFeature.momentary("familyB", "goldFeature", GOLD);
+
+        AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
+        XPackLicenseState licenseState = new XPackLicenseState(currentTime::get);
+
+        featureFamilyA.check(licenseState);
+        featureFamilyB.check(licenseState);
+
+        Map<XPackLicenseState.FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check tracks usage separately by family", lastUsed, aMapWithSize(2));
+        Set<FeatureInfoWithTimestamp> actualFeatures = lastUsed.entrySet()
+            .stream()
+            .map(it -> new FeatureInfoWithTimestamp(it.getKey().feature().getFamily(), it.getKey().feature().getName(), it.getValue()))
+            .collect(Collectors.toSet());
+        assertThat(
+            actualFeatures,
+            containsInAnyOrder(
+                new FeatureInfoWithTimestamp("familyA", "goldFeature", 100L),
+                new FeatureInfoWithTimestamp("familyB", "goldFeature", 100L)
+            )
+        );
+
+        currentTime.set(200);
+        featureFamilyB.check(licenseState);
+
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check tracks usage separately by family", lastUsed, aMapWithSize(2));
+        actualFeatures = lastUsed.entrySet()
+            .stream()
+            .map(it -> new FeatureInfoWithTimestamp(it.getKey().feature().getFamily(), it.getKey().feature().getName(), it.getValue()))
+            .collect(Collectors.toSet());
+        assertThat(
+            actualFeatures,
+            containsInAnyOrder(
+                new FeatureInfoWithTimestamp("familyA", "goldFeature", 100L),
+                new FeatureInfoWithTimestamp("familyB", "goldFeature", 200L)
+            )
+        );
+    }
+
+    private record FeatureInfoWithTimestamp(String family, String featureName, Long timestamp) {}
 
     public void testLastUsedPersistentFeature() {
         LicensedFeature.Persistent goldFeature = LicensedFeature.persistent("family", "goldFeature", GOLD);
@@ -265,12 +361,12 @@ public class XPackLicenseStateTests extends ESTestCase {
         License.OperationMode licenseLevel = randomFrom(STANDARD, GOLD, PLATINUM, ENTERPRISE);
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "testfeature", licenseLevel);
 
-        licenseState.update(licenseLevel, true, null);
+        licenseState.update(new XPackLicenseStatus(licenseLevel, true, null));
         feature.check(licenseState);
         ensureNoWarnings();
 
         String warningSoon = "warning: license expiring soon";
-        licenseState.update(licenseLevel, true, warningSoon);
+        licenseState.update(new XPackLicenseStatus(licenseLevel, true, warningSoon));
         feature.check(licenseState);
         assertCriticalWarnings(warningSoon);
 

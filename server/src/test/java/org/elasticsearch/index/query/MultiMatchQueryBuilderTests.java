@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -22,11 +24,11 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -42,7 +44,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBool
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
@@ -171,7 +172,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     instanceOf(PhraseQuery.class),
                     instanceOf(PointRangeQuery.class),
                     instanceOf(IndexOrDocValuesQuery.class),
-                    instanceOf(PrefixQuery.class)
+                    instanceOf(PrefixQuery.class),
+                    instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class)
                 )
             )
         );
@@ -231,15 +233,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(expected, query);
     }
 
-    public void testToQueryFieldsWildcard() throws Exception {
-        Query query = multiMatchQuery("test").field("mapped_str*").tieBreaker(1.0f).toQuery(createSearchExecutionContext());
-        Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
-            1
-        );
-        assertEquals(expected, query);
-    }
-
     public void testToQueryFieldMissing() throws Exception {
         assertThat(
             multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createSearchExecutionContext()),
@@ -281,6 +274,25 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
     }
 
+    public void testSimpleFromJson() throws IOException {
+        String json = """
+            {
+              "multi_match" : {
+                "query" : "quick brown fox",
+                "fields" : [ "title^1.0", "title.original^1.0", "title.shingles^1.0" ]
+              }
+            }""";
+
+        MultiMatchQueryBuilder parsed = (MultiMatchQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "quick brown fox", parsed.value());
+        assertEquals(json, 3, parsed.fields().size());
+        assertEquals(json, Type.BEST_FIELDS, parsed.type());
+        assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, true, parsed.fuzzyTranspositions());
+    }
+
     public void testFromJson() throws IOException {
         String json = """
             {
@@ -288,15 +300,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 "query" : "quick brown fox",
                 "fields" : [ "title^1.0", "title.original^1.0", "title.shingles^1.0" ],
                 "type" : "most_fields",
-                "operator" : "OR",
-                "slop" : 0,
-                "prefix_length" : 0,
-                "max_expansions" : 50,
-                "lenient" : false,
-                "zero_terms_query" : "NONE",
-                "auto_generate_synonyms_phrase_query" : true,
+                "operator" : "AND",
+                "slop" : 1,
+                "prefix_length" : 1,
+                "max_expansions" : 40,
+                "lenient" : true,
+                "zero_terms_query" : "ALL",
+                "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "boost" : 2.0
               }
             }""";
 
@@ -306,7 +318,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(json, "quick brown fox", parsed.value());
         assertEquals(json, 3, parsed.fields().size());
         assertEquals(json, MultiMatchQueryBuilder.Type.MOST_FIELDS, parsed.type());
-        assertEquals(json, Operator.OR, parsed.operator());
+        assertEquals(json, Operator.AND, parsed.operator());
         assertEquals(json, false, parsed.fuzzyTranspositions());
     }
 
@@ -319,7 +331,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             Type.PHRASE.parseField().getPreferredName(),
             Type.PHRASE_PREFIX.parseField().getPreferredName() };
         for (String type : notAllowedTypes) {
-            String json = """
+            String json = Strings.format("""
                 {
                   "multi_match": {
                     "query": "quick brown fox",
@@ -327,7 +339,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     "type": "%s",
                     "fuzziness": 1
                   }
-                }""".formatted(type);
+                }""", type);
 
             ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
             assertEquals("Fuzziness not allowed for type [" + type + "]", e.getMessage());
@@ -384,95 +396,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(expected, query);
     }
 
-    public void testDefaultField() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("hello");
-        // default value `*` sets leniency to true
-        Query query = builder.toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        try {
-            // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, "*", KEYWORD_FIELD_NAME).build()
-                    )
-                );
-            query = new MultiMatchQueryBuilder("hello").toQuery(context);
-            assertQueryWithAllFieldsWildcard(query);
-
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME + "^5").build()
-                    )
-                );
-            MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
-            query = qb.toQuery(context);
-            DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
-                ),
-                0.0f
-            );
-            assertEquals(expected, query);
-
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder()
-                            .putList("index.query.default_field", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME + "^5", INT_FIELD_NAME)
-                            .build()
-                    )
-                );
-            // should fail because lenient defaults to false
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(context));
-            assertThat(exc, instanceOf(NumberFormatException.class));
-            assertThat(exc.getMessage(), equalTo("For input string: \"hello\""));
-
-            // explicitly sets lenient
-            qb.lenient(true);
-            query = qb.toQuery(context);
-            expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]"),
-                    new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
-                ),
-                0.0f
-            );
-            assertEquals(expected, query);
-
-        } finally {
-            // Reset to the default value
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putNull("index.query.default_field").build()
-                    )
-                );
-        }
-    }
-
-    public void testAllFieldsWildcard() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        Query query = new MultiMatchQueryBuilder("hello").field("*").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        query = new MultiMatchQueryBuilder("hello").field(TEXT_FIELD_NAME).field("*").field(KEYWORD_FIELD_NAME).toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-    }
-
     public void testWithStopWords() throws Exception {
         Query query = new MultiMatchQueryBuilder("the quick fox").field(TEXT_FIELD_NAME)
             .analyzer("stop")
@@ -503,19 +426,19 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createSearchExecutionContext());
-        expected = new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f);
+        expected = new DisjunctionMaxQuery(Arrays.asList(Queries.NO_DOCS_INSTANCE, Queries.NO_DOCS_INSTANCE), 0f);
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(new MultiMatchQueryBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.SHOULD).build();
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
             new MultiMatchQueryBuilder("the").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).analyzer("stop")
         ).toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder().add(
-            new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f),
+            new DisjunctionMaxQuery(Arrays.asList(Queries.NO_DOCS_INSTANCE, Queries.NO_DOCS_INSTANCE), 0f),
             BooleanClause.Occur.SHOULD
         ).build();
         assertEquals(expected, query);
@@ -529,27 +452,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .toQuery(createSearchExecutionContext())
         );
         assertThat(exc.getMessage(), containsString("negative [boost]"));
-    }
-
-    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
-        Settings build = Settings.builder().put(oldIndexSettings).put(indexSettings).build();
-        return IndexMetadata.builder(name).settings(build).build();
-    }
-
-    private void assertQueryWithAllFieldsWildcard(Query query) {
-        assertEquals(DisjunctionMaxQuery.class, query.getClass());
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        int noMatchNoDocsQueries = 0;
-        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
-            if (q.getClass() == MatchNoDocsQuery.class) {
-                noMatchNoDocsQueries++;
-            }
-        }
-        assertEquals(9, noMatchNoDocsQueries);
-        assertThat(
-            disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
-        );
     }
 
     /**

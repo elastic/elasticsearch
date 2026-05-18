@@ -21,17 +21,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
-import javax.security.auth.Subject;
 
 /**
  * Base Test class for Kerberos.
@@ -59,8 +53,10 @@ public abstract class KerberosTestCase extends ESTestCase {
     /*
      * Arabic and other language have problems due to handling of generalized time in SimpleKdcServer. For more, look at
      * org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes
+     *
+     * Note: several unsupported locales were added in CLDR. #109670 included these below.
      */
-    private static Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
+    private static final Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
         "ar",
         "ja",
         "th",
@@ -81,7 +77,14 @@ public abstract class KerberosTestCase extends ESTestCase {
         "ur",
         "pa",
         "ig",
-        "sd"
+        "sd",
+        "mni",
+        "sat",
+        "sa",
+        "bgc",
+        "raj",
+        "nqo",
+        "bho"
     );
 
     @BeforeClass
@@ -135,7 +138,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     }
 
     @After
-    public void tearDownMiniKdc() throws IOException, PrivilegedActionException {
+    public void tearDownMiniKdc() throws Exception {
         if (simpleKdcLdapServer != null) {
             simpleKdcLdapServer.stop();
         }
@@ -143,7 +146,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     protected Path getKeytabPath(Environment env) {
         final Setting<String> setting = KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getConcreteSettingForNamespace(REALM_NAME);
-        return env.configFile().resolve(setting.get(settings));
+        return env.configDir().resolve(setting.get(settings));
     }
 
     /**
@@ -179,19 +182,6 @@ public abstract class KerberosTestCase extends ESTestCase {
      */
     protected String principalName(final String user) {
         return user + "@" + simpleKdcLdapServer.getRealm();
-    }
-
-    /**
-     * Invokes Subject.doAs inside a doPrivileged block
-     *
-     * @param subject {@link Subject}
-     * @param action  {@link PrivilegedExceptionAction} action for performing inside
-     *                Subject.doAs
-     * @return T Type of value as returned by PrivilegedAction
-     * @throws PrivilegedActionException when privileged action threw exception
-     */
-    static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
     }
 
 }

@@ -6,17 +6,15 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-
 /**
  * Built in user for the kibana server
  */
-public class KibanaSystemUser extends User {
+public class KibanaSystemUser extends ReservedUser {
 
     public static final String NAME = UsernamesField.KIBANA_NAME;
     public static final String ROLE_NAME = UsernamesField.KIBANA_ROLE;
 
     public KibanaSystemUser(boolean enabled) {
-        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, ROLE_NAME, enabled);
     }
 }

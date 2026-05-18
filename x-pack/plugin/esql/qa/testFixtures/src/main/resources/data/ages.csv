@@ -1,0 +1,11 @@
+age_range:integer_range, description:keyword
+                 0..2  , Baby
+                 2..4  , Toddler
+                 3..5  , Preschooler
+                 5..12 , Child
+                13..20 , Adolescent
+                20..40 , Young Adult
+                40..60 , Middle-aged
+                60..80 , Senior
+                80..100, Elderly
+               100..200, Incredible

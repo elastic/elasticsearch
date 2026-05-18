@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,18 +19,36 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
+
+import static org.mockito.Mockito.when;
 
 public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
+
+    private static ThreadPool threadPool;
+
+    @Before
+    public void setup() {
+        threadPool = new TestThreadPool("TransportNodeDeprecationCheckActionTests");
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
+    }
 
     public void testNodeOperation() {
         Settings.Builder settingsBuilder = Settings.builder();
@@ -38,68 +57,94 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
+            List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
-        Settings inputSettings = settingsBuilder.build();
-        ThreadPool threadPool = null;
+        Settings nodeSettings = settingsBuilder.build();
+        settingsBuilder = Settings.builder();
+        settingsBuilder.put("some.bad.dynamic.property", "someValue1");
+        Settings dynamicSettings = settingsBuilder.build();
         final XPackLicenseState licenseState = null;
-        Metadata metadata = Mockito.mock(Metadata.class);
-        ClusterState clusterState = Mockito.mock(ClusterState.class);
-        Mockito.when(clusterState.metadata()).thenReturn(metadata);
+        Metadata metadata = Metadata.builder().transientSettings(dynamicSettings).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         ClusterService clusterService = Mockito.mock(ClusterService.class);
-        Mockito.when(clusterService.state()).thenReturn(clusterState);
-        ClusterSettings clusterSettings = new ClusterSettings(inputSettings, Set.of(DeprecationChecks.SKIP_DEPRECATIONS_SETTING));
-        Mockito.when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Set.of(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING)
+        );
+        when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
         DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
+        when(node.getId()).thenReturn("mock-node");
         TransportService transportService = Mockito.mock(TransportService.class);
-        Mockito.when(transportService.getLocalNode()).thenReturn(node);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(transportService.getLocalNode()).thenReturn(node);
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
         TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
-            inputSettings,
+            nodeSettings,
             threadPool,
+            licenseState,
             clusterService,
             transportService,
             pluginsService,
             actionFilters
         );
-        NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
-        AtomicReference<Settings> visibleSettings = new AtomicReference<>();
-        BiFunction<Settings, PluginsAndModules, DeprecationIssue> nodeSettingCheck = (settings, p) -> {
-            visibleSettings.set(settings);
-            return null;
-        };
-        java.util.List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
-        transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
+        AtomicReference<Settings> visibleNodeSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleClusterStateMetadataSettings = new AtomicReference<>();
+        NodeDeprecationChecks.NodeDeprecationCheck<
+            Settings,
+            PluginsAndModules,
+            ClusterState,
+            XPackLicenseState,
+            DeprecationIssue> nodeSettingCheck = (settings, p, clusterState1, l) -> {
+                visibleNodeSettings.set(settings);
+                visibleClusterStateMetadataSettings.set(clusterState1.getMetadata().settings());
+                return null;
+            };
+        java.util.List<
+            NodeDeprecationChecks.NodeDeprecationCheck<
+                Settings,
+                PluginsAndModules,
+                ClusterState,
+                XPackLicenseState,
+                DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
+        transportNodeDeprecationCheckAction.nodeOperation(nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
+            List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         Settings expectedSettings = settingsBuilder.build();
-        Assert.assertNotNull(visibleSettings.get());
-        Assert.assertEquals(expectedSettings, visibleSettings.get());
+        Assert.assertNotNull(visibleNodeSettings.get());
+        Assert.assertEquals(expectedSettings, visibleNodeSettings.get());
+        Assert.assertNotNull(visibleClusterStateMetadataSettings.get());
+        Assert.assertEquals(Settings.EMPTY, visibleClusterStateMetadataSettings.get());
 
         // Testing that the setting is dynamically updatable:
         Settings newSettings = Settings.builder()
-            .putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
+            .putList(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
             .build();
         clusterSettings.applySettings(newSettings);
-        transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
+        transportNodeDeprecationCheckAction.nodeOperation(nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.deprecated.property", "someValue1");
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         // This is the node setting (since this is the node deprecation check), not the cluster setting:
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
+            List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         expectedSettings = settingsBuilder.build();
-        Assert.assertNotNull(visibleSettings.get());
-        Assert.assertEquals(expectedSettings, visibleSettings.get());
+        Assert.assertNotNull(visibleNodeSettings.get());
+        Assert.assertEquals(expectedSettings, visibleNodeSettings.get());
+        Assert.assertNotNull(visibleClusterStateMetadataSettings.get());
+        Assert.assertEquals(
+            Settings.builder().put("some.bad.dynamic.property", "someValue1").build(),
+            visibleClusterStateMetadataSettings.get()
+        );
     }
 }

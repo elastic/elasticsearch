@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.http.HttpMethodName;
-import com.amazonaws.services.ec2.model.Instance;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.services.ec2.model.Instance;
 
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -24,18 +26,17 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -46,11 +47,10 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     @Override
     protected MockTransportService createTransportService() {
-        return new MockTransportService(
-            Settings.EMPTY,
+        return MockTransportService.createMockTransportService(
             new Netty4Transport(
                 Settings.EMPTY,
-                Version.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 networkService,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -58,20 +58,22 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                 new NoneCircuitBreakerService(),
                 new SharedGroupFactory(Settings.EMPTY)
             ),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            threadPool
         );
     }
 
     public void testEC2DiscoveryRetriesOnRateLimiting() throws IOException {
         final String accessKey = "ec2_access";
-        final List<String> hosts = List.of("127.0.0.1:9300");
+        final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
+        // For the EC2 response, we use the plain IP address without port
+        final String loopbackAddressString = NetworkAddress.format(loopbackAddress);
+        // For the expected TransportAddress, use proper IPv6 formatting with brackets
+        final String expectedHost = NetworkAddress.format(loopbackAddress, 9300);
         final Map<String, Integer> failedRequests = new ConcurrentHashMap<>();
         // retry the same request 5 times at most
         final int maxRetries = randomIntBetween(1, 5);
         httpServer.createContext("/", exchange -> {
-            if (exchange.getRequestMethod().equals(HttpMethodName.POST.name())) {
+            if (SdkHttpMethod.POST.name().equals(exchange.getRequestMethod())) {
                 final String request = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
                 final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
                 if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {
@@ -91,7 +93,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     for (NameValuePair parse : URLEncodedUtils.parse(request, UTF_8)) {
                         if ("Action".equals(parse.getName())) {
                             responseBody = generateDescribeInstancesResponse(
-                                hosts.stream().map(address -> new Instance().withPublicIpAddress(address)).collect(Collectors.toList())
+                                List.of(Instance.builder().publicIpAddress(loopbackAddressString).build())
                             );
                             break;
                         }
@@ -100,6 +102,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     exchange.getResponseHeaders().set("Content-Type", "text/xml; charset=UTF-8");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, responseBody.length);
                     exchange.getResponseBody().write(responseBody);
+                    exchange.getResponseBody().flush();
                     return;
                 }
             }
@@ -111,7 +114,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
             resolver.start();
             final List<TransportAddress> addressList = seedHostsProvider.getSeedAddresses(resolver);
             assertThat(addressList, Matchers.hasSize(1));
-            assertThat(addressList.get(0).toString(), is(hosts.get(0)));
+            assertThat(addressList.get(0).toString(), is(expectedHost));
             assertThat(failedRequests, aMapWithSize(1));
             assertThat(failedRequests.values().iterator().next(), is(maxRetries));
         }

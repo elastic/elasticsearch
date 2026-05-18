@@ -1,0 +1,2263 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql;
+
+import org.apache.http.HttpStatus;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.junit.Before;
+import org.junit.ClassRule;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
+public class EsqlSecurityIT extends ESRestTestCase {
+    private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
+    private static final String INDEX_FULL_MAPPING = "index-full-mapping";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test-admin", "x-pack-test-password", "test-admin", true)
+        .user("user1", "x-pack-test-password", "user1", false)
+        .user("user2", "x-pack-test-password", "user2", false)
+        .user("user3", "x-pack-test-password", "user3", false)
+        .user("user4", "x-pack-test-password", "user4", false)
+        .user("user5", "x-pack-test-password", "user5", false)
+        .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
+        .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
+        .user("fls_no_source_no_value_user", "x-pack-test-password", "fls_no_source_no_value_user", false)
+        .user("fls_deny_value_org_user", "x-pack-test-password", "fls_deny_value_org_user", false)
+        .user("fls_user2", "x-pack-test-password", "fls_user2", false)
+        .user("fls_user2_alias", "x-pack-test-password", "fls_user2_alias", false)
+        .user("fls_user3", "x-pack-test-password", "fls_user3", false)
+        .user("fls_user3_alias", "x-pack-test-password", "fls_user3_alias", false)
+        .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
+        .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
+        .user("dls_user", "x-pack-test-password", "dls_user", false)
+        .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
+        .user("metadata1_alias_read2", "x-pack-test-password", "metadata1_alias_read2", false)
+        .user("alias_user1", "x-pack-test-password", "alias_user1", false)
+        .user("alias_user2", "x-pack-test-password", "alias_user2", false)
+        .user("logs_foo_all", "x-pack-test-password", "logs_foo_all", false)
+        .user("logs_foo_16_only", "x-pack-test-password", "logs_foo_16_only", false)
+        .user("logs_foo_after_2021", "x-pack-test-password", "logs_foo_after_2021", false)
+        .user("logs_foo_after_2021_pattern", "x-pack-test-password", "logs_foo_after_2021_pattern", false)
+        .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
+        .user("user_without_monitor_privileges", "x-pack-test-password", "user_without_monitor_privileges", false)
+        .user("user_with_monitor_privileges", "x-pack-test-password", "user_with_monitor_privileges", false)
+        .user("view_dls_user", "x-pack-test-password", "view_dls_user", false)
+        .user("view_index_dls_user", "x-pack-test-password", "view_index_dls_user", false)
+        .user("view_dls_nested_view_user", "x-pack-test-password", "view_dls_nested_view_user", false)
+        .user("view_fls_user", "x-pack-test-password", "view_fls_user", false)
+        .user("view_dls_fls_user", "x-pack-test-password", "view_dls_fls_user", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    private void indexDocument(String index, int id, double value, String org) throws IOException {
+        Request indexDoc = new Request("PUT", index + "/_doc/" + id);
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.field("value", value);
+        builder.field("org", org);
+        builder.field("partial", org + value);
+        indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
+        client().performRequest(indexDoc);
+    }
+
+    /**
+     * Indexes a document with the shared FLS-test shape into either {@link #INDEX_PARTIAL_MAPPING} (where most fields
+     * end up unmapped via {@code dynamic:false}) or {@link #INDEX_FULL_MAPPING} (where every field is mapped with its
+     * proper type). The variety of value types ({@code double}, {@code keyword}, {@code long}, {@code date}, {@code ip})
+     * exercises the different source-loader / valuesource paths under {@code unmapped_fields="load"}.
+     */
+    private void indexFlsTestDocument(String index, int id, double value, String org, long salary, String hireDate, String ipAddr)
+        throws IOException {
+        Request indexDoc = new Request("PUT", index + "/_doc/" + id);
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.field("value", value);
+        builder.field("org", org);
+        builder.field("salary", salary);
+        builder.field("hire_date", hireDate);
+        builder.field("ip_addr", ipAddr);
+        indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
+        client().performRequest(indexDoc);
+    }
+
+    @Before
+    public void indexDocuments() throws IOException {
+        Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
+        String mapping = """
+            "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}, "other": {"type": "keyword"}}
+            """;
+
+        createIndex("index", Settings.EMPTY, mapping);
+        indexDocument("index", 1, 10.0, "sales");
+        indexDocument("index", 2, 20.0, "engineering");
+        refresh("index");
+
+        createIndex("index-user1", Settings.EMPTY, mapping);
+        indexDocument("index-user1", 1, 12.0, "engineering");
+        indexDocument("index-user1", 2, 31.0, "sales");
+        refresh("index-user1");
+
+        createIndex("index-user2", Settings.EMPTY, mapping);
+        indexDocument("index-user2", 1, 32.0, "marketing");
+        indexDocument("index-user2", 2, 40.0, "sales");
+        refresh("index-user2");
+
+        createIndex("indexpartial", Settings.EMPTY, mapping);
+        indexDocument("indexpartial", 1, 32.0, "marketing");
+        indexDocument("indexpartial", 2, 40.0, "sales");
+        refresh("indexpartial");
+
+        /*
+         * INDEX_PARTIAL_MAPPING uses dynamic:false so `org`, `salary`, `hire_date` and `ip_addr` exist only in
+         * stored _source — they are unmapped. With fls_partial_no_source_user (grant *, except _source) ES|QL
+         * cannot load those unmapped columns from _source. INDEX_FULL_MAPPING has the same JSON document shape
+         * but maps every field with its proper type — so a multi-index query with unmapped_fields="load"
+         * exercises the partially-mapped non-KEYWORD source-loader path (see #144228 and #144109) under FLS.
+         */
+        String mappingPartial = """
+            "dynamic":"false","properties":{"value": {"type": "double"}}
+            """;
+        createIndex(INDEX_PARTIAL_MAPPING, Settings.EMPTY, mappingPartial);
+        indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
+        indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
+        refresh(INDEX_PARTIAL_MAPPING);
+
+        String mappingFull = """
+            "properties":{"value":{"type":"double"},"org":{"type":"keyword"},"salary":{"type":"long"},\
+            "hire_date":{"type":"date"},"ip_addr":{"type":"ip"}}
+            """;
+        createIndex(INDEX_FULL_MAPPING, Settings.EMPTY, mappingFull);
+        indexFlsTestDocument(INDEX_FULL_MAPPING, 1, 30.0, "marketing", 300000L, "2022-03-01", "10.0.0.3");
+        indexFlsTestDocument(INDEX_FULL_MAPPING, 2, 40.0, "support", 400000L, "2021-11-20", "10.0.0.4");
+        refresh(INDEX_FULL_MAPPING);
+
+        createIndex("lookup-user1", lookupSettings, mapping);
+        indexDocument("lookup-user1", 1, 12.0, "engineering");
+        indexDocument("lookup-user1", 2, 31.0, "sales");
+        refresh("lookup-user1");
+
+        createIndex("lookup-user2", lookupSettings, mapping);
+        indexDocument("lookup-user2", 1, 32.0, "marketing");
+        indexDocument("lookup-user2", 2, 40.0, "sales");
+        refresh("lookup-user2");
+
+        if (aliasExists("second-alias") == false) {
+            Request aliasRequest = new Request("POST", "_aliases");
+            aliasRequest.setJsonEntity("""
+                {
+                    "actions": [
+                        {
+                          "add": {
+                            "alias": "first-alias",
+                            "index": "index-user1",
+                            "filter": {
+                                "term": {
+                                    "org": "sales"
+                                }
+                            }
+                          }
+                        },
+                        {
+                          "add": {
+                            "alias": "lookup-first-alias",
+                            "index": "lookup-user1",
+                            "filter": {
+                                "term": {
+                                    "org": "sales"
+                                }
+                            }
+                          }
+                        },
+                        {
+                          "add": {
+                            "alias": "lookup-second-alias",
+                            "index": "lookup-user2"
+                          }
+                        },
+                        {
+                          "add": {
+                            "alias": "second-alias",
+                            "index": "index-user2"
+                          }
+                        }
+                    ]
+                }
+                """);
+            assertOK(client().performRequest(aliasRequest));
+        }
+
+        createMultiRoleUsers();
+        createTestViews();
+    }
+
+    private void createTestViews() throws IOException {
+        createView("test-admin", "view-user1", "FROM index | KEEP value, org");
+        createView("test-admin", "view-user2", "FROM index | KEEP value, org");
+        createView("test-admin", "view", "FROM index-user1,index-user2 | KEEP value, org");
+    }
+
+    private void createView(String user, String viewName, String query) throws IOException {
+        Request request = new Request("PUT", "/_query/view/" + viewName);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("query", query);
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, user);
+        assertOK(client().performRequest(request));
+    }
+
+    private Response getView(String user, String... viewNames) throws IOException {
+        String path = viewNames.length != 0 ? "/_query/view/" + String.join(",", viewNames) : "/_query/view";
+        Request request = new Request("GET", path);
+        setUser(request, user);
+        return client().performRequest(request);
+    }
+
+    private Response deleteView(String user, String viewName) throws IOException {
+        Request request = new Request("DELETE", "/_query/view/" + viewName);
+        setUser(request, user);
+        return client().performRequest(request);
+    }
+
+    private void createMultiRoleUsers() throws IOException {
+        Request request = new Request("POST", "_security/user/dls_user2");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "dls_user", "dls_user2" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_security/user/fls_user4");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "fls_user4_1", "fls_user4_2" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_security/user/fls_user4_alias");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "fls_user4_1_alias", "fls_user4_2_alias" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
+    }
+
+    protected MapMatcher responseMatcher(Map<String, Object> result) {
+        return getResultMatcher(result);
+    }
+
+    public void testAllowedIndices() throws Exception {
+        for (String user : List.of("test-admin", "user1", "user2")) {
+            Response resp = runESQLCommand(user, "from index | stats sum=sum(value)");
+            assertOK(resp);
+            Map<String, Object> respMap = entityAsMap(resp);
+            assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+            assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+        }
+
+        for (String user : List.of("test-admin", "user1")) {
+            Response resp = runESQLCommand(user, "from index-user1 | stats sum=sum(value)");
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher(responseMap);
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+                .entry("values", List.of(List.of(43.0d)));
+            assertMap(responseMap, matcher);
+        }
+
+        for (String user : List.of("test-admin", "user2")) {
+            Response resp = runESQLCommand(user, "from index-user2 | stats sum=sum(value)");
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher(responseMap);
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+                .entry("values", List.of(List.of(72.0d)));
+            assertMap(responseMap, matcher);
+        }
+
+        for (var index : List.of("index-user2", "index-user*", "index*")) {
+            Response resp = runESQLCommand("metadata1_read2", "from " + index + " | stats sum=sum(value)");
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher(responseMap);
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+                .entry("values", List.of(List.of(72.0d)));
+            assertMap(responseMap, matcher);
+        }
+    }
+
+    public void testAliases() throws Exception {
+        for (var index : List.of("second-alias", "second-*", "second-*,index*")) {
+            Response resp = runESQLCommand(
+                "alias_user2",
+                "from " + index + " METADATA _index" + "| stats sum=sum(value), index=VALUES(_index)"
+            );
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher matcher = responseMatcher(responseMap).entry(
+                "columns",
+                List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword"))
+            ).entry("values", List.of(List.of(72.0d, "index-user2")));
+            assertMap(responseMap, matcher);
+        }
+    }
+
+    public void testViewRewriteDoesNotDropUnauthorizedTargetsWhenMixedWithViews() throws Exception {
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user2 | STATS sum=sum(value)"));
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user1,index-user2 | STATS sum=sum(value)"));
+        var resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1,index-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testAliasFilter() throws Exception {
+        for (var index : List.of("first-alias", "first-alias,index-*", "first-*,index-*")) {
+            Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
+            assertOK(resp);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher matcher = responseMatcher(responseMap).entry(
+                "columns",
+                List.of(
+                    Map.of("name", "_index", "type", "keyword"),
+                    Map.of("name", "org", "type", "keyword"),
+                    Map.of("name", "value", "type", "double")
+                )
+            ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
+            assertMap(responseMap, matcher);
+        }
+    }
+
+    public void testUnauthorizedIndices() throws IOException {
+        ResponseException error;
+        error = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+
+        error = expectThrows(ResponseException.class, () -> runESQLCommand("user2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+
+        error = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user2", "from index-user2 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user2]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+
+        error = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "from index-user1 | stats sum(value)"));
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    public void testInsufficientPrivilege() {
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1 | STATS sum=sum(value)")
+        );
+        logger.info("error", error);
+        assertThat(error.getMessage(), containsString("Unknown index [index-user1]"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testIndexPatternErrorMessageComparison_ESQL_SearchDSL() throws Exception {
+        // _search match_all query on the index-user1,index-user2 index pattern
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", QueryBuilders.matchAllQuery());
+        json.endObject();
+        Request searchRequest = new Request("GET", "/index-user1,index-user2/_search");
+        searchRequest.setJsonEntity(Strings.toString(json));
+        setUser(searchRequest, "metadata1_read2");
+
+        // ES|QL query on the same index pattern
+        var esqlResp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2"));
+        var srchResp = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
+
+        for (ResponseException r : List.of(esqlResp, srchResp)) {
+            assertThat(
+                EntityUtils.toString(r.getResponse().getEntity()),
+                containsString(
+                    "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+                )
+            );
+        }
+        assertThat(esqlResp.getResponse().getStatusLine().getStatusCode(), equalTo(srchResp.getResponse().getStatusLine().getStatusCode()));
+    }
+
+    public void testLimitedPrivilege() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "metadata1_read2",
+                "FROM index-user1,index-user2 METADATA _index | STATS sum=sum(value), index=VALUES(_index)"
+            )
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 METADATA _index | STATS index=VALUES(_index)")
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("metadata1_read2", "FROM index-user1,index-user2 | STATS sum=sum(value)")
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [metadata1_read2] with effective roles [metadata1_read2] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "FROM first-alias,index-user1 METADATA _index | KEEP _index, org, value | LIMIT 10")
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [alias_user1] with effective roles [alias_user1] on indices [index-user1]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+
+        resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand(
+                "alias_user2",
+                "from second-alias,index-user2 METADATA _index | stats sum=sum(value), index=VALUES(_index)"
+            )
+        );
+        assertThat(
+            EntityUtils.toString(resp.getResponse().getEntity()),
+            containsString(
+                "unauthorized for user [test-admin] run as [alias_user2] with effective roles [alias_user2] on indices [index-user2]"
+            )
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testViewRewriteDoesNotDropUnauthorizedTargets() throws Exception {
+        ResponseException resp = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM view | STATS sum=sum(value)"));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("unauthorized"));
+        assertThat(errorMessage, containsString("indices [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testViewRewriteAllUnauthorizedTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2 | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewRewriteMixedUnauthorizedAndMissingTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2,missing-view-target | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2,missing-view-target]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewQueryAuthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewWildcardFiltersUnauthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user* | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewResolutionAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user1");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewInnerViewUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user2");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [view-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewDataSelectorResolvesView() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1::data | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewFailureSelectorNotResolved() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1::failures | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewReferencingAliasAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM first-alias");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0d))));
+    }
+
+    public void testViewReferencingAliasUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user2", "FROM first-alias");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user2", "FROM other-view-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewWithDocumentLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewWithFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewWithDocumentAndFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewDlsOnWildcardPattern() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user* | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    /**
+     * Tests a scenario, where the parent view has DLS, but the nested view has no DLS or FLS.
+     * This ensures that the DLS check is applied at the parent view level
+     */
+    public void testViewDlsOnNestedViewOuter() throws Exception {
+        createView("test-admin", "nested-dls-view-no-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-dls", "FROM nested-dls-view-no-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-dls | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
+    }
+
+    /**
+     * Tests a scenario, where the parent view has no DLS or FLS, but the nested view has DLS.
+     * This ensures that the DLS check is applied at the child view level
+     */
+    public void testViewDlsOnNestedViewInner() throws Exception {
+        createView("test-admin", "nested-dls-view-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-no-dls", "FROM nested-dls-view-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-no-dls | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
+    }
+
+    public void testUserCanQueryViewWhileHavingDlsOnUnderlyingIndices() throws Exception {
+        assertOK(runESQLCommand("view_index_dls_user", "FROM view-user1 | STATS sum=sum(value)"));
+    }
+
+    public void testViewWithIndexExclusionInBody() throws Exception {
+        createView("test-admin", "view-with-exclusion", "FROM index-user*,-index-user2 | KEEP value, org");
+        Response resp = assertOK(runESQLCommand("test-admin", "FROM view-with-exclusion | STATS sum=sum(value)"));
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        // index-user1 (12+31=43) only; index-user2 must be excluded
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(43.0d))));
+    }
+
+    public void testViewWithIndexExclusionInFromClause() throws Exception {
+        createView("test-admin", "view-all-users", "FROM index-user* | KEEP value, org");
+        Response resp = assertOK(runESQLCommand("test-admin", "FROM view-all-users,-index-user2 | STATS sum=sum(value)"));
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        // The view is an isolated subquery — FROM-level exclusions do not penetrate into it.
+        // -index-user2 is silently dropped because there are no non-view indices to apply it to.
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(115.0d))));
+    }
+
+    public void testDocumentLevelSecurity() throws Exception {
+        Response resp = runESQLCommand("user3", "from index | stats sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    public void testDocumentLevelSecurityFromStar() throws Exception {
+        Response resp = runESQLCommand("user3", "from in*x | stats sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    public void testFieldLevelSecurityAllow() throws Exception {
+        Response resp = runESQLCommand("fls_user", "FROM index* | SORT value | LIMIT 1");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "partial").entry("type", "text"),
+                        matchesMap().entry("name", "value").entry("type", "double")
+                    )
+                )
+                .entry("values", List.of(List.of("sales10.0", 10.0)))
+        );
+    }
+
+    public void testFieldLevelSecurityAllowPartial() throws Exception {
+        Request request = new Request("GET", "/index*/_field_caps");
+        setUser(request, "fls_user");
+        request.addParameter("error_trace", "true");
+        request.addParameter("pretty", "true");
+        request.addParameter("fields", "*");
+
+        request = new Request("GET", "/index*/_search");
+        setUser(request, "fls_user");
+        request.addParameter("error_trace", "true");
+        request.addParameter("pretty", "true");
+
+        Response resp = runESQLCommand("fls_user", "FROM index* | SORT partial | LIMIT 1");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "partial").entry("type", "text"),
+                        matchesMap().entry("name", "value").entry("type", "double")
+                    )
+                )
+                .entry("values", List.of(List.of("engineering20.0", 20.0)))
+        );
+    }
+
+    public void testFieldLevelSecuritySpellingMistake() throws Exception {
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index* | SORT parial | LIMIT 1")
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [parial]"));
+    }
+
+    public void testFieldLevelSecurityNotAllowed() throws Exception {
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index* | SORT org DESC | LIMIT 1")
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
+    }
+
+    /**
+     * FLS-denied fields are invisible in field_caps, so the analyzer treats them as unmapped.
+     * With {@code unmapped_fields="nullify"}, referencing the denied field yields a NULL column —
+     * FLS is enforced and no data leaks.
+     */
+    public void testFieldLevelSecurityWithUnmappedFieldsNullify() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        // fls_user is granted [value, partial] on `index`; `org` is FLS-denied on every accessible index.
+        Response resp = runESQLCommand("fls_user", "SET unmapped_fields=\"nullify\"; FROM index | KEEP value, org | SORT value | LIMIT 2");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "null")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+    }
+
+    /**
+     * Security-sensitive: with {@code unmapped_fields="load"} the engine attempts to read the
+     * denied field from {@code _source}. FLS must also strip the field from {@code _source},
+     * so the loaded value must be null — otherwise FLS is bypassed.
+     */
+    public void testFieldLevelSecurityWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand("fls_user", "SET unmapped_fields=\"load\"; FROM index | KEEP value, org | SORT value | LIMIT 2");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+    }
+
+    /**
+     * For {@code fls_user}, {@code partial} is FLS-allowed on {@code index} but denied on
+     * {@code indexpartial} — i.e. partially unmapped. With {@code nullify}, rows from the
+     * FLS-denied index must show null for the partially-unmapped attribute.
+     */
+    public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"nullify\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+        assertThat(
+            values,
+            equalTo(
+                List.of(
+                    List.of("index", 10.0, "sales10.0"),
+                    List.of("index", 20.0, "engineering20.0"),
+                    Arrays.asList("indexpartial", 32.0, null),
+                    Arrays.asList("indexpartial", 40.0, null)
+                )
+            )
+        );
+    }
+
+    /**
+     * Security-sensitive: with {@code load} on a partially FLS-denied field, rows from the
+     * permitted index ({@code index}) must surface real values, while rows from the denied
+     * index ({@code indexpartial}) must remain null — FLS strips {@code _source} too.
+     */
+    public void testFieldLevelSecurityPartiallyUnmappedLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+        assertThat(
+            values,
+            equalTo(
+                List.of(
+                    List.of("index", 10.0, "sales10.0"),
+                    List.of("index", 20.0, "engineering20.0"),
+                    Arrays.asList("indexpartial", 32.0, null),
+                    Arrays.asList("indexpartial", 40.0, null)
+                )
+            )
+        );
+    }
+
+    /**
+     * See <a href="https://github.com/elastic/elasticsearch/issues/148297">#148297</a>:
+     * {@code SET unmapped_fields="load"} must not expose values read from {@code _source} when FLS disables {@code _source}
+     * ({@code grant: ["*"], except: ["_source"]}).
+     */
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | KEEP value, org, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        List<MapMatcher> expectedColumns = List.of(
+            matchesMap().entry("name", "value").entry("type", "double"),
+            matchesMap().entry("name", "org").entry("type", "keyword"),
+            matchesMap().entry("name", "salary").entry("type", "keyword"),
+            matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+            matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+        );
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, "sales", "100000", "2024-01-01", "10.0.0.1"),
+                        List.of(20.0, "engineering", "200000", "2023-06-15", "10.0.0.2")
+                    )
+                )
+        );
+
+        // _source denied: every unmapped column must be null even though the JSON contained the value;
+        // the mapped `value` still loads from doc values.
+        Response noSourceResp = runESQLCommand("fls_partial_no_source_user", query);
+        assertOK(noSourceResp);
+        assertMap(
+            entityAsMap(noSourceResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry("values", List.of(Arrays.asList(10.0, null, null, null, null), Arrays.asList(20.0, null, null, null, null)))
+        );
+
+        // _source denied AND mapped `value` denied: all columns null. FLS hides `value` from the mapping
+        // entirely, so it surfaces as keyword (the unmapped default) rather than its declared type.
+        Response noSourceNoValueResp = runESQLCommand("fls_no_source_no_value_user", query);
+        assertOK(noSourceNoValueResp);
+        assertMap(
+            entityAsMap(noSourceNoValueResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword"),
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(null, null, null, null, null), Arrays.asList(null, null, null, null, null)))
+        );
+    }
+
+    /**
+     * Verifies FLS field exclusions are honoured even when the user can read {@code _source}: with
+     * {@code SET unmapped_fields="load"}, the mapped {@code value} and the unmapped {@code org} must
+     * both come back {@code null} for {@code fls_deny_value_org_user} (grant {@code *}, except
+     * {@code value, org}), confirming neither the doc-values path (mapped) nor the source-load path
+     * (unmapped) bypasses the FLS exception list.
+     */
+    public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM " + INDEX_PARTIAL_MAPPING + " | KEEP value, org | SORT value | LIMIT 10";
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of(10.0, "sales"), List.of(20.0, "engineering")))
+        );
+
+        // FLS hides `value` from the mapping entirely, so it surfaces as keyword (the unmapped default).
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
+        );
+    }
+
+    /**
+     * Verifies that FLS rules apply per-index in multi-index queries: {@code fls_per_index_access_user}
+     * has {@code _source} denied on {@link #INDEX_PARTIAL_MAPPING} but unrestricted access to
+     * {@link #INDEX_FULL_MAPPING}, so {@code org} must come back as {@code null} only for the rows from
+     * the source-denied index. {@code org} is unmapped on the first index and mapped as keyword on the
+     * second — i.e. partially-mapped keyword.
+     */
+    public void testFieldLevelSecuritySourceDisabledMultiIndex() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + ", "
+            + INDEX_FULL_MAPPING
+            + " METADATA _index | KEEP _index, value, org | SORT value | LIMIT 10";
+        Response resp = runESQLCommand("fls_per_index_access_user", query);
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "_index").entry("type", "keyword"),
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 10.0, null),
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 20.0, null),
+                        List.of(INDEX_FULL_MAPPING, 30.0, "marketing"),
+                        List.of(INDEX_FULL_MAPPING, 40.0, "support")
+                    )
+                )
+        );
+    }
+
+    /**
+     * Multi-index variant where the partially-mapped fields are non-KEYWORD types ({@code long},
+     * {@code date}, {@code ip}) — the regression surface called out in #144228 / #144109. The same
+     * fields are unmapped on {@link #INDEX_PARTIAL_MAPPING} (where {@code _source} is denied) and
+     * fully mapped on {@link #INDEX_FULL_MAPPING}. With {@code unmapped_fields="load"}, the
+     * source-denied unmapped rows must not leak via the typed source-loader paths and must come back
+     * {@code null}; the mapped rows continue to load from doc values.
+     */
+    public void testFieldLevelSecuritySourceDisabledMultiIndexPartialMappingNonKeyword() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + ", "
+            + INDEX_FULL_MAPPING
+            + " METADATA _index | KEEP _index, value, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        Response resp = runESQLCommand("fls_per_index_access_user", query);
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "_index").entry("type", "keyword"),
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "salary").entry("type", "long"),
+                        matchesMap().entry("name", "hire_date").entry("type", "date"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "ip")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 10.0, null, null, null),
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 20.0, null, null, null),
+                        List.of(INDEX_FULL_MAPPING, 30.0, 300000, "2022-03-01T00:00:00.000Z", "10.0.0.3"),
+                        List.of(INDEX_FULL_MAPPING, 40.0, 400000, "2021-11-20T00:00:00.000Z", "10.0.0.4")
+                    )
+                )
+        );
+    }
+
+    /**
+     * Variant of {@link #testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad} that runs the unmapped
+     * values through explicit per-type casts, exercising the long/date/ip conversion paths. The restricted user
+     * must still see {@code null} for every unmapped column.
+     */
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoadAndCast() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | EVAL salary = salary::long, hire_date = hire_date::date, ip_addr = ip_addr::ip "
+            + "| KEEP value, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        List<MapMatcher> expectedColumns = List.of(
+            matchesMap().entry("name", "value").entry("type", "double"),
+            matchesMap().entry("name", "salary").entry("type", "long"),
+            matchesMap().entry("name", "hire_date").entry("type", "date"),
+            matchesMap().entry("name", "ip_addr").entry("type", "ip")
+        );
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, 100000, "2024-01-01T00:00:00.000Z", "10.0.0.1"),
+                        List.of(20.0, 200000, "2023-06-15T00:00:00.000Z", "10.0.0.2")
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_partial_no_source_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry("values", List.of(Arrays.asList(10.0, null, null, null), Arrays.asList(20.0, null, null, null)))
+        );
+    }
+
+    /**
+     * Same scenario as {@link #testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad}, but without
+     * {@code unmapped_fields="load"} the unmapped fields stay invisible to ES|QL. Mapped fields still load
+     * from doc values, and {@code SET unmapped_fields="load"} is set anyway to prove the code path is exercised.
+     */
+    public void testFieldLevelSecuritySourceDisabledMappedFieldsStillReadable() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_partial_no_source_user",
+            "SET unmapped_fields=\"load\"; FROM " + INDEX_PARTIAL_MAPPING + " | KEEP value | SORT value | LIMIT 10"
+        );
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "value").entry("type", "double")))
+                .entry("values", List.of(List.of(10.0), List.of(20.0)))
+        );
+    }
+
+    public void testRowCommand() throws Exception {
+        String user = randomFrom("test-admin", "user1", "user2");
+        Response resp = runESQLCommand(user, "row a = 5, b = 2 | stats count=sum(b) by a");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "count", "type", "long"), Map.of("name", "a", "type", "integer")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(2, 5))));
+    }
+
+    public void testExplain() throws Exception {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+        for (String user : List.of("test-admin", "user1")) {
+            Response resp = runExplainCommand(user, "EXPLAIN (FROM index | WHERE value > 10 | STATS sum=sum(value))");
+            assertOK(resp);
+            Map<String, Object> respMap = entityAsMap(resp);
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> columns = (List<Map<String, String>>) respMap.get("columns");
+            // Verify we have the expected columns
+            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.get(0).get("name"), equalTo("cluster"));
+            assertThat(columns.get(1).get("name"), equalTo("node"));
+            assertThat(columns.get(2).get("name"), equalTo("role"));
+            assertThat(columns.get(3).get("name"), equalTo("type"));
+            assertThat(columns.get(4).get("name"), equalTo("plan"));
+
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+            // Should have at least coordinator plans
+            assertThat(values.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(3));
+
+            // Check for expected plan types
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    assertThat("Parsed plan should contain UnresolvedRelation", plan, containsString("UnresolvedRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                    assertThat("Optimized logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                    // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
+                    assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
+                }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // Local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        anyOf(containsString("EsQueryExec"), containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                }
+            }
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        }
+    }
+
+    private void validateDlsFlsViewException(Response response, String expectedViewNames) throws IOException {
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        Map<String, Object> entity = entityAsMap(response.getEntity());
+        assertThat(entity, hasKey("error"));
+        Object error = entity.get("error");
+        if (error instanceof Map<?, ?> errorMap) {
+            assertThat(errorMap, hasKey("reason"));
+            assertThat(errorMap, hasKey("views_with_dls_or_fls"));
+            assertThat(
+                errorMap.get("reason"),
+                equalTo(
+                    "Views with document or field level security restrictions are not supported."
+                        + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude the views from the request."
+                )
+            );
+            assertThat(errorMap.get("views_with_dls_or_fls"), equalTo(expectedViewNames));
+        } else {
+            fail("unexpected error format: " + error);
+        }
+    }
+
+    /**
+     * Run an EXPLAIN command - does not add LIMIT since EXPLAIN doesn't support downstream commands.
+     */
+    private Response runExplainCommand(String user, String command) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.addParameter("error_trace", "true");
+        // EXPLAIN queries may trigger a default limit warning, so ignore warnings
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
+        );
+        return client().performRequest(request);
+    }
+
+    public void testEnrich() throws Exception {
+        createEnrichPolicy();
+        try {
+            createIndex("test-enrich", Settings.EMPTY, """
+                "properties":{"timestamp": {"type": "long"}, "song_id": {"type": "keyword"}, "duration": {"type": "double"}}
+                """);
+            record Listen(long timestamp, String songId, double duration) {
+
+            }
+            var listens = List.of(
+                new Listen(1, "s1", 1.0),
+                new Listen(2, "s2", 2.0),
+                new Listen(3, "s1", 3.0),
+                new Listen(4, "s3", 1.0),
+                new Listen(5, "s4", 1.5),
+                new Listen(6, "s1", 2.5),
+                new Listen(7, "s1", 3.5),
+                new Listen(8, "s2", 5.0),
+                new Listen(8, "s1", 0.5),
+                new Listen(8, "s3", 0.25),
+                new Listen(8, "s4", 1.25)
+            );
+            int numDocs = between(100, 1000);
+            for (int i = 0; i < numDocs; i++) {
+                final Listen listen;
+                if (i < listens.size()) {
+                    listen = listens.get(i);
+                } else {
+                    listen = new Listen(100 + i, "s" + between(1, 5), randomIntBetween(1, 10));
+                }
+                Request indexDoc = new Request("PUT", "/test-enrich/_doc/" + i);
+                String doc = Strings.toString(
+                    JsonXContent.contentBuilder()
+                        .startObject()
+                        .field("timestamp", listen.timestamp)
+                        .field("song_id", listen.songId)
+                        .field("duration", listen.duration)
+                        .endObject()
+                );
+                indexDoc.setJsonEntity(doc);
+                client().performRequest(indexDoc);
+            }
+            refresh("test-enrich");
+
+            var from = "FROM test-enrich ";
+            var stats = " | stats total_duration = sum(duration) by artist | sort artist ";
+            var enrich = " | ENRICH songs ON song_id ";
+            var topN = " | sort timestamp | limit " + listens.size() + " ";
+            var filter = " | where timestamp <= " + listens.size();
+
+            var commands = List.of(
+                from + enrich + filter + stats,
+                from + filter + enrich + stats,
+                from + topN + enrich + stats,
+                from + enrich + topN + stats
+            );
+            for (String command : commands) {
+                for (String user : List.of("user1", "user4")) {
+                    Response resp = runESQLCommand(user, command);
+                    Map<String, Object> respMap = entityAsMap(resp);
+                    assertThat(
+                        respMap.get("values"),
+                        equalTo(List.of(List.of(2.75, "Disturbed"), List.of(10.5, "Eagles"), List.of(8.25, "Linkin Park")))
+                    );
+                }
+
+                ResponseException resp = expectThrows(
+                    ResponseException.class,
+                    () -> runESQLCommand(
+                        "user5",
+                        "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
+                    )
+                );
+                assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            }
+        } finally {
+            removeEnrichPolicy();
+        }
+    }
+
+    public void testLookupJoinIndexAllowed() throws Exception {
+        testLookupJoinIndexAllowedHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinIndexAllowedHelper(true);
+    }
+
+    private void testLookupJoinIndexAllowedHelper(boolean useExpressionJoin) throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        Response resp = runESQLCommand("metadata1_read2", query);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
+
+        // user is not allowed to use the alias (but is allowed to use the index)
+        String aliasQuery = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org";
+        expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", aliasQuery));
+
+        // user is not allowed to use the index (but is allowed to use the alias)
+        String indexQuery = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_alias_read2", indexQuery));
+
+        // user has permission on the alias, and can read the key
+        resp = runESQLCommand("metadata1_alias_read2", aliasQuery);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
+
+        // user has permission on the alias, but can't read the key (doc level security at role level)
+        String aliasQuery2 = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org";
+        resp = runESQLCommand("metadata1_alias_read2", aliasQuery2);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        List<?> values = (List<?>) respMap.get("values");
+        assertThat(values.size(), is(1));
+        List<?> row = (List<?>) values.get(0);
+        assertThat(row.size(), is(2));
+        assertThat(row.get(0), is(32.0));
+        assertThat(row.get(1), is(nullValue()));
+
+        // user has permission on the alias, the alias has a filter that doesn't allow to see the value
+        String aliasQuery3 = useExpressionJoin
+            ? "ROW x = 12.0 | EVAL value_left = x | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org";
+        resp = runESQLCommand("alias_user1", aliasQuery3);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        values = (List<?>) respMap.get("values");
+        assertThat(values.size(), is(1));
+        row = (List<?>) values.get(0);
+        assertThat(row.size(), is(2));
+        assertThat(row.get(0), is(12.0));
+        assertThat(row.get(1), is(nullValue()));
+
+        // user has permission on the alias, the alias has a filter that allows to see the value
+        String aliasQuery4 = useExpressionJoin
+            ? "ROW x = 31.0 | EVAL value_left = x | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org";
+        resp = runESQLCommand("alias_user1", aliasQuery4);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLookupJoinDocLevelSecurity() throws Exception {
+        testLookupJoinDocLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinDocLevelSecurityHelper(true);
+    }
+
+    private void testLookupJoinDocLevelSecurityHelper(boolean useExpressionJoin) throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        Response resp = runESQLCommand("dls_user", query);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null))));
+
+        query = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user", query);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(32.0, "marketing"))));
+
+        // same, but with a user that has two dls roles that allow him more visibility
+
+        query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user2", query);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, "sales"))));
+
+        query = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user2", query);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(32.0, "marketing"))));
+
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLookupJoinFieldLevelSecurity() throws Exception {
+        testLookupJoinFieldLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinFieldLevelSecurityHelper(true);
+    }
+
+    private void testLookupJoinFieldLevelSecurityHelper(boolean useExpressionJoin) throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, value, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, value, org";
+        Response resp = runESQLCommand("fls_user2", query);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        String query2 = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, value, org, other"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, value, org, other";
+        resp = runESQLCommand("fls_user3", query2);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword"),
+                    Map.of("name", "other", "type", "keyword")
+                )
+            )
+
+        );
+
+        resp = runESQLCommand("fls_user4", query);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1", query));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        if (useExpressionJoin) {
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
+        } else {
+            assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        }
+    }
+
+    public void testLookupJoinFieldLevelSecurityOnAlias() throws Exception {
+        testLookupJoinFieldLevelSecurityOnAliasHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinFieldLevelSecurityOnAliasHelper(true);
+    }
+
+    private void testLookupJoinFieldLevelSecurityOnAliasHelper(boolean useExpressionJoin) throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, value, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, value, org";
+        Response resp = runESQLCommand("fls_user2_alias", query);
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        String query2 = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, value, org, other"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, value, org, other";
+        resp = runESQLCommand("fls_user3_alias", query2);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword"),
+                    Map.of("name", "other", "type", "keyword")
+                )
+            )
+
+        );
+
+        resp = runESQLCommand("fls_user4_alias", query);
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1_alias", query));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        if (useExpressionJoin) {
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
+        } else {
+            assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        }
+    }
+
+    public void testLookupJoinIndexForbidden() throws Exception {
+        testLookupJoinIndexForbiddenHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinIndexForbiddenHelper(true);
+    }
+
+    private void testLookupJoinIndexForbiddenHelper(boolean useExpressionJoin) throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        String query1 = useExpressionJoin
+            ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query1));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        String query2 = useExpressionJoin
+            ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x"
+            : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-first-alias ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query2));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        String query3 = useExpressionJoin
+            ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query3));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        String query4 = useExpressionJoin
+            ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", query4));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testFromLookupIndexForbidden() throws Exception {
+        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-user1"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", "FROM lookup-first-alias"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", "FROM lookup-user1"));
+        assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testListQueryAllowed() throws Exception {
+        Request request = new Request("GET", "_query/queries");
+        setUser(request, "user_with_monitor_privileges");
+        var resp = client().performRequest(request);
+        assertOK(resp);
+    }
+
+    public void testListQueryForbidden() throws Exception {
+        Request request = new Request("GET", "_query/queries");
+        setUser(request, "user_without_monitor_privileges");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(resp.getMessage(), containsString("this action is granted by the cluster privileges [monitor_esql,monitor,manage,all]"));
+    }
+
+    public void testGetQueryAllowed() throws Exception {
+        // This is a bit tricky, since there is no such running query. We just make sure it didn't fail on forbidden privileges.
+        setUser(GET_QUERY_REQUEST, "user_with_monitor_privileges");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(GET_QUERY_REQUEST));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), not(equalTo(403)));
+    }
+
+    public void testGetQueryForbidden() throws Exception {
+        setUser(GET_QUERY_REQUEST, "user_without_monitor_privileges");
+        var resp = expectThrows(ResponseException.class, () -> client().performRequest(GET_QUERY_REQUEST));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(resp.getMessage(), containsString("this action is granted by the cluster privileges [monitor_esql,monitor,manage,all]"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewAllowed() throws Exception {
+        {
+            var resp = getView("user1", randomFrom(new String[] { "view-user1", "view" }, new String[] { "*" }, new String[] { "_all" }));
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(2));
+            assertThat(views.stream().map(entry -> entry.get("name")).toList(), containsInAnyOrder("view", "view-user1"));
+        }
+        {
+            var resp = getView("user2", randomFrom("view-user2", "*", "_all"));
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("name"), equalTo("view-user2"));
+        }
+        {
+            var resp = getView("test-admin");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(3));
+        }
+    }
+
+    public void testGetViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> getView("user_without_monitor_privileges", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [read_view_metadata,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> getView("user2", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [read_view_metadata,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcardNoIndices() throws Exception {
+        var resp = getView("user1", "view-user2*");
+        assertOK(resp);
+        var respMap = entityAsMap(resp);
+        var views = (List<Map<String, Object>>) respMap.get("views");
+        assertThat(views, hasSize(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcardAndConcrete() throws Exception {
+        var resp = getView("user1", "view-user1", "vie*");
+        assertOK(resp);
+        var respMap = entityAsMap(resp);
+        var views = (List<Map<String, Object>>) respMap.get("views");
+        var viewNames = views.stream().map(entry -> entry.get("name")).collect(Collectors.toSet());
+        assertThat(viewNames, hasSize(2));
+        assertThat(viewNames, containsInAnyOrder("view", "view-user1"));
+    }
+
+    public void testCreateViewAllowed() throws Exception {
+        createView("user1", "other-view-user1", "FROM index | KEEP value, org");
+        createView("user2", "other-view-user2", "FROM index | KEEP value, org");
+    }
+
+    public void testCreateViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user2", "other-view-user1", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user1", "other-view-user2", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user3", "any-name", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateViewAllowed() throws Exception {
+        {
+            createView("user1", "view-user1", "FROM index | KEEP value | STATS sum=sum(value)");
+            var resp = getView("user1", "view-user1");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("query"), equalTo("FROM index | KEEP value | STATS sum=sum(value)"));
+        }
+        {
+            createView("user2", "view-user2", "FROM index | STATS count=COUNT(*)");
+            var resp = getView("user2", "view-user2");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("query"), equalTo("FROM index | STATS count=COUNT(*)"));
+        }
+        {
+            createView("test-admin", "view-user1", "FROM index | LIMIT 10");
+            var resp = getView("test-admin", "view-user1");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("query"), equalTo("FROM index | LIMIT 10"));
+        }
+    }
+
+    public void testUpdateViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user2", "view-user1", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user1", "view-user2", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user3", "view-user1", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    public void testDeleteViewAllowed() throws Exception {
+        createView("user1", "other-view-user1", "FROM index | KEEP value, org");
+        createView("user2", "other-view-user2", "FROM index | KEEP value, org");
+        createView("test-admin", "other-view-admin", "FROM index | KEEP value, org");
+
+        {
+            var resp = deleteView("user1", "other-view-user1");
+            assertOK(resp);
+        }
+        {
+            var resp = deleteView("user2", "other-view-user2");
+            assertOK(resp);
+        }
+        {
+            var resp = deleteView("test-admin", "other-view-admin");
+            assertOK(resp);
+        }
+    }
+
+    public void testDeleteViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> deleteView("user2", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [delete_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> deleteView("user1", "view-user2"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [delete_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> deleteView("user3", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [delete_view,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcard() throws Exception {
+        Response resp = getView("user1", randomFrom("vie*", "*", "*iew*"));
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        List<Map<String, Object>> views = (List<Map<String, Object>>) respMap.get("views");
+        var viewNames = views.stream().map(view -> view.get("name")).collect(Collectors.toSet());
+        assertThat(viewNames, hasSize(2));
+        assertThat(viewNames, containsInAnyOrder("view-user1", "view"));
+    }
+
+    // TODO: use named privileges when available — https://github.com/elastic/elasticsearch/issues/147017
+    public void testDataSourceCrudForbiddenWithoutClusterManage() {
+        // user2 has cluster: []. All three data source actions are cluster-level → 403.
+        for (String path : List.of("/_query/data_source/ds_x", "/_query/data_source")) {
+            Request get = new Request("GET", path);
+            setUser(get, "user2");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        }
+
+        Request put = new Request("PUT", "/_query/data_source/ds_x");
+        put.setJsonEntity("{\"type\":\"s3\"}");
+        setUser(put, "user2");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(put));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        Request del = new Request("DELETE", "/_query/data_source/ds_x");
+        setUser(del, "user2");
+        ex = expectThrows(ResponseException.class, () -> client().performRequest(del));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    public void testDatasetCrudForbiddenWithoutIndexManage() {
+        // user3 has only `read` on `index`. Dataset actions need index `manage`.
+        Request put = new Request("PUT", "/_query/dataset/index");
+        put.setJsonEntity("{\"data_source\":\"parent\",\"resource\":\"s3://b/\"}");
+        setUser(put, "user3");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(put));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        Request del = new Request("DELETE", "/_query/dataset/index");
+        setUser(del, "user3");
+        ex = expectThrows(ResponseException.class, () -> client().performRequest(del));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    public void testDataSourceAdminListEmpty() throws IOException {
+        // test-admin has cluster:all. GET list on an empty cluster returns 200 with an empty array.
+        Request req = new Request("GET", "/_query/data_source");
+        Response resp = client().performRequest(req);
+        assertOK(resp);
+        Map<String, Object> body = entityAsMap(resp);
+        assertThat(body.get("data_sources"), equalTo(List.of()));
+    }
+
+    private static final Request GET_QUERY_REQUEST = new Request(
+        "GET",
+        "_query/queries/FmJKWHpFRi1OU0l5SU1YcnpuWWhoUWcZWDFuYUJBeW1TY0dKM3otWUs2bDJudzo1Mg=="
+    );
+
+    private void createEnrichPolicy() throws Exception {
+        createIndex("songs", Settings.EMPTY, """
+            "properties":{"song_id": {"type": "keyword"}, "title": {"type": "keyword"}, "artist": {"type": "keyword"} }
+            """);
+        record Song(String id, String title, String artist) {
+
+        }
+
+        var songs = List.of(
+            new Song("s1", "Hotel California", "Eagles"),
+            new Song("s2", "In The End", "Linkin Park"),
+            new Song("s3", "Numb", "Linkin Park"),
+            new Song("s4", "The Sound Of Silence", "Disturbed")
+        );
+        for (int i = 0; i < songs.size(); i++) {
+            var song = songs.get(i);
+            Request indexDoc = new Request("PUT", "/songs/_doc/" + i);
+            String doc = Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("song_id", song.id)
+                    .field("title", song.title)
+                    .field("artist", song.artist)
+                    .endObject()
+            );
+            indexDoc.setJsonEntity(doc);
+            client().performRequest(indexDoc);
+        }
+        refresh("songs");
+
+        Request createEnrich = new Request("PUT", "/_enrich/policy/songs");
+        createEnrich.setJsonEntity("""
+            {
+                "match": {
+                    "indices": "songs",
+                    "match_field": "song_id",
+                    "enrich_fields": ["title", "artist"]
+                }
+            }
+            """);
+        client().performRequest(createEnrich);
+        client().performRequest(new Request("PUT", "_enrich/policy/songs/_execute"));
+    }
+
+    private void removeEnrichPolicy() throws Exception {
+        client().performRequest(new Request("DELETE", "_enrich/policy/songs"));
+    }
+
+    public void testDataStream() throws IOException {
+        createDataStream();
+        MapMatcher twoResults = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(2)));
+        MapMatcher oneResult = matchesMap().extraOk().entry("values", matchesList().item(matchesList().item(1)));
+        assertMap(entityAsMap(runESQLCommand("logs_foo_all", "FROM logs-foo | STATS COUNT(*)")), twoResults);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_16_only", "FROM logs-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM logs-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM logs-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-foo | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_all", "FROM logs-* | STATS COUNT(*)")), twoResults);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_16_only", "FROM logs-* | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021", "FROM logs-* | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_pattern", "FROM logs-* | STATS COUNT(*)")), oneResult);
+        assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-* | STATS COUNT(*)")), oneResult);
+    }
+
+    protected Response runESQLCommand(String user, String command) throws IOException {
+        if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
+            // add a (high) limit to avoid warnings on default limit
+            command += " | limit 10000000";
+        }
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        setUser(request, user);
+        request.addParameter("error_trace", "true");
+        return client().performRequest(request);
+    }
+
+    private static void setUser(Request request, String user) {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+
+    }
+
+    static void addRandomPragmas(XContentBuilder builder) throws IOException {
+        if (Build.current().isSnapshot()) {
+            Settings pragmas = randomPragmas();
+            if (pragmas != Settings.EMPTY) {
+                builder.startObject("pragma");
+                builder.value(pragmas);
+                builder.endObject();
+            }
+        }
+    }
+
+    private static Settings randomPragmas() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put("page_size", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("exchange_buffer_size", between(1, 2));
+        }
+        if (randomBoolean()) {
+            settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+        }
+        if (randomBoolean()) {
+            settings.put("enrich_max_workers", between(1, 5));
+        }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
+        }
+        return settings.build();
+    }
+
+    private void createDataStream() throws IOException {
+        createDataStreamPolicy();
+        createDataStreamComponentTemplate();
+        createDataStreamIndexTemplate();
+        createDataStreamDocuments();
+        createDataStreamAlias();
+    }
+
+    private void createDataStreamPolicy() throws IOException {
+        Request request = new Request("PUT", "_ilm/policy/my-lifecycle-policy");
+        request.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_primary_shard_size": "50gb"
+                      }
+                    }
+                  },
+                  "delete": {
+                    "min_age": "735d",
+                    "actions": {
+                      "delete": {}
+                    }
+                  }
+                }
+              }
+            }""");
+        client().performRequest(request);
+    }
+
+    private void createDataStreamComponentTemplate() throws IOException {
+        Request request = new Request("PUT", "_component_template/my-template");
+        request.setJsonEntity("""
+            {
+                "template": {
+                   "settings": {
+                        "index.lifecycle.name": "my-lifecycle-policy"
+                   },
+                   "mappings": {
+                       "properties": {
+                           "@timestamp": {
+                               "type": "date",
+                               "format": "date_optional_time||epoch_millis"
+                           },
+                           "data_stream": {
+                               "properties": {
+                                   "namespace": {"type": "keyword"}
+                               }
+                           }
+                       }
+                   }
+                }
+            }""");
+        client().performRequest(request);
+    }
+
+    private void createDataStreamIndexTemplate() throws IOException {
+        Request request = new Request("PUT", "_index_template/my-index-template");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["logs-*"],
+                "data_stream": {},
+                "composed_of": ["my-template"],
+                "priority": 500
+            }""");
+        client().performRequest(request);
+    }
+
+    private void createDataStreamDocuments() throws IOException {
+        Request request = new Request("POST", "logs-foo/_bulk");
+        request.addParameter("refresh", "");
+        request.setJsonEntity("""
+            { "create" : {} }
+            { "@timestamp": "2099-05-06T16:21:15.000Z", "data_stream": {"namespace": "16"} }
+            { "create" : {} }
+            { "@timestamp": "2001-05-06T16:21:15.000Z", "data_stream": {"namespace": "17"} }
+            """);
+        assertMap(entityAsMap(client().performRequest(request)), matchesMap().extraOk().entry("errors", false));
+    }
+
+    private void createDataStreamAlias() throws IOException {
+        Request request = new Request("POST", "_aliases");
+        request.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "logs-foo",
+                    "alias": "alias-foo"
+                  }
+                }
+              ]
+            }""");
+        assertMap(entityAsMap(client().performRequest(request)), matchesMap().extraOk().entry("errors", false));
+    }
+}

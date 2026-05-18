@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -33,17 +34,13 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
  */
 public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
     /** Store here the same Normalizer used by the lucene ICUFoldingFilter */
-    private static final Normalizer2 ICU_FOLDING_NORMALIZER = Normalizer2.getInstance(
-        ICUFoldingFilter.class.getResourceAsStream("utr30.nrm"),
-        "utr30",
-        Normalizer2.Mode.COMPOSE
-    );
+    private static final Normalizer2 ICU_FOLDING_NORMALIZER = ICUFoldingFilter.NORMALIZER;
 
     private final Normalizer2 normalizer;
 
     public IcuFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, ICU_FOLDING_NORMALIZER, settings);
+        super(name);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(ICU_FOLDING_NORMALIZER, settings);
     }
 
     @Override

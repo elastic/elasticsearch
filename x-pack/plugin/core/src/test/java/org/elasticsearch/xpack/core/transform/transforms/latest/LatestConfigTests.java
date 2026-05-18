@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.core.transform.transforms.latest;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
@@ -41,6 +41,11 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     @Override
     protected LatestConfig createTestInstance() {
         return randomLatestConfig();
+    }
+
+    @Override
+    protected LatestConfig mutateInstance(LatestConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -110,7 +115,7 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
 
     private LatestConfig createLatestConfigFromString(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
         return LatestConfig.fromXContent(parser, false);
     }
 }

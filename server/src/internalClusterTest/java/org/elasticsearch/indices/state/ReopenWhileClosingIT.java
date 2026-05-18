@@ -1,21 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.state;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Glob;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +28,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -63,12 +68,12 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(indexName, block::countDown);
 
-        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose(indexName).execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = indicesAdmin().prepareClose(indexName).execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertIndexIsBlocked(indexName);
         assertFalse(closeIndexResponse.isDone());
 
-        assertAcked(client().admin().indices().prepareOpen(indexName));
+        assertAcked(indicesAdmin().prepareOpen(indexName));
 
         releaseBlock.close();
         assertFalse(closeIndexResponse.get().isAcknowledged());
@@ -88,13 +93,13 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(randomFrom(indices), block::countDown);
 
-        ActionFuture<CloseIndexResponse> closeIndexResponse = client().admin().indices().prepareClose("index-*").execute();
+        ActionFuture<CloseIndexResponse> closeIndexResponse = indicesAdmin().prepareClose("index-*").execute();
         assertTrue("Waiting for index to have a closing blocked", block.await(60, TimeUnit.SECONDS));
         assertFalse(closeIndexResponse.isDone());
         indices.forEach(ReopenWhileClosingIT::assertIndexIsBlocked);
 
         final List<String> reopenedIndices = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
-        assertAcked(client().admin().indices().prepareOpen(reopenedIndices.toArray(Strings.EMPTY_ARRAY)));
+        assertAcked(indicesAdmin().prepareOpen(reopenedIndices.toArray(Strings.EMPTY_ARRAY)));
 
         releaseBlock.close();
         assertFalse(closeIndexResponse.get().isAcknowledged());
@@ -124,12 +129,8 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
      * Intercepts and blocks the {@link TransportVerifyShardBeforeCloseAction} executed for the given index pattern.
      */
     private Releasable interceptVerifyShardBeforeCloseActions(final String indexPattern, final Runnable onIntercept) {
-        final MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            internalCluster().getMasterName()
-        );
-
-        final CountDownLatch release = new CountDownLatch(1);
+        final var mockTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
+        final ListenableFuture<Void> release = new ListenableFuture<>();
         for (DiscoveryNode node : internalCluster().clusterService().state().getNodes()) {
             mockTransportService.addSendBehavior(
                 internalCluster().getInstance(TransportService.class, node.getName()),
@@ -140,32 +141,34 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
                             if (Glob.globMatch(indexPattern, index)) {
                                 logger.info("request {} intercepted for index {}", requestId, index);
                                 onIntercept.run();
-                                try {
-                                    release.await();
+                                release.addListener(ActionListener.running(() -> {
                                     logger.info("request {} released for index {}", requestId, index);
-                                } catch (final InterruptedException e) {
-                                    throw new AssertionError(e);
-                                }
+                                    try {
+                                        connection.sendRequest(requestId, action, request, options);
+                                    } catch (IOException e) {
+                                        throw new AssertionError(e);
+                                    }
+                                }));
+                                return;
                             }
                         }
-
                     }
                     connection.sendRequest(requestId, action, request, options);
                 }
             );
         }
-        return Releasables.releaseOnce(release::countDown);
+        return Releasables.releaseOnce(() -> release.onResponse(null));
     }
 
     private static void assertIndexIsBlocked(final String... indices) {
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
-            assertThat(clusterState.metadata().indices().get(index).getState(), is(IndexMetadata.State.OPEN));
+            assertThat(clusterState.metadata().getProject().indices().get(index).getState(), is(IndexMetadata.State.OPEN));
             assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + INDEX_CLOSED_BLOCK_ID + "]",
                 clusterState.blocks()
-                    .indices()
+                    .indices(Metadata.DEFAULT_PROJECT_ID)
                     .getOrDefault(index, emptySet())
                     .stream()
                     .filter(clusterBlock -> clusterBlock.id() == INDEX_CLOSED_BLOCK_ID)

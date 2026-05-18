@@ -35,22 +35,26 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.AccessController;
 import java.security.KeyFactory;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -83,7 +87,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -91,14 +94,52 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                     client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
-                    assertThat(e, instanceOf(SSLHandshakeException.class));
+                    if (inFipsJvm()) {
+                        // Bouncy Castle throw a different exception
+                        assertThat(e, instanceOf(IOException.class));
+                        assertThat(e.getCause(), instanceOf(javax.net.ssl.SSLException.class));
+                    } else {
+                        assertThat(e, instanceOf(SSLHandshakeException.class));
+                    }
                 }
             }
-
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
+            }
+        } finally {
+            SSLContext.setDefault(defaultSSLContext);
+        }
+    }
+
+    public void testBuilderSetsThreadName() throws Exception {
+        final SSLContext defaultSSLContext = SSLContext.getDefault();
+        try {
+            SSLContext.setDefault(getSslContext());
+            try (RestClient client = buildRestClient()) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                client.performRequestAsync(new Request("GET", "/"), new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        assertThat(
+                            Thread.currentThread().getName(),
+                            allOf(
+                                startsWith(RestClientBuilder.THREAD_NAME_PREFIX),
+                                containsString("elasticsearch"),
+                                containsString("rest-client")
+                            )
+                        );
+                        assertEquals(200, response.getStatusLine().getStatusCode());
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        throw new AssertionError("unexpected", exception);
+                    }
+                });
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
             }
         } finally {
             SSLContext.setDefault(defaultSSLContext);
@@ -147,7 +188,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
     private static String getProtocol() {
-        String version = AccessController.doPrivileged((PrivilegedAction<String>) () -> System.getProperty("java.version"));
+        String version = System.getProperty("java.version");
         String[] parts = version.split("-");
         String[] numericComponents;
         if (parts.length == 1) {

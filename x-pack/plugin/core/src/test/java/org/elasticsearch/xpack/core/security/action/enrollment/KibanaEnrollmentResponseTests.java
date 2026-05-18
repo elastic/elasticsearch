@@ -38,7 +38,7 @@ public class KibanaEnrollmentResponseTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected KibanaEnrollmentResponse mutateInstance(KibanaEnrollmentResponse instance) throws IOException {
+    protected KibanaEnrollmentResponse mutateInstance(KibanaEnrollmentResponse instance) {
         return switch (randomIntBetween(0, 3)) {
             case 0 -> new KibanaEnrollmentResponse(
                 randomAlphaOfLengthBetween(14, 20),

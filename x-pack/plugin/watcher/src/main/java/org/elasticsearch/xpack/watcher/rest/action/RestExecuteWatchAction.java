@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
@@ -31,7 +28,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -58,14 +54,10 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_watcher/watch/{id}/_execute")
-                .replaces(POST, "/_xpack/watcher/watch/{id}/_execute", RestApiVersion.V_7)
-                .build(),
-            Route.builder(PUT, "/_watcher/watch/{id}/_execute")
-                .replaces(PUT, "/_xpack/watcher/watch/{id}/_execute", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/_watcher/watch/_execute").replaces(POST, "/_xpack/watcher/watch/_execute", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_watcher/watch/_execute").replaces(PUT, "/_xpack/watcher/watch/_execute", RestApiVersion.V_7).build()
+            new Route(POST, "/_watcher/watch/{id}/_execute"),
+            new Route(PUT, "/_watcher/watch/{id}/_execute"),
+            new Route(POST, "/_watcher/watch/_execute"),
+            new Route(PUT, "/_watcher/watch/_execute")
         );
     }
 
@@ -85,7 +77,7 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
                 builder.field(Field.ID.getPreferredName(), response.getRecordId());
                 builder.field(Field.WATCH_RECORD.getPreferredName(), response.getRecordSource(), request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }
@@ -172,13 +164,11 @@ public class RestExecuteWatchAction extends BaseRestHandler implements RestReque
         return builder.request();
     }
 
-    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(
-        Sets.newHashSet(
-            "watch.input.http.request.auth.basic.password",
-            "watch.input.chain.inputs.*.http.request.auth.basic.password",
-            "watch.actions.*.email.attachments.*.reporting.auth.basic.password",
-            "watch.actions.*.webhook.auth.basic.password"
-        )
+    private static final Set<String> FILTERED_FIELDS = Set.of(
+        "watch.input.http.request.auth.basic.password",
+        "watch.input.chain.inputs.*.http.request.auth.basic.password",
+        "watch.actions.*.email.attachments.*.reporting.auth.basic.password",
+        "watch.actions.*.webhook.auth.basic.password"
     );
 
     @Override

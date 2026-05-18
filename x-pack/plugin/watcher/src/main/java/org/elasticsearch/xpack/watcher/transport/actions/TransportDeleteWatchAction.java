@@ -14,7 +14,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.tasks.Task;
@@ -35,7 +36,7 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
 
     @Inject
     public TransportDeleteWatchAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteWatchAction.NAME, transportService, actionFilters, DeleteWatchRequest::new);
+        super(DeleteWatchAction.NAME, transportService, actionFilters, DeleteWatchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
     }
 

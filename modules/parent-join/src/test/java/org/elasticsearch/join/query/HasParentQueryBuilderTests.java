@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.query;
@@ -12,7 +13,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
@@ -31,8 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -125,6 +125,11 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     @Override
+    protected HasParentQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new HasParentQueryBuilder("type", queryBuilder, randomBoolean());
+    }
+
+    @Override
     protected void doAssertLuceneQuery(HasParentQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(LateParsingQuery.class));
         LateParsingQuery lpq = (LateParsingQuery) query;
@@ -148,7 +153,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
      * Test (de)serialization on all previous released versions
      */
     public void testSerializationBWC() throws IOException {
-        for (Version version : VersionUtils.allReleasedVersions()) {
+        for (TransportVersion version : TransportVersionUtils.allReleasedVersions()) {
             HasParentQueryBuilder testQuery = createTestQueryBuilder();
             assertSerialization(testQuery, version);
         }
@@ -193,21 +198,54 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "query" : {
                   "term" : {
                     "tag" : {
-                      "value" : "something",
-                      "boost" : 1.0
+                      "value" : "something"
                     }
                   }
                 },
                 "parent_type" : "blog",
                 "score" : true,
-                "ignore_unmapped" : false,
-                "boost" : 1.0
+                "ignore_unmapped" : true,
+                "boost" : 2.0
               }
             }""";
         HasParentQueryBuilder parsed = (HasParentQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, "blog", parsed.type());
         assertEquals(json, "something", ((TermQueryBuilder) parsed.query()).value());
+        assertEquals(json, true, parsed.ignoreUnmapped());
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "has_parent" : {
+                "query" : {
+                  "term" : {
+                    "tag" : {
+                      "value" : "something"
+                    }
+                  }
+                },
+                "parent_type" : "blog",
+                "score" : false,
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
+        checkGeneratedJson("""
+            {
+              "has_parent" : {
+                "query" : {
+                  "term" : {
+                    "tag" : {
+                      "value" : "something"
+                    }
+                  }
+                },
+                "parent_type" : "blog"
+              }
+            }""", parseQuery(json));
+
     }
 
     public void testIgnoreUnmapped() throws IOException {

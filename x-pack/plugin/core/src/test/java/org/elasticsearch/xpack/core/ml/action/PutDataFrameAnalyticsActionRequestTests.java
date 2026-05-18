@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction.Request;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class PutDataFrameAnalyticsActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String id;
 
@@ -65,13 +66,13 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
@@ -83,10 +84,10 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
             new String[] { "index" },
             null,
-            new FetchSourceContext(true, null, new String[] { "excluded" }),
+            FetchSourceContext.of(true, null, new String[] { "excluded" }),
             null
         );
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "excluded" }, null);
+        FetchSourceContext analyzedFields = FetchSourceContext.of(true, new String[] { "excluded" }, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setSource(source)
             .setAnalysis(OutlierDetectionTests.createRandom())
@@ -104,10 +105,10 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
             new String[] { "index" },
             null,
-            new FetchSourceContext(true, new String[] { "included" }, null),
+            FetchSourceContext.of(true, new String[] { "included" }, null),
             null
         );
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "included" }, null);
+        FetchSourceContext analyzedFields = FetchSourceContext.of(true, new String[] { "included" }, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setSource(source)
             .setAnalysis(OutlierDetectionTests.createRandom())
@@ -121,6 +122,7 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
     }
 
     public void testDefaultTimeout() {
-        assertThat(createTestInstance().timeout(), is(notNullValue()));
+        AcknowledgedRequest<Request> requestAcknowledgedRequest = createTestInstance();
+        assertThat(requestAcknowledgedRequest.ackTimeout(), is(notNullValue()));
     }
 }

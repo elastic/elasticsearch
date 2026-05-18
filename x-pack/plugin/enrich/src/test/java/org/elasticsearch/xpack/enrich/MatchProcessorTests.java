@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,10 +53,10 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
-            Map.of("domain", "elastic.co")
+            new HashMap<>(Map.of("domain", "elastic.co"))
         );
         // Run
         IngestDocument[] holder = new IngestDocument[1];
@@ -106,8 +108,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
@@ -153,10 +155,10 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
-            Map.of("domain", "elastic.com")
+            new HashMap<>(Map.of("domain", "elastic.com"))
         );
         // Run
         IngestDocument[] resultHolder = new IngestDocument[1];
@@ -201,7 +203,7 @@ public class MatchProcessorTests extends ESTestCase {
                 "domain",
                 1
             );
-            IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
+            IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
 
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
             IngestDocument[] holder = new IngestDocument[1];
@@ -222,7 +224,7 @@ public class MatchProcessorTests extends ESTestCase {
                 "domain",
                 1
             );
-            IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
+            IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
             IngestDocument[] resultHolder = new IngestDocument[1];
             Exception[] exceptionHolder = new Exception[1];
             processor.execute(ingestDocument, (result, e) -> {
@@ -250,7 +252,7 @@ public class MatchProcessorTests extends ESTestCase {
             1
         );
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")), Map.of());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")));
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {
@@ -280,7 +282,7 @@ public class MatchProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("domain", "elastic.co");
         source.put("tld", null);
-        IngestDocument ingestDocument = new IngestDocument(source, Map.of());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {
@@ -306,7 +308,14 @@ public class MatchProcessorTests extends ESTestCase {
             "domain",
             1
         );
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", 2));
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            1L,
+            "_routing",
+            VersionType.INTERNAL,
+            new HashMap<>(Map.of("domain", 2))
+        );
 
         // Execute
         IngestDocument[] holder = new IngestDocument[1];
@@ -346,10 +355,10 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
-            Map.of("domain", List.of("1", "2"))
+            new HashMap<>(Map.of("domain", List.of("1", "2")))
         );
 
         // Execute
@@ -375,7 +384,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(entry.get("tld"), equalTo("co"));
     }
 
-    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> {
+    private static final class MockSearchFunction implements EnrichProcessorFactory.SearchRunner {
         private final List<Map<?, ?>> mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
@@ -393,8 +402,13 @@ public class MatchProcessorTests extends ESTestCase {
         }
 
         @Override
-        public void accept(SearchRequest request, BiConsumer<List<Map<?, ?>>, Exception> handler) {
-            capturedRequest.set(request);
+        public void accept(
+            Object value,
+            int maxMatches,
+            Function<String, SearchRequest> searchRequestBuilder,
+            BiConsumer<List<Map<?, ?>>, Exception> handler
+        ) {
+            capturedRequest.set(searchRequestBuilder.apply(".enrich-_name"));
             if (exception != null) {
                 handler.accept(null, exception);
             } else {

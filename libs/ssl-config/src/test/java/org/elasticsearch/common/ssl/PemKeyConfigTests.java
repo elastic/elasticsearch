@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -102,24 +103,24 @@ public class PemKeyConfigTests extends ESTestCase {
         StoredCertificate c1 = iterator.next();
         StoredCertificate c2 = iterator.next();
 
-        assertThat(c1.getCertificate().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(c1.certificate().getSubjectX500Principal().toString(), equalTo("CN=cert1"));
         assertThat(c1.hasPrivateKey(), equalTo(true));
-        assertThat(c1.getAlias(), nullValue());
-        assertThat(c1.getFormat(), equalTo("PEM"));
-        assertThat(c1.getPath(), equalTo(chain.toString()));
+        assertThat(c1.alias(), nullValue());
+        assertThat(c1.format(), equalTo("PEM"));
+        assertThat(c1.path(), equalTo(chain.toString()));
 
-        assertThat(c2.getCertificate().getSubjectDN().toString(), equalTo("CN=Test CA 1"));
+        assertThat(c2.certificate().getSubjectX500Principal().toString(), equalTo("CN=Test CA 1"));
         assertThat(c2.hasPrivateKey(), equalTo(false));
-        assertThat(c2.getAlias(), nullValue());
-        assertThat(c2.getFormat(), equalTo("PEM"));
-        assertThat(c2.getPath(), equalTo(chain.toString()));
+        assertThat(c2.alias(), nullValue());
+        assertThat(c2.format(), equalTo("PEM"));
+        assertThat(c2.path(), equalTo(chain.toString()));
 
         final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys();
         assertThat(keys, iterableWithSize(1));
         assertThat(keys.get(0).v1(), notNullValue());
         assertThat(keys.get(0).v1().getAlgorithm(), equalTo("RSA"));
         assertThat(keys.get(0).v2(), notNullValue());
-        assertThat(keys.get(0).v2().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(keys.get(0).v2().getSubjectX500Principal().toString(), equalTo("CN=cert1"));
     }
 
     public void testInvertedCertificateChainFailsToCreateKeyManager() throws Exception {
@@ -212,8 +213,8 @@ public class PemKeyConfigTests extends ESTestCase {
         assertThat(chain, notNullValue());
         assertThat(chain, arrayWithSize(1 + caDN.length));
         final X509Certificate certificate = chain[0];
-        assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-        assertThat(certificate.getSubjectDN().getName(), is(certDN));
+        assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
+        assertThat(certificate.getSubjectX500Principal().getName(), is(certDN));
         assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
         assertThat(
             certificate.getSubjectAlternativeNames(),
@@ -222,7 +223,7 @@ public class PemKeyConfigTests extends ESTestCase {
 
         for (int i = 0; i < caDN.length; i++) {
             final X509Certificate ca = chain[i + 1];
-            assertThat(ca.getSubjectDN().getName(), is(caDN[i]));
+            assertThat(ca.getSubjectX500Principal().getName(), is(caDN[i]));
         }
     }
 

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,13 +25,11 @@ public abstract class MultiValuesSource<VS extends ValuesSource> {
 
     public static class NumericMultiValuesSource extends MultiValuesSource<ValuesSource.Numeric> {
         public NumericMultiValuesSource(Map<String, ValuesSourceConfig> valuesSourceConfigs) {
-            values = new HashMap<>(valuesSourceConfigs.size());
+            values = Maps.newMapWithExpectedSize(valuesSourceConfigs.size());
             for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
                 final ValuesSource valuesSource = entry.getValue().getValuesSource();
                 if (valuesSource instanceof ValuesSource.Numeric == false) {
-                    throw new AggregationExecutionException(
-                        "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
-                    );
+                    throw AggregationErrors.unsupportedValuesSourceType(valuesSource, "multi-value");
                 }
                 values.put(entry.getKey(), (ValuesSource.Numeric) valuesSource);
             }

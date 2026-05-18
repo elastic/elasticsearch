@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -12,8 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.io.IOException;
 
@@ -21,10 +24,12 @@ public class ESSolrSynonymParser extends SolrSynonymParser {
     private static final Logger logger = LogManager.getLogger(ESSolrSynonymParser.class);
 
     private final boolean lenient;
+    private final ESSynonymMapBuilder esBuilder;
 
-    public ESSolrSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
+    public ESSolrSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer, CircuitBreaker circuitBreaker) {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
+        this.esBuilder = new ESSynonymMapBuilder(dedup, circuitBreaker);
     }
 
     @Override
@@ -36,8 +41,15 @@ public class ESSolrSynonymParser extends SolrSynonymParser {
         // else would happen only in the case when the input or output is empty and lenient is set, in which case we
         // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
         if (lenient == false || (input.length > 0 && output.length > 0)) {
-            super.add(input, output, includeOrig);
+            // Does not call super.add(): state is owned by esBuilder; build() is also overridden.
+            // Revisit if Lucene ever uses SynonymMap.Builder state outside of build().
+            esBuilder.add(input, output, includeOrig);
         }
+    }
+
+    @Override
+    public SynonymMap build() throws IOException {
+        return esBuilder.build();
     }
 
     @Override

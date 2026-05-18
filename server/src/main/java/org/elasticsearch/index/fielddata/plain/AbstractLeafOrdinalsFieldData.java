@@ -1,36 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
-
-import java.util.Collection;
-import java.util.Collections;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
-    private final ToScriptField<SortedSetDocValues> toScriptField;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-    protected AbstractLeafOrdinalsFieldData(ToScriptField<SortedSetDocValues> toScriptField) {
-        this.toScriptField = toScriptField;
+    protected AbstractLeafOrdinalsFieldData(ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
-    public final DocValuesField<?> getScriptField(String name) {
-        return toScriptField.getScriptField(getOrdinalsValues(), name);
+    public final DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getOrdinalsValues(), name);
     }
 
     @Override
@@ -38,21 +35,13 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
         return FieldData.toString(getOrdinalsValues());
     }
 
-    public static LeafOrdinalsFieldData empty(ToScriptField<SortedSetDocValues> toScriptField) {
-        return new AbstractLeafOrdinalsFieldData(toScriptField) {
+    public static LeafOrdinalsFieldData empty(ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+        return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
 
             @Override
             public long ramBytesUsed() {
                 return 0;
             }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public void close() {}
 
             @Override
             public SortedSetDocValues getOrdinalsValues() {

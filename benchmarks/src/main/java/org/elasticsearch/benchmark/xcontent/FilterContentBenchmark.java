@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.xcontent;
@@ -15,7 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -61,6 +62,7 @@ public class FilterContentBenchmark {
     private BytesReference source;
     private XContentParserConfiguration parserConfig;
     private Set<String> filters;
+    private XContentParserConfiguration parserConfigMatchDotsInFieldNames;
 
     @Setup
     public void setup() throws IOException {
@@ -72,7 +74,8 @@ public class FilterContentBenchmark {
         };
         source = readSource(sourceFile);
         filters = buildFilters();
-        parserConfig = buildParseConfig();
+        parserConfig = buildParseConfig(false);
+        parserConfigMatchDotsInFieldNames = buildParseConfig(true);
     }
 
     private Set<String> buildFilters() {
@@ -106,8 +109,13 @@ public class FilterContentBenchmark {
     }
 
     @Benchmark
+    public BytesReference filterWithParserConfigCreatedMatchDotsInFieldNames() throws IOException {
+        return filter(this.parserConfigMatchDotsInFieldNames);
+    }
+
+    @Benchmark
     public BytesReference filterWithNewParserConfig() throws IOException {
-        XContentParserConfiguration contentParserConfiguration = buildParseConfig();
+        XContentParserConfiguration contentParserConfiguration = buildParseConfig(false);
         return filter(contentParserConfiguration);
     }
 
@@ -124,7 +132,7 @@ public class FilterContentBenchmark {
             excludes = filters.toArray(Strings.EMPTY_ARRAY);
         }
         Map<String, Object> filterMap = XContentMapValues.filter(sourceMap, includes, excludes);
-        return FetchSourcePhase.objectToBytes(filterMap, XContentType.JSON, Math.min(1024, source.length()));
+        return Source.fromMap(filterMap, XContentType.JSON).internalSourceRef();
     }
 
     @Benchmark
@@ -152,7 +160,7 @@ public class FilterContentBenchmark {
         }
     }
 
-    private XContentParserConfiguration buildParseConfig() {
+    private XContentParserConfiguration buildParseConfig(boolean matchDotsInFieldNames) {
         Set<String> includes;
         Set<String> excludes;
         if (inclusive) {
@@ -162,7 +170,7 @@ public class FilterContentBenchmark {
             includes = null;
             excludes = filters;
         }
-        return XContentParserConfiguration.EMPTY.withFiltering(includes, excludes);
+        return XContentParserConfiguration.EMPTY.withFiltering(null, includes, excludes, matchDotsInFieldNames);
     }
 
     private BytesReference filter(XContentParserConfiguration contentParserConfiguration) throws IOException {

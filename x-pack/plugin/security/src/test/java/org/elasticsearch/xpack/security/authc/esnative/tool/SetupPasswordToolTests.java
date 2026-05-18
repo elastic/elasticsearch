@@ -13,12 +13,9 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
@@ -71,7 +68,6 @@ import static org.mockito.Mockito.when;
 
 public class SetupPasswordToolTests extends CommandTestCase {
 
-    private final String pathHomeParameter = "-Epath.home=" + createTempDir();
     private SecureString bootstrapPassword;
     private CommandLineHttpClient httpClient;
     private List<String> usersInSetOrder;
@@ -83,7 +79,12 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public ExpectedException thrown = ExpectedException.none();
 
     @Before
-    public void setSecretsAndKeyStore() throws Exception {
+    public void setupSecretsAndKeystore() throws Exception {
+        resetSecretsAndKeyStore(null);
+    }
+
+    public void resetSecretsAndKeyStore(String promptResponse) throws Exception {
+        terminal.reset();
         // sometimes we fall back to the keystore seed as this is the default when a new node starts
         boolean useFallback = randomBoolean();
         bootstrapPassword = useFallback
@@ -95,6 +96,9 @@ public class SetupPasswordToolTests extends CommandTestCase {
         usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         if (usedKeyStore.hasPassword()) {
             terminal.addSecretInput("keystore-password");
+        }
+        if (promptResponse != null) {
+            terminal.addTextInput(promptResponse);
         }
 
         this.httpClient = mock(CommandLineHttpClient.class);
@@ -196,10 +200,10 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public void testAutoSetup() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
         if (randomBoolean()) {
-            execute("auto", pathHomeParameter, "-b", "true");
+            execute("auto", "-b", "true");
         } else {
-            terminal.addTextInput("Y");
-            execute("auto", pathHomeParameter);
+            resetSecretsAndKeyStore("Y");
+            execute("auto");
         }
         if (usedKeyStore.hasPassword()) {
             // SecureString is already closed (zero-filled) and keystore-password is 17 char long
@@ -213,7 +217,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient)
             .execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), anyCheckedSupplier(), anyCheckedFunction());
-        Map<String, String> capturedPasswords = new HashMap<>(usersInSetOrder.size());
+        Map<String, String> capturedPasswords = Maps.newMapWithExpectedSize(usersInSetOrder.size());
         for (String user : usersInSetOrder) {
             URL urlWithRoute = passwordUrl(url, user);
             @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -261,7 +265,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         ).thenReturn(httpResponse);
 
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            execute(randomBoolean() ? "auto" : "interactive");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.CONFIG, e.exitCode);
@@ -309,7 +313,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack is not available on this Elasticsearch node.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
     }
 
     public void testErrorMessagesWhenXPackIsAvailableWithCorrectLicenseAndIsEnabledButStillFailedForUnknown() throws Exception {
@@ -355,7 +359,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("Unknown error");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
 
     }
 
@@ -401,7 +405,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack Security is not available.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
 
     }
 
@@ -447,7 +451,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack Security is disabled by configuration.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
     }
 
     public void testWrongServer() throws Exception {
@@ -457,7 +461,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             .execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), anyCheckedSupplier(), anyCheckedFunction());
 
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            execute(randomBoolean() ? "auto" : "interactive");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.CONFIG, e.exitCode);
@@ -465,6 +469,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testRedCluster() throws Exception {
+        resetSecretsAndKeyStore("n");
         URL url = new URL(httpClient.getDefaultURL());
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
@@ -481,11 +486,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         httpResponse = new HttpResponse(
             HttpURLConnection.HTTP_OK,
-            MapBuilder.<String, Object>newMapBuilder()
-                .put("cluster_name", "elasticsearch")
-                .put("status", "red")
-                .put("number_of_nodes", 1)
-                .map()
+            Map.of("cluster_name", "elasticsearch", "status", "red", "number_of_nodes", 1)
         );
         when(
             httpClient.execute(
@@ -498,9 +499,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
             )
         ).thenReturn(httpResponse);
 
-        terminal.addTextInput("n");
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            execute(randomBoolean() ? "auto" : "interactive");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.OK, e.exitCode);
@@ -510,7 +510,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     public void testUrlOption() throws Exception {
         URL url = new URL("http://localhost:9202" + randomFrom("", "/", "//", "/smth", "//smth/", "//x//x/"));
-        execute("auto", pathHomeParameter, "-u", url.toString(), "-b");
+        execute("auto", "-u", url.toString(), "-b");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
@@ -539,7 +539,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         doThrow(new IOException()).when(httpClient)
             .execute(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class), anyCheckedSupplier(), anyCheckedFunction());
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter, "-b");
+            execute(randomBoolean() ? "auto" : "interactive", "-b");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.TEMP_FAILURE, e.exitCode);
@@ -547,10 +547,10 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testInteractiveSetup() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
+        resetSecretsAndKeyStore("Y");
 
-        terminal.addTextInput("Y");
-        execute("interactive", pathHomeParameter);
+        URL url = new URL(httpClient.getDefaultURL());
+        execute("interactive");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
@@ -604,7 +604,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             terminal.addSecretInput(user + "-password");
         }
 
-        execute("interactive", pathHomeParameter);
+        execute("interactive");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
@@ -634,29 +634,29 @@ public class SetupPasswordToolTests extends CommandTestCase {
         terminal.addSecretInput("wrong-password");
         final UserException e = expectThrows(UserException.class, () -> {
             if (randomBoolean()) {
-                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter, "-b", "true");
+                execute(commandWithPasswordProtectedKeystore, "auto", "-b", "true");
             } else {
                 terminal.addTextInput("Y");
-                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter);
+                execute(commandWithPasswordProtectedKeystore, "auto");
             }
         });
         assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
     }
 
     private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/_authenticate").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_security/_authenticate").replaceAll("//+", "/") + "?pretty");
     }
 
     private URL passwordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("//+", "/") + "?pretty");
     }
 
     private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("//+", "/") + "?pretty");
     }
 
     private URL queryXPackSecurityFeatureConfigURL(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_xpack").replaceAll("/+", "/") + "?categories=features&human=false&pretty");
+        return new URL(url, (url.toURI().getPath() + "/_xpack").replaceAll("//+", "/") + "?categories=features&human=false&pretty");
     }
 
     private HttpResponse createHttpResponse(final int httpStatus, final String responseJson) throws IOException {
@@ -667,33 +667,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     private Command getSetupPasswordCommandWithKeyStore(KeyStoreWrapper keyStore) {
-        return new SetupPasswordTool(env -> httpClient, (e) -> keyStore) {
-
-            @Override
-            protected AutoSetup newAutoSetup() {
-                return new AutoSetup() {
-                    @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
-                        Settings.Builder builder = Settings.builder();
-                        settings.forEach((k, v) -> builder.put(k, v));
-                        return TestEnvironment.newEnvironment(builder.build());
-                    }
-                };
-            }
-
-            @Override
-            protected InteractiveSetup newInteractiveSetup() {
-                return new InteractiveSetup() {
-                    @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
-                        Settings.Builder builder = Settings.builder();
-                        settings.forEach((k, v) -> builder.put(k, v));
-                        return TestEnvironment.newEnvironment(builder.build());
-                    }
-                };
-            }
-
-        };
+        return new SetupPasswordTool(env -> httpClient, (e) -> keyStore);
 
     }
 

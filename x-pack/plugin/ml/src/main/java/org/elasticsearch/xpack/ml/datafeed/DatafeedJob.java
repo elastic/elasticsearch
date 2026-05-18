@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
@@ -22,21 +21,24 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
@@ -46,9 +48,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 class DatafeedJob {
@@ -69,13 +73,14 @@ class DatafeedJob {
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
     private final long delayedDataCheckFreq;
+    private final CrossClusterSearchStats crossClusterSearchStats;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
     private volatile long lastDataCheckTimeMs;
     private volatile Tuple<String, Annotation> lastDataCheckAnnotationWithId;
     private volatile Long lastEndTimeMs;
-    private AtomicBoolean running = new AtomicBoolean(true);
+    private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
@@ -97,7 +102,8 @@ class DatafeedJob {
         long latestFinalBucketEndTimeMs,
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
-        long delayedDataCheckFreq
+        long delayedDataCheckFreq,
+        CrossClusterSearchStats crossClusterSearchStats
     ) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
@@ -118,6 +124,7 @@ class DatafeedJob {
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
+        this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
     }
 
     void isolate() {
@@ -135,6 +142,10 @@ class DatafeedJob {
 
     public Integer getMaxEmptySearches() {
         return maxEmptySearches;
+    }
+
+    public long numberOfSearchesIn24Hours() {
+        return (60_000 * 60 * 24) / frequencyMs;
     }
 
     public void finishReportingTimingStats() {
@@ -171,6 +182,7 @@ class DatafeedJob {
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
+        request.setRefreshRequired(false);
         run(lookbackStartTimeMs, lookbackEnd, request);
         if (shouldPersistAfterLookback(isLookbackOnly)) {
             sendPersistRequest();
@@ -201,6 +213,7 @@ class DatafeedJob {
             // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
+            request.setRefreshRequired(false);
             FlushJobAction.Response flushResponse = flushJob(request);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
             return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
@@ -214,6 +227,7 @@ class DatafeedJob {
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setWaitForNormalization(false);
+        request.setRefreshRequired(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -296,12 +310,12 @@ class DatafeedJob {
         Date currentTime = new Date(currentTimeSupplier.get());
         return new Annotation.Builder().setAnnotation(msg)
             .setCreateTime(currentTime)
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(startTime)
             .setEndTimestamp(endTime)
             .setJobId(jobId)
             .setModifiedTime(currentTime)
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
             .setEvent(Annotation.Event.DELAYED_DATA)
             .build();
@@ -312,7 +326,7 @@ class DatafeedJob {
             .setTimestamp(annotation.getTimestamp())
             .setEndTimestamp(annotation.getEndTimestamp())
             .setModifiedTime(new Date(currentTimeSupplier.get()))
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .build();
     }
 
@@ -344,7 +358,7 @@ class DatafeedJob {
         return running.get();
     }
 
-    private void run(long start, long end, FlushJobAction.Request flushRequest) throws IOException {
+    private void run(long start, long end, FlushJobAction.Request flushRequest) {
         if (end <= start) {
             return;
         }
@@ -355,113 +369,216 @@ class DatafeedJob {
         RuntimeException error = null;
 
         long recordCount = 0;
+        List<LinkedClusterState> linkedClusterStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
-        while (dataExtractor.hasNext()) {
-            if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
-                dataExtractor.cancel();
-            }
-            if (isIsolated) {
-                return;
-            }
-
-            Optional<InputStream> extractedData;
-            try {
-                DataExtractor.Result result = dataExtractor.next();
-                extractedData = result.data();
-                searchInterval = result.searchInterval();
-            } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
-                // When extraction problems are encountered, we do not want to advance time.
-                // Instead, it is preferable to retry the given interval next time an extraction
-                // is triggered.
-
-                // For aggregated datafeeds it is possible for our users to use fields without doc values.
-                // In that case, it is really useful to display an error message explaining exactly that.
-                // Unfortunately, there are no great ways to identify the issue but search for 'doc values'
-                // deep in the exception.
-                if (e.toString().contains("doc values")) {
-                    throw new ExtractionProblemException(
-                        nextRealtimeTimestamp(),
-                        new IllegalArgumentException(
-                            "One or more fields do not have doc values; please enable doc values for all analysis fields for datafeeds"
-                                + " using aggregations"
-                        )
-                    );
+        try {
+            while (dataExtractor.hasNext()) {
+                if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
+                    dataExtractor.cancel();
                 }
-                throw new ExtractionProblemException(nextRealtimeTimestamp(), e);
-            }
-            if (isIsolated) {
-                return;
-            }
-            if (extractedData.isPresent()) {
-                DataCounts counts;
-                try (InputStream in = extractedData.get()) {
-                    counts = postData(in, XContentType.JSON);
-                    LOGGER.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] Processed another {} records with latest timestamp [{}]",
-                            jobId,
-                            counts.getProcessedRecordCount(),
-                            counts.getLatestRecordTimeStamp()
-                        )
-                    );
-                    timingStatsReporter.reportDataCounts(counts);
+                if (isIsolated) {
+                    return;
+                }
+
+                Optional<InputStream> extractedData;
+                try {
+                    DataExtractor.Result result = dataExtractor.next();
+                    extractedData = result.data();
+                    searchInterval = result.searchInterval();
+                    if (result.linkedClusterStates().isEmpty() == false) {
+                        linkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                            linkedClusterStates,
+                            result.linkedClusterStates()
+                        );
+                    }
                 } catch (Exception e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
-                    if (isIsolated) {
-                        return;
-                    }
-                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
+                    // When extraction problems are encountered, we do not want to advance time.
+                    // Instead, it is preferable to retry the given interval next time an extraction
+                    // is triggered.
 
-                    // a conflict exception means the job state is not open any more.
-                    // we should therefore stop the datafeed.
-                    boolean shouldStop = isConflictException(e);
-
-                    // When an analysis problem occurs, it means something catastrophic has
-                    // happened to the c++ process. We sent a batch of data to the c++ process
-                    // yet we do not know how many of those were processed. It is better to
-                    // advance time in order to avoid importing duplicate data.
-                    error = new AnalysisProblemException(nextRealtimeTimestamp(), shouldStop, e);
-                    break;
+                    // For aggregated datafeeds it is possible for our users to use fields without doc values.
+                    // In that case, it is really useful to display an error message explaining exactly that.
+                    // Unfortunately, there are no great ways to identify the issue but search for 'doc values'
+                    // deep in the exception.
+                    if (e.toString().contains("doc values")) {
+                        throw new ExtractionProblemException(
+                            nextRealtimeTimestamp(),
+                            new IllegalArgumentException(
+                                "One or more fields do not have doc values; please enable doc values for all analysis fields for datafeeds"
+                                    + " using aggregations"
+                            )
+                        );
+                    }
+                    throw new ExtractionProblemException(nextRealtimeTimestamp(), e);
                 }
-                recordCount += counts.getProcessedRecordCount();
-                haveEverSeenData |= (recordCount > 0);
-                if (counts.getLatestRecordTimeStamp() != null) {
-                    lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
+                if (isIsolated) {
+                    return;
+                }
+                if (extractedData.isPresent()) {
+                    DataCounts counts;
+                    try (InputStream in = extractedData.get()) {
+                        counts = postData(in, XContentType.JSON);
+                        LOGGER.trace(
+                            () -> format(
+                                "[%s] Processed another %s records with latest timestamp [%s]",
+                                jobId,
+                                counts.getProcessedRecordCount(),
+                                counts.getLatestRecordTimeStamp()
+                            )
+                        );
+                        timingStatsReporter.reportDataCounts(counts);
+                    } catch (Exception e) {
+                        if (e instanceof InterruptedException) {
+                            Thread.currentThread().interrupt();
+                        }
+                        if (isIsolated) {
+                            return;
+                        }
+                        LOGGER.error(() -> "[" + jobId + "] error while posting data", e);
+
+                        // a conflict exception means the job state is not open any more.
+                        // we should therefore stop the datafeed.
+                        boolean shouldStop = isConflictException(e);
+
+                        // When an analysis problem occurs, it means something catastrophic has
+                        // happened to the c++ process. We sent a batch of data to the c++ process
+                        // yet we do not know how many of those were processed. It is better to
+                        // advance time in order to avoid importing duplicate data.
+                        error = new AnalysisProblemException(nextRealtimeTimestamp(), shouldStop, e);
+                        break;
+                    }
+                    recordCount += counts.getProcessedRecordCount();
+                    haveEverSeenData |= (recordCount > 0);
+                    if (counts.getLatestRecordTimeStamp() != null) {
+                        lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
+                    }
                 }
             }
-        }
 
-        lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
-        LOGGER.debug(
-            "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
-            jobId,
-            error,
-            recordCount,
-            lastEndTimeMs,
-            isRunning(),
-            dataExtractor.isCancelled()
-        );
+            lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            LOGGER.debug(
+                "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
+                jobId,
+                error,
+                recordCount,
+                lastEndTimeMs,
+                isRunning(),
+                dataExtractor.isCancelled()
+            );
 
-        // We can now throw any stored error as we have updated time.
-        if (error != null) {
-            throw error;
-        }
+            CrossClusterSearchStats.ScopeChangeResult scopeChange = updateCrossClusterSearchStats(linkedClusterStates);
 
-        // If the datafeed was stopped, then it is possible that by the time
-        // we call flush the job is closed. Thus, we don't flush unless the
-        // datafeed is still running.
-        if (isRunning() && isIsolated == false) {
-            Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
-            if (lastFinalizedBucketEnd != null) {
-                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
+            // We can now throw any stored error as we have updated time.
+            if (error != null) {
+                throw error;
             }
-        }
 
-        if (recordCount == 0) {
-            throw new EmptyDataCountException(nextRealtimeTimestamp(), haveEverSeenData);
+            // If the datafeed was stopped, then it is possible that by the time
+            // we call flush the job is closed. Thus, we don't flush unless the
+            // datafeed is still running.
+            if (isRunning() && isIsolated == false) {
+                Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+                if (lastFinalizedBucketEnd != null) {
+                    this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
+                }
+
+                if (scopeChange != null) {
+                    checkForAnomaliesAfterScopeChange(scopeChange);
+                }
+            }
+
+            if (recordCount == 0) {
+                throw new EmptyDataCountException(nextRealtimeTimestamp(), haveEverSeenData);
+            }
+        } finally {
+            // Ensure the extractor is always destroyed to clean up scroll contexts
+            dataExtractor.destroy();
+        }
+    }
+
+    /**
+     * Updates cross-cluster search stats with linked cluster states from this cycle.
+     * If a scope change is confirmed, persists an annotation and emits a warning.
+     *
+     * @return the scope change result if one was confirmed this cycle, or {@code null}
+     */
+    @Nullable
+    private CrossClusterSearchStats.ScopeChangeResult updateCrossClusterSearchStats(List<LinkedClusterState> linkedClusterStates) {
+        CrossClusterSearchStats.ScopeChangeResult scopeChangeResult = crossClusterSearchStats.update(linkedClusterStates);
+        if (scopeChangeResult.scopeChanged()) {
+            String message = CrossClusterSearchStats.buildScopeChangeMessage(scopeChangeResult);
+            LOGGER.info("[{}] {}", jobId, message);
+            auditor.warning(jobId, message);
+            persistScopeChangeAnnotation(scopeChangeResult, message);
+            return scopeChangeResult;
+        }
+        return null;
+    }
+
+    private void persistScopeChangeAnnotation(CrossClusterSearchStats.ScopeChangeResult scopeChangeResult, String message) {
+        Date changeTime = Date.from(scopeChangeResult.changeTimestamp());
+        Date now = new Date(currentTimeSupplier.get());
+        Annotation annotation = new Annotation.Builder().setAnnotation(message)
+            .setCreateTime(now)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
+            .setTimestamp(changeTime)
+            .setEndTimestamp(changeTime)
+            .setJobId(jobId)
+            .setModifiedTime(now)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
+            .setType(Annotation.Type.ANNOTATION)
+            .setEvent(Annotation.Event.SEARCH_SCOPE_CHANGED)
+            .build();
+        annotationPersister.persistAnnotation(null, annotation);
+    }
+
+    /**
+     * One-shot backward anomaly lookback after a scope change has been confirmed and the job
+     * has been flushed. Queries finalized buckets from the scope change timestamp to now for
+     * elevated anomaly scores (>= 75). If found, emits a warning correlating the anomalies
+     * with the scope change.
+     */
+    private void checkForAnomaliesAfterScopeChange(CrossClusterSearchStats.ScopeChangeResult scopeChange) {
+        try {
+            GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
+            request.setStart(String.valueOf(scopeChange.changeTimestamp().toEpochMilli()));
+            request.setEnd(String.valueOf(currentTimeSupplier.get()));
+            request.setAnomalyScore(75.0);
+            request.setExcludeInterim(true);
+            request.setPageParams(new PageParams(0, 0));
+
+            GetBucketsAction.Response response;
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+                response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
+            }
+
+            long elevatedBucketCount = response.getBuckets().count();
+            if (elevatedBucketCount > 0) {
+                String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(scopeChange.changeTimestamp().toEpochMilli());
+                String changeSummary = buildScopeChangeSummary(scopeChange);
+                String anomalyMessage = Messages.getMessage(
+                    Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES,
+                    timestamp,
+                    changeSummary,
+                    elevatedBucketCount
+                );
+                auditor.warning(jobId, anomalyMessage);
+            }
+        } catch (Exception e) {
+            LOGGER.warn(() -> "[" + jobId + "] error checking for anomalies after scope change", e);
+        }
+    }
+
+    private static String buildScopeChangeSummary(CrossClusterSearchStats.ScopeChangeResult result) {
+        String linked = String.join(", ", new TreeSet<>(result.confirmedLinks()));
+        String unlinked = String.join(", ", new TreeSet<>(result.confirmedUnlinks()));
+        if (linked.isEmpty() == false && unlinked.isEmpty() == false) {
+            return linked + " linked; " + unlinked + " unlinked";
+        } else if (linked.isEmpty() == false) {
+            return linked + " linked";
+        } else {
+            return unlinked + " unlinked";
         }
     }
 
@@ -475,7 +592,7 @@ class DatafeedJob {
         }
     }
 
-    private boolean isConflictException(Exception e) {
+    private static boolean isConflictException(Exception e) {
         return e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT;
     }
 
@@ -535,6 +652,10 @@ class DatafeedJob {
      */
     Long lastEndTimeMs() {
         return lastEndTimeMs;
+    }
+
+    CrossClusterSearchStats getCrossClusterSearchStats() {
+        return crossClusterSearchStats;
     }
 
     static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {

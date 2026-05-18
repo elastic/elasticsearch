@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -29,7 +29,7 @@ import java.util.TreeSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisConfig> {
+public class AnalysisConfigTests extends AbstractXContentSerializingTestCase<AnalysisConfig> {
 
     @Override
     protected AnalysisConfig createTestInstance() {

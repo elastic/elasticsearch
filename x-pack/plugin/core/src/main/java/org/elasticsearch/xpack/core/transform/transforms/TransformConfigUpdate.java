@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
@@ -30,16 +30,16 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.
 /**
  * This class holds the mutable configuration items for a data frame transform
  */
-public class TransformConfigUpdate implements Writeable {
+public final class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+    public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
-    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<TransformConfigUpdate, TransformParsingContext> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        (args) -> {
+        (args, context) -> {
             SourceConfig source = (SourceConfig) args[0];
             DestConfig dest = (DestConfig) args[1];
             TimeValue frequency = args[2] == null
@@ -56,18 +56,22 @@ public class TransformConfigUpdate implements Writeable {
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false), TransformField.SOURCE);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false, c), TransformField.SOURCE);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> DestConfig.fromXContent(p, false), TransformField.DESTINATION);
         PARSER.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
-        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
+        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, null), TransformField.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
-        PARSER.declareNamedObject(
-            optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
-            TransformField.RETENTION_POLICY
-        );
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> {
+            XContentParser.Token token = p.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String currentName = p.currentName();
+            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, null);
+            token = p.nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return namedObject;
+        }, NullRetentionPolicyConfig.INSTANCE, TransformField.RETENTION_POLICY);
     }
 
     private final SourceConfig source;
@@ -110,23 +114,11 @@ public class TransformConfigUpdate implements Writeable {
         description = in.readOptionalString();
         syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         if (in.readBoolean()) {
-            setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
+            setHeaders(in.readMap(StreamInput::readString));
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings = in.readOptionalWriteable(SettingsConfig::new);
-        } else {
-            settings = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            metadata = in.readMap();
-        } else {
-            metadata = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
-        } else {
-            retentionPolicyConfig = null;
-        }
+        settings = in.readOptionalWriteable(SettingsConfig::new);
+        metadata = in.readGenericMap();
+        retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
     public SourceConfig getSource() {
@@ -182,19 +174,13 @@ public class TransformConfigUpdate implements Writeable {
         out.writeOptionalNamedWriteable(syncConfig);
         if (headers != null) {
             out.writeBoolean(true);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalWriteable(settings);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeMap(metadata);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalNamedWriteable(retentionPolicyConfig);
-        }
+        out.writeOptionalWriteable(settings);
+        out.writeGenericMap(metadata);
+        out.writeOptionalNamedWriteable(retentionPolicyConfig);
     }
 
     @Override
@@ -225,8 +211,8 @@ public class TransformConfigUpdate implements Writeable {
         return Objects.hash(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig, headers);
     }
 
-    public static TransformConfigUpdate fromXContent(final XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static TransformConfigUpdate fromXContent(final XContentParser parser, TransformParsingContext context) {
+        return PARSER.apply(parser, context);
     }
 
     public boolean isEmpty() {
@@ -249,7 +235,20 @@ public class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(settings, config.getSettings()) == false;
     }
 
-    private boolean isNullOrEqual(Object lft, Object rgt) {
+    public boolean changesHeaders(TransformConfig config) {
+        return isNullOrEqual(headers, config.getHeaders()) == false;
+    }
+
+    public boolean changesDestIndex(TransformConfig config) {
+        var updatedIndex = dest == null ? null : dest.getIndex();
+        return isNullOrEqual(updatedIndex, config.getDestination().getIndex()) == false;
+    }
+
+    public boolean changesFrequency(TransformConfig config) {
+        return isNullOrEqual(frequency, config.getFrequency()) == false;
+    }
+
+    private static boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }
 
@@ -299,10 +298,14 @@ public class TransformConfigUpdate implements Writeable {
             builder.setMetadata(metadata);
         }
         if (retentionPolicyConfig != null) {
-            builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            if (NullRetentionPolicyConfig.INSTANCE.equals(retentionPolicyConfig)) {
+                builder.setRetentionPolicyConfig(null);
+            } else {
+                builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            }
         }
 
-        builder.setVersion(Version.CURRENT);
+        builder.setVersion(TransformConfigVersion.CURRENT);
         return builder.build();
     }
 }

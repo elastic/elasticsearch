@@ -28,6 +28,7 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
@@ -50,7 +51,7 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.MonotonicBlockPackedReader;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacyBinaryDocValues;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacyBinaryDocValuesWrapper;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacySortedSetDocValues;
@@ -1316,6 +1317,11 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
         }
     }
 
+    @Override
+    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+        return null;
+    }
+
     private SortedSetDocValues getSortedSetWithAddresses(FieldInfo field) throws IOException {
         final long valueCount = binaries.get(field.name).count;
         // we keep the byte[]s and list of ords on disk, these could be large
@@ -1349,6 +1355,11 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             @Override
             public BytesRef lookupOrd(long ord) {
                 return binary.get(ord);
+            }
+
+            @Override
+            public int docValueCount() {
+                return Math.toIntExact(endOffset - startOffset);
             }
 
             @Override
@@ -1413,6 +1424,11 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             @Override
             public long getValueCount() {
                 return valueCount;
+            }
+
+            @Override
+            public int docValueCount() {
+                return Math.toIntExact(endOffset - startOffset);
             }
 
             @Override

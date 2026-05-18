@@ -1,0 +1,110 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: Introduced in 8.13.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Api Key Id":
+  - do:
+      connector.update_api_key_id:
+        connector_id: test-connector
+        body:
+          api_key_id: test-api-key-id
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { api_key_id: test-api-key-id }
+
+---
+"Update Connector Api Key Secret Id":
+  - do:
+      connector.update_api_key_id:
+        connector_id: test-connector
+        body:
+          api_key_secret_id: test-api-key-secret-id
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { api_key_secret_id: test-api-key-secret-id }
+
+---
+"Update Connector Api Key Id and Api Key Secret Id":
+  - do:
+      connector.update_api_key_id:
+        connector_id: test-connector
+        body:
+          api_key_id: test-api-key-id
+          api_key_secret_id: test-api-key-secret-id
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { api_key_id: test-api-key-id }
+  - match: { api_key_secret_id: test-api-key-secret-id }
+
+---
+"Update Connector Api Key Id - 404 when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_api_key_id:
+        connector_id: test-non-existent-connector
+        body:
+          api_key_id: test-api-key-id
+          api_key_secret_id: test-api-key-secret-id
+
+---
+"Update Connector Api Key Id - 400 status code when connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.update_api_key_id:
+        connector_id: ""
+        body:
+          api_key_id: test-api-key-id
+          api_key_secret_id: test-api-key-secret-id
+
+---
+"Update Connector Api Key Id - 400 status code when both values are null":
+  - do:
+      catch: "bad_request"
+      connector.update_api_key_id:
+        connector_id: test-connector
+        body:
+          api_key_id: null
+          api_key_secret_id: null
+
+  - match: { error.reason: "Validation Failed: 1: [api_key_id] and [api_key_secret_id] cannot both be [null]. Please provide a value for at least one of them.;" }
+
+---
+"Update Connector Api Key Id - 400 status code when payload is not string":
+  - do:
+      catch: "bad_request"
+      connector.update_api_key_id:
+        connector_id: test-connector
+        body:
+          api_key_id:
+            field_1: test
+            field_2: something
+          api_key_secret_id: test-api-key-secret-id

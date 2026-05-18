@@ -1,0 +1,31 @@
+# This test needs multiple nodes, because a single-node cluster does not send any transport actions so these stats are empty
+---
+"transport action stats":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.stats:
+        metric: [ transport ]
+        human: true
+
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.requests.count: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.requests.total_size_in_bytes: 0 }
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.requests.total_size
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.requests.histogram.0.ge_bytes: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.requests.histogram.0.lt_bytes: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.requests.histogram.0.count: 0 }
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.requests.histogram.0.ge
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.requests.histogram.0.lt
+
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.responses.count: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.responses.total_size_in_bytes: 0 }
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.responses.total_size
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.responses.histogram.0.ge_bytes: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.responses.histogram.0.lt_bytes: 0 }
+  - gt: {    nodes.$node_id.transport.actions.internal:transport/handshake.responses.histogram.0.count: 0 }
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.responses.histogram.0.ge
+  - is_true: nodes.$node_id.transport.actions.internal:transport/handshake.responses.histogram.0.lt

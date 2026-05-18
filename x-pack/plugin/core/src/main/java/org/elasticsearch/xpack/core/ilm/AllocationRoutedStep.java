@@ -6,25 +6,23 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
-import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.allShardsActiveAllocationInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
@@ -47,53 +45,52 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
+        if (ActiveShardCount.ALL.enoughShardsActive(currentState.metadata(), currentState.routingTable(), index.getName()) == false) {
             logger.debug(
                 "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
         }
 
         AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Collections.singletonList(
+            List.of(
                 new FilterAllocationDecider(
-                    clusterState.getMetadata().settings(),
+                    currentState.cluster().metadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 )
             )
         );
-        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, clusterState);
+        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, currentState);
 
         if (allocationPendingAllShards > 0) {
             logger.debug(
                 "{} lifecycle action [{}] waiting for [{}] shards to be allocated to nodes matching the given filters",
                 index,
-                getKey().getAction(),
+                getKey().action(),
                 allocationPendingAllShards
             );
             return new Result(false, allShardsActiveAllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards));
         } else {
-            logger.debug("{} lifecycle action for [{}] complete", index, getKey().getAction());
+            logger.debug("{} lifecycle action for [{}] complete", index, getKey().action());
             return new Result(true, null);
         }
     }
 
-    static int getPendingAllocations(Index index, AllocationDeciders allocationDeciders, ClusterState clusterState) {
+    static int getPendingAllocations(Index index, AllocationDeciders allocationDeciders, ProjectState currentState) {
         // All the allocation attributes are already set so just need to check
         // if the allocation has happened
-        RoutingAllocation allocation = new RoutingAllocation(
+        RoutingAllocation allocation = RoutingAllocation.immutable(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
-            clusterState,
+            currentState.cluster(),
             null,
             null,
             System.nanoTime()
@@ -101,13 +98,15 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
 
         int allocationPendingAllShards = 0;
 
-        ImmutableOpenIntMap<IndexShardRoutingTable> allShards = clusterState.getRoutingTable().index(index).getShards();
-        for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : allShards.values()) {
-            for (ShardRouting shardRouting : shardRoutingTable.value.shards()) {
+        final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(index);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = allocationDeciders.canRemain(
                     shardRouting,
-                    clusterState.getRoutingNodes().node(currentNodeId),
+                    currentState.cluster().getRoutingNodes().node(currentNodeId),
                     allocation
                 ).type() == Decision.Type.YES;
                 if (canRemainOnCurrentNode == false || shardRouting.started() == false) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
@@ -11,9 +12,9 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -29,7 +30,7 @@ import java.util.Objects;
 /**
  * Base class for the different suggestion implementations.
  */
-public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements NamedWriteable, ToXContentFragment {
+public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements VersionedNamedWriteable, ToXContentFragment {
 
     protected final String field;
     protected String text;
@@ -293,7 +294,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         }
         MappedFieldType fieldType = context.getFieldType(field);
         if (analyzer == null) {
-            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
+            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().searchAnalyzer());
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {

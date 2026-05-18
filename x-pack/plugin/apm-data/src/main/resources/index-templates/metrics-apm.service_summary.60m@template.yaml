@@ -1,0 +1,36 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: [metrics-apm.service_summary.60m-*]
+priority: 210
+data_stream:
+  hidden: true
+allow_auto_create: true
+_meta:
+  description: Index template for metrics-apm.service_summary.60m-*
+  managed: true
+composed_of:
+- metrics@mappings
+- apm@mappings
+- apm@settings
+- apm-390d@lifecycle
+- metrics-apm@mappings
+- metrics-apm@settings
+- metrics-apm.service_summary@mappings
+- metrics-apm.service_summary.60m-fallback@ilm
+- metrics@custom
+- metrics-apm.service_summary.60m@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- metrics@custom
+- metrics-apm.service_summary.60m@custom
+- metrics-apm.service_summary.60m-fallback@ilm
+template:
+  settings:
+    index:
+      default_pipeline: metrics-apm.service_summary@default-pipeline
+      final_pipeline: metrics-apm@pipeline
+  mappings:
+    properties:
+      metricset.interval:
+        type: constant_keyword
+        value: 60m

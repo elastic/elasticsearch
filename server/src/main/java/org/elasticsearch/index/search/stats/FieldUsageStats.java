@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String ANY = "any";
@@ -53,12 +52,12 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     }
 
     public FieldUsageStats(StreamInput in) throws IOException {
-        stats = in.readMap(StreamInput::readString, PerFieldUsageStats::new);
+        stats = in.readMap(PerFieldUsageStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(stats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(stats, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -73,7 +72,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries = stats.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.toList());
+                .toList();
             for (Map.Entry<String, PerFieldUsageStats> entry : sortedEntries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -211,11 +210,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             payloads = in.readVLong();
             termVectors = in.readVLong();
             points = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
-                knnVectors = in.readVLong();
-            } else {
-                knnVectors = 0;
-            }
+            knnVectors = in.readVLong();
         }
 
         @Override
@@ -233,9 +228,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(payloads);
             out.writeVLong(termVectors);
             out.writeVLong(points);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeVLong(knnVectors);
-            }
+            out.writeVLong(knnVectors);
         }
 
         @Override

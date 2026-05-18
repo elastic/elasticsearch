@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -84,11 +86,9 @@ public class EnableAllocationDecider extends AllocationDecider {
     private volatile Rebalance enableRebalance;
     private volatile Allocation enableAllocation;
 
-    public EnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.enableAllocation = CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);
-        this.enableRebalance = CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, this::setEnableRebalance);
+    public EnableAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, this::setEnableRebalance);
     }
 
     private void setEnableRebalance(Rebalance enableRebalance) {
@@ -114,7 +114,11 @@ public class EnableAllocationDecider extends AllocationDecider {
             );
         }
 
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         final Allocation enable;
         final boolean usedIndexSetting;
         if (INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.exists(indexMetadata.getSettings())) {
@@ -124,51 +128,47 @@ public class EnableAllocationDecider extends AllocationDecider {
             enable = this.enableAllocation;
             usedIndexSetting = false;
         }
-        switch (enable) {
-            case ALL:
-                return allocation.decision(Decision.YES, NAME, "all allocations are allowed");
-            case NONE:
-                return allocation.decision(Decision.NO, NAME, "no allocations are allowed due to %s", setting(enable, usedIndexSetting));
-            case NEW_PRIMARIES:
-                if (shardRouting.primary()
-                    && shardRouting.active() == false
-                    && shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
-                    return allocation.decision(Decision.YES, NAME, "new primary allocations are allowed");
-                } else {
-                    return allocation.decision(
+        return switch (enable) {
+            case ALL -> allocation.decision(Decision.YES, NAME, "all allocations are allowed");
+            case NONE -> allocation.decision(Decision.NO, NAME, "no allocations are allowed due to %s", setting(enable, usedIndexSetting));
+            case NEW_PRIMARIES -> (shardRouting.primary()
+                && shardRouting.active() == false
+                && shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE)
+                    ? allocation.decision(Decision.YES, NAME, "new primary allocations are allowed")
+                    : allocation.decision(
                         Decision.NO,
                         NAME,
                         "non-new primary allocations are forbidden due to %s",
                         setting(enable, usedIndexSetting)
                     );
-                }
-            case PRIMARIES:
-                if (shardRouting.primary()) {
-                    return allocation.decision(Decision.YES, NAME, "primary allocations are allowed");
-                } else {
-                    return allocation.decision(
-                        Decision.NO,
-                        NAME,
-                        "replica allocations are forbidden due to %s",
-                        setting(enable, usedIndexSetting)
-                    );
-                }
-            default:
-                throw new IllegalStateException("Unknown allocation option");
-        }
+            case PRIMARIES -> shardRouting.primary()
+                ? allocation.decision(Decision.YES, NAME, "primary allocations are allowed")
+                : allocation.decision(Decision.NO, NAME, "replica allocations are forbidden due to %s", setting(enable, usedIndexSetting));
+        };
     }
 
+    /**
+     * Rebalancing is limited by the {@link Rebalance} value set on the cluster setting {@link #CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING}.
+     * We might allow movement only of primary shards, or replica shards, or none, or all.
+     * This method only concerns itself with whether {@link Rebalance#NONE} is set: rebalancing is allowed for all other setting values.
+     */
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
         }
 
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
         if (enableRebalance == Rebalance.NONE) {
-            for (IndexMetadata indexMetadata : allocation.metadata()) {
-                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetadata.getSettings())
-                    && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetadata.getSettings()) != Rebalance.NONE) {
-                    return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");
+            for (ProjectMetadata project : allocation.metadata().projects().values()) {
+                for (IndexMetadata indexMetadata : project) {
+                    if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetadata.getSettings())
+                        && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetadata.getSettings()) != Rebalance.NONE) {
+                        return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");
+                    }
                 }
             }
             return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enableRebalance, false));
@@ -183,7 +183,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
         }
 
-        Settings indexSettings = allocation.metadata().getIndexSafe(shardRouting.index()).getSettings();
+        Settings indexSettings = allocation.metadata().indexMetadata(shardRouting.index()).getSettings();
         final Rebalance enable;
         final boolean usedIndexSetting;
         if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {
@@ -193,36 +193,16 @@ public class EnableAllocationDecider extends AllocationDecider {
             enable = this.enableRebalance;
             usedIndexSetting = false;
         }
-        switch (enable) {
-            case ALL:
-                return allocation.decision(Decision.YES, NAME, "all rebalancing is allowed");
-            case NONE:
-                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enable, usedIndexSetting));
-            case PRIMARIES:
-                if (shardRouting.primary()) {
-                    return allocation.decision(Decision.YES, NAME, "primary rebalancing is allowed");
-                } else {
-                    return allocation.decision(
-                        Decision.NO,
-                        NAME,
-                        "replica rebalancing is forbidden due to %s",
-                        setting(enable, usedIndexSetting)
-                    );
-                }
-            case REPLICAS:
-                if (shardRouting.primary() == false) {
-                    return allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
-                } else {
-                    return allocation.decision(
-                        Decision.NO,
-                        NAME,
-                        "primary rebalancing is forbidden due to %s",
-                        setting(enable, usedIndexSetting)
-                    );
-                }
-            default:
-                throw new IllegalStateException("Unknown rebalance option");
-        }
+        return switch (enable) {
+            case ALL -> allocation.decision(Decision.YES, NAME, "all rebalancing is allowed");
+            case NONE -> allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enable, usedIndexSetting));
+            case PRIMARIES -> shardRouting.primary()
+                ? allocation.decision(Decision.YES, NAME, "primary rebalancing is allowed")
+                : allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to %s", setting(enable, usedIndexSetting));
+            case REPLICAS -> shardRouting.primary()
+                ? allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to %s", setting(enable, usedIndexSetting))
+                : allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
+        };
     }
 
     private static String setting(Allocation allocation, boolean usedIndexSetting) {
@@ -271,7 +251,7 @@ public class EnableAllocationDecider extends AllocationDecider {
     }
 
     /**
-     * Rebalance values or rather their string representation to be used used with
+     * Rebalance values or rather their string representation to be used with
      * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} /
      * {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE_SETTING}
      * via cluster / index settings.

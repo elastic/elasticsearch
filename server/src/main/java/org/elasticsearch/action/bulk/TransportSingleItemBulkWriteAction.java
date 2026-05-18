@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -17,10 +18,14 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-/** use transport bulk action directly */
+/**
+ * Use {@link TransportBulkAction} instead with {@link TransportBulkAction#unwrappingSingleItemBulkResponse(ActionListener)}
+ * to unwrap response.
+ */
 @Deprecated
 public abstract class TransportSingleItemBulkWriteAction<
     Request extends ReplicatedWriteRequest<Request>,
@@ -35,29 +40,13 @@ public abstract class TransportSingleItemBulkWriteAction<
         Writeable.Reader<Request> requestReader,
         TransportBulkAction bulkAction
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.bulkAction = bulkAction;
     }
 
     @Override
     protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
-        bulkAction.execute(task, toSingleItemBulkRequest(request), wrapBulkResponse(listener));
-    }
-
-    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> wrapBulkResponse(
-        ActionListener<Response> listener
-    ) {
-        return ActionListener.wrap(bulkItemResponses -> {
-            assert bulkItemResponses.getItems().length == 1 : "expected only one item in bulk request";
-            BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
-            if (bulkItemResponse.isFailed() == false) {
-                @SuppressWarnings("unchecked")
-                final Response response = (Response) bulkItemResponse.getResponse();
-                listener.onResponse(response);
-            } else {
-                listener.onFailure(bulkItemResponse.getFailure().getCause());
-            }
-        }, listener::onFailure);
+        bulkAction.execute(task, toSingleItemBulkRequest(request), TransportBulkAction.unwrappingSingleItemBulkResponse(listener));
     }
 
     public static BulkRequest toSingleItemBulkRequest(ReplicatedWriteRequest<?> request) {

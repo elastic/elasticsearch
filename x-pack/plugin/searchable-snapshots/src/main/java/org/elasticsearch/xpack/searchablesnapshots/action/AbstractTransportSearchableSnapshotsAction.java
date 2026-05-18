@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -21,11 +21,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -35,13 +33,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
 
 public abstract class AbstractTransportSearchableSnapshotsAction<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
-    ShardOperationResult extends Writeable> extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult> {
+    Response extends BaseBroadcastResponse,
+    ShardOperationResult extends Writeable> extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult, Void> {
 
     private final IndicesService indicesService;
     private final XPackLicenseState licenseState;
@@ -53,7 +52,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver resolver,
         Writeable.Reader<Request> request,
-        String executor,
+        Executor executor,
         IndicesService indicesService,
         XPackLicenseState licenseState
     ) {
@@ -69,7 +68,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver resolver,
         Writeable.Reader<Request> request,
-        String executor,
+        Executor executor,
         IndicesService indicesService,
         XPackLicenseState licenseState,
         boolean canTripCircuitBreaker
@@ -93,10 +92,9 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     protected ShardsIterator shards(ClusterState state, Request request, String[] concreteIndices) {
         final List<String> searchableSnapshotIndices = new ArrayList<>();
         for (String concreteIndex : concreteIndices) {
-            IndexMetadata indexMetaData = state.metadata().index(concreteIndex);
+            IndexMetadata indexMetaData = state.metadata().getProject().index(concreteIndex);
             if (indexMetaData != null) {
-                Settings indexSettings = indexMetaData.getSettings();
-                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+                if (indexMetaData.isSearchableSnapshot()) {
                     searchableSnapshotIndices.add(concreteIndex);
                 }
             }
@@ -108,7 +106,13 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     }
 
     @Override
-    protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardOperationResult> listener) {
+    protected void shardOperation(
+        Request request,
+        ShardRouting shardRouting,
+        Task task,
+        Void nodeContext,
+        ActionListener<ShardOperationResult> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             SearchableSnapshots.ensureValidLicense(licenseState);
             final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());

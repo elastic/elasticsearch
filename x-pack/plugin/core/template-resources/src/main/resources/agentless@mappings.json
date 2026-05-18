@@ -1,0 +1,22 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "v": {
+          "type": "object",
+          "enabled": false
+        },
+        "updated_at": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default mappings for the agentless index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

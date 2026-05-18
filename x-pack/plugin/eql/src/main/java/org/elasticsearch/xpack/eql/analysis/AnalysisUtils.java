@@ -21,8 +21,6 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toList;
-
 public final class AnalysisUtils {
 
     private AnalysisUtils() {}
@@ -67,7 +65,7 @@ public final class AnalysisUtils {
             "Reference ["
                 + u.qualifiedName()
                 + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of "
-                + matches.stream().map(a -> "\"" + a.qualifier() + "\".\"" + a.name() + "\"").sorted().collect(toList())
+                + matches.stream().map(a -> "\"" + a.qualifier() + "\".\"" + a.name() + "\"").sorted().toList()
         );
     }
 
@@ -76,7 +74,7 @@ public final class AnalysisUtils {
         if (named instanceof FieldAttribute fa) {
 
             // incompatible mappings
-            if (fa.field()instanceof InvalidMappedField field) {
+            if (fa.field() instanceof InvalidMappedField field) {
                 named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + field.errorMessage());
             }
             // unsupported types

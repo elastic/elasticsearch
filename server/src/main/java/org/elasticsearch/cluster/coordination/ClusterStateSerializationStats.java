@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -82,13 +83,17 @@ public class ClusterStateSerializationStats implements Writeable, ToXContentObje
         builder.startObject();
         builder.startObject("full_states");
         builder.field("count", fullStateCount);
-        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedFullStateBytes));
-        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedFullStateBytes));
+        builder.humanReadableField(
+            "uncompressed_size_in_bytes",
+            "uncompressed_size",
+            ByteSizeValue.ofBytes(totalUncompressedFullStateBytes)
+        );
+        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", ByteSizeValue.ofBytes(totalCompressedFullStateBytes));
         builder.endObject();
         builder.startObject("diffs");
         builder.field("count", diffCount);
-        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedDiffBytes));
-        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedDiffBytes));
+        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", ByteSizeValue.ofBytes(totalUncompressedDiffBytes));
+        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", ByteSizeValue.ofBytes(totalCompressedDiffBytes));
         builder.endObject();
         builder.endObject();
         return builder;

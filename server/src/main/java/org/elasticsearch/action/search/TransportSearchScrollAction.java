@@ -1,19 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -22,10 +30,15 @@ import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TY
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
-
+    public static final ActionType<SearchResponse> TYPE = new ActionType<>("indices:data/read/scroll");
+    public static final RemoteClusterActionType<SearchResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        TYPE.name(),
+        SearchResponse::new
+    );
+    private static final Logger logger = LogManager.getLogger(TransportSearchScrollAction.class);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
-    private final SearchPhaseController searchPhaseController;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSearchScrollAction(
@@ -33,39 +46,82 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ClusterService clusterService,
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
-        SearchPhaseController searchPhaseController
+        SearchResponseMetrics searchResponseMetrics
     ) {
-        super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
+        super(TYPE.name(), transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
-        this.searchPhaseController = searchPhaseController;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        ActionListener<SearchResponse> loggingAndMetrics = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    searchResponseMetrics.recordTookTimeForSearchScroll(searchResponse.getTookInMillis());
+                    SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
+                        SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
+                    if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                        for (ShardOperationFailedException f : groupedFailures) {
+                            Throwable cause = f.getCause() == null ? f : f.getCause();
+                            if (ExceptionsHelper.status(cause).getStatus() >= 500
+                                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause) == false) {
+                                logger.warn("TransportSearchScrollAction shard failure (partial results response)", f);
+                                responseCountTotalStatus = SearchResponseMetrics.ResponseCountTotalStatus.PARTIAL_FAILURE;
+                            }
+                        }
+                    }
+                    listener.onResponse(searchResponse);
+                    // increment after the delegated onResponse to ensure we don't
+                    // record both a success and a failure if there is an exception
+                    searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
+                listener.onFailure(e);
+            }
+        };
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            Runnable action = switch (scrollId.getType()) {
+            if (scrollId.getContext().length == 0) {
+                // The scroll id encodes zero shard contexts. This happens when the initial _search?scroll request
+                // resolved to zero shards — either because the index expression matched no indices, or because the
+                // can_match phase rewrote the query to MatchNoneQueryBuilder on every shard (e.g. a date range that
+                // doesn't overlap any shard's min/max). The corresponding scroll id is still returned to the client
+                // so it can run the same scroll-until-exhausted loop it uses for normal cursors. Before this fix that
+                // loop's first iteration failed with HTTP 503 "no nodes to search on"; return an empty 200 response
+                // instead so a client can terminate on hits.length == 0 without special-casing the error.
+                String responseScrollId = request.scroll() != null ? request.scrollId() : null;
+                ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().scrollId(responseScrollId).build());
+                return;
+            }
+            var action = switch (scrollId.getType()) {
                 case QUERY_THEN_FETCH_TYPE -> new SearchScrollQueryThenFetchAsyncAction(
                     logger,
                     clusterService,
                     searchTransportService,
-                    searchPhaseController,
                     request,
                     (SearchTask) task,
                     scrollId,
-                    listener
+                    loggingAndMetrics
                 );
                 case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
                     new SearchScrollQueryAndFetchAsyncAction(
                         logger,
                         clusterService,
                         searchTransportService,
-                        searchPhaseController,
                         request,
                         (SearchTask) task,
                         scrollId,
-                        listener
+                        loggingAndMetrics
                     );
                 default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             };

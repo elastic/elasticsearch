@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -28,11 +28,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -58,9 +58,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         String sourceIndex = "test-source-query-is-applied";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping(
                 "numeric_1",
                 "type=double",
@@ -206,26 +204,26 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             )
             .buildForExplain();
 
-        List<ActionFuture<ExplainDataFrameAnalyticsAction.Response>> futures = new ArrayList<>();
-
-        for (int i = 0; i < simultaneousInvocationCount; ++i) {
-            futures.add(client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, new PutDataFrameAnalyticsAction.Request(config)));
-        }
-
-        ExplainDataFrameAnalyticsAction.Response previous = null;
-        for (ActionFuture<ExplainDataFrameAnalyticsAction.Response> future : futures) {
-            // The main purpose of this test is that actionGet() here will throw an exception
-            // if any of the simultaneous calls returns an error due to interaction between
-            // the many estimation processes that get run
-            ExplainDataFrameAnalyticsAction.Response current = future.actionGet(10000);
-            if (previous != null) {
-                // A secondary check the test can perform is that the multiple invocations
-                // return the same result (but it was failures due to unwanted interactions
-                // that caused this test to be written)
-                assertEquals(previous, current);
+        safeAwait(SubscribableListener.<Void>newForked(testListener -> {
+            try (var listeners = new RefCountingListener(testListener)) {
+                final var firstResponseRef = new AtomicReference<ExplainDataFrameAnalyticsAction.Response>();
+                for (int i = 0; i < simultaneousInvocationCount; ++i) {
+                    client().execute(
+                        ExplainDataFrameAnalyticsAction.INSTANCE,
+                        new ExplainDataFrameAnalyticsAction.Request(config),
+                        // The main purpose of this test is that the action will complete its listener exceptionally if any of the
+                        // simultaneous calls returns an error due to interaction between the many estimation processes that get run.
+                        listeners.acquire(response -> {
+                            // A secondary check the test can perform is that the multiple invocations return the same result
+                            // (but it was failures due to unwanted interactions that caused this test to be written)
+                            assertNotNull(response);
+                            firstResponseRef.compareAndSet(null, response);
+                            assertEquals(firstResponseRef.get(), response);
+                        })
+                    );
+                }
             }
-            previous = current;
-        }
+        }));
     }
 
     public void testRuntimeFields() {

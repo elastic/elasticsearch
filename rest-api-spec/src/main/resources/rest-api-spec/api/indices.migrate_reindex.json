@@ -1,0 +1,32 @@
+{
+  "indices.migrate_reindex": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-migrate-reindex",
+      "description": "Reindex legacy backing indices"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_migration/reindex",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The body contains the fields `mode` and `source.index, where the only mode currently supported is `upgrade`, and the `source.index` must be a data stream name",
+      "required": true
+    }
+  }
+}

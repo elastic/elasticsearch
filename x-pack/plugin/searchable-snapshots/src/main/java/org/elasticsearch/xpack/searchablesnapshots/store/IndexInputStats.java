@@ -23,7 +23,7 @@ import java.util.function.LongSupplier;
 public class IndexInputStats {
 
     /* A threshold beyond which an index input seeking is counted as "large" */
-    static final ByteSizeValue SEEKING_THRESHOLD = new ByteSizeValue(8, ByteSizeUnit.MB);
+    static final ByteSizeValue SEEKING_THRESHOLD = ByteSizeValue.of(8, ByteSizeUnit.MB);
 
     private final long numFiles;
     private final long totalSize;
@@ -250,8 +250,8 @@ public class IndexInputStats {
         void add(final long value) {
             count.increment();
             total.add(value);
-            min.updateAndGet(prev -> Math.min(prev, value));
-            max.updateAndGet(prev -> Math.max(prev, value));
+            min.accumulateAndGet(value, Math::min);
+            max.accumulateAndGet(value, Math::max);
         }
 
         public long count() {

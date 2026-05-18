@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -11,8 +12,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -23,9 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -42,7 +40,9 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         "ingest_document",
         true,
         a -> {
-            HashMap<String, Object> sourceAndMetadata = new HashMap<>();
+            Map<String, Object> source = (Map<String, Object>) a[5];
+            Map<String, Object> sourceAndMetadata = Maps.newHashMapWithExpectedSize(5 + source.size());
+            sourceAndMetadata.putAll(source);
             sourceAndMetadata.put(Metadata.INDEX.getFieldName(), a[0]);
             sourceAndMetadata.put(Metadata.ID.getFieldName(), a[1]);
             if (a[2] != null) {
@@ -54,8 +54,8 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             if (a[4] != null) {
                 sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
             }
-            sourceAndMetadata.putAll((Map<String, Object>) a[5]);
-            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[6]));
+            Map<String, Object> ingestMetadata = (Map<String, Object>) a[6];
+            return new WriteableIngestDocument(sourceAndMetadata, ingestMetadata);
         }
     );
     static {
@@ -81,21 +81,34 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         PARSER.declareObject(constructorArg(), INGEST_DOC_PARSER, new ParseField(DOC_FIELD));
     }
 
+    /**
+     * Builds a writeable ingest document that wraps a copy of the passed-in, non-null ingest document.
+     *
+     * @throws IllegalArgumentException if the passed-in ingest document references itself
+     */
     WriteableIngestDocument(IngestDocument ingestDocument) {
         assert ingestDocument != null;
-        this.ingestDocument = ingestDocument;
+        this.ingestDocument = new IngestDocument(ingestDocument); // internal defensive copy
+    }
+
+    /**
+     * Builds a writeable ingest document by constructing the wrapped ingest document from the passed-in maps.
+     * <p>
+     * This is intended for cases like deserialization, where we know the passed-in maps aren't self-referencing,
+     * and where a defensive copy is unnecessary.
+     */
+    private WriteableIngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     WriteableIngestDocument(StreamInput in) throws IOException {
-        Map<String, Object> sourceAndMetadata = in.readMap();
-        Map<String, Object> ingestMetadata = in.readMap();
-        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
+        this(in.readGenericMap(), in.readGenericMap());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(ingestDocument.getSourceAndMetadata());
-        out.writeMap(ingestDocument.getIngestMetadata());
+        out.writeGenericMap(ingestDocument.getSourceAndMetadata());
+        out.writeGenericMap(ingestDocument.getIngestMetadata());
     }
 
     IngestDocument getIngestDocument() {
@@ -105,18 +118,14 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(DOC_FIELD);
-        Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.getMetadata();
-        for (Map.Entry<IngestDocument.Metadata, Object> metadata : metadataMap.entrySet()) {
-            if (metadata.getValue() != null) {
-                builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
+        org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
+        for (String key : metadata.keySet()) {
+            Object value = metadata.get(key);
+            if (value != null) {
+                builder.field(key, value.toString());
             }
         }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
-        Map<String, Object> source = IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata());
-        metadataMap.keySet().forEach(mD -> source.remove(mD.getFieldName()));
-        builder.field(SOURCE_FIELD, source);
+        builder.field(SOURCE_FIELD, ingestDocument.getSource());
         builder.field(INGEST_FIELD, ingestDocument.getIngestMetadata());
         builder.endObject();
         return builder;
@@ -124,23 +133,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     public static WriteableIngestDocument fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        WriteableIngestDocument that = (WriteableIngestDocument) o;
-        return Objects.equals(ingestDocument, that.ingestDocument);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ingestDocument);
     }
 
     @Override

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -20,6 +20,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
@@ -42,10 +44,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
     private SearchExecutionContext context;
+    private MapperService mapperService;
 
     @Before
     public void createSearchExecutionContext() throws IOException {
-        MapperService mapperService = createMapperService(
+        this.mapperService = createMapperService(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
@@ -81,7 +84,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
@@ -89,9 +92,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
                 new NamedAnalyzer("mock_synonym", AnalyzerScope.INDEX, new MockSynonymAnalyzer()),
                 "stop",
                 new NamedAnalyzer("stop", AnalyzerScope.INDEX, new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 
@@ -130,13 +131,21 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
     }
 
     public void testWildcardFieldPattern() throws Exception {
-        Query query = combinedFieldsQuery("quick fox").field("field*").toQuery(context);
-        assertThat(query, instanceOf(BooleanQuery.class));
 
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-        assertThat(booleanQuery.clauses().size(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(CombinedFieldQuery.class));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), instanceOf(CombinedFieldQuery.class));
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field1" : "foo", "field2" : "foo" }
+            """));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+            SearchExecutionContext searcherContext = createSearchExecutionContext(mapperService, newSearcher(ir));
+            Query query = combinedFieldsQuery("quick fox").field("field*").toQuery(searcherContext);
+            assertThat(query, instanceOf(BooleanQuery.class));
+
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            assertThat(booleanQuery.clauses().size(), equalTo(2));
+            assertThat(booleanQuery.clauses().get(0).query(), instanceOf(CombinedFieldQuery.class));
+            assertThat(booleanQuery.clauses().get(1).query(), instanceOf(CombinedFieldQuery.class));
+        });
     }
 
     public void testOperator() throws Exception {
@@ -155,8 +164,8 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(minimumShouldMatch));
 
         assertThat(booleanQuery.clauses().size(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(occur));
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(occur));
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(occur));
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(occur));
     }
 
     public void testQueryBoost() throws IOException {

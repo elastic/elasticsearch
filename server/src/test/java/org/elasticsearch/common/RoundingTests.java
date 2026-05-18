@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RoundingTests extends ESTestCase {
 
@@ -68,13 +70,22 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-01T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2013-01-01T00:00:00.000Z"), tz));
 
-        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MINUTES_OF_HOUR).build();
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MINUTE_OF_HOUR).build();
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T01:01:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-09T00:01:00.000Z"), tz));
 
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.SECOND_OF_MINUTE).build();
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-10T01:01:01.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-09T00:00:01.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY).build();
+        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-01T00:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2013-01-01T00:00:00.000Z"), tz));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR).build();
+        tz = ZoneOffset.UTC;
+        assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-01T00:00:00.000Z"), tz));
+        assertThat(tzRounding.nextRoundingValue(time("2009-02-01T00:00:00.000Z")), isDate(time("2009-03-01T00:00:00.000Z"), tz));
     }
 
     public void testUTCIntervalRounding() {
@@ -132,6 +143,9 @@ public class RoundingTests extends ESTestCase {
         assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), isDate(time("2012-03-31T08:00:00Z"), tz));
 
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), equalTo(time("2012-03-01T08:00:00Z")));
+
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR).timeZone(tz).build();
         assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), equalTo(time("2012-03-01T08:00:00Z")));
 
         // date in Feb-3rd, but still in Feb-2nd in -02:00 timezone
@@ -644,6 +658,21 @@ public class RoundingTests extends ESTestCase {
         // Two timestamps in same year and different timezone offset ("Double buckets" issue - #9491)
         tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).timeZone(tz).build();
         assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(tzRounding.round(time("2014-08-11T17:00:00", tz)), tz));
+
+        // Month interval
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.MONTHS_OF_YEAR).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(time("2014-11-01T00:00:00", tz), tz));
+        // DST on
+        assertThat(tzRounding.round(time("2014-10-10T17:00:00", tz)), isDate(time("2014-10-01T00:00:00", tz), tz));
+
+        // Year interval
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(time("2014-01-01T00:00:00", tz), tz));
+
+        // Two timestamps in same year and different timezone offset ("Double buckets" issue - #9491)
+        tzRounding = Rounding.builder(Rounding.DateTimeUnit.YEARS_OF_CENTURY).timeZone(tz).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(tzRounding.round(time("2014-08-11T17:00:00", tz)), tz));
+
     }
 
     /**
@@ -655,7 +684,7 @@ public class RoundingTests extends ESTestCase {
 
         long start = time("2014-10-18T20:50:00.000", tz);
         long end = time("2014-10-19T01:00:00.000", tz);
-        Rounding tzRounding = new Rounding.TimeUnitRounding(Rounding.DateTimeUnit.MINUTES_OF_HOUR, tz);
+        Rounding tzRounding = new Rounding.TimeUnitRounding(Rounding.DateTimeUnit.MINUTE_OF_HOUR, tz);
         Rounding dayTzRounding = new Rounding.TimeIntervalRounding(60000, tz);
         for (long time = start; time < end; time = time + 60000) {
             assertThat(tzRounding.nextRoundingValue(time), greaterThan(time));
@@ -1017,17 +1046,21 @@ public class RoundingTests extends ESTestCase {
     }
 
     public void testHugeTimeFewAttempts() {
-        ZoneId tz = ZoneId.of("Asia/Tehran");
+        // this needs around 410 transitions to get to this time from 2022
+        String to = "2178-11-10T02:51:22.662Z";
+        int maxChanges = 200;
+        // this tz is unlikely to change in the future
+        ZoneId tz = ZoneId.of("SystemV/EST5EDT");
         Rounding.TimeIntervalRounding.JavaTimeRounding prepared = (Rounding.TimeIntervalRounding.JavaTimeRounding) Rounding.builder(
             TimeValue.timeValueDays(80000)
         ).timeZone(tz).build().prepareJavaTime();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> prepared.round(time("2178-11-10T02:51:22.662Z"), 200));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> prepared.round(time(to), maxChanges));
         assertThat(
             e.getMessage(),
             equalTo(
                 "Rounding["
                     + TimeValue.timeValueDays(80000).millis()
-                    + " in Asia/Tehran][java.time] failed to round 3446656199999 down: "
+                    + " in SystemV/EST5EDT][java.time] failed to round 3450063599999 down: "
                     + "transitioned backwards through too many daylight savings time transitions"
             )
         );
@@ -1040,10 +1073,7 @@ public class RoundingTests extends ESTestCase {
             prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.SECOND_OF_MINUTE),
             closeTo(36000.0, 0.000001)
         );
-        assertThat(
-            prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-            closeTo(600.0, 0.000001)
-        );
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(600.0, 0.000001));
         assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(10.0, 0.000001));
         assertThat(
             prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.DAY_OF_MONTH),
@@ -1086,6 +1116,30 @@ public class RoundingTests extends ESTestCase {
                     + "only week, day, hour, minute and second are supported for this histogram"
             )
         );
+
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MONTHS_OF_YEAR)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Cannot use month-based rate unit [months] with fixed interval based histogram, "
+                    + "only week, day, hour, minute and second are supported for this histogram"
+            )
+        );
+
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.YEARS_OF_CENTURY)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Cannot use month-based rate unit [years] with fixed interval based histogram, "
+                    + "only week, day, hour, minute and second are supported for this histogram"
+            )
+        );
     }
 
     public void testMillisecondsBasedUnitCalendarRoundingSize() {
@@ -1096,8 +1150,8 @@ public class RoundingTests extends ESTestCase {
             closeTo(3600.0, 0.000001)
         );
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), closeTo(3600.0, 0.000001));
-        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(60.0, 0.000001));
-        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(60.0, 0.000001));
         assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(1.0, 0.000001));
         assertThat(
@@ -1175,14 +1229,17 @@ public class RoundingTests extends ESTestCase {
         long firstQuarter = prepared.round(time("2015-01-01T00:00:00.000Z"));
         // Ratio based
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MONTHS_OF_YEAR), closeTo(3.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.YEARS_OF_CENTURY), closeTo(0.25, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MONTHS_OF_YEAR), closeTo(3.0, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
         // Real interval based
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.SECOND_OF_MINUTE), closeTo(7776000.0, 0.000001));
-        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(129600.0, 0.000001));
+        assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MINUTE_OF_HOUR), closeTo(129600.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2160.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.DAY_OF_MONTH), closeTo(90.0, 0.000001));
         long thirdQuarter = prepared.round(time("2015-07-01T00:00:00.000Z"));
@@ -1221,6 +1278,127 @@ public class RoundingTests extends ESTestCase {
             "2020-01-05T00:00:00",
             "2020-01-06T00:00:00"
         );
+    }
+
+    public void testUpperIntervalRoundingUtcBoundaries() {
+        long min = time("2020-01-01T00:00:00");
+        long max = time("2020-01-01T00:20:00");
+        Rounding lowerRounding = Rounding.builder(TimeValue.timeValueMinutes(5)).build();
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(lowerRounding);
+        Rounding.Prepared upper = upperRounding.prepare(min, max);
+
+        assertThat(upper.round(time("2020-01-01T00:00:00")), equalTo(time("2020-01-01T00:00:00")));
+        assertThat(upper.round(time("2020-01-01T00:00:01")), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.round(time("2020-01-01T00:04:59")), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.round(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.roundingFloor(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:00:00")));
+        assertThat(upper.roundingFloor(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:05:00")));
+        assertThat(upper.roundingCeiling(upper.round(time("2020-01-01T00:09:00"))), equalTo(time("2020-01-01T00:10:00")));
+        assertThat(upper.nextRoundingValue(time("2020-01-01T00:05:00")), equalTo(time("2020-01-01T00:10:00")));
+        assertArrayEquals(lowerRounding.prepare(min - 1, max).fixedRoundingPoints(), upper.fixedRoundingPoints());
+    }
+
+    public void testUpperIntervalGetIntervalMatchesWrappedRounding() {
+        Rounding lowerRounding = Rounding.builder(TimeValue.timeValueMinutes(5)).build();
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(lowerRounding);
+        assertThat(upperRounding.getInterval(), equalTo(lowerRounding.getInterval()));
+    }
+
+    public void testUpperIntervalRoundingPreservesConfigurationOnReprepare() {
+        long min = time("2020-01-01T00:00:30");
+        long max = time("2020-01-01T00:20:30");
+        Rounding lowerRounding = Rounding.builder(TimeValue.timeValueMinutes(5)).offset(TimeUnit.SECONDS.toMillis(30)).build();
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(lowerRounding);
+        Rounding.Prepared upper = upperRounding.prepare(min, max);
+        Rounding.Prepared reprepared = upper.getUnprepared().prepare(min, max);
+
+        assertThat(reprepared.round(time("2020-01-01T00:00:31")), equalTo(time("2020-01-01T00:05:30")));
+        assertThat(reprepared.round(time("2020-01-01T00:05:30")), equalTo(time("2020-01-01T00:05:30")));
+        assertThat(reprepared.roundingFloor(time("2020-01-01T00:05:30")), equalTo(time("2020-01-01T00:00:30")));
+        assertThat(reprepared.roundingCeiling(reprepared.round(time("2020-01-01T00:06:00"))), equalTo(time("2020-01-01T00:10:30")));
+    }
+
+    public void testUpperIntervalRoundingMatchesLowerDerivedFormulaAcrossDst() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(20)).timeZone(ZoneId.of("CET")).build();
+        Rounding.Prepared lower = rounding.prepareForUnknown();
+        Rounding.Prepared upper = Rounding.ToUpperRounding.createRounding(rounding).prepareForUnknown();
+
+        long[] testValues = new long[] {
+            time("2016-03-27T01:55:00+01:00"),
+            time("2016-03-27T02:00:00+01:00"),
+            time("2016-03-27T03:15:00+02:00"),
+            time("2015-10-25T01:55:00+02:00"),
+            time("2015-10-25T02:15:00+02:00"),
+            time("2015-10-25T02:15:00+01:00") };
+
+        for (long value : testValues) {
+            long expectedFloor = lower.round(value - 1);
+            long expectedRound = lower.nextRoundingValue(expectedFloor);
+            long label = upper.round(value);
+            assertThat(label, equalTo(expectedRound));
+            assertThat(upper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(upper.roundingCeiling(label), equalTo(expectedRound));
+        }
+    }
+
+    public void testUpperIntervalRoundingWithOffsetMatchesDerivedFormula() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeUnit.MINUTES.toMillis(1)).build();
+        Rounding.Prepared lower = rounding.prepare(time("2024-05-10T00:10:00"), time("2024-05-10T00:30:00"));
+        Rounding.Prepared upper = Rounding.ToUpperRounding.createRounding(rounding)
+            .prepare(time("2024-05-10T00:10:00"), time("2024-05-10T00:30:00"));
+        long start = time("2024-05-10T00:15:00");
+        long end = time("2024-05-10T00:25:00");
+        for (long value = start; value <= end; value += 1000) {
+            long expectedFloor = lower.round(value - 1);
+            long expectedRound = lower.nextRoundingValue(expectedFloor);
+            long label = upper.round(value);
+            assertThat(label, equalTo(expectedRound));
+            assertThat(upper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(upper.roundingCeiling(label), equalTo(expectedRound));
+        }
+    }
+
+    public void testUpperIntervalReprepareWithOffsetMatchesDerivedFormula() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeUnit.MINUTES.toMillis(1)).build();
+        long min = time("2024-05-10T00:15:00");
+        long max = time("2024-05-10T00:25:00");
+        Rounding upperRounding = Rounding.ToUpperRounding.createRounding(rounding);
+        Rounding.Prepared upper = upperRounding.prepareForUnknown();
+        Rounding.Prepared optimizedUpper = upper.getUnprepared().prepare(min, max);
+        Rounding.Prepared optimizedLower = rounding.prepare(min - 1, max);
+        for (long value = min; value <= max; value += 1000) {
+            long expectedFloor = optimizedLower.round(value - 1);
+            long expectedRound = optimizedLower.nextRoundingValue(expectedFloor);
+            long label = optimizedUpper.round(value);
+            assertThat(label, equalTo(expectedRound));
+            assertThat(optimizedUpper.roundingFloor(label), equalTo(expectedFloor));
+            assertThat(optimizedUpper.roundingCeiling(label), equalTo(expectedRound));
+        }
+    }
+
+    public void testUpperRoundingIdempotent() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeValue.timeValueMinutes(1).millis()).build();
+        Rounding upperOnce = Rounding.ToUpperRounding.createRounding(rounding);
+        Rounding upperTwice = Rounding.ToUpperRounding.createRounding(upperOnce);
+        assertThat(upperTwice, sameInstance(upperOnce));
+    }
+
+    public void testUpperRoundingWithoutOffsetPreservesUpperSemantics() {
+        Rounding rounding = Rounding.builder(TimeValue.timeValueMinutes(2)).offset(TimeValue.timeValueMinutes(1).millis()).build();
+        long min = time("2024-05-10T00:10:00");
+        long max = time("2024-05-10T00:30:00");
+        Rounding withoutOffset = rounding.withoutOffset();
+        Rounding upper = Rounding.ToUpperRounding.createRounding(rounding);
+        Rounding upperWithoutOffset = upper.withoutOffset();
+        assertThat(upperWithoutOffset, equalTo(Rounding.ToUpperRounding.createRounding(withoutOffset)));
+
+        Rounding.Prepared lower = withoutOffset.prepare(min - 1, max);
+        Rounding.Prepared upperPrepared = upperWithoutOffset.prepare(min, max);
+        for (long t = min; t <= max; t += TimeValue.timeValueSeconds(30).millis()) {
+            long shifted = t == Long.MIN_VALUE ? Long.MIN_VALUE : t - 1;
+            long expected = lower.nextRoundingValue(lower.round(shifted));
+            assertThat(upperPrepared.round(t), equalTo(expected));
+        }
     }
 
     private void assertFixedRoundingPoints(Rounding.Prepared prepared, String... expected) {

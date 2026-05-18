@@ -1,22 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.Collection;
@@ -24,11 +32,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class Queries {
+public final class Queries {
 
-    public static Query newMatchAllQuery() {
+    @SuppressForbidden(reason = "Providing instance")
+    private static MatchNoDocsQuery noDocs() {
+        return new MatchNoDocsQuery();
+    }
+
+    @SuppressForbidden(reason = "Providing instance")
+    private static MatchAllDocsQuery allDocs() {
         return new MatchAllDocsQuery();
     }
+
+    public static final MatchNoDocsQuery NO_DOCS_INSTANCE = noDocs();
+    public static final MatchNoDocsQuery NO_MAPPINGS = new MatchNoDocsQuery("No mappings yet");
+    public static final MatchAllDocsQuery ALL_DOCS_INSTANCE = allDocs();
+
+    private Queries() {}
 
     /** Return a query that matches no document. */
     public static Query newMatchNoDocsQuery(String reason) {
@@ -48,15 +68,30 @@ public class Queries {
         return Queries.newMatchNoDocsQuery("failed [" + field + "] query, caused by " + message);
     }
 
-    public static Query newNestedFilter() {
-        return not(newNonNestedFilter());
+    private static final IndexVersion NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION = IndexVersion.fromId(6010099);
+
+    /**
+     * Creates a new nested docs query
+     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
+     */
+    public static Query newNestedFilter(IndexVersion indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
+            return not(newNonNestedFilter(indexVersionCreated));
+        } else {
+            return new PrefixQuery(new Term(NestedPathFieldMapper.NAME_PRE_V8, new BytesRef("__")));
+        }
     }
 
     /**
      * Creates a new non-nested docs query
+     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNonNestedFilter() {
-        return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+    public static Query newNonNestedFilter(IndexVersion indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
+            return new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        } else {
+            return not(newNestedFilter(indexVersionCreated));
+        }
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -72,7 +107,7 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
+        return new BooleanQuery.Builder().add(ALL_DOCS_INSTANCE, Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
@@ -83,14 +118,15 @@ public class Queries {
         return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
-    public static Query fixNegativeQueryIfNeeded(Query q) {
+    public static Query fixNegativeQueryIfNeeded(Query q, QueryVisitor queryVisitor) {
         if (isNegativeQuery(q)) {
             BooleanQuery bq = (BooleanQuery) q;
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (BooleanClause clause : bq) {
                 builder.add(clause);
             }
-            builder.add(newMatchAllQuery(), BooleanClause.Occur.FILTER);
+            builder.add(ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER);
+            ALL_DOCS_INSTANCE.visit(queryVisitor);
             return builder.build();
         }
         return q;
@@ -102,7 +138,7 @@ public class Queries {
         }
         int optionalClauses = 0;
         for (BooleanClause c : query.clauses()) {
-            if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+            if (c.occur() == BooleanClause.Occur.SHOULD) {
                 optionalClauses++;
             }
         }
@@ -131,15 +167,15 @@ public class Queries {
         return query;
     }
 
-    private static Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
-    private static Pattern spacePattern = Pattern.compile(" ");
-    private static Pattern lessThanPattern = Pattern.compile("<");
+    private static final Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
+    private static final Pattern spacePattern = Pattern.compile(" ");
+    private static final Pattern lessThanPattern = Pattern.compile("<");
 
     public static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
         int result = optionalClauseCount;
         spec = spec.trim();
 
-        if (-1 < spec.indexOf("<")) {
+        if (spec.contains("<")) {
             /* we have conditional spec(s) */
             spec = spaceAroundLessThanPattern.matcher(spec).replaceAll("<");
             for (String s : spacePattern.split(spec)) {
@@ -167,6 +203,6 @@ public class Queries {
             result = calc < 0 ? result + calc : calc;
         }
 
-        return result < 0 ? 0 : result;
+        return Math.max(result, 0);
     }
 }

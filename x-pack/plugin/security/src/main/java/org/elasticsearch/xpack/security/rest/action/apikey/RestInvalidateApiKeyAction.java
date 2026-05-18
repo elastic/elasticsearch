@@ -8,23 +8,21 @@
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +32,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest action to invalidate one or more API keys
  */
-public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.PUBLIC)
+public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
         "invalidate_api_key",
@@ -65,7 +64,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final InvalidateApiKeyRequest invalidateApiKeyRequest = getObjectParser(request).parse(parser, null);
+            final InvalidateApiKeyRequest invalidateApiKeyRequest = PARSER.parse(parser, null);
             return channel -> client.execute(
                 InvalidateApiKeyAction.INSTANCE,
                 invalidateApiKeyRequest,
@@ -73,7 +72,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
                     @Override
                     public RestResponse buildResponse(InvalidateApiKeyResponse invalidateResp, XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 }
             );
@@ -83,41 +82,6 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     @Override
     public String getName() {
         return "xpack_security_invalidate_api_key";
-    }
-
-    private ConstructingObjectParser<InvalidateApiKeyRequest, Void> getObjectParser(RestRequest request) {
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            final ConstructingObjectParser<InvalidateApiKeyRequest, Void> objectParser = new ConstructingObjectParser<>(
-                "invalidate_api_key_v7",
-                a -> {
-                    final String id = (String) a[5];
-                    @SuppressWarnings("unchecked")
-                    final List<String> ids = (List<String>) a[4];
-                    if (id != null && ids != null) {
-                        throw new IllegalArgumentException("Must use either [id] or [ids], not both at the same time");
-                    }
-                    final String[] idsArray;
-                    if (Strings.hasText(id)) {
-                        idsArray = new String[] { id };
-                    } else if (ids != null) {
-                        idsArray = ids.toArray(String[]::new);
-                    } else {
-                        idsArray = null;
-                    }
-                    return new InvalidateApiKeyRequest(
-                        (String) a[0],
-                        (String) a[1],
-                        (String) a[2],
-                        (a[3] == null) ? false : (Boolean) a[3],
-                        idsArray
-                    );
-                }
-            );
-            initObjectParser(objectParser, true);
-            return objectParser;
-        } else {
-            return PARSER;
-        }
     }
 
     private static void initObjectParser(ConstructingObjectParser<InvalidateApiKeyRequest, Void> objectParser, boolean restCompatMode) {

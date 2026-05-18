@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.blobstore;
 
@@ -18,20 +19,24 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.CorruptStateException;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.FilterInputStream;
@@ -41,12 +46,13 @@ import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.zip.CRC32;
 
 /**
  * Snapshot metadata file format used in v2.0 and above
  */
-public final class ChecksumBlobStoreFormat<T extends ToXContent> {
+public final class ChecksumBlobStoreFormat<T> {
 
     // Serialization parameters to specify correct context for metadata serialization.
     // When metadata is serialized certain elements of the metadata shouldn't be included into snapshot
@@ -64,35 +70,46 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     private final String blobNameFormat;
 
-    private final CheckedBiFunction<String, XContentParser, T, IOException> reader;
+    private final CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader;
 
-    private final CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader;
+    private final CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> fallbackReader;
+
+    private final Function<T, ? extends ToXContent> writer;
 
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
      * @param fallbackReader fallback prototype object that can deserialize T from XContent in case reader fails
+     * @param writer         function that maps the given type to a {@link ToXContent} for serialization
      */
     public ChecksumBlobStoreFormat(
         String codec,
         String blobNameFormat,
-        CheckedBiFunction<String, XContentParser, T, IOException> reader,
-        @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader
+        CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader,
+        @Nullable CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> fallbackReader,
+        Function<T, ? extends ToXContent> writer
     ) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
         this.codec = codec;
         this.fallbackReader = fallbackReader;
+        this.writer = writer;
     }
 
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
+     * @param writer         function that maps the given type to a {@link ToXContent} for serialization
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedBiFunction<String, XContentParser, T, IOException> reader) {
-        this(codec, blobNameFormat, reader, null);
+    public ChecksumBlobStoreFormat(
+        String codec,
+        String blobNameFormat,
+        CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader,
+        Function<T, ? extends ToXContent> writer
+    ) {
+        this(codec, blobNameFormat, reader, null, writer);
     }
 
     /**
@@ -102,11 +119,11 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param name          name to be translated into
      * @return parsed blob object
      */
-    public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
+    public T read(ProjectRepo projectRepo, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
         String blobName = blobName(name);
-        try (InputStream in = blobContainer.readBlob(blobName)) {
-            return deserialize(repoName, namedXContentRegistry, in);
+        try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT_METADATA, blobName)) {
+            return deserialize(projectRepo, namedXContentRegistry, in);
         }
     }
 
@@ -114,7 +131,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         return String.format(Locale.ROOT, blobNameFormat, name);
     }
 
-    public T deserialize(String repoName, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
+    public T deserialize(ProjectRepo projectRepo, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
         final DeserializeMetaBlobInputStream deserializeMetaBlobInputStream = new DeserializeMetaBlobInputStream(input);
         try {
             CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
@@ -131,17 +148,25 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                 BytesReference bytesReference = Streams.readFully(wrappedStream);
                 deserializeMetaBlobInputStream.verifyFooter();
                 try (
-                    XContentParser parser = XContentType.SMILE.xContent()
-                        .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                        bytesReference,
+                        XContentType.SMILE
+                    )
                 ) {
-                    result = reader.apply(repoName, parser);
+                    result = reader.apply(projectRepo, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 } catch (Exception e) {
                     try (
-                        XContentParser parser = XContentType.SMILE.xContent()
-                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                            bytesReference,
+                            XContentType.SMILE
+                        )
                     ) {
-                        result = fallbackReader.apply(repoName, parser);
+                        result = fallbackReader.apply(projectRepo, parser);
                         XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                     }
                 }
@@ -150,7 +175,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     XContentParser parser = XContentType.SMILE.xContent()
                         .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
                 ) {
-                    result = reader.apply(repoName, parser);
+                    result = reader.apply(projectRepo, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 }
                 deserializeMetaBlobInputStream.verifyFooter();
@@ -289,13 +314,13 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             final int footerLen = CodecUtil.footerLength();
             if (bufferCount == 0) {
                 // first read, fill the buffer
-                bufferCount = Streams.readFully(in, buffer, 0, buffer.length);
+                bufferCount = org.elasticsearch.core.Streams.readFully(in, buffer, 0, buffer.length);
             } else if (bufferPos == bufferCount - footerLen) {
                 // crc and discard all but the last 16 bytes in the buffer that might be the footer bytes
                 assert bufferCount >= footerLen;
                 crc32.update(buffer, 0, bufferPos);
                 System.arraycopy(buffer, bufferPos, buffer, 0, footerLen);
-                bufferCount = footerLen + Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
+                bufferCount = footerLen + org.elasticsearch.core.Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
                 bufferPos = 0;
             }
             // bytes in the buffer minus 16 bytes that could be the footer
@@ -331,7 +356,13 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress, Map<String, String> serializationParams)
         throws IOException {
         final String blobName = blobName(name);
-        blobContainer.writeBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
+        blobContainer.writeMetadataBlob(
+            OperationPurpose.SNAPSHOT_METADATA,
+            blobName,
+            false,
+            false,
+            out -> serialize(obj, blobName, compress, serializationParams, out)
+        );
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, final OutputStream outputStream) throws IOException {
@@ -349,7 +380,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
                 "ChecksumBlobStoreFormat.serialize(blob=\"" + blobName + "\")",
                 blobName,
-                org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
+                org.elasticsearch.core.Streams.noCloseStream(outputStream),
                 BUFFER_SIZE
             )
         ) {
@@ -363,7 +394,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             };
                 XContentBuilder builder = XContentFactory.contentBuilder(
                     XContentType.SMILE,
-                    compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
+                    compress ? CompressorFactory.COMPRESSOR.threadLocalStreamOutput(indexOutputOutputStream) : indexOutputOutputStream
                 )
             ) {
                 ToXContent.Params params = extraParams.isEmpty()
@@ -371,7 +402,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     : new ToXContent.DelegatingMapParams(extraParams, SNAPSHOT_ONLY_FORMAT_PARAMS);
 
                 builder.startObject();
-                obj.toXContent(builder, params);
+                writer.apply(obj).toXContent(builder, params);
                 builder.endObject();
             }
             CodecUtil.writeFooter(indexOutput);

@@ -10,7 +10,9 @@ package org.elasticsearch.test.eql;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class EqlSpec {
     private String name;
@@ -18,8 +20,19 @@ public class EqlSpec {
     private String note;
     private String[] tags;
     private String query;
-    private long[] expectedEventIds;
+    /**
+     * this is a set of possible valid results:
+     * - if the query is deterministic, expectedEventIds should contain one single array of IDs representing the expected result
+     * - if the query is non-deterministic, expectedEventIds can contain multiple arrays of IDs, one for each possible valid result
+     */
+    private List<long[]> expectedEventIds;
     private String[] joinKeys;
+
+    private Integer size;
+    private Integer maxSamplesPerKey;
+    private Boolean allowPartialSearchResults;
+    private Boolean allowPartialSequenceResults;
+    private Boolean expectShardFailures;
 
     public String name() {
         return name;
@@ -61,11 +74,11 @@ public class EqlSpec {
         this.query = query;
     }
 
-    public long[] expectedEventIds() {
+    public List<long[]> expectedEventIds() {
         return expectedEventIds;
     }
 
-    public void expectedEventIds(long[] expectedEventIds) {
+    public void expectedEventIds(List<long[]> expectedEventIds) {
         this.expectedEventIds = expectedEventIds;
     }
 
@@ -75,6 +88,46 @@ public class EqlSpec {
 
     public void joinKeys(String[] joinKeys) {
         this.joinKeys = joinKeys;
+    }
+
+    public Integer size() {
+        return size;
+    }
+
+    public void size(Integer size) {
+        this.size = size;
+    }
+
+    public Integer maxSamplesPerKey() {
+        return maxSamplesPerKey;
+    }
+
+    public void maxSamplesPerKey(Integer maxSamplesPerKey) {
+        this.maxSamplesPerKey = maxSamplesPerKey;
+    }
+
+    public Boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public void allowPartialSearchResults(Boolean allowPartialSearchResults) {
+        this.allowPartialSearchResults = allowPartialSearchResults;
+    }
+
+    public Boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
+    }
+
+    public void allowPartialSequenceResults(Boolean allowPartialSequenceResults) {
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
+    }
+
+    public Boolean expectShardFailures() {
+        return expectShardFailures;
+    }
+
+    public void expectShardFailures(Boolean expectShardFailures) {
+        this.expectShardFailures = expectShardFailures;
     }
 
     @Override
@@ -90,11 +143,30 @@ public class EqlSpec {
         }
 
         if (expectedEventIds != null) {
-            str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
+            str = appendWithComma(
+                str,
+                "expected_event_ids",
+                "[" + expectedEventIds.stream().map(Arrays::toString).collect(Collectors.joining(", ")) + "]"
+            );
         }
 
         if (joinKeys != null) {
             str = appendWithComma(str, "join_keys", Arrays.toString(joinKeys));
+        }
+        if (size != null) {
+            str = appendWithComma(str, "size", "" + size);
+        }
+        if (maxSamplesPerKey != null) {
+            str = appendWithComma(str, "max_samples_per_key", "" + maxSamplesPerKey);
+        }
+        if (allowPartialSearchResults != null) {
+            str = appendWithComma(str, "allow_partial_search_results", String.valueOf(allowPartialSearchResults));
+        }
+        if (allowPartialSequenceResults != null) {
+            str = appendWithComma(str, "allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
+        }
+        if (expectShardFailures != null) {
+            str = appendWithComma(str, "expect_shard_failures", String.valueOf(expectShardFailures));
         }
         return str;
     }
@@ -111,12 +183,24 @@ public class EqlSpec {
 
         EqlSpec that = (EqlSpec) other;
 
-        return Objects.equals(this.query(), that.query());
+        return Objects.equals(this.query(), that.query())
+            && Objects.equals(size, that.size)
+            && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey)
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
+            && Objects.equals(allowPartialSequenceResults, that.allowPartialSequenceResults)
+            && Objects.equals(expectShardFailures, that.expectShardFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query);
+        return Objects.hash(
+            this.query,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     private static String appendWithComma(String str, String name, String append) {

@@ -1,7 +1,13 @@
+---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "tsdb indexing changed in 8.2.0"
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:
@@ -14,7 +20,6 @@ setup:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -64,34 +69,34 @@ setup:
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
 ---
-index with specified routing:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+index with routing:
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
-      catch: /indexing with a specified routing is not supported because the destination index \[test\] is in time series mode/
+      catch: /specifying routing is not supported because the destination index \[test\] is in time.series mode/
       index:
         index:   test
         routing: foo
         body:
-          doc:
-            "@timestamp": "2021-04-28T18:35:24.467Z"
-            metricset: "pod"
-            k8s:
-              pod:
-                name: "cat"
-                uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
-                ip: "10.10.55.1"
-                network:
-                  tx: 2001818691
-                  rx: 802133794
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          metricset: "pod"
+          k8s:
+            pod:
+              name: "cat"
+              uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
+              ip: "10.10.55.1"
+              network:
+                tx: 2001818691
+                rx: 802133794
 
 ---
-index with specified routing over _bulk:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+index with routing over _bulk:
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
+
   - do:
       bulk:
         refresh: true
@@ -99,39 +104,13 @@ index with specified routing over _bulk:
         body:
           - '{"index": {"routing": "foo"}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index.error.reason: "indexing with a specified routing is not supported because the destination index [test] is in time series mode"}
-
----
-delete:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
-
-  - do:
-      catch: /delete is not supported because the destination index \[test\] is in time series mode/
-      delete:
-        index:   test
-        id:      1
-
----
-delete over _bulk:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
-
-  - do:
-      bulk:
-        index:   test
-        body:
-          - '{"delete": {"_id": 1}}'
-          - '{"delete": {"_id": 2}}'
-  - match: {items.0.delete.error.reason: "delete is not supported because the destination index [test] is in time series mode"}
+  - match: {items.0.index.error.reason: '/specifying\ routing\ is\ not\ supported\ because\ the\ destination\ index\ \[test\]\ is\ in\ time.series\ mode/'}
 
 ---
 noop update:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -141,26 +120,26 @@ noop update:
   - length: {hits.hits: 1}
 
   - do:
-      catch: /update is not supported because the destination index \[test\] is in time series mode/
+      catch: /update is not supported because the destination index \[test\] is in time.series mode/
       update:
         index:   test
-        id:      1
+        id:      "1"
         body:
           doc:
             {}
 
 ---
-update:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+regular update:
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
   - do:
-      catch: /update is not supported because the destination index \[test\] is in time series mode/
+      catch: /update is not supported because the destination index \[test\] is in time.series mode/
       update:
         index:   test
-        id:      1
+        id:      "1"
         body:
           doc:
             "@timestamp": "2021-04-28T18:35:24.467Z"
@@ -176,9 +155,9 @@ update:
 
 ---
 update over _bulk:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       bulk:
@@ -186,26 +165,26 @@ update over _bulk:
         body:
           - '{"update": {"_id": 1}}'
           - '{"doc":{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}}'
-  - match: {items.0.update.error.reason: "update is not supported because the destination index [test] is in time series mode"}
+  - match: {items.0.update.error.reason: '/update\ is\ not\ supported\ because\ the\ destination\ index\ \[test\]\ is\ in\ time.series\ mode/'}
 
 ---
 search with routing:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
   - do:
-      catch: /searching with a specified routing is not supported because the destination index \[test\] is in time series mode/
+      catch: /searching with a specified routing is not supported because the destination index \[test\] is in time.series mode/
       search:
         index:   test
         routing: rrrr
 
 ---
 alias with routing:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -217,9 +196,9 @@ alias with routing:
 
 ---
 alias with search_routing:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -229,3 +208,33 @@ alias with search_routing:
         body:
           search_routing: foo
 
+---
+sort by _id:
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/
+      search:
+        index: test
+        body:
+          size: 1
+          sort: _id
+
+---
+aggregate on _id:
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      catch: /Fielddata is not supported on \[_id\] field in \[time_series\] indices/
+      search:
+        index: test
+        body:
+          size: 1
+          aggs:
+            id:
+              terms:
+                field: _id

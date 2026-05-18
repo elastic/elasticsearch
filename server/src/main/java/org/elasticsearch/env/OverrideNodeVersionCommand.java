@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -12,7 +13,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
@@ -60,9 +61,9 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+    protected void processDataPaths(Terminal terminal, Path[] paths, OptionSet options, Environment env) throws IOException {
+        final Path[] dataPaths = Arrays.stream(toDataPaths(paths)).map(p -> p.path).toArray(Path[]::new);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
         if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
@@ -73,7 +74,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
                 "found ["
                     + nodeMetadata
                     + "] which is compatible with current version ["
-                    + Version.CURRENT
+                    + BuildVersion.current()
                     + "], so there is no need to override the version checks"
             );
         } catch (IllegalStateException e) {
@@ -82,13 +83,13 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
 
         confirm(
             terminal,
-            (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
+            (nodeMetadata.nodeVersion().onOrAfterMinimumCompatible() == false ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
                 "V_OLD",
                 nodeMetadata.nodeVersion().toString()
-            ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
+            ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", BuildVersion.current().toString())
         );
 
-        PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPaths);
+        PersistedClusterStateService.overrideVersion(BuildVersion.current(), paths);
 
         terminal.println(SUCCESS_MESSAGE);
     }

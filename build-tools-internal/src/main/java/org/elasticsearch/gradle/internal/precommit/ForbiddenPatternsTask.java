@@ -1,21 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.problems.Problem;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -39,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -65,6 +74,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
         .exclude("**/*.zip")
         .exclude("**/*.jks")
         .exclude("**/*.crt")
+        .exclude("**/*.p12")
         .exclude("**/*.keystore")
         .exclude("**/*.png")
         // vim swap file - included here to stop the build falling over if you happen to have a file open :-|
@@ -75,10 +85,12 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
      */
     private final Map<String, String> patterns = new HashMap<>();
     private final ProjectLayout projectLayout;
+    private final ProblemReporter problemReporter;
 
     @Inject
-    public ForbiddenPatternsTask(ProjectLayout projectLayout) {
+    public ForbiddenPatternsTask(ProjectLayout projectLayout, Problems problems) {
         this.projectLayout = projectLayout;
+        this.problemReporter = problems.getReporter();
         setDescription("Checks source files for invalid patterns like nocommits or tabs");
         getInputs().property("excludes", filesFilter.getExcludes());
         getInputs().property("rules", patterns);
@@ -90,6 +102,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     }
 
     @InputFiles
+    @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getFiles() {
@@ -103,7 +116,8 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     @TaskAction
     public void checkInvalidPatterns() throws IOException {
         Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
-        List<String> failures = new ArrayList<>();
+        List<Problem> problems = new ArrayList<>();
+        List<String> violations = new ArrayList<>();
         for (File f : getFiles()) {
             List<String> lines;
             try (Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
@@ -111,32 +125,50 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
             } catch (UncheckedIOException e) {
                 throw new IllegalArgumentException("Failed to read " + f + " as UTF_8", e);
             }
-            List<Integer> invalidLines = IntStream.range(0, lines.size())
-                .filter(i -> allPatterns.matcher(lines.get(i)).find())
-                .boxed()
-                .collect(Collectors.toList());
 
             URI baseUri = getRootDir().orElse(projectLayout.getProjectDirectory().getAsFile()).get().toURI();
             String path = baseUri.relativize(f.toURI()).toString();
-            failures.addAll(
-                invalidLines.stream()
-                    .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
-                    .flatMap(
-                        kv -> patterns.entrySet()
-                            .stream()
-                            .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
-                            .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
-                    )
-                    .collect(Collectors.toList())
-            );
+            String absolutePath = f.getAbsolutePath();
+            IntStream.range(0, lines.size())
+                .filter(i -> allPatterns.matcher(lines.get(i)).find())
+                .mapToObj(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
+                .forEach(
+                    kv -> patterns.entrySet()
+                        .stream()
+                        .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
+                        .forEach(p -> {
+                            int lineNumber = kv.getKey();
+                            String ruleName = p.getKey();
+                            String label = ruleName + " on line " + lineNumber + " of " + path;
+                            violations.add("- " + label);
+                            problems.add(
+                                problemReporter.create(
+                                    ProblemId.create(
+                                        toKebabCase(ruleName),
+                                        "Forbidden pattern: " + ruleName,
+                                        ElasticsearchBuildProblems.FORBIDDEN_PATTERNS
+                                    ),
+                                    spec -> spec.contextualLabel(label)
+                                        .severity(Severity.ERROR)
+                                        .lineInFileLocation(absolutePath, lineNumber)
+                                        .solution("Remove the forbidden pattern from the source file")
+                                )
+                            );
+                        })
+                );
         }
-        if (failures.isEmpty() == false) {
-            throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));
+        if (problems.isEmpty() == false) {
+            problemReporter.report(problems);
+            throw new GradleException("Found invalid patterns:\n" + String.join("\n", violations));
         }
 
         File outputMarker = getOutputMarker();
         outputMarker.getParentFile().mkdirs();
-        Files.write(outputMarker.toPath(), "done".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outputMarker.toPath(), "done");
+    }
+
+    static String toKebabCase(String name) {
+        return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
     }
 
     @OutputFile

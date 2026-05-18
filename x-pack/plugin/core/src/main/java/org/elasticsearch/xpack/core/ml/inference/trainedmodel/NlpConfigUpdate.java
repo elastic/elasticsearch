@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -19,7 +18,8 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
@@ -31,15 +31,25 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
             return null;
         }
 
-        Map<String, Function<Tokenization.Truncate, TokenizationUpdate>> knownTokenizers = Map.of(
+        Map<String, BiFunction<Tokenization.Truncate, Integer, TokenizationUpdate>> knownTokenizers = Map.of(
             BertTokenization.NAME.getPreferredName(),
             BertTokenizationUpdate::new,
+            BertJapaneseTokenization.NAME.getPreferredName(),
+            BertJapaneseTokenizationUpdate::new,
+            ByteLevelBpeTokenizationUpdate.NAME.getPreferredName(),
+            ByteLevelBpeTokenizationUpdate::new,
             MPNetTokenization.NAME.getPreferredName(),
-            MPNetTokenizationUpdate::new
+            MPNetTokenizationUpdate::new,
+            RobertaTokenizationUpdate.NAME.getPreferredName(),
+            RobertaTokenizationUpdate::new,
+            XLMRobertaTokenizationUpdate.NAME.getPreferredName(),
+            XLMRobertaTokenizationUpdate::new,
+            DebertaV2Tokenization.NAME,
+            DebertaV2TokenizationUpdate::new
         );
 
         Map<String, Object> tokenizationConfig = null;
-        Function<Tokenization.Truncate, TokenizationUpdate> updater = null;
+        BiFunction<Tokenization.Truncate, Integer, TokenizationUpdate> updater = null;
         for (var tokenizerType : knownTokenizers.keySet()) {
             tokenizationConfig = (Map<String, Object>) tokenization.remove(tokenizerType);
             if (tokenizationConfig != null) {
@@ -55,11 +65,17 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
                 tokenization.keySet()
             );
         }
-        Object truncate = tokenizationConfig.remove("truncate");
-        if (truncate == null) {
+        if (tokenizationConfig == null) {
             return null;
         }
-        return updater.apply(Tokenization.Truncate.fromString(truncate.toString()));
+        Tokenization.Truncate truncate = Optional.ofNullable(tokenizationConfig.remove("truncate"))
+            .map(t -> Tokenization.Truncate.fromString(t.toString()))
+            .orElse(null);
+        Integer span = (Integer) Optional.ofNullable(tokenizationConfig.remove("span")).orElse(null);
+        if (truncate == null && span == null) {
+            return null;
+        }
+        return updater.apply(truncate, span);
     }
 
     protected final TokenizationUpdate tokenizationUpdate;
@@ -69,18 +85,12 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
     }
 
     public NlpConfigUpdate(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
-            tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
-        } else {
-            tokenizationUpdate = null;
-        }
+        tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-            out.writeOptionalNamedWriteable(tokenizationUpdate);
-        }
+        out.writeOptionalNamedWriteable(tokenizationUpdate);
     }
 
     protected boolean isNoop() {

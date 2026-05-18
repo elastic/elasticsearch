@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -21,12 +22,7 @@ public class ActionFilters {
 
     public ActionFilters(Set<ActionFilter> actionFilters) {
         this.filters = actionFilters.toArray(new ActionFilter[actionFilters.size()]);
-        Arrays.sort(filters, new Comparator<ActionFilter>() {
-            @Override
-            public int compare(ActionFilter o1, ActionFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        Arrays.sort(filters, Comparator.comparingInt(ActionFilter::order));
     }
 
     /**

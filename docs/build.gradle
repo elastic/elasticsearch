@@ -1,22 +1,21 @@
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
-
-import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
+import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
+  include '**/*.asciidoc'
+  include '**/*.mdx'
   // That is where the snippets go, not where they come from!
   exclude 'build/**'
   exclude 'build-idea/**'
@@ -25,17 +24,31 @@ ext.docsFileTree = fileTree(projectDir) {
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
-  if (BuildParams.inFipsJvm) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+  // These files simply don't pass yet. We should figure out how to fix them.
+  exclude 'reference/watcher/reference/actions.asciidoc'
+  exclude 'reference/rest-api/security/ssl.asciidoc'
+  if (buildParams.inFipsJvm) {
+    // We don't support this component in FIPS 140
+    exclude 'reference/ingest/processors/attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment component
     exclude 'reference/cat/plugins.asciidoc'
+  }
+}
+
+tasks.named("yamlRestTest") {
+  enabled = false
+  if (buildParams.snapshotBuild == false) {
+    // LOOKUP is not available in snapshots
+    systemProperty 'tests.rest.blacklist', [
+      "reference/esql/processing-commands/lookup/esql-lookup-example"
+    ].join(',')
   }
 }
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
-  expectedUnconvertedCandidates = [
+  enabled = false
+  getExpectedUnconvertedCandidates().addAll(
           'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
           'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
           'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
@@ -49,8 +62,14 @@ tasks.named("buildRestTests").configure {
           'reference/ml/anomaly-detection/apis/post-data.asciidoc',
           'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
           'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
-          'reference/ml/anomaly-detection/apis/update-job.asciidoc'
-  ]
+          'reference/ml/anomaly-detection/apis/update-job.asciidoc',
+          'reference/security/authentication/user-cache.asciidoc',
+          'reference/security/authorization/run-as-privilege.asciidoc',
+          'reference/security/ccs-clients-integrations/http.asciidoc',
+          'reference/rest-api/watcher/put-watch.asciidoc',
+          'reference/rest-api/watcher/stats.asciidoc',
+          'reference/watcher/example-watches/watching-time-series-data.asciidoc'
+  )
 }
 
 restResources {
@@ -59,76 +78,52 @@ restResources {
   }
 }
 
-testClusters.matching { it.name == "integTest"}.configureEach {
-  if (singleNode().testDistribution == DEFAULT) {
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'indices.lifecycle.history_index_enabled', 'false'
-    keystorePassword 'keystore-password'
-  }
+// The cluster definition has moved into DocsClientYamlTestSuiteIT (JUnit-rule based test cluster framework).
+// We only wire up plugin and resource dependencies on the Gradle side.
 
-  // enable regexes in painless so our tests don't complain about example snippets that use them
-  setting 'script.painless.regex.enabled', 'true'
-  setting 'xpack.security.enabled', 'false'
-  setting 'path.repo', "${buildDir}/cluster/shared/repo"
-  Closure configFile = {
-    extraConfigFile it, file("src/test/cluster/config/$it")
-  }
-  configFile 'analysis/example_word_list.txt'
-  configFile 'analysis/hyphenation_patterns.xml'
-  configFile 'analysis/synonym.txt'
-  configFile 'analysis/stemmer_override.txt'
-  configFile 'userdict_ja.txt'
-  configFile 'userdict_ko.txt'
-  configFile 'KeywordTokenizer.rbbi'
-  extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
-  extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
-  extraConfigFile 'httpCa.p12', file("./httpCa.p12")
-  extraConfigFile 'transport.p12', file("./transport.p12")
-  // Whitelist reindexing from the local node so we can test it.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
-
-  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-City.mmdb")
-  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-Country.mmdb")
-
-  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
-  systemProperty 'es.transport.cname_in_publish_address', 'true'
-
-  // build the cluster with all plugins
+dependencies {
+  // build the cluster with all non-repository plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
-    /* Skip repositories. We just aren't going to be able to test them so it
-     * doesn't make sense to waste time installing them.
-     */
     if (subproj.path.startsWith(':plugins:repository-')) {
       return
     }
-    // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
-      return
-    }
-    plugin subproj.path
+    clusterPlugins(project(subproj.path))
   }
 }
 
-tasks.named("integTest").configure {
-  doFirst {
-    delete("${buildDir}/cluster/shared/repo")
+// Cross-project resources copied onto the test classpath so the cluster's @ClassRule
+// can pick them up via Resource.fromClasspath(...).
+tasks.named("processYamlRestTestResources").configure {
+  from(project(":server").file("src/test/resources/indices/analyze/conf_dir/hunspell/en_US")) {
+    into "indices/analyze/conf_dir/hunspell/en_US"
+  }
+  from(project(":x-pack:test:idp-fixture").file("src/main/resources/oidc")) {
+    include "op-jwks.json"
+    into "oidc"
+  }
+  from(project(":x-pack:test:idp-fixture").file("src/main/resources/idp/shibboleth-idp/metadata")) {
+    include "idp-docs-metadata.xml"
+    into "idp/shibboleth-idp/metadata"
+  }
+  from(project(":x-pack:plugin:security").file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation")) {
+    include "testClient.crt"
+    into "org/elasticsearch/xpack/security/action/pki_delegation"
   }
 }
 
-tasks.named("forbiddenPatterns").configure {
+tasks.named("yamlRestTest").configure {
+  // Pass the docs project directory through so the test class can resolve config files
+  // (analysis configs, p12 truststores, etc.) that still live under docs/src/test/cluster/config
+  // and docs/*.p12 by their original paths.
+  systemProperty 'tests.docs.dir', projectDir.absolutePath
+}
+
+tasks.matching { it.name == 'forbiddenPatterns' }.configureEach {
   exclude '**/*.mmdb'
 }
 
-tasks.named("buildRestTests").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listSnippets").configure {
-  docs = docsFileTree
-}
-
-tasks.named("listConsoleCandidates").configure {
-  docs = docsFileTree
+tasks.withType(DocSnippetTask).configureEach {
+    docs = docsFileTree
 }
 
 Closure setupMyIndex = { String name, int count ->
@@ -207,6 +202,57 @@ setups['my_data_stream'] = setups['my_data_stream_template'] + '''
 '''
 
 teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
+// Used for TSDS examples
+setups['tsds_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-weather-sensor-index-template
+        body: |
+          {
+            "index_patterns": [ "metrics-weather_sensors-*" ],
+            "data_stream": { },
+            "template": {
+              "settings": {
+                "index.mode": "time_series",
+                "index.routing_path": [ "sensor_id", "location" ]
+              },
+              "mappings": {
+                "properties": {
+                  "sensor_id": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  },
+                  "location": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            },
+            "priority": 500
+          }
+'''
+
+setups['tsds'] = setups['tsds_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/metrics-weather_sensors-dev'
+'''
+
+teardowns['tsds_cleanup'] = '''
   - do:
       raw:
         method: DELETE
@@ -742,6 +788,21 @@ buildRestTests.setups['library'] = '''
 
 '''
 buildRestTests.setups['sensor_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
   - do:
       indices.create:
         index: sensor-1
@@ -760,9 +821,10 @@ buildRestTests.setups['sensor_rollup_job'] = '''
               node:
                 type: keyword
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -792,6 +854,21 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
   - do:
       indices.create:
         index: sensor-1
@@ -829,9 +906,10 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -860,12 +938,35 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      raw:
-        method: POST
-        path: _rollup/job/sensor/_start
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.start_job:
+        id: sensor
 '''
 
 buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id:
+                  id: my-id
+                  index_pattern: "dummy-index-*"
+                  rollup_index: "dummy-rollup-index"
+                  cron: "*/30 * * * * ?"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: timestamp
+                      fixed_interval: 1h
+                      delay: 7d
+
   - do:
       indices.create:
         index: sensor-1
@@ -1503,6 +1604,15 @@ setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'
             }
           }
 '''
+setups['setup_houseprices'] = '''
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+'''
 setups['setup_logdata'] = '''
   - do:
         indices.create:
@@ -1585,6 +1695,247 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
           body: |
 #atomic_red_data#
 '''
+
+  setups['my_inactive_watch'] = '''
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+'''
+
+  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+        'active: false', 'active: true')
+
+  setups['role_mapping'] = '''
+  - do:
+        security.put_role_mapping:
+         name: "mapping1"
+         body:  >
+            {
+               "enabled": true,
+               "roles": [ "user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+'''
+
+  setups['admin_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_admin_role"
+        body: >
+          {
+            "description": "Grants full access to all management features within the cluster.",
+            "cluster": ["all"],
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "run_as": [ "other_user" ],
+            "metadata" : {"version": 1}
+          }
+'''
+  setups['user_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_user_role"
+        body: >
+          {
+            "description": "Grants user access to some indicies.",
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "metadata" : {"version": 1}
+          }
+
+'''
+  setups['jacknich_user'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+'''
+  setups['sandrakn_user'] = '''
+  - do:
+      security.put_user:
+        username: "sandrakn"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Sandra Knight",
+            "email" : "sandrakn@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sandrakn",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+
+'''
+  setups['app0102_privileges'] = '''
+  - do:
+        security.put_privileges:
+          body: >
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ],
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              }
+            }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
+  setups['user_profiles'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackrea"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin" ],
+            "full_name" : "Jack Reacher",
+            "email" : "jackrea@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackspa"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "user" ],
+            "full_name" : "Jack Sparrow",
+            "email" : "jackspa@example.com"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackrea",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackspa",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  # jacknich
+  - do:
+      security.update_user_profile_data:
+        uid: "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
+        body: >
+          {
+            "labels": {
+              "direction": "north"
+            },
+            "data": {
+              "app1": {
+                "key1": "value1"
+              }
+            }
+          }
+  # jackrea
+  - do:
+      security.update_user_profile_data:
+        uid: "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0"
+        body: >
+          {
+            "labels": {
+              "direction": "west"
+            }
+          }
+  # jackspa
+  - do:
+      security.update_user_profile_data:
+        uid: "u_8RKO7AKfEbSiIHZkZZ2LJy2MUSDPWDr3tMI_CkIGApU_0"
+        body: >
+          {
+            "labels": {
+              "direction": "south"
+            }
+          }
+'''
+
   // fake data used by the correlation bucket agg
   buildRestTests.setups['correlate_latency'] = '''
   - do:
@@ -1627,8 +1978,8 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
   }
 
   /* Load the actual events only if we're going to use them. */
-  File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
-  inputs.file(atomicRedRegsvr32File)
+  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  inputs.file(atomicRedRegsvr32File).withPathSensitivity(PathSensitivity.RELATIVE)
 
   doFirst {
     String events = atomicRedRegsvr32File.getText('UTF-8')
@@ -1637,4 +1988,30 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
     setups['atomic_red_regsvr32'] =
     setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
   }
+}
+
+tasks.register('verifyDocsLuceneVersion') {
+  doFirst {
+    File docsVersionsFile = file('Versions.asciidoc')
+    List<String> versionLines = docsVersionsFile.readLines('UTF-8')
+    String docsLuceneVersion = null
+    for (String line : versionLines) {
+      if (line.startsWith(':lucene_version:')) {
+        docsLuceneVersion = line.split()[1]
+      }
+    }
+    if (docsLuceneVersion == null) {
+      throw new GradleException('Could not find lucene version in docs version file')
+    }
+    String expectedLuceneVersion = VersionProperties.lucene
+    // remove potential -snapshot-{gitrev} suffix
+    expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
+    if (docsLuceneVersion != expectedLuceneVersion) {
+      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
+    }
+  }
+}
+
+tasks.named('check') {
+  dependsOn 'verifyDocsLuceneVersion'
 }

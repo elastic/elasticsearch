@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -50,30 +51,13 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     }
 
     @SuppressWarnings("unchecked")
-    private static VotingConfiguration lastCommittedConfig(Object[] fields) {
-        List<String> nodeIds = (List<String>) fields[1];
-        return new VotingConfiguration(new HashSet<>(nodeIds));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static VotingConfiguration lastAcceptedConfig(Object[] fields) {
-        List<String> nodeIds = (List<String>) fields[2];
-        return new VotingConfiguration(new HashSet<>(nodeIds));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Set<VotingConfigExclusion> votingConfigExclusions(Object[] fields) {
-        Set<VotingConfigExclusion> votingTombstones = new HashSet<>((List<VotingConfigExclusion>) fields[3]);
-        return votingTombstones;
-    }
-
     private static final ConstructingObjectParser<CoordinationMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "coordination_metadata",
         fields -> new CoordinationMetadata(
             term(fields),
-            lastCommittedConfig(fields),
-            lastAcceptedConfig(fields),
-            votingConfigExclusions(fields)
+            new VotingConfiguration((List<String>) fields[1]),
+            new VotingConfiguration((List<String>) fields[2]),
+            (List<VotingConfigExclusion>) fields[3]
         )
     );
     static {
@@ -87,7 +71,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         long term,
         VotingConfiguration lastCommittedConfiguration,
         VotingConfiguration lastAcceptedConfiguration,
-        Set<VotingConfigExclusion> votingConfigExclusions
+        Collection<VotingConfigExclusion> votingConfigExclusions
     ) {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
@@ -99,7 +83,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         term = in.readLong();
         lastCommittedConfiguration = new VotingConfiguration(in);
         lastAcceptedConfiguration = new VotingConfiguration(in);
-        votingConfigExclusions = Collections.unmodifiableSet(in.readSet(VotingConfigExclusion::new));
+        votingConfigExclusions = in.readCollectionAsImmutableSet(VotingConfigExclusion::new);
     }
 
     public static Builder builder() {
@@ -161,11 +145,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        int result = (int) (term ^ (term >>> 32));
-        result = 31 * result + lastCommittedConfiguration.hashCode();
-        result = 31 * result + lastAcceptedConfiguration.hashCode();
-        result = 31 * result + votingConfigExclusions.hashCode();
-        return result;
+        return Objects.hash(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingConfigExclusions);
     }
 
     @Override
@@ -188,9 +168,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         private VotingConfiguration lastAcceptedConfiguration = VotingConfiguration.EMPTY_CONFIG;
         private final Set<VotingConfigExclusion> votingConfigExclusions = new HashSet<>();
 
-        public Builder() {
-
-        }
+        public Builder() {}
 
         public Builder(CoordinationMetadata state) {
             this.term = state.term;
@@ -311,7 +289,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            if (nodeName.length() > 0) {
+            if (Strings.hasLength(nodeName) == false) {
                 sb.append('{').append(nodeName).append('}');
             }
             sb.append('{').append(nodeId).append('}');
@@ -332,23 +310,27 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
         private final Set<String> nodeIds;
 
-        public VotingConfiguration(Set<String> nodeIds) {
+        public VotingConfiguration(Collection<String> nodeIds) {
             this.nodeIds = Set.copyOf(nodeIds);
         }
 
         public VotingConfiguration(StreamInput in) throws IOException {
-            nodeIds = Collections.unmodifiableSet(Sets.newHashSet(in.readStringArray()));
+            nodeIds = Set.of(in.readStringArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(nodeIds.toArray(new String[0]));
+            out.writeStringCollection(nodeIds);
         }
 
         public boolean hasQuorum(Collection<String> votes) {
-            final HashSet<String> intersection = new HashSet<>(nodeIds);
-            intersection.retainAll(votes);
-            return intersection.size() * 2 > nodeIds.size();
+            int votedNodesCount = 0;
+            for (String nodeId : nodeIds) {
+                if (votes.contains(nodeId)) {
+                    votedNodesCount++;
+                }
+            }
+            return votedNodesCount * 2 > nodeIds.size();
         }
 
         public Set<String> getNodeIds() {
@@ -357,7 +339,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
         @Override
         public String toString() {
-            return "VotingConfiguration{" + String.join(",", nodeIds) + "}";
+            return "VotingConfiguration" + nodeIds;
         }
 
         @Override

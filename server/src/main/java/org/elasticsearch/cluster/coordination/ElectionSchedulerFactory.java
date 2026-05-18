@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -22,8 +22,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.Random;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * It's provably impossible to guarantee that any leader election algorithm ever elects a leader, but they generally work (with probability
@@ -76,7 +79,7 @@ public class ElectionSchedulerFactory {
         ELECTION_MAX_TIMEOUT_SETTING_KEY,
         TimeValue.timeValueSeconds(10),
         TimeValue.timeValueMillis(200),
-        TimeValue.timeValueSeconds(300),
+        TimeValue.timeValueSeconds(600),
         Property.NodeScope
     );
 
@@ -84,7 +87,7 @@ public class ElectionSchedulerFactory {
         ELECTION_DURATION_SETTING_KEY,
         TimeValue.timeValueMillis(500),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueSeconds(300),
+        TimeValue.timeValueSeconds(600),
         Property.NodeScope
     );
 
@@ -93,11 +96,13 @@ public class ElectionSchedulerFactory {
     private final TimeValue maxTimeout;
     private final TimeValue duration;
     private final ThreadPool threadPool;
+    private final Executor clusterCoordinationExecutor;
     private final Random random;
 
     public ElectionSchedulerFactory(Settings settings, Random random, ThreadPool threadPool) {
         this.random = random;
         this.threadPool = threadPool;
+        this.clusterCoordinationExecutor = threadPool.executor(Names.CLUSTER_COORDINATION);
 
         initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
@@ -106,13 +111,13 @@ public class ElectionSchedulerFactory {
 
         if (maxTimeout.millis() < initialTimeout.millis()) {
             throw new IllegalArgumentException(
-                new ParameterizedMessage(
-                    "[{}] is [{}], but must be at least [{}] which is [{}]",
+                format(
+                    "[%s] is [%s], but must be at least [%s] which is [%s]",
                     ELECTION_MAX_TIMEOUT_SETTING_KEY,
                     maxTimeout,
                     ELECTION_INITIAL_TIMEOUT_SETTING_KEY,
                     initialTimeout
-                ).getFormattedMessage()
+                )
             );
         }
     }
@@ -172,9 +177,15 @@ public class ElectionSchedulerFactory {
             final long maxDelayMillis = Math.min(maxTimeout.millis(), initialTimeout.millis() + thisAttempt * backoffTime.millis());
             final long delayMillis = toPositiveLongAtMost(random.nextLong(), maxDelayMillis) + gracePeriod.millis();
             final Runnable runnable = new AbstractRunnable() {
+
+                @Override
+                public void onRejection(Exception e) {
+                    logger.debug("threadpool was shut down", e);
+                }
+
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(new ParameterizedMessage("unexpected exception in wakeup of {}", this), e);
+                    logger.debug(() -> format("unexpected exception in wakeup of %s", this), e);
                     assert false : e;
                 }
 
@@ -184,6 +195,11 @@ public class ElectionSchedulerFactory {
                         logger.debug("{} not starting election", this);
                     } else {
                         logger.debug("{} starting election", this);
+                        if (thisAttempt > 0 && thisAttempt % 10 == 0) {
+                            logger.info("""
+                                retrying master election after [{}] failed attempts; \
+                                election attempts are currently scheduled up to [{}ms] apart""", thisAttempt, maxDelayMillis);
+                        }
                         scheduleNextElection(duration, scheduledRunnable);
                         scheduledRunnable.run();
                     }
@@ -206,16 +222,17 @@ public class ElectionSchedulerFactory {
             };
 
             logger.debug("scheduling {}", runnable);
-            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), clusterCoordinationExecutor, runnable);
         }
 
         @Override
         public String toString() {
-            return "ElectionScheduler{attempt=" + attempt + ", " + ElectionSchedulerFactory.this + "}";
+            return "ElectionScheduler{attempt=" + attempt + ",isClosed=" + isClosed.get() + "," + ElectionSchedulerFactory.this + "}";
         }
 
         @Override
         public void close() {
+            logger.trace("closing {}", this);
             boolean wasNotPreviouslyClosed = isClosed.compareAndSet(false, true);
             assert wasNotPreviouslyClosed;
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io;
@@ -13,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 public class DiskIoBufferPool {
 
@@ -50,14 +50,15 @@ public class DiskIoBufferPool {
         return ioBuffer.clear();
     }
 
+    private static final String[] WRITE_OR_FLUSH_THREAD_NAMES = new String[] {
+        "[" + ThreadPool.Names.WRITE + "]",
+        "[" + ThreadPool.Names.FLUSH + "]",
+        "[" + ThreadPool.Names.SYSTEM_WRITE + "]",
+        "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]" };
+
     private static boolean isWriteOrFlushThread() {
         String threadName = Thread.currentThread().getName();
-        for (String s : Arrays.asList(
-            "[" + ThreadPool.Names.WRITE + "]",
-            "[" + ThreadPool.Names.FLUSH + "]",
-            "[" + ThreadPool.Names.SYSTEM_WRITE + "]",
-            "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]"
-        )) {
+        for (String s : WRITE_OR_FLUSH_THREAD_NAMES) {
             if (threadName.contains(s)) {
                 return true;
             }

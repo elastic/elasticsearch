@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -63,7 +64,7 @@ public class ManyDocumentsIT extends ESRestTestCase {
         String remote = "http://" + http.get("publish_address");
         Request request = new Request("POST", "/_reindex");
         if (randomBoolean()) {
-            request.setJsonEntity("""
+            request.setJsonEntity(String.format(java.util.Locale.ROOT, """
                 {
                    "source": {
                      "index": "test",
@@ -74,10 +75,10 @@ public class ManyDocumentsIT extends ESRestTestCase {
                    "dest": {
                      "index": "des"
                    }
-                }""".formatted(remote));
+                }""", remote));
         } else {
             // Test with external version_type
-            request.setJsonEntity("""
+            request.setJsonEntity(String.format(java.util.Locale.ROOT, """
                 {
                   "source": {
                     "index": "test",
@@ -89,7 +90,7 @@ public class ManyDocumentsIT extends ESRestTestCase {
                     "index": "des",
                     "version_type": "external"
                   }
-                }""".formatted(remote));
+                }""", remote));
         }
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));

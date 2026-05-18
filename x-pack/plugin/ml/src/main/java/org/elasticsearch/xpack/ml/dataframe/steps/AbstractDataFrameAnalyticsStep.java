@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.tasks.TaskId;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
 
@@ -61,22 +61,22 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
 
     @Override
     public final void execute(ActionListener<StepResponse> listener) {
-        logger.debug(() -> new ParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
+        logger.debug(() -> format("[%s] Executing step [%s]", config.getId(), name()));
         if (task.isStopping() && shouldSkipIfTaskIsStopping()) {
-            logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
+            logger.debug(() -> format("[%s] task is stopping before starting [%s] step", config.getId(), name()));
             listener.onResponse(new StepResponse(true));
             return;
         }
-        doExecute(ActionListener.wrap(stepResponse -> {
+        doExecute(listener.delegateFailureAndWrap((l, stepResponse) -> {
             // We persist progress at the end of each step to ensure we do not have
             // to repeat the step in case the node goes down without getting a chance to persist progress.
-            task.persistProgress(() -> listener.onResponse(stepResponse));
-        }, listener::onFailure));
+            task.persistProgress(() -> l.onResponse(stepResponse));
+        }));
     }
 
     protected abstract void doExecute(ActionListener<StepResponse> listener);
 
-    protected void refreshDestAsync(ActionListener<RefreshResponse> refreshListener) {
+    protected void refreshDestAsync(ActionListener<BroadcastResponse> refreshListener) {
         ParentTaskAssigningClient parentTaskClient = parentTaskClient();
         executeWithHeadersAsync(
             config.getHeaders(),

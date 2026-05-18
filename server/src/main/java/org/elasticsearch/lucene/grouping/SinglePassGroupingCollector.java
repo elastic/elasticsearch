@@ -27,6 +27,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -35,12 +36,14 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.GroupSelector;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.Map;
 import java.util.TreeSet;
 
 import static org.apache.lucene.search.SortField.Type.SCORE;
@@ -130,7 +133,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     private final int[] reversed;
     private final int topNGroups;
     private final boolean needsScores;
-    private final HashMap<T, SearchGroup<T>> groupMap;
+    private final Map<T, SearchGroup<T>> groupMap;
     private final int compIDXEnd;
 
     private int totalHitCount;
@@ -168,7 +171,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         for (int i = 0; i < sortFields.length; i++) {
             final SortField sortField = sortFields[i];
             // use topNGroups + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
-            comparators[i] = sortField.getComparator(topNGroups + 1, i);
+            comparators[i] = sortField.getComparator(topNGroups + 1, Pruning.NONE);
             reversed[i] = sortField.getReverse() ? -1 : 1;
         }
         if (after != null) {
@@ -178,7 +181,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         }
 
         spareSlot = topNGroups;
-        groupMap = new HashMap<>(topNGroups);
+        groupMap = Maps.newMapWithExpectedSize(topNGroups);
     }
 
     @Override
@@ -200,7 +203,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
         if (groupMap.size() <= groupOffset) {
             TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
-            return new TopFieldGroups(groupField, totalHits, new ScoreDoc[0], groupSort.getSort(), new Object[0]);
+            return new TopFieldGroups(groupField, totalHits, Lucene.EMPTY_SCORE_DOCS, groupSort.getSort(), new Object[0]);
         }
 
         if (orderedGroups == null) {

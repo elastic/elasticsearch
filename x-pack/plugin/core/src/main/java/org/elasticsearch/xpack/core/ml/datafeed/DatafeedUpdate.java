@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -37,8 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 /**
  * A datafeed update contains partial properties to update a {@link DatafeedConfig}.
@@ -148,7 +148,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = in.readStringList();
+            this.indices = in.readStringCollectionAsList();
         } else {
             this.indices = null;
         }
@@ -157,7 +157,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
         if (in.readBoolean()) {
-            this.scriptFields = in.readList(SearchSourceBuilder.ScriptField::new);
+            this.scriptFields = in.readCollectionAsList(SearchSourceBuilder.ScriptField::new);
         } else {
             this.scriptFields = null;
         }
@@ -166,7 +166,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalInt();
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
-        this.runtimeMappings = in.readBoolean() ? in.readMap() : null;
+        this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
     }
 
     /**
@@ -194,7 +194,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         if (scriptFields != null) {
             out.writeBoolean(true);
-            out.writeList(scriptFields);
+            out.writeCollection(scriptFields);
         } else {
             out.writeBoolean(false);
         }
@@ -210,7 +210,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         if (this.runtimeMappings != null) {
             out.writeBoolean(true);
-            out.writeMap(this.runtimeMappings);
+            out.writeGenericMap(this.runtimeMappings);
         } else {
             out.writeBoolean(false);
         }
@@ -255,7 +255,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return builder;
     }
 
-    private void addOptionalField(XContentBuilder builder, ParseField field, Object value) throws IOException {
+    private static void addOptionalField(XContentBuilder builder, ParseField field, Object value) throws IOException {
         if (value != null) {
             builder.field(field.getPreferredName(), value);
         }
@@ -334,7 +334,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
      * Applies the update to the given {@link DatafeedConfig}
      * @return a new {@link DatafeedConfig} that contains the update
      */
-    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers) {
+    public DatafeedConfig apply(DatafeedConfig datafeedConfig, Map<String, String> headers, ClusterState clusterState) {
         if (id.equals(datafeedConfig.getId()) == false) {
             throw new IllegalArgumentException("Cannot apply update to datafeedConfig with different id");
         }
@@ -384,7 +384,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setRuntimeMappings(runtimeMappings);
         }
         if (headers.isEmpty() == false) {
-            builder.setHeaders(filterSecurityHeaders(headers));
+            builder.setHeaders(ClientHelper.getPersistableSafeSecurityHeaders(headers, clusterState));
         }
         return builder.build();
     }

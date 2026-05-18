@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -27,11 +27,9 @@ import org.elasticsearch.xpack.transform.transforms.latest.Latest;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -44,7 +42,7 @@ public class TransformConfigLinterTests extends ESTestCase {
             AggregationConfigTests.randomAggregationConfig(),
             null
         );
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function function = new Pivot(pivotConfig, SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, null), is(empty()));
 
@@ -52,17 +50,19 @@ public class TransformConfigLinterTests extends ESTestCase {
 
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("rt-field-A", singletonMap("type", "keyword"));
-                put("rt-field-B", singletonMap("script", "some script"));
-                put("rt-field-C", singletonMap("script", "some other script"));
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of(
+            "rt-field-A",
+            Map.of("type", "keyword"),
+            "rt-field-B",
+            Map.of("script", "some script"),
+            "rt-field-C",
+            Map.of("script", "some other script")
+        );
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            runtimeMappings
+            runtimeMappings,
+            randomStringOrNull()
         );
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
@@ -73,6 +73,10 @@ public class TransformConfigLinterTests extends ESTestCase {
         );
     }
 
+    private static String randomStringOrNull() {
+        return randomBoolean() ? randomAlphanumericOfLength(5) : null;
+    }
+
     public void testGetWarnings_Latest_WithScriptBasedRuntimeFields() {
         LatestConfig latestConfig = new LatestConfig(singletonList("rt-field-B"), "field-T");
         Function function = new Latest(latestConfig);
@@ -81,17 +85,19 @@ public class TransformConfigLinterTests extends ESTestCase {
 
         SyncConfig syncConfig = new TimeSyncConfig("rt-field-C", null);
 
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("rt-field-A", singletonMap("type", "keyword"));
-                put("rt-field-B", singletonMap("script", "some script"));
-                put("rt-field-C", singletonMap("script", "some other script"));
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of(
+            "rt-field-A",
+            Map.of("type", "keyword"),
+            "rt-field-B",
+            Map.of("script", "some script"),
+            "rt-field-C",
+            Map.of("script", "some other script")
+        );
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            runtimeMappings
+            runtimeMappings,
+            randomStringOrNull()
         );
 
         assertThat(
@@ -117,7 +123,7 @@ public class TransformConfigLinterTests extends ESTestCase {
             AggregationConfigTests.randomAggregationConfig(),
             null
         );
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function function = new Pivot(pivotConfig, SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
         assertThat(

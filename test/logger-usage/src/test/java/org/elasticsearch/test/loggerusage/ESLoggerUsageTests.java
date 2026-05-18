@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.loggerusage;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -137,10 +139,6 @@ public class ESLoggerUsageTests extends ESTestCase {
         logger.debug(new ESLogMessage("message {}").argAndField("x-opaque-id", "some-value").argAndField("too-many-arg", "xxx"));
     }
 
-    public void checkFailArraySize(String... arr) {
-        logger.debug(new ParameterizedMessage("text {}", (Object[]) arr));
-    }
-
     public void checkNumberOfArguments1() {
         logger.info("Hello {}", "world");
     }
@@ -170,36 +168,12 @@ public class ESLoggerUsageTests extends ESTestCase {
         logger.info("Hello {}, {}, {}, {}, {}, {}, {}", "world", 2, "third argument", 4, 5, 6, 7, new String("last arg"));
     }
 
-    public void checkNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage1() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 2));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}, {}", "world", 2));
-    }
-
-    public void checkNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
-    }
-
-    public void checkFailNumberOfArgumentsParameterizedMessage3() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
-    }
-
     public void checkOrderOfExceptionArgument() {
         logger.info("Hello", new Exception());
     }
 
     public void checkOrderOfExceptionArgument1() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
+        logger.info(() -> format("Hello %s", "world"), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument1() {
@@ -207,7 +181,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument2() {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
+        logger.info(() -> format("Hello %s, %s", "world", 42), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument2() {
@@ -216,10 +190,6 @@ public class ESLoggerUsageTests extends ESTestCase {
 
     public void checkNonConstantMessageWithZeroArguments(boolean b) {
         logger.info(Boolean.toString(b), new Exception());
-    }
-
-    public void checkFailNonConstantMessageWithArguments(boolean b) {
-        logger.info((Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
     }
 
     public void checkComplexUsage(boolean b) {

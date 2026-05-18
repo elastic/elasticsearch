@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
@@ -16,7 +17,11 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-public class ScaledFloatDocValuesField implements DocValuesField<Double>, ScriptDocValues.Supplier<Double> {
+public class ScaledFloatDocValuesField extends AbstractScriptFieldFactory<Double>
+    implements
+        Field<Double>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<Double> {
 
     protected final SortedNumericDoubleValues input;
     protected final String name;
@@ -51,7 +56,7 @@ public class ScaledFloatDocValuesField implements DocValuesField<Double>, Script
     }
 
     @Override
-    public ScriptDocValues<Double> getScriptDocValues() {
+    public ScriptDocValues<Double> toScriptDocValues() {
         if (doubles == null) {
             doubles = new ScriptDocValues.Doubles(this);
         }

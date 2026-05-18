@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -24,12 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -75,10 +73,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "awareness";
 
-    public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = Setting.stringListSetting(
         "cluster.routing.allocation.awareness.attributes",
-        emptyList(),
-        Function.identity(),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -124,7 +120,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, true);
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        return underCapacity(indexMetadata, shardRouting, node, allocation, true);
     }
 
     @Override
@@ -136,8 +133,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(shardRouting, node, allocation, false);
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return underCapacity(indexMetadata, shardRouting, node, allocation, false);
     }
 
     private static final Decision YES_NOT_ENABLED = Decision.single(
@@ -156,15 +153,20 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_ALL_MET = Decision.single(Decision.Type.YES, NAME, "node meets all awareness attribute requirements");
 
-    private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
+    private Decision underCapacity(
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation,
+        boolean moveToNode
+    ) {
         if (awarenessAttributes.isEmpty()) {
             return YES_NOT_ENABLED;
         }
 
         final boolean debug = allocation.debugDecision();
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
 
-        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).expandToAllNodes()) {
+        if (indexMetadata.getAutoExpandReplicas().expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
 

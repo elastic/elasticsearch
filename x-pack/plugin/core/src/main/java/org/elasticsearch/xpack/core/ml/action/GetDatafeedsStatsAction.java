@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +16,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
@@ -36,6 +39,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
@@ -47,21 +52,17 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
     private static final String TIMING_STATS = "timing_stats";
     private static final String RUNNING_STATE = "running_state";
+    private static final String REMOTE_CLUSTER_STATS = "remote_cluster_stats";
 
     private GetDatafeedsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    // This needs to be a MasterNodeReadRequest even though the corresponding transport
-    // action is a HandledTransportAction so that in mixed version clusters it can be
-    // serialized to older nodes where the transport action was a MasterNodeReadAction.
-    // TODO: Make this a simple request in a future version where there is no possibility
-    // of this request being serialized to another node.
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LegacyActionRequest {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String datafeedId;
+        private final String datafeedId;
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
@@ -113,6 +114,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             }
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeed_stats[%s]", datafeedId), parentTaskId, headers);
         }
     }
 
@@ -176,6 +182,10 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 return timingStats;
             }
 
+            public RunningState getRunningState() {
+                return runningState;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
@@ -209,6 +219,9 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 }
                 if (runningState != null) {
                     builder.field(RUNNING_STATE, runningState);
+                    if (runningState.getCrossClusterStats() != null) {
+                        builder.field(REMOTE_CLUSTER_STATS, runningState.getCrossClusterStats());
+                    }
                 }
                 builder.endObject();
                 return builder;
@@ -321,9 +334,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             private GetDatafeedRunningStateAction.Response datafeedRuntimeState;
 
             public Builder setDatafeedIds(Collection<String> datafeedIds) {
-                this.statsBuilders = datafeedIds.stream()
-                    .map(GetDatafeedsStatsAction.Response.DatafeedStats::builder)
-                    .collect(Collectors.toList());
+                this.statsBuilders = datafeedIds.stream().map(DatafeedStats::builder).collect(Collectors.toList());
                 return this;
             }
 
@@ -357,7 +368,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                         tasksInProgress
                     );
                     DatafeedState datafeedState = MlTasks.getDatafeedState(statsBuilder.datafeedId, tasksInProgress);
-                    return statsBuilder.setNode(maybeTask != null ? state.getNodes().get(maybeTask.getExecutorNode()) : null)
+                    DiscoveryNode node = null;
+                    if (maybeTask != null && maybeTask.getExecutorNode() != null) {
+                        node = state.getNodes().get(maybeTask.getExecutorNode());
+                    }
+                    return statsBuilder.setNode(node)
                         .setDatafeedState(datafeedState)
                         .setAssignmentExplanation(maybeTask != null ? maybeTask.getAssignment().getExplanation() : null)
                         .setTimingStats(timingStats)

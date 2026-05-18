@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.transform;
@@ -38,13 +39,13 @@ public class RestTestTransformer {
         List<RestTestTransformGlobalSetup> setupTransforms = transformations.stream()
             .filter(transform -> transform instanceof RestTestTransformGlobalSetup)
             .map(transform -> (RestTestTransformGlobalSetup) transform)
-            .collect(Collectors.toList());
+            .toList();
 
         // Collect any global teardown transformations
         List<RestTestTransformGlobalTeardown> teardownTransforms = transformations.stream()
             .filter(transform -> transform instanceof RestTestTransformGlobalTeardown)
             .map(transform -> (RestTestTransformGlobalTeardown) transform)
-            .collect(Collectors.toList());
+            .toList();
 
         // Collect any transformations that are identified by an object key.
         Map<String, List<RestTestTransformByParentObject>> objectKeyFinders = transformations.stream()
@@ -130,8 +131,9 @@ public class RestTestTransformer {
                     }
                 }
             }
-            currentNode.elements()
-                .forEachRemaining(node -> { traverseTest(testContext, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders); });
+            currentNode.elements().forEachRemaining(node -> {
+                traverseTest(testContext, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders);
+            });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 List<RestTestTransformByParentObject> transforms = objectKeyFinders.get(entry.getKey());

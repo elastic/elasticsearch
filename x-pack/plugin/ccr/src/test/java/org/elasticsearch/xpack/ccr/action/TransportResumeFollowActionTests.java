@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -15,12 +14,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 public class TransportResumeFollowActionTests extends ESTestCase {
 
     public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
@@ -309,6 +311,24 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
+        {
+            // should succeed when leader has indexing_complete=true but follower does not (race during auto-follow restore)
+            IndexMetadata leaderIMD = createIMD(
+                "index1",
+                5,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true).build(),
+                null
+            );
+            IndexMetadata followIMD = createIMD(
+                "index2",
+                5,
+                Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(),
+                customMetadata
+            );
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
+            validate(request, leaderIMD, followIMD, UUIDs, mapperService);
+        }
     }
 
     public void testDynamicIndexSettingsAreClassified() {
@@ -319,17 +339,29 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         // These fields need to be replicated otherwise documents that can be indexed in the leader index cannot
         // be indexed in the follower index:
         replicatedSettings.add(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING);
+        replicatedSettings.add(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING);
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
+        replicatedSettings.add(IndexMetadata.INDEX_DIMENSIONS);
+        replicatedSettings.add(IndexSettings.PREFER_ILM_SETTING);
+        replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
+        replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
+        replicatedSettings.add(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
-            if (setting.isDynamic()) {
+            // removed settings have no effect, they are only there for BWC
+            if (setting.isDynamic() && setting.isDeprecatedAndRemoved() == false) {
                 boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
                 boolean replicated = replicatedSettings.contains(setting);
                 assertThat(
@@ -370,7 +402,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         Map<String, String> custom
     ) throws IOException {
         IndexMetadata.Builder builder = IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT).put(settings))
+            .settings(settings(IndexVersion.current()).put(settings))
             .numberOfShards(numberOfShards)
             .state(state)
             .numberOfReplicas(0)

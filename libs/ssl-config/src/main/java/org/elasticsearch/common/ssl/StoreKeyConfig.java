@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -13,7 +14,6 @@ import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -27,7 +27,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -121,7 +120,7 @@ public class StoreKeyConfig implements SslKeyConfig {
                 return null;
             })
             .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     @Override
@@ -136,7 +135,7 @@ public class StoreKeyConfig implements SslKeyConfig {
                 firstElement = false;
             }
             return certificates.stream();
-        }).collect(Collectors.toUnmodifiableList());
+        }).toList();
     }
 
     @Override
@@ -166,10 +165,10 @@ public class StoreKeyConfig implements SslKeyConfig {
     private KeyStore readKeyStore(Path path) {
         try {
             return KeyStoreUtil.readKeyStore(path, type, storePassword);
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
         } catch (IOException e) {
-            throw SslFileUtil.ioException("[" + type + "] keystore", List.of(path), e);
+            throw SslFileUtil.ioException("[" + type + "] keystore", List.of(path), e, null, configBasePath);
         } catch (GeneralSecurityException e) {
             throw keystoreException(path, e);
         }
@@ -191,7 +190,7 @@ public class StoreKeyConfig implements SslKeyConfig {
     /**
      * Verifies that the keystore contains at least 1 private key entry.
      */
-    private void checkKeyStore(KeyStore keyStore, Path path) throws KeyStoreException {
+    private static void checkKeyStore(KeyStore keyStore, Path path) throws KeyStoreException {
         Enumeration<String> aliases = keyStore.aliases();
         while (aliases.hasMoreElements()) {
             String alias = aliases.nextElement();

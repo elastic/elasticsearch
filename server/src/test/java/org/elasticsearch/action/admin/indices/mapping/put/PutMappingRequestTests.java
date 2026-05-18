@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -74,18 +75,18 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
-        cs = addAliases(
-            cs,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
+        project = addAliases(
+            project,
             List.of(
                 tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
                 tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
-        List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
-        IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
+        Index[] indices = TransportPutMappingAction.resolveIndices(project, request, TestIndexNameExpressionResolver.newInstance());
+        List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
+        IndexAbstraction expectedDs = project.getIndicesLookup().get("foo");
         // should resolve the data stream and each alias to their respective write indices
         assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getName(), "index2", "index3"));
     }
@@ -98,19 +99,22 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
-        cs = addAliases(
-            cs,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
+        project = addAliases(
+            project,
             List.of(
                 tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
                 tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2");
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
-        List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
-        IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
-        List<String> expectedIndices = expectedDs.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+        Index[] indices = TransportPutMappingAction.resolveIndices(project, request, TestIndexNameExpressionResolver.newInstance());
+        List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
+        IndexAbstraction expectedDs = project.getIndicesLookup().get("foo");
+        List<String> expectedIndices = expectedDs.getIndices()
+            .stream()
+            .map(Index::getName)
+            .collect(Collectors.toCollection(ArrayList::new));
         expectedIndices.addAll(List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
         assertThat(indexNames, containsInAnyOrder(expectedIndices.toArray()));
@@ -124,19 +128,22 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
-        cs = addAliases(
-            cs,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
+        project = addAliases(
+            project,
             List.of(
                 tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
                 tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "index3").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
-        List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
-        IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
-        List<String> expectedIndices = expectedDs.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+        Index[] indices = TransportPutMappingAction.resolveIndices(project, request, TestIndexNameExpressionResolver.newInstance());
+        List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
+        IndexAbstraction expectedDs = project.getIndicesLookup().get("foo");
+        List<String> expectedIndices = expectedDs.getIndices()
+            .stream()
+            .map(Index::getName)
+            .collect(Collectors.toCollection(ArrayList::new));
         expectedIndices.addAll(List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
         assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getName(), "index3"));
@@ -150,9 +157,9 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
-        final ClusterState cs2 = addAliases(
-            cs,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
+        final ProjectMetadata project2 = addAliases(
+            project,
             List.of(
                 tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
                 tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
@@ -161,7 +168,7 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest().indices("*").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request, TestIndexNameExpressionResolver.newInstance())
+            () -> TransportPutMappingAction.resolveIndices(project2, request, TestIndexNameExpressionResolver.newInstance())
         );
         assertThat(e.getMessage(), containsString("The index expression [*] and options provided did not point to a single write-index"));
     }
@@ -174,9 +181,9 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
-        final ClusterState cs2 = addAliases(
-            cs,
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
+        final ProjectMetadata project2 = addAliases(
+            project,
             List.of(
                 tuple("alias1", List.of(tuple("index1", false), tuple("index2", false))),
                 tuple("alias2", List.of(tuple("index2", false), tuple("index3", false)))
@@ -185,7 +192,7 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest().indices("alias2").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request, TestIndexNameExpressionResolver.newInstance())
+            () -> TransportPutMappingAction.resolveIndices(project2, request, TestIndexNameExpressionResolver.newInstance())
         );
         assertThat(e.getMessage(), containsString("no write index is defined for alias [alias2]"));
     }
@@ -195,8 +202,8 @@ public class PutMappingRequestTests extends ESTestCase {
      * to the alias's indices. The alias's indices are a tuple of index name and a flag indicating whether the alias
      * is a write alias for that index. See usage examples above.
      */
-    private static ClusterState addAliases(ClusterState cs, List<Tuple<String, List<Tuple<String, Boolean>>>> aliases) {
-        Metadata.Builder builder = Metadata.builder(cs.metadata());
+    private static ProjectMetadata addAliases(ProjectMetadata project, List<Tuple<String, List<Tuple<String, Boolean>>>> aliases) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
         for (Tuple<String, List<Tuple<String, Boolean>>> alias : aliases) {
             for (Tuple<String, Boolean> index : alias.v2()) {
                 IndexMetadata im = builder.get(index.v1());
@@ -204,7 +211,7 @@ public class PutMappingRequestTests extends ESTestCase {
                 builder.put(IndexMetadata.builder(im).putAlias(newAliasMd));
             }
         }
-        return ClusterState.builder(cs).metadata(builder.build()).build();
+        return builder.build();
     }
 
 }

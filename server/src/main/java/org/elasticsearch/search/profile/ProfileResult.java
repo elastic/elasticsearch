@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,22 +25,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 /**
  * The result of a profiled *thing*, like a query or an aggregation. See
  * {@link AbstractProfiler} for the statistic collection framework.
  */
 public final class ProfileResult implements Writeable, ToXContentObject {
-    static final ParseField TYPE = new ParseField("type");
-    static final ParseField DESCRIPTION = new ParseField("description");
-    static final ParseField BREAKDOWN = new ParseField("breakdown");
-    static final ParseField DEBUG = new ParseField("debug");
+    public static final ParseField TYPE = new ParseField("type");
+    public static final ParseField DESCRIPTION = new ParseField("description");
+    public static final ParseField BREAKDOWN = new ParseField("breakdown");
+    public static final ParseField DEBUG = new ParseField("debug");
     static final ParseField NODE_TIME = new ParseField("time");
-    static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
-    static final ParseField CHILDREN = new ParseField("children");
+    public static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
+    public static final ParseField CHILDREN = new ParseField("children");
 
     private final String type;
     private final String description;
@@ -74,13 +68,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.description = in.readString();
         this.nodeTime = in.readLong();
-        breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
-        } else {
-            debug = Map.of();
-        }
-        children = in.readList(ProfileResult::new);
+        breakdown = in.readMap(StreamInput::readLong);
+        debug = in.readMap(StreamInput::readGenericValue);
+        children = in.readCollectionAsList(ProfileResult::new);
     }
 
     @Override
@@ -88,11 +78,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeString(description);
         out.writeLong(nodeTime);            // not Vlong because can be negative
-        out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
-        }
-        out.writeList(children);
+        out.writeMap(breakdown, StreamOutput::writeLong);
+        out.writeMap(debug, StreamOutput::writeGenericValue);
+        out.writeCollection(children);
     }
 
     /**
@@ -186,29 +174,5 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
-    static {
-        InstantiatingObjectParser.Builder<ProfileResult, Void> parser = InstantiatingObjectParser.builder(
-            "profile_result",
-            true,
-            ProfileResult.class
-        );
-        parser.declareString(constructorArg(), TYPE);
-        parser.declareString(constructorArg(), DESCRIPTION);
-        parser.declareObject(
-            constructorArg(),
-            (p, c) -> p.map().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> ((Number) e.getValue()).longValue())),
-            BREAKDOWN
-        );
-        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
-        parser.declareLong(constructorArg(), NODE_TIME_RAW);
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);
-        PARSER = parser.build();
-    }
-
-    public static ProfileResult fromXContent(XContentParser p) throws IOException {
-        return PARSER.parse(p, null);
     }
 }

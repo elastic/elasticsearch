@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -14,13 +15,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
@@ -37,19 +36,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.sort.NestedSortBuilder.FILTER_FIELD;
 
-public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
+public abstract class SortBuilder<T extends SortBuilder<T>>
+    implements
+        VersionedNamedWriteable,
+        ToXContentObject,
+        Rewriteable<SortBuilder<?>> {
 
     protected SortOrder order = SortOrder.ASC;
 
     // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
-    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter").withAllDeprecated()
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
-    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path").withAllDeprecated()
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 
     private static final Map<String, Parser<?>> PARSERS = Map.of(
         ScriptSortBuilder.NAME,
@@ -67,6 +66,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
      * Create a {@linkplain SortFieldAndFormat} from this builder.
      */
     protected abstract SortFieldAndFormat build(SearchExecutionContext context) throws IOException;
+
+    /**
+     * The name or type of the sort
+     */
+    public abstract String name();
 
     /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
@@ -151,12 +155,17 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     }
 
     public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context) throws IOException {
+        return buildSort(sortBuilders, context, true);
+    }
+
+    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context, boolean optimize)
+        throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
             SortFieldAndFormat sf = builder.build(context);
-            sortFields.add(sf.field);
-            sortFormats.add(sf.format);
+            sortFields.add(sf.field());
+            sortFormats.add(sf.format());
         }
         if (sortFields.isEmpty() == false) {
             // optimize if we just sort on score non reversed, we don't really
@@ -165,9 +174,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             if (sortFields.size() > 1) {
                 sort = true;
             } else {
-                SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
-                    sort = false;
+                if (optimize) {
+                    SortField sortField = sortFields.get(0);
+                    if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
+                        sort = false;
+                    } else {
+                        sort = true;
+                    }
                 } else {
                     sort = true;
                 }
@@ -192,7 +205,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         final NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         final Query parentQuery;
         if (objectMapper == null) {
-            parentQuery = Queries.newNonNestedFilter();
+            parentQuery = Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {
             parentQuery = objectMapper.nestedTypeFilter();
         }
@@ -210,15 +223,10 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         NestedSortBuilder nestedNestedSort = nestedSort.getNestedSort();
 
         // verify our nested path
-        ObjectMapper objectMapper = context.getObjectMapper(nestedPath);
-
-        if (objectMapper == null) {
+        NestedObjectMapper nestedObjectMapper = context.nestedLookup().getNestedMappers().get(nestedPath);
+        if (nestedObjectMapper == null) {
             throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");
         }
-        if (objectMapper.isNested() == false) {
-            throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
-        }
-        NestedObjectMapper nestedObjectMapper = (NestedObjectMapper) objectMapper;
         NestedObjectMapper parentMapper = context.nestedScope().getObjectMapper();
 
         // get our child query, potentially applying a users filter
@@ -265,7 +273,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
 
     protected static QueryBuilder parseNestedFilter(XContentParser parser) {
         try {
-            return parseInnerQueryBuilder(parser);
+            return parseTopLevelQuery(parser);
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Expected " + FILTER_FIELD.getPreferredName() + " element.", e);
         }
@@ -279,5 +287,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    public boolean supportsParallelCollection() {
+        return true;
     }
 }

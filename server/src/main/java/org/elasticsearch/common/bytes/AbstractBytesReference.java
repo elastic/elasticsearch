@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.bytes;
 
@@ -18,11 +19,40 @@ import java.util.function.ToIntBiFunction;
 
 public abstract class AbstractBytesReference implements BytesReference {
 
-    private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
+    protected final int length;
+
+    private int hash;           // we cache the hash of this reference since it can be quite costly to re-calculated it
+    private boolean hashIsZero; // if the calculated hash is actually zero
+
+    protected AbstractBytesReference(int length) {
+        this.length = length;
+    }
+
+    @Override
+    public final int length() {
+        return length;
+    }
 
     @Override
     public int getInt(int index) {
         return (get(index) & 0xFF) << 24 | (get(index + 1) & 0xFF) << 16 | (get(index + 2) & 0xFF) << 8 | get(index + 3) & 0xFF;
+    }
+
+    @Override
+    public int getIntLE(int index) {
+        return (get(index + 3) & 0xFF) << 24 | (get(index + 2) & 0xFF) << 16 | (get(index + 1) & 0xFF) << 8 | get(index) & 0xFF;
+    }
+
+    @Override
+    public long getLongLE(int index) {
+        return (long) (get(index + 7) & 0xFF) << 56 | (long) (get(index + 6) & 0xFF) << 48 | (long) (get(index + 5) & 0xFF) << 40
+            | (long) (get(index + 4) & 0xFF) << 32 | (long) (get(index + 3) & 0xFF) << 24 | (get(index + 2) & 0xFF) << 16 | (get(index + 1)
+                & 0xFF) << 8 | get(index) & 0xFF;
+    }
+
+    @Override
+    public double getDoubleLE(int index) {
+        return Double.longBitsToDouble(getLongLE(index));
     }
 
     @Override
@@ -56,20 +86,6 @@ public abstract class AbstractBytesReference implements BytesReference {
     }
 
     @Override
-    public BytesRefIterator iterator() {
-        return new BytesRefIterator() {
-            BytesRef ref = length() == 0 ? null : toBytesRef();
-
-            @Override
-            public BytesRef next() {
-                BytesRef r = ref;
-                ref = null; // only return it once...
-                return r;
-            }
-        };
-    }
-
-    @Override
     public boolean equals(Object other) {
         if (this == other) {
             return true;
@@ -89,7 +105,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
     @Override
     public int hashCode() {
-        if (hash == null) {
+        if (hash == 0 && hashIsZero == false) {
             final BytesRefIterator iterator = iterator();
             BytesRef ref;
             int result = 1;
@@ -102,10 +118,13 @@ public abstract class AbstractBytesReference implements BytesReference {
             } catch (IOException ex) {
                 throw new AssertionError("wont happen", ex);
             }
-            return hash = result;
-        } else {
-            return hash;
+            if (result == 0) {
+                hashIsZero = true;
+            } else {
+                hash = result;
+            }
         }
+        return hash;
     }
 
     @Override

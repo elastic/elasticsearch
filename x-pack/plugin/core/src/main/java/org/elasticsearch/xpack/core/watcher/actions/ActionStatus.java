@@ -323,7 +323,7 @@ public class ActionStatus implements ToXContentObject {
         }
     }
 
-    public static class Execution implements ToXContentObject {
+    public record Execution(ZonedDateTime timestamp, boolean successful, String reason) implements ToXContentObject {
 
         public static Execution successful(ZonedDateTime timestamp) {
             return new Execution(timestamp, true, null);
@@ -333,43 +333,10 @@ public class ActionStatus implements ToXContentObject {
             return new Execution(timestamp, false, reason);
         }
 
-        private final ZonedDateTime timestamp;
-        private final boolean successful;
-        private final String reason;
-
-        private Execution(ZonedDateTime timestamp, boolean successful, String reason) {
+        public Execution(ZonedDateTime timestamp, boolean successful, String reason) {
             this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
             this.successful = successful;
             this.reason = reason;
-        }
-
-        public ZonedDateTime timestamp() {
-            return timestamp;
-        }
-
-        public boolean successful() {
-            return successful;
-        }
-
-        public String reason() {
-            return reason;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Execution execution = (Execution) o;
-
-            return Objects.equals(successful, execution.successful)
-                && Objects.equals(timestamp, execution.timestamp)
-                && Objects.equals(reason, execution.reason);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(timestamp, successful, reason);
         }
 
         @Override
@@ -460,36 +427,11 @@ public class ActionStatus implements ToXContentObject {
         }
     }
 
-    public static class Throttle implements ToXContentObject {
-
-        private final ZonedDateTime timestamp;
-        private final String reason;
+    public record Throttle(ZonedDateTime timestamp, String reason) implements ToXContentObject {
 
         public Throttle(ZonedDateTime timestamp, String reason) {
             this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
             this.reason = reason;
-        }
-
-        public ZonedDateTime timestamp() {
-            return timestamp;
-        }
-
-        public String reason() {
-            return reason;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Throttle throttle = (Throttle) o;
-            return Objects.equals(timestamp, throttle.timestamp) && Objects.equals(reason, throttle.reason);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(timestamp, reason);
         }
 
         @Override

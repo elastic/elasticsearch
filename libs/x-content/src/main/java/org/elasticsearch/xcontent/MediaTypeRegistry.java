@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -26,10 +27,12 @@ import java.util.regex.Pattern;
  * A MediaType can have only one query parameter representation.
  * For example "json" (case insensitive) maps back to a JSON media type.
  *
- * Additionally, a http header may optionally have parameters. For example "application/vnd.elasticsearch+json; compatible-with=7".
+ * Additionally, a http header may optionally have parameters. For example "application/vnd.elasticsearch+json; compatible-with=8".
  * This class also allows to define a regular expression for valid values of charset.
  */
 public class MediaTypeRegistry<T extends MediaType> {
+
+    public MediaTypeRegistry() {}
 
     private Map<String, T> queryParamToMediaType = new HashMap<>();
     private Map<String, T> typeWithSubtypeToMediaType = new HashMap<>();
@@ -62,7 +65,7 @@ public class MediaTypeRegistry<T extends MediaType> {
         return this;
     }
 
-    private Map<String, Pattern> convertPatterns(Map<String, String> paramNameAndValueRegex) {
+    private static Map<String, Pattern> convertPatterns(Map<String, String> paramNameAndValueRegex) {
         Map<String, Pattern> parametersForMediaType = new HashMap<>(paramNameAndValueRegex.size());
         for (Map.Entry<String, String> params : paramNameAndValueRegex.entrySet()) {
             String parameterName = params.getKey().toLowerCase(Locale.ROOT);

@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.env.NodeEnvironment.DataPath;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -169,11 +170,11 @@ public class NewPathForShardTests extends ESTestCase {
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
-        NodePath[] nodePaths = nodeEnv.nodePaths();
-        assertEquals(2, nodePaths.length);
+        DataPath[] dataPaths = nodeEnv.dataPaths();
+        assertEquals(2, dataPaths.length);
 
-        assertEquals("mocka", nodePaths[0].fileStore.name());
-        assertEquals("mockb", nodePaths[1].fileStore.name());
+        assertEquals("mocka", dataPaths[0].fileStore.name());
+        assertEquals("mockb", dataPaths[1].fileStore.name());
 
         // Path a has lots of free space, but b has little, so new shard should go to a:
         aFileStore.usableSpace = 100000;
@@ -224,11 +225,11 @@ public class NewPathForShardTests extends ESTestCase {
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
-        NodePath[] nodePaths = nodeEnv.nodePaths();
-        assertEquals(2, nodePaths.length);
+        DataPath[] dataPaths = nodeEnv.dataPaths();
+        assertEquals(2, dataPaths.length);
 
-        assertEquals("mocka", nodePaths[0].fileStore.name());
-        assertEquals("mockb", nodePaths[1].fileStore.name());
+        assertEquals("mocka", dataPaths[0].fileStore.name());
+        assertEquals("mockb", dataPaths[1].fileStore.name());
 
         // Path a has lots of free space, but b has little, so new shard should go to a:
         aFileStore.usableSpace = 100000;
@@ -285,12 +286,12 @@ public class NewPathForShardTests extends ESTestCase {
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 1000;
 
-        assertThat(ShardPath.getPathWithMostFreeSpace(nodeEnv), equalTo(nodeEnv.nodePaths()[0]));
+        assertThat(ShardPath.getPathWithMostFreeSpace(nodeEnv), equalTo(nodeEnv.dataPaths()[0]));
 
         aFileStore.usableSpace = 10000;
         bFileStore.usableSpace = 20000;
 
-        assertThat(ShardPath.getPathWithMostFreeSpace(nodeEnv), equalTo(nodeEnv.nodePaths()[1]));
+        assertThat(ShardPath.getPathWithMostFreeSpace(nodeEnv), equalTo(nodeEnv.dataPaths()[1]));
 
         nodeEnv.close();
     }
@@ -308,11 +309,11 @@ public class NewPathForShardTests extends ESTestCase {
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
-        NodePath[] nodePaths = nodeEnv.nodePaths();
-        assertEquals(2, nodePaths.length);
+        DataPath[] dataPaths = nodeEnv.dataPaths();
+        assertEquals(2, dataPaths.length);
 
-        assertEquals("mocka", nodePaths[0].fileStore.name());
-        assertEquals("mockb", nodePaths[1].fileStore.name());
+        assertEquals("mocka", dataPaths[0].fileStore.name());
+        assertEquals("mockb", dataPaths[1].fileStore.name());
 
         // Path a has lots of free space, but b has little, so new shard should go to a:
         aFileStore.usableSpace = 100000;

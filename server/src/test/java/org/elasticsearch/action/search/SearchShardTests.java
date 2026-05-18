@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -25,18 +26,18 @@ public class SearchShardTests extends ESTestCase {
             randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
             new ShardId(index, index + "-uuid", randomIntBetween(0, 1024))
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(searchShard, s -> new SearchShard(s.getClusterAlias(), s.getShardId()), s -> {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(searchShard, s -> new SearchShard(s.clusterAlias(), s.shardId()), s -> {
             if (randomBoolean()) {
-                return new SearchShard(s.getClusterAlias() == null ? randomAlphaOfLengthBetween(3, 10) : null, s.getShardId());
+                return new SearchShard(s.clusterAlias() == null ? randomAlphaOfLengthBetween(3, 10) : null, s.shardId());
             } else {
-                String indexName = s.getShardId().getIndexName();
-                int shardId = s.getShardId().getId();
+                String indexName = s.shardId().getIndexName();
+                int shardId = s.shardId().getId();
                 if (randomBoolean()) {
                     indexName += randomAlphaOfLength(5);
                 } else {
                     shardId += randomIntBetween(1, 1024);
                 }
-                return new SearchShard(s.getClusterAlias(), new ShardId(indexName, indexName + "-uuid", shardId));
+                return new SearchShard(s.clusterAlias(), new ShardId(indexName, indexName + "-uuid", shardId));
             }
         });
     }

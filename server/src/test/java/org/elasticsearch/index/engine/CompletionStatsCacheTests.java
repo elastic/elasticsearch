@@ -1,30 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion104PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,9 +34,9 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();
-        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(
-            () -> { throw new ElasticsearchException("simulated " + openCount.incrementAndGet()); }
-        );
+        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
+            throw new ElasticsearchException("simulated " + openCount.incrementAndGet());
+        });
 
         assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
         assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));
@@ -45,23 +44,8 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion90PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene90Codec() {
-            @Override
-            public PostingsFormat getPostingsFormatForField(String field) {
-                return postingsFormat; // all fields are suggest fields
-            }
-        });
-
-        final QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {}
-
-            @Override
-            public boolean shouldCache(Query query) {
-                return false;
-            }
-        };
+        final PostingsFormat postingsFormat = new Completion104PostingsFormat();
+        indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 
@@ -73,13 +57,14 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document.add(new SuggestField("otherfield", "anotherval", 1));
             document.add(new SuggestField("otherfield", "yetmoreval", 1));
             indexWriter.addDocument(document);
+            indexWriter.flush();
 
             final OpenCloseCounter openCloseCounter = new OpenCloseCounter();
             final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
                 openCloseCounter.countOpened();
                 try {
                     final DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
-                    return new Engine.Searcher("test", directoryReader, null, null, queryCachingPolicy, () -> {
+                    return new Engine.Searcher("test", directoryReader, null, null, TrivialQueryCachingPolicy.NEVER, () -> {
                         openCloseCounter.countClosed();
                         IOUtils.close(directoryReader);
                     });
@@ -161,6 +146,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document2.add(new SuggestField("suggest2", "bar", 1));
             document2.add(new SuggestField("otherfield", "baz", 1));
             indexWriter.addDocument(document2);
+            indexWriter.flush();
             completionStatsCache.afterRefresh(true);
             final CompletionStats updatedStats = completionStatsCache.get();
             assertThat(updatedStats.getSizeInBytes(), greaterThan(totalSizeInBytes));
@@ -213,11 +199,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
         }
 
         void start() {
-            try {
-                cyclicBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(cyclicBarrier);
         }
 
         CompletionStats getResult(int index) {

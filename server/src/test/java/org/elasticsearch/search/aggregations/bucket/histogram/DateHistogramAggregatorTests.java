@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -14,30 +15,39 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.DateHistogramAggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,6 +62,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -75,32 +86,32 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         "2017-12-12T22:55:46"
     );
 
-    public void testBooleanFieldDeprecated() throws IOException {
+    public void testBooleanFieldUnsupported() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(
-            new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
-            new MatchAllDocsQuery(),
-            iw -> {
-                Document d = new Document();
-                d.add(new SortedNumericDocValuesField(fieldName, 0));
-                iw.addDocument(d);
-            },
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            Document d = new Document();
+            d.add(new SortedNumericDocValuesField(fieldName, 0));
+            iw.addDocument(d);
+        },
             a -> {},
-            new BooleanFieldMapper.BooleanFieldType(fieldName)
-        );
-        assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
+            new AggTestConfig(
+                new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
+                new BooleanFieldMapper.BooleanFieldType(fieldName)
+            )
+        ));
+        assertThat(e.getMessage(), equalTo("Field [bogusBoolean] of type [boolean] is not supported for aggregation [date_histogram]"));
     }
 
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             DATASET,
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
             histogram -> assertEquals(0, histogram.getBuckets().size()),
             false
         );
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             DATASET,
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE),
             histogram -> assertEquals(0, histogram.getBuckets().size()),
@@ -109,7 +120,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     }
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         List<String> foo = new ArrayList<>();
         for (int i = 0; i < 1000; i++) {
@@ -203,7 +214,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     }
 
     public void testNoDocs() throws IOException {
-        Query query = new MatchNoDocsQuery();
+        Query query = Queries.NO_DOCS_INSTANCE;
         List<String> dates = Collections.emptyList();
         Consumer<DateHistogramAggregationBuilder> aggregation = agg -> agg.calendarInterval(DateHistogramInterval.YEAR)
             .field(AGGREGABLE_DATE);
@@ -217,14 +228,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testAggregateWrongField() throws IOException {
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             DATASET,
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field("wrong_field"),
             histogram -> assertEquals(0, histogram.getBuckets().size()),
             false
         );
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             DATASET,
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field("wrong_field"),
             histogram -> assertEquals(0, histogram.getBuckets().size()),
@@ -259,7 +270,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testIntervalMonth() throws IOException {
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList("2017-01-01", "2017-02-02", "2017-02-03", "2017-03-04", "2017-03-05", "2017-03-06"),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.MONTH).field(AGGREGABLE_DATE),
             histogram -> {
@@ -284,7 +295,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testIntervalDay() throws IOException {
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
@@ -310,7 +321,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             false
         );
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("24h")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> {
@@ -339,7 +350,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testIntervalHour() throws IOException {
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T09:02:00.000Z",
                 "2017-02-01T09:35:00.000Z",
@@ -384,7 +395,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             false
         );
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T09:02:00.000Z",
                 "2017-02-01T09:35:00.000Z",
@@ -432,7 +443,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testIntervalMinute() throws IOException {
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T09:02:35.000Z",
                 "2017-02-01T09:02:59.000Z",
@@ -460,7 +471,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             false
         );
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T09:02:35.000Z",
                 "2017-02-01T09:02:59.000Z",
@@ -491,7 +502,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testIntervalSecond() throws IOException {
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T00:00:05.015Z",
                 "2017-02-01T00:00:11.299Z",
@@ -520,7 +531,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             false
         );
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T00:00:05.015Z",
                 "2017-02-01T00:00:11.299Z",
@@ -552,7 +563,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testNanosIntervalSecond() throws IOException {
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T00:00:05.015298384Z",
                 "2017-02-01T00:00:11.299954583Z",
@@ -581,7 +592,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             true
         );
         testSearchCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             Arrays.asList(
                 "2017-02-01T00:00:05.015298384Z",
                 "2017-02-01T00:00:11.299954583Z",
@@ -608,6 +619,23 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertEquals(3, bucket.getDocCount());
             },
             true
+        );
+    }
+
+    public void testIntervalEmpty() throws IOException {
+        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
+        boolFilterBuilder.add(LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2005"), Long.MAX_VALUE), BooleanClause.Occur.MUST);
+        boolFilterBuilder.add(LongPoint.newRangeQuery(AGGREGABLE_DATE, Long.MIN_VALUE, asLong("2002-09-26")), BooleanClause.Occur.MUST);
+        Query query = boolFilterBuilder.build();
+        testSearchCase(
+            query,
+            DATASET,
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
         );
     }
 
@@ -670,7 +698,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
                 aggregation -> aggregation.fixedInterval(DateHistogramInterval.WEEK).field(AGGREGABLE_DATE),
                 histogram -> {},
@@ -690,7 +718,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
                 aggregation -> aggregation.calendarInterval(new DateHistogramInterval("5d")).field(AGGREGABLE_DATE),
                 histogram -> {},
@@ -704,7 +732,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
                 aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
                     .fixedInterval(new DateHistogramInterval("2d"))
@@ -720,7 +748,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
                 aggregation -> aggregation.fixedInterval(new DateHistogramInterval("2d"))
                     .calendarInterval(DateHistogramInterval.DAY)
@@ -736,7 +764,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
                 aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
                     .hardBounds(new LongBounds("2010-01-01", "2020-01-01"))
@@ -830,6 +858,24 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    /**
+     * Regression test for the case where {@code hard_bounds} excludes every fixed rounding point produced from the data,
+     * which previously caused {@link org.elasticsearch.search.aggregations.bucket.range.RangeAggregator#hasOverlap}
+     * to throw {@code ArrayIndexOutOfBoundsException} on an empty ranges array. The aggregation should fall back to the
+     * regular date-histogram aggregator and produce an empty result.
+     */
+    public void testHardBoundsOutsideDataDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            List.of(),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .hardBounds(new LongBounds("2030", "2031")),
+            false
+        );
+    }
+
     public void testOneBucketOptimized() throws IOException {
         AggregationBuilder builder = new DateHistogramAggregationBuilder("d").field("f").calendarInterval(DateHistogramInterval.DAY);
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
@@ -847,7 +893,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
         debugTestCase(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             buildIndex,
             (InternalDateHistogram result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(1));
@@ -874,12 +920,126 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                             .entry(
                                                 "filters",
                                                 matchesList().item(
-                                                    matchesMap().entry("query", "DocValuesFieldExistsQuery [field=f]")
-                                                        .entry("specialized_for", "docvalues_field_exists")
-                                                        .entry("results_from_metadata", greaterThan(0))
+                                                    matchesMap().entry("query", "FieldExistsQuery [field=f]")
+                                                        .entry("segments_counted_in_constant_time", greaterThan(0))
                                                 )
                                             )
                                     )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    /**
+     * If there is a doc count field and a single bucket it is still
+     * faster to use filter-by-filter collection mode so we use it.
+     */
+    public void testOneBucketWithDocCountUsesFilterByFilter() throws IOException {
+        AggregationBuilder builder = new DateHistogramAggregationBuilder("d").field("f").calendarInterval(DateHistogramInterval.DAY);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
+            for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS + 10; i++) {
+                long date = start + i;
+                iw.addDocument(List.of(new LongPoint("f", date), new NumericDocValuesField("f", date), DocCountFieldMapper.field(2)));
+            }
+        };
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        // Exists queries convert to MatchNone if this isn't defined
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        debugTestCase(
+            builder,
+            Queries.ALL_DOCS_INSTANCE,
+            buildIndex,
+            (InternalDateHistogram result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("2020-01-01T00:00:00.000Z"));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(10020L));
+
+                assertThat(impl, equalTo(DateHistogramAggregator.FromDateRange.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "d",
+                        matchesMap().entry("delegate", "RangeAggregator.FromFilters")
+                            .entry(
+                                "delegate_debug",
+                                matchesMap().entry("ranges", 1)
+                                    .entry("average_docs_per_range", 5010.0)
+                                    .entry("delegate", "FilterByFilterAggregator")
+                                    .entry(
+                                        "delegate_debug",
+                                        matchesMap().entry("segments_with_doc_count_field", greaterThan(0))
+                                            .entry("segments_with_deleted_docs", 0)
+                                            .entry("segments_counted", greaterThan(0))
+                                            .entry("segments_collected", 0)
+                                            .entry(
+                                                "filters",
+                                                matchesList().item(
+                                                    matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0)
+                                                )
+                                            )
+                                    )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    /**
+     * If there is a doc count field and more than one bucket it is
+     * not faster to use filter-by-filter collection mode so we don't
+     * use it.
+     */
+    public void testTwoBucketsWithDocCountUsesTraditionalCollection() throws IOException {
+        AggregationBuilder builder = new DateHistogramAggregationBuilder("d").field("f").calendarInterval(DateHistogramInterval.DAY);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long[] dates = new long[] {
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01"),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02T00:00:01") };
+            for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2 + 10; i++) {
+                long date = dates[i % 2];
+                iw.addDocument(
+                    List.of(
+                        new LongPoint("f", date),
+                        new NumericDocValuesField("f", date),
+                        new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, 2)
+                    )
+                );
+            }
+        };
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        // Exists queries convert to MatchNone if this isn't defined
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        debugTestCase(
+            builder,
+            Queries.ALL_DOCS_INSTANCE,
+            buildIndex,
+            (InternalDateHistogram result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("2020-01-01T00:00:00.000Z"));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(10010L));
+                assertThat(result.getBuckets().get(1).getKeyAsString(), equalTo("2020-01-02T00:00:00.000Z"));
+                assertThat(result.getBuckets().get(1).getDocCount(), equalTo(10010L));
+
+                assertThat(impl, equalTo(DateHistogramAggregator.FromDateRange.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "d",
+                        matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
+                            .entry(
+                                "delegate_debug",
+                                matchesMap().entry("ranges", 2)
+                                    .entry("average_docs_per_range", 5005.0)
+                                    .entry("singletons", greaterThanOrEqualTo(1))
+                                    .entry("non-singletons", 0)
                             )
                     )
                 );
@@ -912,8 +1072,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant), new LongPoint(AGGREGABLE_DATE, instant))
                 );
             }
-            try (IndexReader reader = indexWriter.getReader()) {
-                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+            try (
+                IndexReader reader = indexWriter.getReader();
+                AggregationContext context = createAggregationContext(reader, Queries.ALL_DOCS_INSTANCE, ft)
+            ) {
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
                 if (usesFromRange == false) {
@@ -921,16 +1083,18 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
                 assertThat(agg, matcher);
                 agg.preCollection();
-                context.searcher().search(context.query(), agg);
+                context.searcher().search(context.query(), agg.asCollector());
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
-                result = (InternalDateHistogram) result.reduce(
+                result = (InternalDateHistogram) InternalAggregationTestCase.reduce(
                     List.of(result),
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         null,
-                        context.multiBucketConsumer(),
+                        () -> false,
+                        builder,
+                        new MultiBucketConsumerService.MultiBucketConsumer(context.maxBuckets(), context.breaker()),
                         PipelineTree.EMPTY,
-                        () -> false
+                        null
                     )
                 );
                 assertThat(
@@ -945,7 +1109,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Collections.emptyList(),
                 aggregation -> aggregation.calendarInterval(new DateHistogramInterval("foobar")).field(AGGREGABLE_DATE),
                 histogram -> {},
@@ -957,7 +1121,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         e = expectThrows(
             IllegalArgumentException.class,
             () -> testSearchCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Collections.emptyList(),
                 aggregation -> aggregation.fixedInterval(new DateHistogramInterval("foobar")).field(AGGREGABLE_DATE),
                 histogram -> {},
@@ -976,9 +1140,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testBuildEmpty() throws IOException {
         withAggregator(
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).offset(10),
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             iw -> {},
-            (searcher, aggregator) -> {
+            (reader, aggregator) -> {
                 InternalDateHistogram histo = (InternalDateHistogram) aggregator.buildEmptyAggregation();
                 /*
                  * There was a time where we including the offset in the
@@ -990,6 +1154,67 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             aggregableDateFieldType(false, true)
         );
+    }
+
+    public void testGlobalAggInsideQueryWithRangeFilter() throws IOException {
+        runGlobalDateHistogramTest(LongPoint.newRangeQuery(AGGREGABLE_DATE, asUtcMillis(2018, 1, 1), Long.MAX_VALUE));
+    }
+
+    public void testGlobalAggInsideRangeFilterWithBothBounds() throws IOException {
+        runGlobalDateHistogramTest(LongPoint.newRangeQuery(AGGREGABLE_DATE, asUtcMillis(2018, 1, 1), asUtcMillis(2019, 1, 1) - 1));
+    }
+
+    public void testGlobalAggInsideBoolMustQuery() throws IOException {
+        BooleanQuery bool = new BooleanQuery.Builder().add(
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asUtcMillis(2018, 1, 1), Long.MAX_VALUE),
+            BooleanClause.Occur.MUST
+        ).build();
+        runGlobalDateHistogramTest(bool);
+    }
+
+    private static long asUtcMillis(int year, int month, int day) {
+        return ZonedDateTime.of(year, month, day, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
+    }
+
+    /**
+     * Indexes one doc per month from 2010-01 through 2020-12 and runs a {@code global > date_histogram} aggregation,
+     * then asserts that there is one bucket per indexed month, with the expected key, each containing exactly one document.
+     *
+     * @param query The query to run the test with. It's expected to not affect the sub-aggregation, as the parent is a "global" agg
+     */
+    private void runGlobalDateHistogramTest(Query query) throws IOException {
+        final DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(false, true);
+
+        final List<Long> dataset = new ArrayList<>();
+        for (int year = 2010; year <= 2020; year++) {
+            for (int month = 1; month <= 12; month++) {
+                dataset.add(asUtcMillis(year, month, 1));
+            }
+        }
+
+        final GlobalAggregationBuilder builder = new GlobalAggregationBuilder("global").subAggregation(
+            new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.MONTH)
+        );
+
+        testCase(iw -> {
+            for (long instant : dataset) {
+                final Document document = new Document();
+                document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                document.add(new LongPoint(AGGREGABLE_DATE, instant));
+                iw.addDocument(document);
+            }
+        }, (Consumer<InternalGlobal>) global -> {
+            assertEquals(dataset.size(), global.getDocCount());
+            InternalDateHistogram dh = global.getAggregations().get("dh");
+            assertEquals("histogram has wrong number of buckets", dataset.size(), dh.getBuckets().size());
+            for (int i = 0; i < dataset.size(); i++) {
+                InternalDateHistogram.Bucket bucket = dh.getBuckets().get(i);
+                long expectedKey = dataset.get(i);
+                long actualKey = ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli();
+                assertEquals("bucket at index " + i + " has wrong key", expectedKey, actualKey);
+                assertEquals("bucket " + bucket.getKeyAsString() + " has wrong doc count", 1L, bucket.getDocCount());
+            }
+        }, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 
     private void testSearchCase(
@@ -1029,15 +1254,16 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
                 }
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, maxBucket, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(aggregationBuilder, fieldType).withMaxBuckets(maxBucket).withQuery(query)
+                );
                 verify.accept(histogram);
             }
         }

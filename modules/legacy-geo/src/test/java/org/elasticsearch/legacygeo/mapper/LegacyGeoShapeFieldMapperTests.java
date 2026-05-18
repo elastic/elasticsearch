@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.legacygeo.mapper;
 
@@ -13,7 +14,6 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.Orientation;
@@ -21,6 +21,8 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -31,9 +33,10 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -69,6 +72,21 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        assertWarnings(getParseMinimalWarnings());
+    }
+
+    @Override
+    public void testDisableDefaultIndex() throws IOException {
+        throw new AssumptionViolatedException("LegacyGeoShapeFieldMapper does not support disabling the index");
+    }
+
+    @Override
+    public void testNotIndexed() throws IOException {
+        throw new AssumptionViolatedException("LegacyGeoShapeFieldMapper does not support disabling the index");
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerConflictCheck("strategy", fieldMapping(this::minimalMapping), fieldMapping(b -> {
@@ -80,24 +98,21 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("tree_levels", b -> b.field("tree_levels", 5));
         checker.registerConflictCheck("precision", b -> b.field("precision", 10));
         checker.registerConflictCheck("points_only", b -> b.field("points_only", true));
-        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+        checker.registerUpdateCheck("orientation", b -> b.field("orientation", "right"), m -> {
             LegacyGeoShapeFieldMapper gsfm = (LegacyGeoShapeFieldMapper) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
-            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
-            assertTrue(gpfm.ignoreMalformed());
-        });
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
         });
-        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", true), m -> {
             LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
             assertTrue(gpfm.coerce());
         });
         // TODO - distance_error_pct ends up being subsumed into a calculated value, how to test
-        checker.registerUpdateCheck(b -> b.field("distance_error_pct", 0.8), m -> {});
+        checker.registerUpdateCheck("distance_error_pct", b -> b.field("distance_error_pct", 0.8), m -> {});
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -111,15 +126,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        return createMapperService(version, mappings);
-    }
-
-    @Override
-    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
-        assumeFalse("LegacyGeoShapeFieldMapper can't be created in version " + version, version.onOrAfter(Version.V_8_0_0));
-        return super.createMapperService(version, mapping);
+    protected IndexVersion getVersion() {
+        return IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
     }
 
     public void testLegacySwitches() throws IOException {
@@ -231,27 +239,14 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertFieldWarnings("strategy", "tree");
     }
 
-    /**
-     * Test that ignore_malformed parameter correctly parses
-     */
-    public void testIgnoreMalformedParsing() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_malformed", true))
-        );
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-        boolean ignoreMalformed = ((LegacyGeoShapeFieldMapper) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(true));
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-        // explicit false ignore_malformed test
-        mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_malformed", false))
-        );
-        fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-        ignoreMalformed = ((LegacyGeoShapeFieldMapper) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(false));
-        assertFieldWarnings("tree", "strategy");
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of();
     }
 
     public void testGeohashConfiguration() throws IOException {
@@ -626,7 +621,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
             () -> geoShapeFieldMapper.fieldType()
-                .geoShapeQuery(new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, searchExecutionContext)
+                .geoShapeQuery(searchExecutionContext, "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, new Point(-10, 10))
         );
         assertEquals(
             "[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
@@ -662,8 +657,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("field");
-        assertThat(fields.length, equalTo(2));
+        List<IndexableField> fields = document.docs().get(0).getFields("field");
+        assertThat(fields.size(), equalTo(2));
         assertFieldWarnings("tree", "strategy");
     }
 
@@ -676,5 +671,25 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

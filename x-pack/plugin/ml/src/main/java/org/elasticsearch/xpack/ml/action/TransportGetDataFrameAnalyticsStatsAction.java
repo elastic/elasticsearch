@@ -8,14 +8,16 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
@@ -23,15 +25,17 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -51,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -60,6 +65,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -68,6 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -94,9 +101,8 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
             transportService,
             actionFilters,
             GetDataFrameAnalyticsStatsAction.Request::new,
-            GetDataFrameAnalyticsStatsAction.Response::new,
             in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new),
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
     }
@@ -112,7 +118,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         for (QueryPage<Stats> task : tasks) {
             stats.addAll(task.results());
         }
-        Collections.sort(stats, Comparator.comparing(Stats::getId));
+        stats.sort(Comparator.comparing(Stats::getId));
         return new GetDataFrameAnalyticsStatsAction.Response(
             taskFailures,
             nodeFailures,
@@ -122,11 +128,12 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
 
     @Override
     protected void taskOperation(
+        CancellableTask actionTask,
         GetDataFrameAnalyticsStatsAction.Request request,
         DataFrameAnalyticsTask task,
         ActionListener<QueryPage<Stats>> listener
     ) {
-        logger.debug("Get stats for running task [{}]", task.getParams().getId());
+        logger.trace("Get stats for running task [{}]", task.getParams().getId());
 
         ActionListener<Void> updateProgressListener = ActionListener.wrap(aVoid -> {
             StatsHolder statsHolder = task.getStatsHolder();
@@ -156,7 +163,8 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         GetDataFrameAnalyticsStatsAction.Request request,
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
     ) {
-        logger.debug("Get stats for data frame analytics [{}]", request.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        logger.trace("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(getResponse -> {
             List<String> expandedIds = getResponse.getResources()
@@ -169,6 +177,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                 runningTasksStatsResponse -> gatherStatsForStoppedTasks(
                     getResponse.getResources().results(),
                     runningTasksStatsResponse,
+                    parentTaskId,
                     ActionListener.wrap(finalResponse -> {
 
                         // While finalResponse has all the stats objects we need, we should report the count
@@ -190,12 +199,14 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         getRequest.setResourceId(request.getId());
         getRequest.setAllowNoResources(request.isAllowNoMatch());
         getRequest.setPageParams(request.getPageParams());
+        getRequest.setParentTask(parentTaskId);
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, getRequest, getResponseListener);
     }
 
     void gatherStatsForStoppedTasks(
         List<DataFrameAnalyticsConfig> configs,
         GetDataFrameAnalyticsStatsAction.Response runningTasksResponse,
+        TaskId parentTaskId,
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
     ) {
         List<DataFrameAnalyticsConfig> stoppedConfigs = determineStoppedConfigs(configs, runningTasksResponse.getResponse().results());
@@ -210,7 +221,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         for (int i = 0; i < stoppedConfigs.size(); i++) {
             final int slot = i;
             DataFrameAnalyticsConfig config = stoppedConfigs.get(i);
-            searchStats(config, ActionListener.wrap(stats -> {
+            searchStats(config, parentTaskId, ActionListener.wrap(stats -> {
                 jobStats.set(slot, stats);
                 if (counter.decrementAndGet() == 0) {
                     if (searchException.get() != null) {
@@ -219,7 +230,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                     }
                     List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
                     allTasksStats.addAll(jobStats.asList());
-                    Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
+                    allTasksStats.sort(Comparator.comparing(Stats::getId));
                     listener.onResponse(
                         new GetDataFrameAnalyticsStatsAction.Response(
                             new QueryPage<>(allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
@@ -241,8 +252,8 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         return configs.stream().filter(config -> startedTasksIds.contains(config.getId()) == false).collect(Collectors.toList());
     }
 
-    private void searchStats(DataFrameAnalyticsConfig config, ActionListener<Stats> listener) {
-        logger.debug("[{}] Gathering stats for stopped task", config.getId());
+    private void searchStats(DataFrameAnalyticsConfig config, TaskId parentTaskId, ActionListener<Stats> listener) {
+        logger.trace("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
             ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report()
@@ -255,11 +266,12 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), OutlierDetectionStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), ClassificationStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), RegressionStats.TYPE_VALUE));
+        multiSearchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            MultiSearchAction.INSTANCE,
+            TransportMultiSearchAction.TYPE,
             multiSearchRequest,
             ActionListener.wrap(multiSearchResponse -> {
                 MultiSearchResponse.Item[] itemResponses = multiSearchResponse.getResponses();
@@ -267,11 +279,23 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                     MultiSearchResponse.Item itemResponse = itemResponses[i];
                     if (itemResponse.isFailure()) {
                         SearchRequest itemRequest = multiSearchRequest.requests().get(i);
+                        if (recoverableMlShardFailureForStatsSearch(itemRequest, itemResponse.getFailure())) {
+                            logger.warn(
+                                () -> format(
+                                    "[{}] Skipping unreadable ML stats search while shards are unavailable; "
+                                        + "assuming no persisted stats for this sub-request [indices={}]: {}",
+                                    config.getId(),
+                                    Arrays.toString(itemRequest.indices()),
+                                    itemResponse.getFailureMessage()
+                                )
+                            );
+                            continue;
+                        }
                         logger.error(
-                            new ParameterizedMessage(
-                                "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
+                            () -> format(
+                                "[%s] Item failure encountered during multi search for request [indices=%s, source=%s]: %s",
                                 config.getId(),
-                                itemRequest.indices(),
+                                Arrays.toString(itemRequest.indices()),
                                 itemRequest.source(),
                                 itemResponse.getFailureMessage()
                             ),
@@ -356,18 +380,18 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         AnalysisStats analysisStats
     ) {
         ClusterState clusterState = clusterService.state();
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(concreteAnalyticsId, tasks);
         String failureReason = null;
         if (analyticsState == DataFrameAnalyticsState.FAILED) {
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) analyticsTask.getState();
-            failureReason = taskState.getReason();
+            failureReason = taskState != null ? taskState.getReason() : null;
         }
         DiscoveryNode node = null;
         String assignmentExplanation = null;
         if (analyticsTask != null) {
-            node = clusterState.nodes().get(analyticsTask.getExecutorNode());
+            node = analyticsTask.getExecutorNode() != null ? clusterState.nodes().get(analyticsTask.getExecutorNode()) : null;
             assignmentExplanation = analyticsTask.getAssignment().getExplanation();
         }
         return new GetDataFrameAnalyticsStatsAction.Response.Stats(
@@ -393,5 +417,49 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         private RetrievedStatsHolder(List<PhaseProgress> defaultProgress) {
             progress = new StoredProgress(defaultProgress);
         }
+    }
+
+    /**
+     * When {@link TransportStartDataFrameAnalyticsAction} starts a job, it loads stored progress from
+     * {@link MlStatsIndex} and {@link AnomalyDetectorsIndex} before validating the source data. If those ML
+     * system indices exist but shards are not yet assigned (e.g. shortly after index creation), multi-search
+     * fails with {@link NoShardAvailableActionException}. Treat that like missing stats documents so
+     * validation can proceed with default progress (see #138409).
+     */
+    private static boolean recoverableMlShardFailureForStatsSearch(SearchRequest request, Exception failure) {
+        if (targetsMlStatsOrStateIndices(request) == false) {
+            return false;
+        }
+        return isShardNotAvailableFailure(failure);
+    }
+
+    private static boolean targetsMlStatsOrStateIndices(SearchRequest request) {
+        for (String index : request.indices()) {
+            if (index.contains(MlStatsIndex.TEMPLATE_NAME) || index.contains(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isShardNotAvailableFailure(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof NoShardAvailableActionException) {
+                return true;
+            }
+            if (current instanceof SearchPhaseExecutionException spe) {
+                ShardSearchFailure[] shardFailures = spe.shardFailures();
+                if (shardFailures != null) {
+                    for (ShardSearchFailure shardFailure : shardFailures) {
+                        if (ExceptionsHelper.unwrapCause(shardFailure.getCause()) instanceof NoShardAvailableActionException) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

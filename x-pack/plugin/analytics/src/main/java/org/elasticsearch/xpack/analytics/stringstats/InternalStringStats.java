@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.ParseField;
@@ -93,7 +94,7 @@ public class InternalStringStats extends InternalAggregation {
         totalLength = in.readVLong();
         minLength = in.readVInt();
         maxLength = in.readVInt();
-        charOccurrences = in.readMap(StreamInput::readString, StreamInput::readLong);
+        charOccurrences = in.readMap(StreamInput::readLong);
     }
 
     @Override
@@ -104,7 +105,7 @@ public class InternalStringStats extends InternalAggregation {
         out.writeVLong(totalLength);
         out.writeVInt(minLength);
         out.writeVInt(maxLength);
-        out.writeMap(charOccurrences, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(charOccurrences, StreamOutput::writeLong);
     }
 
     public String getWriteableName() {
@@ -200,24 +201,39 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     @Override
-    @SuppressWarnings("HiddenField")
-    public InternalStringStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        long count = 0;
-        long totalLength = 0;
-        int minLength = Integer.MAX_VALUE;
-        int maxLength = Integer.MIN_VALUE;
-        Map<String, Long> occurs = new HashMap<>();
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            long count = 0;
+            long totalLength = 0;
+            int minLength = Integer.MAX_VALUE;
+            int maxLength = Integer.MIN_VALUE;
+            final Map<String, Long> occurs = new HashMap<>();
 
-        for (InternalAggregation aggregation : aggregations) {
-            InternalStringStats stats = (InternalStringStats) aggregation;
-            count += stats.getCount();
-            minLength = Math.min(minLength, stats.getMinLength());
-            maxLength = Math.max(maxLength, stats.getMaxLength());
-            totalLength += stats.totalLength;
-            stats.charOccurrences.forEach((k, v) -> occurs.merge(k, v, (oldValue, newValue) -> oldValue + newValue));
-        }
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalStringStats stats = (InternalStringStats) aggregation;
+                count += stats.getCount();
+                minLength = Math.min(minLength, stats.getMinLength());
+                maxLength = Math.max(maxLength, stats.getMaxLength());
+                totalLength += stats.totalLength;
+                stats.charOccurrences.forEach((k, v) -> occurs.merge(k, v, Long::sum));
+            }
 
-        return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs, showDistribution, format, getMetadata());
+            @Override
+            public InternalAggregation get() {
+                return new InternalStringStats(
+                    name,
+                    count,
+                    totalLength,
+                    minLength,
+                    maxLength,
+                    occurs,
+                    showDistribution,
+                    format,
+                    getMetadata()
+                );
+            }
+        };
     }
 
     @Override

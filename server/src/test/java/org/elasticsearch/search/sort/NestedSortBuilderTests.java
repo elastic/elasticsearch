@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -73,10 +74,10 @@ public class NestedSortBuilderTests extends ESTestCase {
     }
 
     /**
-     * Create a {@link NestedSortBuilder} with random path and filter of the given depth.
+     * Create a {@link NestedSortBuilder} with random filter of the given depth.
      */
     public static NestedSortBuilder createRandomNestedSort(int depth) {
-        NestedSortBuilder nestedSort = new NestedSortBuilder(randomAlphaOfLengthBetween(3, 10));
+        NestedSortBuilder nestedSort = new NestedSortBuilder("path");
         if (randomBoolean()) {
             nestedSort.setFilter(AbstractSortTestCase.randomNestedFilter());
         }

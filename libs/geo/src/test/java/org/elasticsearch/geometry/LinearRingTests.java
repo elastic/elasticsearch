@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -31,7 +32,7 @@ public class LinearRingTests extends ESTestCase {
             () -> validator.validate(new LinearRing(new double[] { 3, 4, 5 }, new double[] { 1, 2, 3 }))
         );
         assertEquals(
-            "first and last points of the linear ring must be the same (it must close itself): x[0]=3.0 x[2]=5.0 y[0]=1.0 " + "y[2]=3.0",
+            "first and last points of the linear ring must be the same (it must close itself): x[0]=3.0 x[2]=5.0 y[0]=1.0 y[2]=3.0",
             ex.getMessage()
         );
 

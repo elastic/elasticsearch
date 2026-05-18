@@ -1,51 +1,54 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Node-level request used during can-match phase
  */
-public class CanMatchNodeRequest extends TransportRequest implements IndicesRequest {
+public class CanMatchNodeRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final SearchSourceBuilder source;
     private final List<Shard> shards;
     private final SearchType searchType;
     private final Boolean requestCache;
     private final boolean allowPartialSearchResults;
-    private final Scroll scroll;
+    @Nullable
+    private final TimeValue scroll;
     private final int numberOfShards;
     private final long nowInMillis;
     @Nullable
@@ -63,6 +66,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         private final ShardSearchContextId readerId;
         private final TimeValue keepAlive;
         private final long waitForCheckpoint;
+        private final SplitShardCountSummary splitShardCountSummary;
 
         public Shard(
             String[] indices,
@@ -72,7 +76,8 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             float indexBoost,
             ShardSearchContextId readerId,
             TimeValue keepAlive,
-            long waitForCheckpoint
+            long waitForCheckpoint,
+            SplitShardCountSummary splitShardCountSummary
         ) {
             this.indices = indices;
             this.shardId = shardId;
@@ -83,18 +88,24 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             this.keepAlive = keepAlive;
             this.waitForCheckpoint = waitForCheckpoint;
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+            this.splitShardCountSummary = splitShardCountSummary;
         }
 
         public Shard(StreamInput in) throws IOException {
             indices = in.readStringArray();
             shardId = new ShardId(in);
             shardRequestIndex = in.readVInt();
-            aliasFilter = new AliasFilter(in);
+            aliasFilter = AliasFilter.readFrom(in);
             indexBoost = in.readFloat();
             readerId = in.readOptionalWriteable(ShardSearchContextId::new);
             keepAlive = in.readOptionalTimeValue();
             waitForCheckpoint = in.readLong();
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+            if (in.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
+                splitShardCountSummary = new SplitShardCountSummary(in);
+            } else {
+                splitShardCountSummary = SplitShardCountSummary.UNSET;
+            }
         }
 
         @Override
@@ -107,6 +118,9 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
             out.writeLong(waitForCheckpoint);
+            if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
+                splitShardCountSummary.writeTo(out);
+            }
         }
 
         public int getShardRequestIndex() {
@@ -130,9 +144,9 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         long nowInMillis,
         @Nullable String clusterAlias
     ) {
-        this.source = searchRequest.source();
+        this.source = getCanMatchSource(searchRequest);
         this.indicesOptions = indicesOptions;
-        this.shards = new ArrayList<>(shards);
+        this.shards = shards;
         this.searchType = searchRequest.searchType();
         this.requestCache = searchRequest.requestCache();
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
@@ -147,28 +161,49 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct().toArray(String[]::new);
     }
 
+    private static void collectAggregationQueries(Collection<AggregationBuilder> aggregations, List<QueryBuilder> aggregationQueries) {
+        for (AggregationBuilder aggregation : aggregations) {
+            QueryBuilder aggregationQuery = aggregation.getQuery();
+            if (aggregationQuery != null) {
+                aggregationQueries.add(aggregationQuery);
+            }
+            collectAggregationQueries(aggregation.getSubAggregations(), aggregationQueries);
+        }
+    }
+
+    private SearchSourceBuilder getCanMatchSource(SearchRequest searchRequest) {
+        // Aggregations may use a different query than the top-level search query. An example is
+        // the significant terms aggregation, which also collects data over a background that
+        // typically much larger than the search query. To accommodate for this, we take the union
+        // of all queries to determine whether a request can match.
+        List<QueryBuilder> aggregationQueries = new ArrayList<>();
+        if (searchRequest.source() != null && searchRequest.source().aggregations() != null) {
+            collectAggregationQueries(searchRequest.source().aggregations().getAggregatorFactories(), aggregationQueries);
+        }
+        if (aggregationQueries.isEmpty()) {
+            return searchRequest.source();
+        } else {
+            List<SubSearchSourceBuilder> subSearches = new ArrayList<>(searchRequest.source().subSearches());
+            for (QueryBuilder aggregationQuery : aggregationQueries) {
+                subSearches.add(new SubSearchSourceBuilder(aggregationQuery));
+            }
+            return searchRequest.source().shallowCopy().subSearches(subSearches);
+        }
+    }
+
     public CanMatchNodeRequest(StreamInput in) throws IOException {
         super(in);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         searchType = SearchType.fromId(in.readByte());
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            // types no longer relevant so ignore
-            String[] types = in.readStringArray();
-            if (types.length > 0) {
-                throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
-                );
-            }
-        }
-        scroll = in.readOptionalWriteable(Scroll::new);
+        scroll = in.readOptionalTimeValue();
         requestCache = in.readOptionalBoolean();
         allowPartialSearchResults = in.readBoolean();
         numberOfShards = in.readVInt();
         nowInMillis = in.readVLong();
         clusterAlias = in.readOptionalString();
         waitForCheckpointsTimeout = in.readTimeValue();
-        shards = in.readList(Shard::new);
+        shards = in.readCollectionAsList(Shard::new);
         indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct().toArray(String[]::new);
     }
 
@@ -178,26 +213,18 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         out.writeOptionalWriteable(source);
         indicesOptions.writeIndicesOptions(out);
         out.writeByte(searchType.id());
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
-        out.writeOptionalWriteable(scroll);
+        out.writeOptionalTimeValue(scroll);
         out.writeOptionalBoolean(requestCache);
         out.writeBoolean(allowPartialSearchResults);
         out.writeVInt(numberOfShards);
         out.writeVLong(nowInMillis);
         out.writeOptionalString(clusterAlias);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        out.writeList(shards);
+        out.writeCollection(shards);
     }
 
     public List<Shard> getShardLevelRequests() {
         return shards;
-    }
-
-    public List<ShardSearchRequest> createShardSearchRequests() {
-        return shards.stream().map(this::createShardSearchRequest).collect(Collectors.toList());
     }
 
     public ShardSearchRequest createShardSearchRequest(Shard r) {
@@ -218,7 +245,10 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             r.readerId,
             r.keepAlive,
             r.waitForCheckpoint,
-            waitForCheckpointsTimeout
+            waitForCheckpointsTimeout,
+            false,
+            r.splitShardCountSummary,
+            null
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;
@@ -242,7 +272,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     @Override
     public String getDescription() {
         // Shard id is enough here, the request itself can be found by looking at the parent task description
-        return "shardIds[" + shards.stream().map(slr -> slr.shardId).collect(Collectors.toList()) + "]";
+        return "shardIds[" + shards.stream().map(slr -> slr.shardId).toList() + "]";
     }
 
 }

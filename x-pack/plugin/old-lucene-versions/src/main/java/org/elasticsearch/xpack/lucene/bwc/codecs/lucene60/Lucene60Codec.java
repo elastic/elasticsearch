@@ -27,14 +27,15 @@ import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
+import org.apache.lucene.codecs.PointsFormat;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.LegacyAdaptingPerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50SegmentInfoFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat;
-
-import java.util.Objects;
 
 /**
  * Implements the Lucene 6.0 index format.
@@ -43,8 +44,7 @@ import java.util.Objects;
  */
 @Deprecated
 public class Lucene60Codec extends BWCCodec {
-    private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
-    private final SegmentInfoFormat segmentInfosFormat = wrap(new Lucene50SegmentInfoFormat());
+
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;
@@ -55,38 +55,30 @@ public class Lucene60Codec extends BWCCodec {
             return defaultDocValuesFormat;
         }
     };
+    private final PostingsFormat postingsFormat = new LegacyAdaptingPerFieldPostingsFormat();
 
     /**
-     * Instantiates a new codec.
+     * Instantiates a new codec. Called by SPI.
      */
+    @SuppressWarnings("unused")
     public Lucene60Codec() {
-        this(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
+        super("Lucene60");
+        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
-    /**
-     * Instantiates a new codec, specifying the stored fields compression
-     * mode to use.
-     * @param mode stored fields compression mode to use for newly
-     *             flushed/merged segments.
-     */
-    public Lucene60Codec(Lucene50StoredFieldsFormat.Mode mode) {
-        super("Lucene60");
-        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Objects.requireNonNull(mode));
+    @Override
+    protected FieldInfosFormat originalFieldInfosFormat() {
+        return new Lucene60FieldInfosFormat();
+    }
+
+    @Override
+    protected SegmentInfoFormat originalSegmentInfoFormat() {
+        return new Lucene50SegmentInfoFormat();
     }
 
     @Override
     public final StoredFieldsFormat storedFieldsFormat() {
         return storedFieldsFormat;
-    }
-
-    @Override
-    public final FieldInfosFormat fieldInfosFormat() {
-        return fieldInfosFormat;
-    }
-
-    @Override
-    public SegmentInfoFormat segmentInfoFormat() {
-        return segmentInfosFormat;
     }
 
     @Override
@@ -104,4 +96,13 @@ public class Lucene60Codec extends BWCCodec {
         return docValuesFormat;
     }
 
+    @Override
+    public PostingsFormat postingsFormat() {
+        return postingsFormat;
+    }
+
+    @Override
+    public PointsFormat pointsFormat() {
+        return new Lucene60MetadataOnlyPointsFormat();
+    }
 }

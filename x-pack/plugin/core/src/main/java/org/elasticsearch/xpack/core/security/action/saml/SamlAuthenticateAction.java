@@ -17,6 +17,6 @@ public final class SamlAuthenticateAction extends ActionType<SamlAuthenticateRes
     public static final SamlAuthenticateAction INSTANCE = new SamlAuthenticateAction();
 
     private SamlAuthenticateAction() {
-        super(NAME, SamlAuthenticateResponse::new);
+        super(NAME);
     }
 }

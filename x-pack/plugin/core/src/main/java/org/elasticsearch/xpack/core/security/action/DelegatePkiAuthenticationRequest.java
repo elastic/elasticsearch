@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * The request object for {@code TransportDelegatePkiAuthenticationAction} containing the certificate chain for the target subject
  * distinguished name to be granted an access token.
  */
-public final class DelegatePkiAuthenticationRequest extends ActionRequest implements ToXContentObject {
+public final class DelegatePkiAuthenticationRequest extends LegacyActionRequest implements ToXContentObject {
 
     private static final ParseField X509_CERTIFICATE_CHAIN_FIELD = new ParseField("x509_certificate_chain");
 
@@ -64,7 +65,7 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         return PARSER.apply(parser, null);
     }
 
-    private List<X509Certificate> certificateChain;
+    private final List<X509Certificate> certificateChain;
 
     public DelegatePkiAuthenticationRequest(List<X509Certificate> certificateChain) {
         this.certificateChain = List.copyOf(certificateChain);
@@ -74,13 +75,13 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         super(input);
         try {
             final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            certificateChain = List.copyOf(input.readList(in -> {
-                try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
+            certificateChain = input.readCollectionAsImmutableList(in -> {
+                try (InputStream bis = in.readSlicedBytesReference().streamInput()) {
                     return (X509Certificate) certificateFactory.generateCertificate(bis);
                 } catch (CertificateException e) {
                     throw new IOException(e);
                 }
-            }));
+            });
         } catch (CertificateException e) {
             throw new IOException(e);
         }

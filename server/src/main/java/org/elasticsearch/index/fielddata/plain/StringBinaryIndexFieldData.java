@@ -1,36 +1,46 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
-
-public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDVLeafFieldData> {
+public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBinaryDVLeafFieldData> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    protected final IndexVersion indexVersion;
 
-    public StringBinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    public StringBinaryIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexVersion = indexVersion;
     }
 
     @Override
@@ -50,12 +60,8 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public StringBinaryDVLeafFieldData load(LeafReaderContext context) {
-        try {
-            return new StringBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName));
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot load doc values", e);
-        }
+    public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion);
     }
 
     @Override
@@ -73,7 +79,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public StringBinaryDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public MultiValuedBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 }

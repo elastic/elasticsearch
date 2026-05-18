@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -76,45 +77,45 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         TemporalAmount duration = Duration.ofDays(42).plusHours(12).plusMinutes(23).plusSeconds(12).plusNanos(143000000);
         Literal dayToSecond = intervalLiteral(duration, INTERVAL_DAY_TO_SECOND);
 
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string is required; received [5]", siae.getMessage());
+        assertEquals("A string is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A date/datetime/interval is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime/interval is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "A value of [MILLENNIUM, CENTURY, DECADE, YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, "
                 + "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("dacede"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("Received value [dacede] is not valid date part for truncation; did you mean [decade, decades]?", siae.getMessage());
+        assertEquals("Received value [dacede] is not valid date part for truncation; did you mean [decade, decades]?", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("weeks"), yearToMonth, null).makePipe().asProcessor().process(null)
         );
-        assertEquals("Truncating intervals is not supported for weeks units", siae.getMessage());
+        assertEquals("Truncating intervals is not supported for weeks units", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("week"), dayToSecond, null).makePipe().asProcessor().process(null)
         );
-        assertEquals("Truncating intervals is not supported for week units", siae.getMessage());
+        assertEquals("Truncating intervals is not supported for week units", e.getMessage());
     }
 
     public void testWithNulls() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -12,7 +13,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.BaseMergePolicyTestCase;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -20,9 +20,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.BaseMergePolicyTestCase;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -34,7 +36,16 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            MergePolicy mp = new ShuffleForcedMergePolicy(newTieredMergePolicy());
+            // Disable merging on flush.
+            iwc.setMaxFullFlushMergeWaitMillis(0L);
+            // Even though we set setMaxFullFlushMergeWaitMillis=0, opening the DirectoryReader
+            // might trigger a merge after flushing the in-memory documents. Therefore, we set
+            // a high enough number of maxSegmentsPerTier (we index at most 300 documents, and we flush
+            // a new segment per 10 documents) that would prevent merging all the segments into one and
+            // making the force merge a no-op.
+            var tieredMergePolicy = new TieredMergePolicy();
+            tieredMergePolicy.setSegmentsPerTier(100);
+            MergePolicy mp = new ShuffleForcedMergePolicy(tieredMergePolicy);
             iwc.setMergePolicy(mp);
             boolean sorted = random().nextBoolean();
             if (sorted) {
@@ -53,6 +64,8 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
                     writer.addDocument(doc);
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    // We expect at least three segments since that is a more meaningful setup for
+                    // testing ShuffleForcedMergePolicy (interleaving old and new segments).
                     assertThat(reader.leaves().size(), greaterThan(2));
                     assertSegmentReaders(reader, leaf -> assertFalse(ShuffleForcedMergePolicy.isInterleavedSegment(leaf)));
                 }

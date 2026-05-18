@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -12,8 +13,9 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
@@ -36,9 +38,9 @@ class CreateKeyStoreCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         try (SecureString password = options.has(passwordOption) ? readPassword(terminal, true) : new SecureString(new char[0])) {
-            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
             if (Files.exists(keystoreFile)) {
                 if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {
                     terminal.println("Exiting without creating keystore.");
@@ -46,8 +48,8 @@ class CreateKeyStoreCommand extends KeyStoreAwareCommand {
                 }
             }
             KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            keystore.save(env.configFile(), password.getChars());
-            terminal.println("Created elasticsearch keystore in " + KeyStoreWrapper.keystorePath(env.configFile()));
+            keystore.save(env.configDir(), password.getChars());
+            terminal.println("Created elasticsearch keystore in " + KeyStoreWrapper.keystorePath(env.configDir()));
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Error creating the elasticsearch keystore.");
         }

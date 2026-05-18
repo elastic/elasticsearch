@@ -1,13 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,6 +24,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.monitor.jvm.HotThreads;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,9 +38,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.LongSupplier;
 
 public final class ClusterApplierRecordingService {
+
+    private static final Logger logger = LogManager.getLogger(ClusterApplierRecordingService.class);
 
     private final Map<String, MeanMetric> recordedActions = new HashMap<>();
 
@@ -59,13 +70,16 @@ public final class ClusterApplierRecordingService {
     static final class Recorder {
 
         private String currentAction;
-        private long startTimeMS;
+        private long startMillis;
         private boolean recording;
+        private SubscribableListener<Void> currentListener;
         private final List<Tuple<String, Long>> recordings = new LinkedList<>();
-        private final LongSupplier currentTimeSupplier;
+        private final ThreadPool threadPool;
+        private final TimeValue debugLoggingTimeout;
 
-        Recorder(LongSupplier currentTimeSupplier) {
-            this.currentTimeSupplier = currentTimeSupplier;
+        Recorder(ThreadPool threadPool, TimeValue debugLoggingTimeout) {
+            this.threadPool = threadPool;
+            this.debugLoggingTimeout = debugLoggingTimeout;
         }
 
         Releasable record(String action) {
@@ -75,14 +89,40 @@ public final class ClusterApplierRecordingService {
 
             this.recording = true;
             this.currentAction = action;
-            this.startTimeMS = currentTimeSupplier.getAsLong();
+            this.startMillis = threadPool.rawRelativeTimeInMillis();
+
+            if (logger.isDebugEnabled()) {
+                currentListener = new SubscribableListener<>();
+                currentListener.addTimeout(debugLoggingTimeout, threadPool, threadPool.generic());
+                currentListener.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert e instanceof ElasticsearchTimeoutException : e; // didn't complete in time
+                        HotThreads.logLocalHotThreads(
+                            logger,
+                            Level.DEBUG,
+                            "hot threads while applying cluster state [" + currentAction + ']',
+                            ReferenceDocs.LOGGING
+                        );
+                    }
+                });
+            }
+
             return this::stop;
         }
 
         void stop() {
             recording = false;
-            long timeSpentMS = currentTimeSupplier.getAsLong() - this.startTimeMS;
-            recordings.add(new Tuple<>(currentAction, timeSpentMS));
+            long elapsedMillis = threadPool.rawRelativeTimeInMillis() - this.startMillis;
+            recordings.add(new Tuple<>(currentAction, elapsedMillis));
+
+            if (currentListener != null) {
+                currentListener.onResponse(null);
+                currentListener = null;
+            }
         }
 
         List<Tuple<String, Long>> getRecordings() {
@@ -125,7 +165,7 @@ public final class ClusterApplierRecordingService {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(recordings, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(recordings, StreamOutput::writeWriteable);
         }
 
         @Override

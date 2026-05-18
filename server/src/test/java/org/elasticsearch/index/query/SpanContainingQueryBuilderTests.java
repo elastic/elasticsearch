@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -26,6 +27,14 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
     }
 
     @Override
+    protected SpanContainingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanContainingQueryBuilder) {
+            return new SpanContainingQueryBuilder((SpanContainingQueryBuilder) queryBuilder, (SpanContainingQueryBuilder) queryBuilder);
+        }
+        return new SpanContainingQueryBuilder(new SpanTermQueryBuilder("field", "value"), new SpanTermQueryBuilder("field", "value"));
+    }
+
+    @Override
     protected void doAssertLuceneQuery(SpanContainingQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, instanceOf(SpanContainingQuery.class));
     }
@@ -45,28 +54,24 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
                     "clauses" : [ {
                       "span_term" : {
                         "field1" : {
-                          "value" : "bar",
-                          "boost" : 1.0
+                          "value" : "bar"
                         }
                       }
                     }, {
                       "span_term" : {
                         "field1" : {
-                          "value" : "baz",
-                          "boost" : 1.0
+                          "value" : "baz"
                         }
                       }
                     } ],
                     "slop" : 5,
-                    "in_order" : true,
-                    "boost" : 1.0
+                    "in_order" : true
                   }
                 },
                 "little" : {
                   "span_term" : {
                     "field1" : {
-                      "value" : "foo",
-                      "boost" : 1.0
+                      "value" : "foo"
                     }
                   }
                 },

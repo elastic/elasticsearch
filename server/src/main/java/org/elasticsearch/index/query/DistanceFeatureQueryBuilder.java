@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -31,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * A query to boost scores based on their proximity to the given origin
  * for date, date_nanos and geo_point field types
  */
-public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> {
+public class DistanceFeatureQueryBuilder extends LeafQueryBuilder<DistanceFeatureQueryBuilder> {
     public static final String NAME = "distance_feature";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -194,5 +196,10 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         public String toString() {
             return origin.toString();
         }
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

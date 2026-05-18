@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.support;
@@ -11,14 +12,12 @@ package org.elasticsearch.xcontent.support;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -28,22 +27,9 @@ import java.util.Map;
  */
 public class MapXContentParser extends AbstractXContentParser {
 
-    private XContentType xContentType;
+    private final XContentType xContentType;
     private TokenIterator iterator;
     private boolean closed;
-
-    public static XContentParser wrapObject(Object sourceMap) throws IOException {
-        XContentParser parser = new MapXContentParser(
-            NamedXContentRegistry.EMPTY,
-            DeprecationHandler.IGNORE_DEPRECATIONS,
-            Collections.singletonMap("dummy_field", sourceMap),
-            XContentType.JSON
-        );
-        parser.nextToken(); // start object
-        parser.nextToken(); // field name
-        parser.nextToken(); // field value
-        return parser;
-    }
 
     public MapXContentParser(
         NamedXContentRegistry xContentRegistry,
@@ -58,7 +44,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() throws IOException {
-        if (iterator != null && iterator.currentValue()instanceof Boolean aBoolean) {
+        if (iterator != null && iterator.currentValue() instanceof Boolean aBoolean) {
             return aBoolean;
         } else {
             throw new IllegalStateException("Cannot get boolean value for the current token " + currentToken());
@@ -216,7 +202,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public byte[] binaryValue() throws IOException {
-        if (iterator != null && iterator.currentValue()instanceof byte[] bytes) {
+        if (iterator != null && iterator.currentValue() instanceof byte[] bytes) {
             return bytes;
         } else {
             throw new IllegalStateException("Cannot get binary value for the current token " + currentToken());
@@ -225,6 +211,11 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public XContentLocation getTokenLocation() {
+        return new XContentLocation(0, 0);
+    }
+
+    @Override
+    public XContentLocation getCurrentLocation() {
         return new XContentLocation(0, 0);
     }
 

@@ -13,9 +13,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -45,7 +45,6 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
         ThreadPool threadPool,
         XPackLicenseState licenseState,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelProvider trainedModelProvider
     ) {
         super(
@@ -55,9 +54,8 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
@@ -68,25 +66,27 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
 
         ActionListener<TrainedModelConfig> configActionListener = ActionListener.wrap(config -> {
             InferenceConfig inferenceConfig = config.getInferenceConfig();
-            if ((inferenceConfig instanceof NlpConfig) == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "cannot put vocabulary for model [{}] as it is not an NLP model",
-                        RestStatus.BAD_REQUEST,
-                        request.getModelId()
-                    )
+            if (inferenceConfig instanceof NlpConfig nlpConfig) {
+                nlpConfig.getTokenization().validateVocabulary(request);
+                trainedModelProvider.storeTrainedModelVocabulary(
+                    request.getModelId(),
+                    ((NlpConfig) inferenceConfig).getVocabularyConfig(),
+                    new Vocabulary(request.getVocabulary(), request.getModelId(), request.getMerges(), request.getScores()),
+                    ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure),
+                    request.isOverwritingAllowed()
                 );
                 return;
             }
-            trainedModelProvider.storeTrainedModelVocabulary(
-                request.getModelId(),
-                ((NlpConfig) inferenceConfig).getVocabularyConfig(),
-                new Vocabulary(request.getVocabulary(), request.getModelId()),
-                ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot put vocabulary for model [{}] as it is not an NLP model",
+                    RestStatus.BAD_REQUEST,
+                    request.getModelId()
+                )
             );
         }, listener::onFailure);
 
-        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
+        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), null, configActionListener);
     }
 
     @Override

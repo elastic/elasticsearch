@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -28,13 +27,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -42,7 +39,9 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -61,6 +60,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
     private static final Logger LOGGER = LogManager.getLogger(ReindexingStep.class);
 
     private final ClusterService clusterService;
+    private final String[] destIndexAllowedSettings;
     @Nullable
     private volatile Long reindexingTaskId;
     private volatile boolean isReindexingFinished;
@@ -70,10 +70,12 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         NodeClient client,
         DataFrameAnalyticsTask task,
         DataFrameAnalyticsAuditor auditor,
-        DataFrameAnalyticsConfig config
+        DataFrameAnalyticsConfig config,
+        String[] destIndexAllowedSettings
     ) {
         super(client, task, auditor, config);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.destIndexAllowedSettings = Objects.requireNonNull(destIndexAllowedSettings);
     }
 
     @Override
@@ -130,10 +132,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             listener.onResponse(new StepResponse(false));
         }, error -> {
             if (isTaskStopping() && isTaskCancelledException(error)) {
-                LOGGER.debug(
-                    new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping", config.getId()),
-                    error
-                );
+                LOGGER.debug(() -> "[" + config.getId() + "] Caught task cancelled exception while task is stopping", error);
                 listener.onResponse(new StepResponse(true));
             } else {
                 listener.onFailure(error);
@@ -148,8 +147,10 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
             reindexRequest.getSearchRequest().allowPartialSearchResults(false);
             reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
-            reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
             reindexRequest.setDestIndex(config.getDest().getIndex());
+            // Stable source order so ml__incremental_id maps to the same source docs on every reindex; the
+            // train/test splitter consumes Random in incremental-id order (see DataFrameDataExtractor).
+            reindexRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
             // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
             reindexRequest.setSlices(1);
@@ -212,7 +213,13 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex())
                 );
                 LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
-                DestinationIndex.createDestinationIndex(parentTaskClient, Clock.systemUTC(), config, copyIndexCreatedListener);
+                DestinationIndex.createDestinationIndex(
+                    parentTaskClient,
+                    Clock.systemUTC(),
+                    config,
+                    destIndexAllowedSettings,
+                    copyIndexCreatedListener
+                );
             } else {
                 copyIndexCreatedListener.onFailure(e);
             }
@@ -223,7 +230,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             ML_ORIGIN,
             parentTaskClient,
             GetIndexAction.INSTANCE,
-            new GetIndexRequest().indices(config.getDest().getIndex()),
+            new GetIndexRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT).indices(config.getDest().getIndex()),
             destIndexListener
         );
     }
@@ -273,7 +280,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
 
         // We need to cancel the reindexing task within context with ML origin as we started the task
         // from the same context
-        CancelTasksResponse cancelReindexResponse = cancelTaskWithinMlOriginContext(cancelReindex);
+        ListTasksResponse cancelReindexResponse = cancelTaskWithinMlOriginContext(cancelReindex);
 
         Throwable firstError = null;
         if (cancelReindexResponse.getNodeFailures().isEmpty() == false) {
@@ -291,7 +298,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         }
     }
 
-    private CancelTasksResponse cancelTaskWithinMlOriginContext(CancelTasksRequest cancelTasksRequest) {
+    private ListTasksResponse cancelTaskWithinMlOriginContext(CancelTasksRequest cancelTasksRequest) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
             return client.admin().cluster().cancelTasks(cancelTasksRequest).actionGet();
@@ -324,7 +331,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         getTaskRequest.setTaskId(reindexTaskId);
         client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(taskResponse -> {
             TaskResult taskResult = taskResponse.getTask();
-            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
+            BulkByPaginatedSearchTask.Status taskStatus = (BulkByPaginatedSearchTask.Status) taskResult.getTask().status();
             int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
             listener.onResponse(progress);
         }, error -> {

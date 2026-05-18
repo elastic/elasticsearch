@@ -8,20 +8,21 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * {@code VersionHttpResource} verifies that the returned {@link Version} of Elasticsearch is at least the specified minimum version.
@@ -73,11 +74,7 @@ public class VersionHttpResource extends HttpResource {
             @Override
             public void onFailure(final Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to verify minimum version [{}] on the [{}] monitoring cluster",
-                        minimumVersion,
-                        resourceOwnerName
-                    ),
+                    () -> format("failed to verify minimum version [%s] on the [%s] monitoring cluster", minimumVersion, resourceOwnerName),
                     exception
                 );
 
@@ -87,7 +84,7 @@ public class VersionHttpResource extends HttpResource {
     }
 
     /**
-     * Ensure that the {@code response} contains a {@link Version} that is {@linkplain Version#onOrAfter(Version) on or after} the
+     * Ensure that the {@code response} contains a {@link Version} that is {@linkplain VersionId#onOrAfter on or after} the
      * {@link #minimumVersion}.
      *
      * @param response The response to parse.

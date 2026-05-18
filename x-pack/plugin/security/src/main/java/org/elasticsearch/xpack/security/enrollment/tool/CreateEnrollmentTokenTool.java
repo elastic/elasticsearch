@@ -11,8 +11,8 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CheckedFunction;
@@ -26,7 +26,7 @@ import java.net.URL;
 import java.util.List;
 import java.util.function.Function;
 
-public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
+class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
 
     private final OptionSpec<String> scope;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
@@ -34,10 +34,9 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
     static final List<String> ALLOWED_SCOPES = List.of("node", "kibana");
 
     CreateEnrollmentTokenTool() {
-
         this(
             environment -> new CommandLineHttpClient(environment),
-            environment -> KeyStoreWrapper.load(environment.configFile()),
+            environment -> KeyStoreWrapper.load(environment.configDir()),
             environment -> new ExternalEnrollmentTokenGenerator(environment)
         );
     }
@@ -53,10 +52,6 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
         scope = parser.acceptsAll(List.of("scope", "s"), "The scope of this enrollment token, can be either \"node\" or \"kibana\"")
             .withRequiredArg()
             .required();
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new CreateEnrollmentTokenTool().main(args, Terminal.DEFAULT));
     }
 
     @Override

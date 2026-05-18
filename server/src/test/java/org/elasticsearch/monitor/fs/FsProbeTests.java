@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.fs;
@@ -11,7 +12,7 @@ package org.elasticsearch.monitor.fs;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.env.NodeEnvironment.DataPath;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -241,16 +242,16 @@ public class FsProbeTests extends ESTestCase {
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {
-        NodePath np = new FakeNodePath(createTempDir());
+        DataPath np = new FakeDataPath(createTempDir());
         assertThat(FsProbe.getFSInfo(np).total, greaterThanOrEqualTo(0L));
         assertThat(FsProbe.getFSInfo(np).free, greaterThanOrEqualTo(0L));
         assertThat(FsProbe.getFSInfo(np).available, greaterThanOrEqualTo(0L));
     }
 
-    static class FakeNodePath extends NodeEnvironment.NodePath {
+    static class FakeDataPath extends DataPath {
         public final FileStore fileStore;
 
-        FakeNodePath(Path path) throws IOException {
+        FakeDataPath(Path path) throws IOException {
             super(path);
             this.fileStore = new HugeFileStore();
         }

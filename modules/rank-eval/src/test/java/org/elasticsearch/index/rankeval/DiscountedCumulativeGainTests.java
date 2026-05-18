@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -29,6 +31,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnratedDocuments;
+import static org.elasticsearch.index.rankeval.RankEvalMetricTestHelper.releaseRatedSearchHitsOnly;
+import static org.elasticsearch.index.rankeval.RankEvalMetricTestHelper.releaseScratchHits;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -60,11 +64,16 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[6];
         for (int i = 0; i < 6; i++) {
             rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
-            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
-        assertEquals(EXPECTED_DCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
+        EvalQueryQuality q1 = dcg.evaluate("id", hits, rated);
+        try {
+            assertEquals(EXPECTED_DCG, q1.metricScore(), DELTA);
+        } finally {
+            releaseRatedSearchHitsOnly(q1);
+        }
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by
@@ -82,7 +91,13 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * idcg = 14.595390756454922 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        assertEquals(EXPECTED_NDCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
+        EvalQueryQuality q2 = dcg.evaluate("id", hits, rated);
+        try {
+            assertEquals(EXPECTED_NDCG, q2.metricScore(), DELTA);
+        } finally {
+            releaseRatedSearchHitsOnly(q2);
+            releaseScratchHits(hits);
+        }
     }
 
     /**
@@ -110,13 +125,17 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                     rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
                 }
             }
-            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
-        assertEquals(12.779642067948913, result.metricScore(), DELTA);
-        assertEquals(2, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        try {
+            assertEquals(12.779642067948913, result.metricScore(), DELTA);
+            assertEquals(2, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        } finally {
+            releaseRatedSearchHitsOnly(result);
+        }
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by
@@ -134,7 +153,13 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
+        EvalQueryQuality q2 = dcg.evaluate("id", hits, rated);
+        try {
+            assertEquals(12.779642067948913 / 13.347184833073591, q2.metricScore(), DELTA);
+        } finally {
+            releaseRatedSearchHitsOnly(q2);
+            releaseScratchHits(hits);
+        }
     }
 
     /**
@@ -167,13 +192,17 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         // only create four hits
         SearchHit[] hits = new SearchHit[4];
         for (int i = 0; i < 4; i++) {
-            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
-        assertEquals(12.392789260714371, result.metricScore(), DELTA);
-        assertEquals(1, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        try {
+            assertEquals(12.392789260714371, result.metricScore(), DELTA);
+            assertEquals(1, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        } finally {
+            releaseRatedSearchHitsOnly(result);
+        }
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by
@@ -192,7 +221,13 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
          * idcg = 13.347184833073591 (sum of last column)
          */
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).metricScore(), DELTA);
+        EvalQueryQuality q2 = dcg.evaluate("id", hits, ratedDocs);
+        try {
+            assertEquals(12.392789260714371 / 13.347184833073591, q2.metricScore(), DELTA);
+        } finally {
+            releaseRatedSearchHitsOnly(q2);
+            releaseScratchHits(hits);
+        }
     }
 
     /**
@@ -208,17 +243,24 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                 }
             }
         }
-        SearchHit[] hits = new SearchHit[0];
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
-        EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
-        assertEquals(0.0d, result.metricScore(), DELTA);
-        assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        EvalQueryQuality result = dcg.evaluate("id", SearchHits.EMPTY, ratedDocs);
+        try {
+            assertEquals(0.0d, result.metricScore(), DELTA);
+            assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        } finally {
+            releaseRatedSearchHitsOnly(result);
+        }
 
         // also check normalized
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        result = dcg.evaluate("id", hits, ratedDocs);
-        assertEquals(0.0d, result.metricScore(), DELTA);
-        assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        result = dcg.evaluate("id", SearchHits.EMPTY, ratedDocs);
+        try {
+            assertEquals(0.0d, result.metricScore(), DELTA);
+            assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
+        } finally {
+            releaseRatedSearchHitsOnly(result);
+        }
     }
 
     public void testParseFromXContent() throws IOException {
@@ -288,13 +330,13 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(expectedNdcg, detail.getNDCG(), 0.0);
         assertEquals(unratedDocs, detail.getUnratedDocs());
         if (idcg != 0) {
-            assertEquals("""
+            assertEquals(Strings.format("""
                 {"dcg":{"dcg":%s,"ideal_dcg":%s,"normalized_dcg":%s,"unrated_docs":%s}}\
-                """.formatted(dcg, idcg, expectedNdcg, unratedDocs), Strings.toString(detail));
+                """, dcg, idcg, expectedNdcg, unratedDocs), Strings.toString(detail));
         } else {
-            assertEquals("""
+            assertEquals(Strings.format("""
                 {"dcg":{"dcg":%s,"unrated_docs":%s}}\
-                """.formatted(dcg, unratedDocs), Strings.toString(detail));
+                """, dcg, unratedDocs), Strings.toString(detail));
         }
     }
 
@@ -311,11 +353,9 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(
-            createTestItem(),
-            original -> { return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK()); },
-            DiscountedCumulativeGainTests::mutateTestItem
-        );
+        checkEqualsAndHashCode(createTestItem(), original -> {
+            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK());
+        }, DiscountedCumulativeGainTests::mutateTestItem);
     }
 
     private static DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.kuromoji;
@@ -12,13 +13,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
+import org.apache.lucene.analysis.ja.JapaneseCompletionAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -35,7 +37,7 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -67,9 +69,21 @@ public class KuromojiAnalysisTests extends ESTestCase {
         filterFactory = analysis.tokenFilter.get("kuromoji_number");
         assertThat(filterFactory, instanceOf(KuromojiNumberFilterFactory.class));
 
+        filterFactory = analysis.tokenFilter.get("kuromoji_completion");
+        assertThat(filterFactory, instanceOf(KuromojiCompletionFilterFactory.class));
+
+        filterFactory = analysis.tokenFilter.get("hiragana_uppercase");
+        assertThat(filterFactory, instanceOf(HiraganaUppercaseFilterFactory.class));
+
+        filterFactory = analysis.tokenFilter.get("katakana_uppercase");
+        assertThat(filterFactory, instanceOf(KatakanaUppercaseFilterFactory.class));
+
         IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
         NamedAnalyzer analyzer = indexAnalyzers.get("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
+
+        analyzer = indexAnalyzers.get("kuromoji_completion");
+        assertThat(analyzer.analyzer(), instanceOf(JapaneseCompletionAnalyzer.class));
 
         analyzer = indexAnalyzers.get("my_analyzer");
         assertThat(analyzer.analyzer(), instanceOf(CustomAnalyzer.class));
@@ -225,6 +239,42 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
+    public void testCompletionFilterFactory() throws IOException {
+        // mode=INDEX
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_completion_index");
+        assertThat(tokenFilter, instanceOf(KuromojiCompletionFilterFactory.class));
+        String source = "東京都";
+        String[] expected_tokens = new String[] { "東京", "toukyou", "都", "to" };
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+
+        // mode=QUERY
+        tokenFilter = analysis.tokenFilter.get("kuromoji_completion_query");
+        assertThat(tokenFilter, instanceOf(KuromojiCompletionFilterFactory.class));
+        source = "サッk";
+        expected_tokens = new String[] { "サッk", "sakk" };
+        tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+    }
+
+    public void testCompletionAnalyzer() throws IOException {
+        // mode=INDEX
+        TestAnalysis analysis = createTestAnalysis();
+        Analyzer analyzer = analysis.indexAnalyzers.get("completion_index_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "ｿｰｽｺｰﾄﾞ")) {
+            assertTokenStreamContents(stream, new String[] { "ソース", "soーsu", "コード", "koーdo" });
+        }
+
+        // mode=QUERY
+        analyzer = analysis.indexAnalyzers.get("completion_query_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "ｿｰｽｺｰﾄﾞ")) {
+            assertTokenStreamContents(stream, new String[] { "ソースコード", "soーsukoーdo" });
+        }
+    }
+
     private static TestAnalysis createTestAnalysis() throws IOException {
         InputStream empty_dict = KuromojiAnalysisTests.class.getResourceAsStream("empty_user_dict.txt");
         InputStream dict = KuromojiAnalysisTests.class.getResourceAsStream("user_dict.txt");
@@ -237,7 +287,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
@@ -332,6 +382,28 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
+    public void testHiraganaUppercaseFilterFactory() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("hiragana_uppercase");
+        assertThat(tokenFilter, instanceOf(HiraganaUppercaseFilterFactory.class));
+        String source = "ぁぃぅぇぉっゃゅょゎゕゖ";
+        String[] expected = new String[] { "あいうえおつやゆよわかけ" };
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
+    public void testKatakanaUppercaseFilterFactory() throws Exception {
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("katakana_uppercase");
+        assertThat(tokenFilter, instanceOf(KatakanaUppercaseFilterFactory.class));
+        String source = "ァィゥェォヵㇰヶㇱㇲッㇳㇴㇵㇶㇷ";
+        String[] expected = new String[] { "アイウエオカクケシスツトヌハヒフ" };
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
     public void testKuromojiAnalyzerUserDict() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
@@ -373,7 +445,26 @@ public class KuromojiAnalysisTests extends ESTestCase {
             )
             .build();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
+        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [4]"));
+    }
+
+    public void testKuromojiAnalyzerDuplicateUserDictRuleDeduplication() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .put("index.analysis.analyzer.my_analyzer.lenient", "true")
+            .putList(
+                "index.analysis.analyzer.my_analyzer.user_dictionary_rules",
+                "c++,c++,w,w",
+                "#comment",
+                "制限スピード,制限スピード,セイゲンスピード,テスト名詞",
+                "制限スピード,制限スピード,セイゲンスピード,テスト名詞"
+            )
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "制限スピード")) {
+            assertTokenStreamContents(stream, new String[] { "制限スピード" });
+        }
     }
 
     public void testDiscardCompoundToken() throws Exception {
@@ -394,7 +485,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Files.createDirectory(config);
         Files.copy(dict, config.resolve("user_dict.txt"));
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), home)
             .put(analysisSettings)
             .build();

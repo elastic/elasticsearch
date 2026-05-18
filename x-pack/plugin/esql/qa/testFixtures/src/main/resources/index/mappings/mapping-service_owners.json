@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "service_id": {
+      "type": "keyword"
+    },
+    "owner": {
+      "type": "keyword"
+    }
+  }
+}

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import org.elasticsearch.xpack.core.textstructure.action.AbstractFindStructureRequest;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
@@ -31,11 +32,14 @@ public class TextStructureOverrides {
     private final Character delimiter;
     private final Character quote;
     private final Boolean shouldTrimFields;
+    private final Boolean shouldParseRecursively;
     private final String grokPattern;
     private final String timestampFormat;
     private final String timestampField;
 
-    public TextStructureOverrides(FindStructureAction.Request request) {
+    private final String ecsCompatibility;
+
+    public TextStructureOverrides(AbstractFindStructureRequest request) {
 
         this(
             request.getCharset(),
@@ -45,9 +49,11 @@ public class TextStructureOverrides {
             request.getDelimiter(),
             request.getQuote(),
             request.getShouldTrimFields(),
+            request.getShouldParseRecursively(),
             request.getGrokPattern(),
             request.getTimestampFormat(),
-            request.getTimestampField()
+            request.getTimestampField(),
+            request.getEcsCompatibility()
         );
     }
 
@@ -59,9 +65,11 @@ public class TextStructureOverrides {
         Character delimiter,
         Character quote,
         Boolean shouldTrimFields,
+        Boolean shouldParseRecursively,
         String grokPattern,
         String timestampFormat,
-        String timestampField
+        String timestampField,
+        String ecsCompatibility
     ) {
         this.charset = charset;
         this.format = format;
@@ -70,9 +78,11 @@ public class TextStructureOverrides {
         this.delimiter = delimiter;
         this.quote = quote;
         this.shouldTrimFields = shouldTrimFields;
+        this.shouldParseRecursively = shouldParseRecursively;
         this.grokPattern = grokPattern;
         this.timestampFormat = timestampFormat;
         this.timestampField = timestampField;
+        this.ecsCompatibility = ecsCompatibility;
     }
 
     public static Builder builder() {
@@ -107,6 +117,10 @@ public class TextStructureOverrides {
         return shouldTrimFields;
     }
 
+    public Boolean getShouldParseRecursively() {
+        return shouldParseRecursively;
+    }
+
     public String getGrokPattern() {
         return grokPattern;
     }
@@ -117,6 +131,10 @@ public class TextStructureOverrides {
 
     public String getTimestampField() {
         return timestampField;
+    }
+
+    public String getEcsCompatibility() {
+        return ecsCompatibility;
     }
 
     @Override
@@ -130,9 +148,11 @@ public class TextStructureOverrides {
             delimiter,
             quote,
             shouldTrimFields,
+            shouldParseRecursively,
             grokPattern,
             timestampFormat,
-            timestampField
+            timestampField,
+            ecsCompatibility
         );
     }
 
@@ -155,9 +175,11 @@ public class TextStructureOverrides {
             && Objects.equals(this.delimiter, that.delimiter)
             && Objects.equals(this.quote, that.quote)
             && Objects.equals(this.shouldTrimFields, that.shouldTrimFields)
+            && Objects.equals(this.shouldParseRecursively, that.shouldParseRecursively)
             && Objects.equals(this.grokPattern, that.grokPattern)
             && Objects.equals(this.timestampFormat, that.timestampFormat)
-            && Objects.equals(this.timestampField, that.timestampField);
+            && Objects.equals(this.timestampField, that.timestampField)
+            && Objects.equals(this.ecsCompatibility, that.ecsCompatibility);
     }
 
     public static class Builder {
@@ -169,9 +191,12 @@ public class TextStructureOverrides {
         private Character delimiter;
         private Character quote;
         private Boolean shouldTrimFields;
+        private Boolean shouldParseRecursively;
         private String grokPattern;
         private String timestampFormat;
         private String timestampField;
+
+        private String ecsCompatibility;
 
         public Builder setCharset(String charset) {
             this.charset = charset;
@@ -208,6 +233,11 @@ public class TextStructureOverrides {
             return this;
         }
 
+        public Builder setShouldParseRecursively(Boolean shouldParseRecursively) {
+            this.shouldParseRecursively = shouldParseRecursively;
+            return this;
+        }
+
         public Builder setGrokPattern(String grokPattern) {
             this.grokPattern = grokPattern;
             return this;
@@ -223,6 +253,11 @@ public class TextStructureOverrides {
             return this;
         }
 
+        public Builder setEcsCompatibility(String ecsCompatibility) {
+            this.ecsCompatibility = ecsCompatibility;
+            return this;
+        }
+
         public TextStructureOverrides build() {
 
             return new TextStructureOverrides(
@@ -233,9 +268,11 @@ public class TextStructureOverrides {
                 delimiter,
                 quote,
                 shouldTrimFields,
+                shouldParseRecursively,
                 grokPattern,
                 timestampFormat,
-                timestampField
+                timestampField,
+                ecsCompatibility
             );
         }
     }

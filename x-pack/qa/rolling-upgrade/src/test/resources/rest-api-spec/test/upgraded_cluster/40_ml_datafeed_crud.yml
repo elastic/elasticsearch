@@ -203,3 +203,93 @@ setup:
   - do:
       indices.delete:
         index: airline-data
+---
+"Test old and mixed cluster datafeeds with composite aggs":
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-with-comp-aggs
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-with-comp-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-with-comp-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: mixed-cluster-datafeed-with-comp-aggs
+  - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed-with-comp-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: mixed-cluster-datafeed-with-comp-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-datafeed-job-with-comp-aggs
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: old-cluster-datafeed-with-comp-aggs
+        start: 0
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: old-cluster-datafeed-with-comp-aggs
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-datafeed-job-with-comp-aggs
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: old-cluster-datafeed-with-comp-aggs
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-datafeed-job-with-comp-aggs
+  - match: { acknowledged: true }
+
+  - do:
+      ml.open_job:
+        job_id: mixed-cluster-datafeed-job-with-comp-aggs
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: mixed-cluster-datafeed-with-comp-aggs
+        start: 0
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: mixed-cluster-datafeed-with-comp-aggs
+
+  - do:
+      ml.close_job:
+        job_id: mixed-cluster-datafeed-job-with-comp-aggs
+
+  - do:
+      ml.delete_datafeed:
+        datafeed_id: mixed-cluster-datafeed-with-comp-aggs
+
+  - do:
+      ml.delete_job:
+        job_id: mixed-cluster-datafeed-job-with-comp-aggs
+  - match: { acknowledged: true }
+
+  - do:
+      indices.delete:
+        index: airline-data

@@ -14,6 +14,6 @@ public class PostStartBasicAction extends ActionType<PostStartBasicResponse> {
     public static final String NAME = "cluster:admin/xpack/license/start_basic";
 
     private PostStartBasicAction() {
-        super(NAME, PostStartBasicResponse::new);
+        super(NAME);
     }
 }

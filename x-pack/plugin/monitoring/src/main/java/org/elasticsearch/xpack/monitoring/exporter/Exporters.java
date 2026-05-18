@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -53,6 +51,7 @@ public class Exporters extends AbstractLifecycleComponent {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
 
+    @SuppressWarnings("this-escape")
     public Exporters(
         Settings settings,
         Map<String, Exporter.Factory> factories,
@@ -69,9 +68,7 @@ public class Exporters extends AbstractLifecycleComponent {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
 
-        final List<Setting.AffixSetting<?>> dynamicSettings = getSettings().stream()
-            .filter(Setting::isDynamic)
-            .collect(Collectors.toList());
+        final List<Setting.AffixSetting<?>> dynamicSettings = getSettings().stream().filter(Setting::isDynamic).toList();
         final List<Setting<?>> updateSettings = new ArrayList<Setting<?>>(dynamicSettings);
         updateSettings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, updateSettings);
@@ -156,7 +153,7 @@ public class Exporters extends AbstractLifecycleComponent {
             try {
                 exporter.close();
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
+                logger.error((Supplier<?>) () -> "failed to close exporter [" + exporter.name() + "]", e);
             }
         }
     }
@@ -266,13 +263,13 @@ public class Exporters extends AbstractLifecycleComponent {
         if (this.lifecycleState() != Lifecycle.State.STARTED) {
             listener.onFailure(new ExportException("Export service is not started"));
         } else if (docs != null && docs.size() > 0) {
-            wrapExportBulk(ActionListener.wrap(bulk -> {
+            wrapExportBulk(listener.delegateFailureAndWrap((l, bulk) -> {
                 if (bulk != null) {
-                    doExport(bulk, docs, listener);
+                    doExport(bulk, docs, l);
                 } else {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 }
-            }, listener::onFailure));
+            }));
         } else {
             listener.onResponse(null);
         }
@@ -285,7 +282,7 @@ public class Exporters extends AbstractLifecycleComponent {
      * @param docs The monitoring documents to send.
      * @param listener Returns {@code null} when complete, or failure where relevant.
      */
-    private void doExport(final ExportBulk bulk, final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) {
+    private static void doExport(final ExportBulk bulk, final Collection<MonitoringDoc> docs, final ActionListener<Void> listener) {
         final AtomicReference<ExportException> exceptionRef = new AtomicReference<>();
 
         try {
@@ -361,7 +358,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", name), e);
+            LOGGER.error((Supplier<?>) () -> "exporter [" + name + "] failed to open exporting bulk", e);
 
             delegateIfComplete();
         }

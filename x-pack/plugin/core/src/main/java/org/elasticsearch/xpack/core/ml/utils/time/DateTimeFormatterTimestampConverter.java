@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.utils.time;
 
-import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.time.DateTimeException;
 import java.time.Instant;

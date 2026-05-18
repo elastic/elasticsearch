@@ -1,0 +1,50 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.application.rules.action;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
+import org.elasticsearch.xpack.application.rules.QueryRuleset;
+
+import java.io.IOException;
+
+public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<PutQueryRulesetAction.Request> {
+
+    private QueryRuleset queryRulesSet;
+
+    @Override
+    protected Writeable.Reader<PutQueryRulesetAction.Request> instanceReader() {
+        return PutQueryRulesetAction.Request::new;
+    }
+
+    @Override
+    protected PutQueryRulesetAction.Request createTestInstance() {
+        this.queryRulesSet = EnterpriseSearchModuleTestUtils.randomQueryRuleset();
+        return new PutQueryRulesetAction.Request(this.queryRulesSet);
+    }
+
+    @Override
+    protected PutQueryRulesetAction.Request mutateInstance(PutQueryRulesetAction.Request instance) {
+        return new PutQueryRulesetAction.Request(
+            randomValueOtherThan(instance.queryRuleset(), () -> EnterpriseSearchModuleTestUtils.randomQueryRuleset())
+        );
+    }
+
+    @Override
+    protected PutQueryRulesetAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return PutQueryRulesetAction.Request.fromXContent(this.queryRulesSet.id(), parser);
+    }
+
+    @Override
+    protected PutQueryRulesetAction.Request mutateInstanceForVersion(PutQueryRulesetAction.Request instance, TransportVersion version) {
+        return instance;
+    }
+}

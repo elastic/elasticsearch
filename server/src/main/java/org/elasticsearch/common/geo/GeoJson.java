@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -311,7 +312,7 @@ public final class GeoJson {
                 return null;
             }
 
-            private List<Object> coordinatesToList(double lat, double lon, double alt) {
+            private static List<Object> coordinatesToList(double lat, double lon, double alt) {
                 List<Object> coords = new ArrayList<>(3);
                 coords.add(lon);
                 coords.add(lat);
@@ -321,7 +322,7 @@ public final class GeoJson {
                 return coords;
             }
 
-            private List<Object> coordinatesToList(Line line) {
+            private static List<Object> coordinatesToList(Line line) {
                 List<Object> lines = new ArrayList<>(line.length());
                 for (int i = 0; i < line.length(); i++) {
                     List<Object> coords = new ArrayList<>(3);
@@ -335,7 +336,7 @@ public final class GeoJson {
                 return lines;
             }
 
-            private List<Object> coordinatesToList(Polygon polygon) {
+            private static List<Object> coordinatesToList(Polygon polygon) {
                 List<Object> coords = new ArrayList<>(polygon.getNumberOfHoles() + 1);
                 coords.add(coordinatesToList(polygon.getPolygon()));
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {

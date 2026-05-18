@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.backwards;
@@ -17,13 +18,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HotThreadsIT extends ESRestTestCase {
 
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
     public void testHotThreads() throws Exception {
-        final IndexingIT.Nodes nodes = IndexingIT.buildNodeAndVersions(client());
+        final MixedClusterTestNodes nodes = MixedClusterTestNodes.buildNodes(client(), BWC_NODES_VERSION);
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         assumeTrue(
             "new nodes are higher version than BWC nodes",
-            nodes.getNewNodes().get(0).getVersion().compareTo(nodes.getBWCNodes().get(0).getVersion()) > 0
+            nodes.getNewNodes().get(0).version().compareTo(nodes.getBWCNodes().get(0).version()) > 0
         );
         final Request request = new Request("GET", "/_nodes/hot_threads");
         final Response response = client().performRequest(request);

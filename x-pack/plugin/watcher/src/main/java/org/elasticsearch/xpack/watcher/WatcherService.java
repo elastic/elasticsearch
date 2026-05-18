@@ -8,26 +8,27 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -53,13 +54,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -68,7 +66,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.core.watcher.watch.Watch.INDEX;
 
-public class WatcherService {
+public class WatcherService implements WatcherEventConsumer {
 
     private static final String LIFECYCLE_THREADPOOL_NAME = "watcher-lifecycle";
     private static final Logger logger = LogManager.getLogger(WatcherService.class);
@@ -83,6 +81,7 @@ public class WatcherService {
     private final TimeValue defaultSearchTimeout;
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
+    private final Map<String, Watch> pendingWatches = new HashMap<>();
 
     WatcherService(
         Settings settings,
@@ -125,7 +124,7 @@ public class WatcherService {
                 1000,
                 daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
                 client.threadPool().getThreadContext(),
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
     }
@@ -136,6 +135,8 @@ public class WatcherService {
      * @return true if everything is good to go, so that the service can be started
      */
     public boolean validate(ClusterState state) {
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        ProjectId projectId = ProjectId.DEFAULT;
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
         IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(
             TriggeredWatchStoreField.INDEX_NAME,
@@ -162,9 +163,9 @@ public class WatcherService {
 
             return watcherIndexMetadata == null
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
-                    && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
+                    && state.routingTable(projectId).index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
-            logger.debug("error validating to start watcher", e);
+            logger.warn("Validation error: cannot start watcher", e);
             return false;
         }
     }
@@ -203,13 +204,13 @@ public class WatcherService {
      * Reload the watcher service, does not switch the state from stopped to started, just keep going
      * @param state cluster state, which is needed to find out about local shards
      */
-    void reload(ClusterState state, String reason) {
+    void reload(ClusterState state, String reason, Consumer<Exception> exceptionConsumer) {
         boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
         if (hasValidWatcherTemplates == false) {
             logger.warn("missing watcher index templates");
         }
         // this method contains the only async code block, being called by the cluster state listener
-        // the reason for this is, that loading he watches is done in a sync manner and thus cannot be done on the cluster state listener
+        // the reason for this is that loading the watches is done in a sync manner and thus cannot be done on the cluster state listener
         // thread
         //
         // this method itself is called by the cluster state listener, so will never be called in parallel
@@ -223,7 +224,10 @@ public class WatcherService {
         int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> logger.error("error reloading watcher", e)));
+        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
+            logger.error("error reloading watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -232,14 +236,17 @@ public class WatcherService {
      * @param state                     the current cluster state
      * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
-    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
                 postWatchesLoadedCallback.run();
             }
-        }, e -> logger.error("error starting watcher", e)));
+        }, e -> {
+            logger.error("error starting watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**
@@ -250,7 +257,9 @@ public class WatcherService {
      * @param loadTriggeredWatches  should triggered watches be loaded in this run, not needed for reloading, only for starting
      * @return                      true if no other loading of a newer cluster state happened in parallel, false otherwise
      */
-    private synchronized boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
+    private boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
+        assert ThreadPool.assertCurrentThreadPool(LIFECYCLE_THREADPOOL_NAME)
+            : "reloadInner must run on the single threaded [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
         // exit early if another thread has come in between
         if (processedClusterStateVersion.get() != state.getVersion()) {
             logger.debug(
@@ -268,12 +277,12 @@ public class WatcherService {
         }
 
         // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
-        // until the others are loaded
-        // also this is the place where we pause the trigger service execution and clear the current execution service, so that we make sure
-        // that existing executions finish, but no new ones are executed
+        // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
+        // execution service, so that we make sure that existing executions finish, but no new ones are executed
         if (processedClusterStateVersion.get() == state.getVersion()) {
             executionService.unPause();
             triggerService.start(watches);
+            addPendingWatches(state);
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
@@ -313,25 +322,12 @@ public class WatcherService {
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
         try {
-            RefreshResponse refreshResponse = client.admin()
-                .indices()
-                .refresh(new RefreshRequest(INDEX))
-                .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
-                throw illegalState("not all required shards have been refreshed");
-            }
+            refreshWatches(indexMetadata);
 
-            // find out local shards
-            String watchIndexName = indexMetadata.getIndex().getName();
-            RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
-            // yes, this can happen, if the state is not recovered
-            if (routingNode == null) {
-                return Collections.emptyList();
+            final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigs(clusterState, indexMetadata);
+            if (shardConfigs == null) {
+                return List.of(); // no shard configs means the index is not yet ready, so we can't load watches yet'
             }
-            List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED);
-
-            // find out all allocation ids
-            List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
 
             SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
@@ -342,66 +338,32 @@ public class WatcherService {
                 throw new ElasticsearchException("Partial response while loading watches");
             }
 
-            if (response.getHits().getTotalHits().value == 0) {
-                return Collections.emptyList();
-            }
-
-            Map<Integer, List<String>> sortedShards = new HashMap<>(localShards.size());
-            for (ShardRouting localShardRouting : localShards) {
-                List<String> sortedAllocationIds = watchIndexShardRoutings.stream()
-                    .filter(sr -> localShardRouting.getId() == sr.getId())
-                    .map(ShardRouting::allocationId)
-                    .filter(Objects::nonNull)
-                    .map(AllocationId::getId)
-                    .filter(Objects::nonNull)
-                    .sorted()
-                    .collect(Collectors.toList());
-
-                sortedShards.put(localShardRouting.getId(), sortedAllocationIds);
-            }
-
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
-                    // find out if this hit should be processed locally
-                    Optional<ShardRouting> correspondingShardOptional = localShards.stream()
-                        .filter(sr -> sr.shardId().equals(hit.getShard().getShardId()))
-                        .findFirst();
-                    if (correspondingShardOptional.isPresent() == false) {
+                    final ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
+                    if (shardConfig == null || shardConfig.hostsWatch(hit.getId()) == false) {
                         continue;
                     }
-                    ShardRouting correspondingShard = correspondingShardOptional.get();
-                    List<String> shardAllocationIds = sortedShards.get(hit.getShard().getShardId().id());
-                    // based on the shard allocation ids, get the bucket of the shard, this hit was in
-                    int bucket = shardAllocationIds.indexOf(correspondingShard.allocationId().getId());
                     String id = hit.getId();
-
-                    if (parseWatchOnThisNode(hit.getId(), shardAllocationIds.size(), bucket) == false) {
-                        continue;
-                    }
-
                     try {
                         Watch watch = parser.parse(id, true, hit.getSourceRef(), XContentType.JSON, hit.getSeqNo(), hit.getPrimaryTerm());
                         if (watch.status().state().isActive()) {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                "couldn't load watch [{}], ignoring it...",
-                                id
-                            ),
-                            e
-                        );
+                        logger.error(() -> "couldn't load watch [" + id + "], ignoring it...", e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
+                response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
             if (response != null) {
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
                 clearScrollRequest.addScrollId(response.getScrollId());
+                response.decRef();
                 client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }
@@ -411,18 +373,98 @@ public class WatcherService {
         return watches;
     }
 
-    /**
-     * Find out if the watch with this id, should be parsed and triggered on this node
-     *
-     * @param id              The id of the watch
-     * @param totalShardCount The count of all primary shards of the current watches index
-     * @param index           The index of the local shard
-     * @return true if the we should parse the watch on this node, false otherwise
-     */
-    private boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
-        int hash = Murmur3HashFunction.hash(id);
-        int shardIndex = Math.floorMod(hash, totalShardCount);
-        return shardIndex == index;
+    private static Map<ShardId, ShardAllocationConfiguration> shardAllocationConfigs(ClusterState state, IndexMetadata indexMetadata) {
+        // find out local shards
+        final RoutingNode routingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+        // yes, this can happen, if the state is not recovered
+        if (routingNode == null) {
+            return null;
+        }
+
+        final String watchIndexName = indexMetadata.getIndex().getName();
+        final List<ShardRouting> localShards = routingNode.shardsWithState(watchIndexName, RELOCATING, STARTED).toList();
+
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        final IndexRoutingTable indexRoutingTable = state.routingTable(ProjectId.DEFAULT).index(watchIndexName);
+        return ShardAllocationConfiguration.forLocalShards(localShards, indexRoutingTable);
+    }
+
+    // visible for testing
+    void addPendingWatches(ClusterState state) {
+        final IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
+        if (indexMetadata == null) {
+            // no index means there is nothing to schedule against; drop anything that was buffered
+            synchronized (pendingWatches) {
+                pendingWatches.clear();
+            }
+            return;
+        }
+        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = shardAllocationConfigs(state, indexMetadata);
+        if (shardConfigs == null) {
+            // routing not yet recovered on this node — keep pending watches around for the next reload
+            return;
+        }
+        final int numShards = indexMetadata.getNumberOfShards();
+        synchronized (pendingWatches) {
+            for (Watch pendingWatch : pendingWatches.values()) {
+                final ShardAllocationConfiguration shardConfig = ShardAllocationConfiguration.findShardConfig(
+                    shardConfigs,
+                    pendingWatch.id(),
+                    numShards
+                );
+                if (shardConfig == null || shardConfig.hostsWatch(pendingWatch.id()) == false) {
+                    continue;
+                }
+                if (pendingWatch.status().state().isActive()) {
+                    /// We ignore the return value deliberately. If the engine pauses during this operation,
+                    /// the [#loadWatches(ClusterState)] will bring them back
+                    triggerService.add(pendingWatch);
+                }
+            }
+            pendingWatches.clear();
+        }
+    }
+
+    /// Atomically tries to schedule an active watch on the trigger engine and, only if the engine refused (it is
+    /// paused between `pauseExecution` and `start`), retains the watch in the pending-watches map so the next reload
+    /// picks it up. When the engine accepts the watch immediately, no pending entry is needed — the next reload will
+    /// reload it from the index search anyway. Both branches happen under the same lock in [WatcherService], so a
+    /// concurrent [#onWatchRemoved] cannot interleave between the engine call and the pending update and leave the
+    /// two views inconsistent.
+    @Override
+    public void onWatchAdded(Watch watch) {
+        synchronized (pendingWatches) {
+            if (triggerService.add(watch) == false) {
+                pendingWatches.put(watch.id(), watch);
+            }
+        }
+    }
+
+    /// Atomically removes a watch from the pending-watches map and the trigger engine under the same lock as
+    /// [#onWatchAdded]. This prevents a concurrent `postIndex` from resurrecting a deleted watch by sneaking an add
+    /// in between the two halves of the removal.
+    @Override
+    public void onWatchRemoved(String watchId) {
+        synchronized (pendingWatches) {
+            pendingWatches.remove(watchId);
+            triggerService.remove(watchId);
+        }
+    }
+
+    // visible for testing
+    Map<String, Watch> pendingWatches() {
+        return Collections.unmodifiableMap(pendingWatches);
+    }
+
+    // Non private for unit testing purposes
+    void refreshWatches(IndexMetadata indexMetadata) {
+        BroadcastResponse refreshResponse = client.admin()
+            .indices()
+            .refresh(new RefreshRequest(INDEX))
+            .actionGet(TimeValue.timeValueSeconds(5));
+        if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
+            throw illegalState("not all required shards have been refreshed");
+        }
     }
 
     /**
@@ -446,4 +488,5 @@ public class WatcherService {
             }
         };
     }
+
 }

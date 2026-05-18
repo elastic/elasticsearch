@@ -7,30 +7,32 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request;
 
-public class UpgradeJobModelSnapshotRequestTests extends AbstractSerializingTestCase<Request> {
+public class UpgradeJobModelSnapshotRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : randomTimeValue(),
-            randomBoolean() ? null : randomBoolean()
-        );
+        return randomBoolean()
+            ? new Request(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean() ? null : randomTimeValue(), randomBoolean())
+            : new Request(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomTimeValue().getStringRep(),
+                randomBoolean() ? null : randomBoolean()
+            );
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override

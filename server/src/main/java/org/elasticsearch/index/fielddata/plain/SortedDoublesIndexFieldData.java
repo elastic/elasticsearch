@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.plain;
@@ -15,23 +16,21 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.apache.lucene.util.Accountable;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -43,31 +42,49 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final NumericType numericType;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ValuesSourceType valuesSourceType;
+        protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
+        private final IndexType indexType;
 
-        public Builder(String name, NumericType numericType, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
+            IndexType indexType
+        ) {
             this.name = name;
             this.numericType = numericType;
-            this.toScriptField = toScriptField;
+            this.valuesSourceType = valuesSourceType;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+            this.indexType = indexType;
         }
 
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, toScriptField);
+            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
         }
     }
 
     private final NumericType numericType;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+    protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
+    protected final IndexType indexType;
 
-    public SortedDoublesIndexFieldData(String fieldName, NumericType numericType, ToScriptField<SortedNumericDoubleValues> toScriptField) {
+    public SortedDoublesIndexFieldData(
+        String fieldName,
+        NumericType numericType,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
+        IndexType indexType
+    ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
-        this.valuesSourceType = numericType.getValuesSourceType();
-        this.toScriptField = toScriptField;
+        this.valuesSourceType = valuesSourceType;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexType = indexType;
     }
 
     @Override
@@ -86,12 +103,17 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
+    public IndexType indexType() {
+        return indexType;
+    }
+
+    @Override
     public NumericType getNumericType() {
         return numericType;
     }
 
     @Override
-    public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafNumericFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 
@@ -101,9 +123,9 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final String field = fieldName;
 
         return switch (numericType) {
-            case HALF_FLOAT -> new SortedNumericHalfFloatFieldData(reader, field, toScriptField);
-            case FLOAT -> new SortedNumericFloatFieldData(reader, field, toScriptField);
-            default -> new SortedNumericDoubleFieldData(reader, field, toScriptField);
+            case HALF_FLOAT -> new SortedNumericHalfFloatFieldData(reader, field, toScriptFieldFactory);
+            case FLOAT -> new SortedNumericFloatFieldData(reader, field, toScriptFieldFactory);
+            default -> new SortedNumericDoubleFieldData(reader, field, toScriptFieldFactory);
         };
     }
 
@@ -117,19 +139,22 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericHalfFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
-        SortedNumericHalfFloatFieldData(LeafReader reader, String field, ToScriptField<SortedNumericDoubleValues> toScriptField) {
-            super(0L);
+        SortedNumericHalfFloatFieldData(
+            LeafReader reader,
+            String field,
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
+        ) {
             this.reader = reader;
             this.field = field;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -149,20 +174,15 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getDoubleValues(), name);
         }
     }
 
     /**
      * Wraps a NumericDocValues and exposes a single 16-bit float per document.
      */
-    static final class SingleHalfFloatValues extends NumericDoubleValues {
+    static final class SingleHalfFloatValues extends DoubleValues {
         final NumericDocValues in;
 
         SingleHalfFloatValues(NumericDocValues in) {
@@ -187,6 +207,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final SortedNumericDocValues in;
 
         MultiHalfFloatValues(SortedNumericDocValues in) {
+            super(in);
             this.in = in;
         }
 
@@ -216,19 +237,18 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
-        SortedNumericFloatFieldData(LeafReader reader, String field, ToScriptField<SortedNumericDoubleValues> toScriptField) {
-            super(0L);
+        SortedNumericFloatFieldData(LeafReader reader, String field, ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory) {
             this.reader = reader;
             this.field = field;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -248,20 +268,15 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getDoubleValues(), name);
         }
     }
 
     /**
      * Wraps a NumericDocValues and exposes a single 32-bit float per document.
      */
-    static final class SingleFloatValues extends NumericDoubleValues {
+    static final class SingleFloatValues extends DoubleValues {
         final NumericDocValues in;
 
         SingleFloatValues(NumericDocValues in) {
@@ -286,6 +301,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final SortedNumericDocValues in;
 
         MultiFloatValues(SortedNumericDocValues in) {
+            super(in);
             this.in = in;
         }
 
@@ -315,39 +331,37 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
      * <p>
      * Although the API is multi-valued, most codecs in Lucene specialize
      * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
+     * {@link SortedNumericDoubleValues#unwrapSingleton(SortedNumericDoubleValues)}
+     * will return the underlying single-valued NumericDoubleValues representation.
      */
     static final class SortedNumericDoubleFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
-        SortedNumericDoubleFieldData(LeafReader reader, String field, ToScriptField<SortedNumericDoubleValues> toScriptField) {
-            super(0L);
+        SortedNumericDoubleFieldData(
+            LeafReader reader,
+            String field,
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
+        ) {
             this.reader = reader;
             this.field = field;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             try {
                 SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-                return FieldData.sortableLongBitsToDoubles(raw);
+                return SortedNumericDoubleValues.wrap(raw);
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getDoubleValues(), name);
         }
     }
 }

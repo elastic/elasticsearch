@@ -9,23 +9,31 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -45,14 +53,13 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public final class JobModelSnapshotUpgrader {
@@ -102,7 +109,10 @@ public final class JobModelSnapshotUpgrader {
     }
 
     synchronized void start() {
-        task.setJobModelSnapshotUpgrader(this);
+        if (task.setJobModelSnapshotUpgrader(this) == false) {
+            this.killProcess(task.getReasonCancelled());
+            return;
+        }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
@@ -117,10 +127,7 @@ public final class JobModelSnapshotUpgrader {
                 try {
                     nativeStorageProvider.cleanupLocalTmpStorage(task.getDescription());
                 } catch (IOException e) {
-                    logger.error(
-                        new ParameterizedMessage("[{}] [{}] failed to delete temporary files snapshot upgrade", jobId, snapshotId),
-                        e
-                    );
+                    logger.error(() -> format("[%s] [%s] failed to delete temporary files snapshot upgrade", jobId, snapshotId), e);
                 }
             }
         );
@@ -153,10 +160,65 @@ public final class JobModelSnapshotUpgrader {
         executor.execute();
     }
 
+    private void removeDuplicateModelSnapshotDoc(Consumer<Exception> runAfter) {
+        String snapshotDocId = jobId + "_model_snapshot_" + snapshotId;
+        client.prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPattern())
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(snapshotDocId)))
+            .setSize(2)
+            .addSort(ModelSnapshot.MIN_VERSION.getPreferredName(), org.elasticsearch.search.sort.SortOrder.ASC)
+            .execute(ActionListener.wrap(searchResponse -> {
+                if (searchResponse.getHits().getTotalHits().value() > 1) {
+                    deleteOlderSnapshotDoc(searchResponse, runAfter);
+                } else {
+                    onFinish.accept(null);
+                }
+            }, e -> {
+                logger.warn(() -> format("[%s] [%s] error during search for model snapshot documents", jobId, snapshotId), e);
+                onFinish.accept(null);
+            }));
+    }
+
+    private void deleteOlderSnapshotDoc(SearchResponse searchResponse, Consumer<Exception> runAfter) {
+        SearchHit firstHit = searchResponse.getHits().getAt(0);
+        logger.debug(() -> format("[%s] deleting duplicate model snapshot doc [%s]", jobId, firstHit.getId()));
+        client.prepareDelete()
+            .setIndex(firstHit.getIndex())
+            .setId(firstHit.getId())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(ActionListener.runAfter(ActionListener.wrap(deleteResponse -> {
+                if ((deleteResponse.getResult() == DocWriteResponse.Result.DELETED) == false) {
+                    logger.warn(
+                        () -> format(
+                            "[%s] [%s] failed to delete old snapshot [%s] result document, document not found",
+                            jobId,
+                            snapshotId,
+                            ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
+                        )
+                    );
+                }
+            }, e -> {
+                logger.warn(() -> {
+                    String baseMessage = format(
+                        "[%s] [%s] failed to delete old snapshot [%s] result document",
+                        jobId,
+                        snapshotId,
+                        ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
+                    );
+                    if (e instanceof org.elasticsearch.cluster.block.ClusterBlockException) {
+                        return baseMessage
+                            + ". Remove the write block from the results index to delete the model snapshot. See "
+                            + ReferenceDocs.DELETE_INDEX_BLOCK
+                            + " for details.";
+                    }
+                    return baseMessage;
+                }, e);
+            }), () -> runAfter.accept(null)));
+    }
+
     void setTaskToFailed(String reason, ActionListener<PersistentTask<?>> listener) {
         SnapshotUpgradeTaskState taskState = new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, task.getAllocationId(), reason);
         task.updatePersistentTaskState(taskState, ActionListener.wrap(listener::onResponse, f -> {
-            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to set task to failed", task.getJobId(), task.getSnapshotId()), f);
+            logger.warn(() -> format("[%s] [%s] failed to set task to failed", task.getJobId(), task.getSnapshotId()), f);
             listener.onFailure(f);
         }));
     }
@@ -172,7 +234,7 @@ public final class JobModelSnapshotUpgrader {
                 process = null;
                 processor = null;
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] failed to kill upgrade process for model snapshot [{}]", jobId, snapshotId), e);
+                logger.error(() -> format("[%s] failed to kill upgrade process for model snapshot [%s]", jobId, snapshotId), e);
             }
         } else {
             logger.warn("[{}] attempt to kill upgrade process for model snapshot [{}] when no such process exists", jobId, snapshotId);
@@ -213,7 +275,7 @@ public final class JobModelSnapshotUpgrader {
                 }
             }
             // field for categorization tokens
-            if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA && job.getAnalysisConfig().getCategorizationFieldName() != null) {
+            if (job.getAnalysisConfig().getCategorizationFieldName() != null) {
                 fieldIndexes.put(LengthEncodedWriter.PRETOKENISED_TOKEN_FIELD, index++);
             }
 
@@ -235,7 +297,7 @@ public final class JobModelSnapshotUpgrader {
         }
 
         FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] waiting for flush [{}]", jobId, snapshotId, flushId));
+            logger.debug(() -> format("[%s] [%s] waiting for flush [%s]", jobId, snapshotId, flushId));
 
             FlushAcknowledgement flushAcknowledgement;
             try {
@@ -248,7 +310,7 @@ public final class JobModelSnapshotUpgrader {
             } finally {
                 processor.clearAwaitingFlush(flushId);
             }
-            logger.debug(() -> new ParameterizedMessage("[{}] [{}] flush completed [{}]", jobId, snapshotId, flushId));
+            logger.debug(() -> format("[%s] [%s] flush completed [%s]", jobId, snapshotId, flushId));
             return flushAcknowledgement;
         }
 
@@ -256,10 +318,10 @@ public final class JobModelSnapshotUpgrader {
             try {
                 process.restoreState(stateStreamer, params.modelSnapshot());
             } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("[{}] [{}] failed to write old state", jobId, snapshotId), e);
+                logger.error(() -> format("[%s] [%s] failed to write old state", jobId, snapshotId), e);
                 setTaskToFailed(
                     "Failed to write old state due to: " + e.getMessage(),
-                    ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
+                    ActionListener.running(() -> shutdownWithFailure(e))
                 );
                 return;
             }
@@ -270,15 +332,15 @@ public final class JobModelSnapshotUpgrader {
             }, (flushAcknowledgement, e) -> {
                 Runnable nextStep;
                 if (e != null) {
-                    logger.error(() -> new ParameterizedMessage("[{}] [{}] failed to flush after writing old state", jobId, snapshotId), e);
+                    logger.error(() -> format("[%s] [%s] failed to flush after writing old state", jobId, snapshotId), e);
                     nextStep = () -> setTaskToFailed(
                         "Failed to flush after writing old state due to: " + e.getMessage(),
-                        ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
+                        ActionListener.running(() -> shutdownWithFailure(e))
                     );
                 } else {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "[{}] [{}] flush [{}] acknowledged requesting state write",
+                        () -> format(
+                            "[%s] [%s] flush [%s] acknowledged requesting state write",
                             jobId,
                             snapshotId,
                             flushAcknowledgement.getId()
@@ -295,7 +357,7 @@ public final class JobModelSnapshotUpgrader {
                 new SnapshotUpgradeTaskState(SnapshotUpgradeState.SAVING_NEW_STATE, task.getAllocationId(), ""),
                 ActionListener.wrap(readingNewState -> {
                     if (continueRunning.get() == false) {
-                        shutdown(null);
+                        shutdownWithFailure(null);
                         return;
                     }
                     submitOperation(() -> {
@@ -310,15 +372,12 @@ public final class JobModelSnapshotUpgrader {
                         // Execute callback in the UTILITY thread pool, as the current thread in the callback will be one in the
                         // autodetectWorkerExecutor. Trying to run the callback in that executor will cause a dead lock as that
                         // executor has a single processing queue.
-                        (aVoid, e) -> threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> shutdown(e))
+                        (aVoid, e) -> threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> handlePersistingState(e))
                     );
                     logger.debug("[{}] [{}] asked for state to be persisted", jobId, snapshotId);
                 }, f -> {
-                    logger.error(
-                        () -> new ParameterizedMessage("[{}] [{}] failed to update snapshot upgrader task to started", jobId, snapshotId),
-                        f
-                    );
-                    shutdown(
+                    logger.error(() -> format("[%s] [%s] failed to update snapshot upgrader task to started", jobId, snapshotId), f);
+                    shutdownWithFailure(
                         new ElasticsearchStatusException(
                             "Failed to start snapshot upgrade [{}] for job [{}]",
                             RestStatus.INTERNAL_SERVER_ERROR,
@@ -344,7 +403,7 @@ public final class JobModelSnapshotUpgrader {
                             )
                         );
                     } else {
-                        logger.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                        logger.error(() -> "[" + job.getId() + "] Unexpected exception writing to process", e);
                         handler.accept(null, e);
                     }
                 }
@@ -381,17 +440,45 @@ public final class JobModelSnapshotUpgrader {
             }
         }
 
-        void shutdown(Exception e) {
+        private void handlePersistingState(@Nullable Exception exception) {
+            assert Thread.currentThread().getName().contains(UTILITY_THREAD_POOL_NAME);
+
+            if (exception != null) {
+                shutdownWithFailure(exception);
+            } else {
+                stopProcess((aVoid, e) -> {
+                    threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        autodetectWorkerExecutor.shutdownNow();
+                        // If there are two snapshot documents in the results indices with the same snapshot id,
+                        // remove the old one. This can happen when the result index has been rolled over and
+                        // the write alias is pointing to the new index.
+                        removeDuplicateModelSnapshotDoc(onFinish);
+                    });
+
+                });
+            }
+        }
+
+        void shutdownWithFailure(Exception e) {
+            stopProcess((aVoid, ignored) -> {
+                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+                    onFinish.accept(e);
+                    autodetectWorkerExecutor.shutdownNow();
+                });
+            });
+        }
+
+        private void stopProcess(BiConsumer<Class<Void>, Exception> runNext) {
             logger.debug("[{}] [{}] shutdown initiated", jobId, snapshotId);
             // No point in sending an action to the executor if the process has died
             if (process.isProcessAlive() == false) {
                 logger.debug("[{}] [{}] process is dead, no need to shutdown", jobId, snapshotId);
-                onFinish.accept(e);
-                autodetectWorkerExecutor.shutdown();
                 stateStreamer.cancel();
+                runNext.accept(null, null);
                 return;
             }
-            Future<?> future = autodetectWorkerExecutor.submit(() -> {
+
+            submitOperation(() -> {
                 try {
                     logger.debug("[{}] [{}] shutdown is now occurring", jobId, snapshotId);
                     if (process.isReady()) {
@@ -403,25 +490,11 @@ public final class JobModelSnapshotUpgrader {
                     }
                     processor.awaitCompletion();
                 } catch (IOException | TimeoutException exc) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to shutdown process", jobId, snapshotId), exc);
-                } finally {
-                    onFinish.accept(e);
+                    logger.warn(() -> format("[%s] [%s] failed to shutdown process", jobId, snapshotId), exc);
                 }
                 logger.debug("[{}] [{}] connection for upgrade has been closed, process is shutdown", jobId, snapshotId);
-            });
-            try {
-                future.get();
-                autodetectWorkerExecutor.shutdown();
-            } catch (InterruptedException interrupt) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException executionException) {
-                if (processor.isProcessKilled()) {
-                    // In this case the original exception is spurious and highly misleading
-                    throw ExceptionsHelper.conflictStatusException("close snapshot upgrade interrupted by kill request");
-                } else {
-                    throw FutureUtils.rethrowExecutionException(executionException);
-                }
-            }
+                return Void.TYPE;
+            }, runNext);
         }
     }
 }

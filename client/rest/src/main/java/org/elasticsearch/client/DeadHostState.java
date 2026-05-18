@@ -92,7 +92,7 @@ final class DeadHostState implements Comparable<DeadHostState> {
     public int compareTo(DeadHostState other) {
         if (timeSupplier != other.timeSupplier) {
             throw new IllegalArgumentException(
-                "can't compare DeadHostStates holding different time suppliers as they may " + "be based on different clocks"
+                "can't compare DeadHostStates holding different time suppliers as they may be based on different clocks"
             );
         }
         return Long.compare(deadUntilNanos, other.deadUntilNanos);

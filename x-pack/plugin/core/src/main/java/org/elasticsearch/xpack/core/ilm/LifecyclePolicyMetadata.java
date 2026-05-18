@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -25,10 +24,7 @@ import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.Objects;
 
-public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMetadata>
-    implements
-        ToXContentObject,
-        Diffable<LifecyclePolicyMetadata> {
+public class LifecyclePolicyMetadata implements SimpleDiffable<LifecyclePolicyMetadata>, ToXContentObject {
 
     static final ParseField POLICY = new ParseField("policy");
     static final ParseField HEADERS = new ParseField("headers");

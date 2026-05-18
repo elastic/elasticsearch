@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -16,6 +17,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.List;
 
 public class LineTests extends BaseGeometryTestCase<Line> {
     @Override
@@ -79,5 +81,29 @@ public class LineTests extends BaseGeometryTestCase<Line> {
             () -> WellKnownText.fromWKT(GeographyValidator.instance(false), randomBoolean(), "linestring (3 1 6, 4 2 5)")
         );
         assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+    }
+
+    public void testParseLineZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+
+        Line expectedZ = new Line(new double[] { 20.0, 30.0 }, new double[] { 10.0, 15.0 }, new double[] { 100.0, 200.0 });
+        assertEquals(expectedZ, WellKnownText.fromWKT(validator, true, "LINESTRING Z (20.0 10.0 100.0, 30.0 15.0 200.0)"));
+
+        Line expectedM = new Line(new double[] { 20.0, 30.0 }, new double[] { 10.0, 15.0 }, new double[] { 100.0, 200.0 });
+        assertEquals(expectedM, WellKnownText.fromWKT(validator, true, "LINESTRING M (20.0 10.0 100.0, 30.0 15.0 200.0)"));
+    }
+
+    public void testParseLineZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> linesWkt = List.of("LINESTRING Z (20.0 10.0, 30.0 15.0)", "LINESTRING M (20.0 10.0, 30.0 15.0)");
+        for (String line : linesWkt) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, line));
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
+    }
+
+    @Override
+    protected Line mutateInstance(Line instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

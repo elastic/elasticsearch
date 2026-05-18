@@ -16,14 +16,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.tasks.Task;
@@ -48,6 +48,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
@@ -70,6 +71,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
     ).map(ParseField::getPreferredName).toArray(String[]::new);
 
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransformUsageTransportAction(
@@ -77,43 +79,39 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
-        super(
-            XPackUsageFeatureAction.TRANSFORM.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.TRANSFORM.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState clusterState,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(clusterState);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(
+            projectResolver.getProjectMetadata(clusterState)
+        );
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {
             TransformState transformState = (TransformState) transformTask.getState();
-            TransformTaskState taskState = transformState.getTaskState();
-            if (taskState != null) {
-                transformsCountByState.merge(taskState.value(), 1L, Long::sum);
-            }
+            Optional.ofNullable(transformState)
+                .map(TransformState::getTaskState)
+                .map(TransformTaskState::value)
+                .ifPresent(value -> transformsCountByState.merge(value, 1L, Long::sum));
         }
         final SetOnce<Map<String, Long>> transformsCountByFeature = new SetOnce<>();
 
-        ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(statSummations -> {
+        ActionListener<TransformIndexerStats> totalStatsListener = listener.delegateFailureAndWrap((l, statSummations) -> {
             var usage = new TransformFeatureSetUsage(transformsCountByState, transformsCountByFeature.get(), statSummations);
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }, listener::onFailure);
+            l.onResponse(new XPackUsageFeatureResponse(usage));
+        });
 
         ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(transformCountSuccess -> {
             if (transformCountSuccess.getShardFailures().length > 0) {
@@ -122,7 +120,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
                     Arrays.toString(transformCountSuccess.getShardFailures())
                 );
             }
-            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
+            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value();
             if (totalTransforms == 0) {
                 var usage = new TransformFeatureSetUsage(transformsCountByState, Collections.emptyMap(), new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -179,7 +177,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
      * @param aggs aggs returned by the search
      * @return feature usage map
      */
-    private static Map<String, Long> getFeatureCounts(Aggregations aggs) {
+    private static Map<String, Long> getFeatureCounts(InternalAggregations aggs) {
         Filters filters = aggs.get(FEATURE_COUNTS);
         return filters.getBuckets().stream().collect(toMap(Filters.Bucket::getKeyAsString, Filters.Bucket::getDocCount));
     }

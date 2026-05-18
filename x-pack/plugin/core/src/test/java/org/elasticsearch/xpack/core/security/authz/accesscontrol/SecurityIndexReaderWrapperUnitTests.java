@@ -14,9 +14,11 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -30,14 +32,16 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -85,16 +89,26 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         esIn.close();
     }
 
-    public void testDefaultMetaFields() throws Exception {
-        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
+    public void testDefaultMetaFields() {
+        var searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
+
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
+            id -> searchExecutionContext,
+            null,
+            securityContext,
+            licenseState,
+            scriptService
+        ) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-                    true,
                     new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
-                    DocumentPermissions.allowAll()
+                    DocumentPermissions.allowAll(),
+                    false
                 );
-                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
             }
         };
 
@@ -116,14 +130,52 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
 
-    public void testWrapReaderWhenFeatureDisabled() throws Exception {
+    public void testWrapReaderWhenFeatureDisabled() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
-        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+                    new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
+                    DocumentPermissions.allowAll(),
+                    false
+                );
+                return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
+            }
+        };
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
-    public void testWildcards() throws Exception {
+    public void testWrapReaderWhenFeatureDisabledButDlsFlsIsImplicit() {
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
+        var searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(ESTestCase.defaultIndexSettings());
+
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
+            id -> searchExecutionContext,
+            null,
+            securityContext,
+            licenseState,
+            scriptService
+        ) {
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+                    new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
+                    DocumentPermissions.allowAll(),
+                    true
+                );
+                return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
+            }
+        };
+        DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
+        assertThat(reader, not(sameInstance(esIn)));
+        assertThat(reader, instanceOf(FieldSubsetReader.FieldSubsetDirectoryReader.class));
+    }
+
+    public void testWildcards() {
         Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add("field1_a");
         expected.add("field1_b");
@@ -131,7 +183,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] { "field1*" }, null)), expected, "field", "field2");
     }
 
-    public void testDotNotion() throws Exception {
+    public void testDotNotion() {
         Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add("foo.bar");
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] { "foo.bar" }, null)), expected, "foo", "foo.baz", "bar.foo");
@@ -150,7 +202,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         }
     }
 
-    public void testFieldPermissionsWithFieldExceptions() throws Exception {
+    public void testFieldPermissionsWithFieldExceptions() {
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null);
         String[] grantedFields = new String[] {};
         String[] deniedFields;
@@ -167,7 +219,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         deniedFields = META_FIELDS.toArray(new String[0]);
         assertResolved(
             new FieldPermissions(fieldPermissionDef(null, deniedFields)),
-            new HashSet<>(Arrays.asList("foo", "bar", "_some_plugin_meta_field"))
+            new HashSet<>(List.of("foo", "bar", "_some_plugin_meta_field"))
         );
 
         // check we can add all fields with *

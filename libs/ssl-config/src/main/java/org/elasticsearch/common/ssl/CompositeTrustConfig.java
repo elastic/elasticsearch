@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -42,6 +43,11 @@ public class CompositeTrustConfig implements SslTrustConfig {
     }
 
     @Override
+    public boolean hasExplicitConfig() {
+        return configs.stream().allMatch(SslTrustConfig::hasExplicitConfig);
+    }
+
+    @Override
     public X509ExtendedTrustManager createTrustManager() {
         try {
             Collection<Certificate> trustedIssuers = configs.stream()
@@ -63,10 +69,7 @@ public class CompositeTrustConfig implements SslTrustConfig {
 
     @Override
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
-        return configs.stream()
-            .map(SslTrustConfig::getConfiguredCertificates)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toUnmodifiableList());
+        return configs.stream().map(SslTrustConfig::getConfiguredCertificates).flatMap(Collection::stream).toList();
     }
 
     @Override

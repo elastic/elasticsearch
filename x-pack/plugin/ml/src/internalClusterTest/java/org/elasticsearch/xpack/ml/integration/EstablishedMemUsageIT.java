@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
     private final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
@@ -56,11 +58,14 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
@@ -82,7 +87,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         initClusterAndJob(jobId);
 
         createBuckets(jobId, 25);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
     }
@@ -93,7 +98,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         initClusterAndJob(jobId);
 
         createBuckets(jobId, 5);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
     }
@@ -106,7 +111,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 19);
         createModelSizeStats(jobId, 1, 19000L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
         assertThat(queryEstablishedMemoryUsage(jobId, 19, latestModelSizeStats), equalTo(0L));
@@ -120,7 +125,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 20);
         createModelSizeStats(jobId, 1, 19000L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
         assertThat(queryEstablishedMemoryUsage(jobId, 20, latestModelSizeStats), equalTo(20000L));
@@ -134,7 +139,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 20);
         createModelSizeStats(jobId, 1, 0L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 0L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
         assertThat(queryEstablishedMemoryUsage(jobId, 20, latestModelSizeStats), equalTo(0L));
@@ -148,7 +153,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 20);
         createModelSizeStats(jobId, 1, 1000L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
         assertThat(queryEstablishedMemoryUsage(jobId, 20, latestModelSizeStats), equalTo(0L));
@@ -162,7 +167,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 25);
         createModelSizeStats(jobId, 1, 10000L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 2, 20000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
         assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(20000L));
@@ -176,7 +181,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createBuckets(jobId, 25);
         createModelSizeStats(jobId, 1, 10000L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
         assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(20000L));
@@ -189,7 +194,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         createBuckets(jobId, 25);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 0L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
         assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(0L));
@@ -202,7 +207,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         createBuckets(jobId, 25);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 10, 20000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
         assertThat(queryEstablishedMemoryUsage(jobId, 25, latestModelSizeStats), equalTo(20000L));
@@ -220,7 +225,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createModelSizeStats(jobId, 19, 9000L);
         createModelSizeStats(jobId, 30, 19000L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 35, 20000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(20000L));
         assertThat(queryEstablishedMemoryUsage(jobId, 40, latestModelSizeStats), equalTo(20000L));
@@ -238,7 +243,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         createModelSizeStats(jobId, 27, 39000L);
         createModelSizeStats(jobId, 30, 67000L);
         ModelSizeStats latestModelSizeStats = createModelSizeStats(jobId, 35, 95000L);
-        jobResultsPersister.commitResultWrites(jobId);
+        jobResultsPersister.commitWrites(jobId, JobResultsPersister.CommitType.RESULTS);
 
         assertThat(queryEstablishedMemoryUsage(jobId), equalTo(0L));
         assertThat(queryEstablishedMemoryUsage(jobId, 40, latestModelSizeStats), equalTo(0L));

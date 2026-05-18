@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: node-level cache statistics added in 7.13.0
 
   - do:
@@ -17,15 +17,15 @@ setup:
         body:
           - index:
               _index: docs
-              _id:    1
+              _id:    "1"
           - field: foo
           - index:
               _index: docs
-              _id:    2
+              _id:    "2"
           - field: bar
           - index:
               _index: docs
-              _id:    3
+              _id:    "3"
           - field: baz
 
   - do:

@@ -1,25 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDocValues.Supplier<Boolean> {
+public class BooleanDocValuesField extends AbstractScriptFieldFactory<Boolean>
+    implements
+        Field<Boolean>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<Boolean> {
 
-    private final SortedNumericDocValues input;
+    private final SortedNumericLongValues input;
     private final String name;
 
     private boolean[] values = new boolean[0];
@@ -29,7 +34,7 @@ public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDoc
     // as a delegate to this field class
     private ScriptDocValues.Booleans booleans = null;
 
-    public BooleanDocValuesField(SortedNumericDocValues input, String name) {
+    public BooleanDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }
@@ -39,7 +44,7 @@ public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDoc
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = input.nextValue() == 1;
+                values[i] = input.nextValue() == 1L;
             }
         } else {
             resize(0);
@@ -56,7 +61,7 @@ public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDoc
     }
 
     @Override
-    public ScriptDocValues<Boolean> getScriptDocValues() {
+    public ScriptDocValues<Boolean> toScriptDocValues() {
         if (booleans == null) {
             booleans = new ScriptDocValues.Booleans(this);
         }

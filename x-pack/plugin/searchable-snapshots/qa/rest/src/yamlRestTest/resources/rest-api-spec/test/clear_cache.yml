@@ -14,15 +14,15 @@ setup:
         body:
           - index:
               _index: docs
-              _id:    1
+              _id:    "1"
           - field: doc
           - index:
               _index: docs
-              _id:    2
+              _id:    "2"
           - field: doc
           - index:
               _index: docs
-              _id:    3
+              _id:    "3"
           - field: other
 
   - do:
@@ -53,8 +53,8 @@ setup:
 
 ---
 "Clear searchable snapshots cache":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason:  searchable snapshots introduced in 7.8.0
 
   - do:

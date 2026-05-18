@@ -1,5 +1,0 @@
-pr: 81476
-summary: "Script: fields API for x-pack version, doc version, seq no, mumur3"
-area: Infra/Scripting
-type: enhancement
-issues: []

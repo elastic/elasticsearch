@@ -6,13 +6,12 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.session.RowView;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,90 +24,108 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * Extracts rows from an array of {@link SearchHit}.
  */
 class SearchHitRowSet extends ResultRowSet<HitExtractor> {
-    private final SearchHit[] hits;
+    private final SearchHits hits;
     private final Map<SearchHit, Map<String, SearchHit[]>> flatInnerHits = new HashMap<>();
-    private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
 
     private final int size;
     private final int[] indexPerLevel;
-    private final Tuple<String, Integer> nextScrollData;
+    private final int remainingLimit;
+
+    private final AtomicBoolean hitsReleased = new AtomicBoolean(false);
 
     private int row = 0;
 
-    SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int limit, SearchResponse response) {
+    SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int sizeRequested, int limit, SearchResponse response) {
         super(exts, mask);
 
-        this.hits = response.getHits().getHits();
+        this.hits = response.getHits();
+        this.hits.mustIncRef();
+        try {
+            // Since the results might contain nested docs, the iteration is similar to that of Aggregation
+            // namely it discovers the nested docs and then, for iteration, increments the deepest level first
+            // and eventually carries that over to the top level
 
-        // Since the results might contain nested docs, the iteration is similar to that of Aggregation
-        // namely it discovers the nested docs and then, for iteration, increments the deepest level first
-        // and eventually carries that over to the top level
-
-        String innerHit = null;
-        for (HitExtractor ex : exts) {
-            if (ex.hitName() != null) {
-                innerHits.add(ex.hitName());
-                if (innerHit == null) {
-                    innerHit = ex.hitName();
+            String innerHit = null;
+            Set<String> innerHits = new LinkedHashSet<>();
+            for (HitExtractor ex : exts) {
+                if (ex.hitName() != null) {
+                    innerHits.add(ex.hitName());
+                    if (innerHit == null) {
+                        innerHit = ex.hitName();
+                    }
                 }
             }
-        }
 
-        int sz = hits.length;
+            int sz = hits.getHits().length;
 
-        int maxDepth = 0;
-        if (innerHits.isEmpty() == false) {
-            if (innerHits.size() > 1) {
-                throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
-            }
-            maxDepth = 1;
-
-            sz = 0;
-            for (SearchHit hit : hits) {
-                Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
-                for (String ih : innerHits) {
-                    SearchHit[] sh = getAllInnerHits(hit, ih);
-                    innerHitsPerPath.put(ih, sh);
-                    sz += sh.length;
+            int maxDepth = 0;
+            if (innerHits.isEmpty() == false) {
+                if (innerHits.size() > 1) {
+                    throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
                 }
-                flatInnerHits.put(hit, innerHitsPerPath);
+                maxDepth = 1;
+
+                sz = 0;
+                for (SearchHit hit : hits) {
+                    Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
+                    for (String ih : innerHits) {
+                        SearchHit[] sh = getAllInnerHits(hit, ih);
+                        innerHitsPerPath.put(ih, sh);
+                        sz += sh.length;
+                    }
+                    flatInnerHits.put(hit, innerHitsPerPath);
+                }
             }
-        }
-        // page size
-        size = limit < 0 ? sz : Math.min(sz, limit);
-        indexPerLevel = new int[maxDepth + 1];
-        this.innerHit = innerHit;
-
-        String scrollId = response.getScrollId();
-
-        if (scrollId == null) {
-            /* SearchResponse can contain a null scroll when you start a
-             * scroll but all results fit in the first page. */
-            nextScrollData = null;
-        } else {
-            TotalHits totalHits = response.getHits().getTotalHits();
+            // page size
+            size = limit < 0 ? sz : Math.min(sz, limit);
+            indexPerLevel = new int[maxDepth + 1];
+            this.innerHit = innerHit;
 
             // compute remaining limit (only if the limit is specified - that is, positive).
-            int remainingLimit = limit < 0 ? limit : limit - size;
-            // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
-            if (size == 0 || remainingLimit == 0
-            // or the scroll has ended
-                || totalHits != null && totalHits.value == hits.length) {
-                nextScrollData = null;
+            int remaining = limit < 0 ? limit : limit - size;
+            // either the search returned fewer records than requested or the limit is exhausted
+            if (size < sizeRequested || remaining == 0) {
+                remainingLimit = 0;
             } else {
-                nextScrollData = new Tuple<>(scrollId, remainingLimit);
+                remainingLimit = remaining;
             }
+        } catch (Throwable t) {
+            this.hits.decRef();
+            throw t;
         }
     }
 
-    protected boolean isLimitReached() {
-        return nextScrollData == null;
+    void releaseSearchHits() {
+        if (hitsReleased.compareAndSet(false, true)) {
+            hits.decRef();
+        }
+    }
+
+    @Override
+    public void forEachRow(Consumer<? super RowView> action) {
+        try {
+            for (boolean hasRows = hasCurrentRow(); hasRows; hasRows = advanceRow()) {
+                action.accept(this);
+            }
+        } finally {
+            releaseSearchHits();
+        }
+    }
+
+    public boolean hasRemaining() {
+        return remainingLimit != 0;
+    }
+
+    public int getRemainingLimit() {
+        return remainingLimit;
     }
 
     @Override
@@ -116,7 +133,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         int extractorLevel = e.hitName() == null ? 0 : 1;
 
         SearchHit hit = null;
-        SearchHit[] sh = hits;
+        SearchHit[] sh = hits.getHits();
         for (int lvl = 0; lvl <= extractorLevel; lvl++) {
             // TODO: add support for multi-nested doc
             if (hit != null) {
@@ -182,7 +199,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
             // increment last row
             indexPerLevel[indexPerLevel.length - 1]++;
             // then check size
-            SearchHit[] sh = hits;
+            SearchHit[] sh = hits.getHits();
             for (int lvl = 0; lvl < indexPerLevel.length; lvl++) {
                 if (indexPerLevel[lvl] == sh.length) {
                     // reset the current branch
@@ -191,7 +208,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                     indexPerLevel[lvl - 1]++;
                     // restart the loop
                     lvl = 0;
-                    sh = hits;
+                    sh = hits.getHits();
                 } else {
                     SearchHit h = sh[indexPerLevel[lvl]];
                     // TODO: improve this for multi-nested responses
@@ -217,9 +234,5 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     @Override
     public int size() {
         return size;
-    }
-
-    Tuple<String, Integer> nextScrollData() {
-        return nextScrollData;
     }
 }

@@ -1,23 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene90.Lucene90PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene912.Lucene912PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene99.Lucene99PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -48,13 +54,15 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -119,6 +127,14 @@ final class IndexDiskUsageAnalyzer {
                 startTimeInNanos = System.nanoTime();
                 analyzeTermVectors(reader, stats);
                 executionTime.termVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
+
+                startTimeInNanos = System.nanoTime();
+                analyzeKnnVectors(reader, stats);
+                executionTime.knnVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
+
+                startTimeInNanos = System.nanoTime();
+                analyzeBloomFilter(reader, stats);
+                executionTime.bloomFilterTimeInNanos += System.nanoTime() - startTimeInNanos;
             }
         }
         logger.debug("analyzing the disk usage took {} stats: {}", executionTime, stats);
@@ -132,7 +148,7 @@ final class IndexDiskUsageAnalyzer {
         final int skipMask = 0x1FF; // 511
         while (docID < reader.maxDoc()) {
             cancellationChecker.logEvent();
-            storedFieldsReader.visitDocument(docID, visitor);
+            storedFieldsReader.document(docID, visitor);
             // As we already estimate the size of stored fields, we can trade off the accuracy for the speed of the estimate.
             // Here we only visit 1/11 documents instead of all documents. Ideally, we should visit 1 doc then skip 10 docs
             // to avoid missing many skew documents. But, documents are stored in chunks in compressed format and a chunk can
@@ -196,7 +212,12 @@ final class IndexDiskUsageAnalyzer {
         }
 
         @Override
-        public Status needsField(FieldInfo fieldInfo) throws IOException {
+        public Status needsField(FieldInfo fieldInfo) {
+            if (SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes())) {
+                // Synthetic _id field doesn't have stored values on disk but it pretends to have them, so we explicitly filter it out.
+                assert SyntheticIdField.NAME.equals(fieldInfo.getName()) : fieldInfo.getName();
+                return Status.NO;
+            }
             return Status.YES;
         }
     }
@@ -254,28 +275,44 @@ final class IndexDiskUsageAnalyzer {
                 case BINARY -> iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
                 case SORTED -> {
                     SortedDocValues sorted = iterateDocValues(maxDocs, () -> docValuesReader.getSorted(field), SortedDocValues::ordValue);
-                    sorted.lookupOrd(0);
-                    sorted.lookupOrd(sorted.getValueCount() - 1);
+                    if (sorted.getValueCount() > 0) {
+                        sorted.lookupOrd(0);
+                        sorted.lookupOrd(sorted.getValueCount() - 1);
+                    }
                 }
                 case SORTED_SET -> {
                     SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
-                        while (dv.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                        for (int i = 0; i < dv.docValueCount(); i++) {
                             cancellationChecker.logEvent();
+                            dv.nextOrd();
                         }
                     });
-                    sortedSet.lookupOrd(0);
-                    sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
+                    if (sortedSet.getValueCount() > 0) {
+                        sortedSet.lookupOrd(0);
+                        sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
+                    }
                 }
                 default -> {
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
                 }
             }
+            switch (field.docValuesSkipIndexType()) {
+                case NONE -> {
+                }
+                case RANGE -> {
+                    var skipper = docValuesReader.getSkipper(field);
+                    while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                        skipper.advance(skipper.maxDocID(skipper.numLevels() - 1) + 1);
+                    }
+                }
+                default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
+            }
             stats.addDocValues(field.name, directory.getBytesRead());
         }
     }
 
-    private void readProximity(Terms terms, PostingsEnum postings) throws IOException {
+    private static void readProximity(Terms terms, PostingsEnum postings) throws IOException {
         if (terms.hasPositions()) {
             for (int pos = 0; pos < postings.freq(); pos++) {
                 postings.nextPosition();
@@ -286,9 +323,24 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
+    private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
+            if (termState instanceof final Lucene104PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof final Lucene101PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof final Lucene912PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof final ES812PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+            if (termState instanceof final Lucene99PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
             if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
@@ -298,20 +350,12 @@ final class IndexDiskUsageAnalyzer {
             if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
+            assert false : "unsupported postings format: " + termState;
         }
         return null;
     }
 
-    private static class BlockTermState {
-        final long docStartFP;
-        final long posStartFP;
-        final long payloadFP;
-
-        BlockTermState(long docStartFP, long posStartFP, long payloadFP) {
-            this.docStartFP = docStartFP;
-            this.posStartFP = posStartFP;
-            this.payloadFP = payloadFP;
-        }
+    private record BlockTermState(long docStartFP, long posStartFP, long payloadFP) {
 
         long distance(BlockTermState other) {
             return this.docStartFP - other.docStartFP + this.posStartFP - other.posStartFP + this.payloadFP - other.payloadFP;
@@ -333,6 +377,12 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             final Terms terms = postingsReader.terms(field.name);
             if (terms == null) {
+                continue;
+            }
+            if (SyntheticIdField.hasSyntheticIdAttributes(field.attributes())) {
+                // Synthetic _id field doesn't have an inverted index stored on disk,
+                // but it pretends to have one on the read path by setting IndexOptions.DOCS
+                assert SyntheticIdField.NAME.equals(field.getName()) : "Expected only synthetic id fields to have synthetic id attribute";
                 continue;
             }
             // It's expensive to look up every term and visit every document of the postings lists of all terms.
@@ -395,23 +445,15 @@ final class IndexDiskUsageAnalyzer {
             directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
-                values.intersect(new PointsVisitor(values.getMinPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
-                values.intersect(new PointsVisitor(values.getMaxPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
-                stats.addPoints(field.name, directory.getBytesRead());
+                if (values != null) {
+                    values.intersect(new PointsVisitor());
+                    stats.addPoints(field.name, directory.getBytesRead());
+                }
             }
         }
     }
 
     private class PointsVisitor implements PointValues.IntersectVisitor {
-        private final byte[] point;
-        private final int numDims;
-        private final int bytesPerDim;
-
-        PointsVisitor(byte[] point, int numDims, int bytesPerDim) {
-            this.point = point;
-            this.numDims = numDims;
-            this.bytesPerDim = bytesPerDim;
-        }
 
         @Override
         public void visit(int docID) throws IOException {
@@ -425,13 +467,6 @@ final class IndexDiskUsageAnalyzer {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            for (int dim = 0; dim < numDims; dim++) {
-                int offset = dim * bytesPerDim;
-                if (Arrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0
-                    || Arrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
-                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
-                }
-            }
             return PointValues.Relation.CELL_CROSSES_QUERY;
         }
     }
@@ -531,6 +566,49 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
+    void analyzeKnnVectors(SegmentReader reader, IndexDiskUsageStats stats) {
+        KnnVectorsReader vectorReader = reader.getVectorReader();
+        if (vectorReader == null) {
+            return;
+        }
+        for (FieldInfo field : reader.getFieldInfos()) {
+            cancellationChecker.checkForCancellation();
+            directory.resetBytesRead();
+            if (field.getVectorDimension() > 0) {
+                Map<String, Long> offHeap = vectorReader.getOffHeapByteSize(field);
+                long totalSize = 0;
+                for (var entry : offHeap.entrySet()) {
+                    totalSize += entry.getValue();
+                }
+                long vectorsSize = offHeap.getOrDefault("vec", 0L);
+                if (vectorsSize == 0L) {
+                    // This can happen if .vec file is opened with directIO
+                    // calculate the size of vectors manually
+                    vectorsSize = field.getVectorDimension() * field.getVectorEncoding().byteSize;
+                    totalSize += vectorsSize;
+                }
+                stats.addKnnVectors(field.name, totalSize);
+            }
+        }
+    }
+
+    void analyzeBloomFilter(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+        if (reader.getDocValuesReader() == null) {
+            return;
+        }
+        final DocValuesProducer docValuesReader = reader.getDocValuesReader().getMergeInstance();
+        for (FieldInfo field : reader.getFieldInfos()) {
+            if (field.getDocValuesType() != DocValuesType.BINARY) {
+                continue;
+            }
+            cancellationChecker.checkForCancellation();
+            BinaryDocValues binaryDocValues = docValuesReader.getBinary(field);
+            if (binaryDocValues instanceof BloomFilter bloomFilter) {
+                stats.addBloomFilter(field.name, bloomFilter.sizeInBytes());
+            }
+        }
+    }
+
     private static class TrackingReadBytesDirectory extends FilterDirectory {
         private final Map<String, BytesReadTracker> trackers = new HashMap<>();
 
@@ -623,7 +701,7 @@ final class IndexDiskUsageAnalyzer {
     }
 
     /**
-     * Lucene Codec organizes data field by field for doc values, points, postings, and norms; and document by document
+     * Lucene Codec organizes data field by field for doc values, points, postings, vectors, and norms; and document by document
      * for stored fields and term vectors. BytesReadTracker then can simply track the min and max read positions.
      * This would allow us to traverse only two ends of each partition.
      */
@@ -719,10 +797,12 @@ final class IndexDiskUsageAnalyzer {
         long pointsTimeInNanos;
         long normsTimeInNanos;
         long termVectorsTimeInNanos;
+        long knnVectorsTimeInNanos;
+        long bloomFilterTimeInNanos;
 
         long totalInNanos() {
             return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos + pointsTimeInNanos + normsTimeInNanos
-                + termVectorsTimeInNanos;
+                + termVectorsTimeInNanos + knnVectorsTimeInNanos + bloomFilterTimeInNanos;
         }
 
         @Override
@@ -747,6 +827,12 @@ final class IndexDiskUsageAnalyzer {
                 + "ms"
                 + ", term vectors: "
                 + termVectorsTimeInNanos / 1000_000
+                + "ms"
+                + ", knn vectors: "
+                + knnVectorsTimeInNanos / 1000_000
+                + "ms"
+                + ", bloom filter: "
+                + bloomFilterTimeInNanos / 1000_000
                 + "ms";
         }
     }

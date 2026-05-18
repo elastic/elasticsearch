@@ -16,6 +16,7 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.CredentialsRedaction.r
 import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
 import static org.elasticsearch.xpack.sql.client.UriUtils.parseURI;
 import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class UriUtilsTests extends ESTestCase {
 
@@ -89,9 +90,10 @@ public class UriUtilsTests extends ESTestCase {
     }
 
     public void testMalformedWhiteSpace() throws Exception {
-        assertEquals(
-            "Invalid connection configuration: Illegal character in authority at index 7: http:// ",
-            expectThrows(IllegalArgumentException.class, () -> parseURI(" ", DEFAULT_URI)).getMessage()
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> parseURI(" ", DEFAULT_URI)).getMessage(),
+            // Use a lenient regex here since later JDKs trim exception message whitespace
+            matchesPattern("^Invalid connection configuration: Illegal character in authority at index 7: http:// ?")
         );
     }
 

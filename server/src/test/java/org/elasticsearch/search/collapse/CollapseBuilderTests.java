@@ -1,34 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.collapse;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -41,7 +43,7 @@ import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBuilder> {
+public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<CollapseBuilder> {
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
@@ -144,39 +146,41 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
-                true,
-                false,
+                IndexType.points(true, false),
                 false,
                 false,
                 null,
                 Collections.emptyMap(),
                 null,
                 false,
-                null
+                null,
+                null,
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
-            assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
+            assertEquals("cannot collapse on field `field` without `doc_values`", exc.getMessage());
 
             numberFieldType = new NumberFieldMapper.NumberFieldType(
                 "field",
                 NumberFieldMapper.NumberType.LONG,
+                IndexType.docValuesOnly(),
                 false,
-                false,
-                true,
                 false,
                 null,
                 Collections.emptyMap(),
                 null,
                 false,
-                null
+                null,
+                null,
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
-            builder.setInnerHits(new InnerHitBuilder());
+            builder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
-                exc.getMessage(),
-                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`"
+                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`",
+                exc.getMessage()
             );
 
             MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field");
@@ -188,15 +192,15 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", true, false, Collections.emptyMap());
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
             exc = expectThrows(IllegalArgumentException.class, () -> kbuilder.build(searchExecutionContext));
-            assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
+            assertEquals("cannot collapse on field `field` without `doc_values`", exc.getMessage());
 
             keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
-            kbuilder.setInnerHits(new InnerHitBuilder());
+            kbuilder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
-                exc.getMessage(),
-                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`"
+                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`",
+                exc.getMessage()
             );
 
         }
@@ -207,11 +211,11 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         {
             CollapseBuilder builder = new CollapseBuilder("unknown_field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
-            assertEquals(exc.getMessage(), "no mapping found for `unknown_field` in order to collapse on");
+            assertEquals("no mapping found for `unknown_field` in order to collapse on", exc.getMessage());
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", IndexType.points(true, true), false, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "some_type";
@@ -234,7 +238,17 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             when(searchExecutionContext.getFieldType("field")).thenReturn(fieldType);
             CollapseBuilder builder = new CollapseBuilder("field");
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
-            assertEquals(exc.getMessage(), "collapse is not supported for the field [field] of the type [some_type]");
+            assertEquals("collapse is not supported for the field [field] of the type [some_type]", exc.getMessage());
+        }
+    }
+
+    public void testBuildWithNullField() throws IOException {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        String json = "{}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            CollapseBuilder builder = CollapseBuilder.fromXContent(parser);
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
+            assertEquals("no collapse field specified", exc.getMessage());
         }
     }
 

@@ -35,6 +35,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, name, qualifier, null, unresolvedMessage, null);
     }
 
+    @SuppressWarnings("this-escape")
     public UnresolvedAttribute(
         Source source,
         String name,

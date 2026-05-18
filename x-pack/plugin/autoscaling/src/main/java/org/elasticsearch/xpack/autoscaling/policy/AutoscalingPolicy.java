@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.policy;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +29,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 
-public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> implements Diffable<AutoscalingPolicy>, ToXContentObject {
+public class AutoscalingPolicy implements SimpleDiffable<AutoscalingPolicy>, ToXContentObject {
 
     public static final String NAME = "autoscaling_policy";
 
@@ -88,7 +87,7 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
 
     public AutoscalingPolicy(final StreamInput in) throws IOException {
         this.name = in.readString();
-        this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
+        this.roles = in.readCollectionAsSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
         int deciderCount = in.readInt();
         SortedMap<String, Settings> decidersMap = new TreeMap<>();
         for (int i = 0; i < deciderCount; ++i) {
@@ -100,11 +99,11 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(roles, StreamOutput::writeString);
+        out.writeStringCollection(roles);
         out.writeInt(deciders.size());
         for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
             out.writeString(entry.getKey());
-            Settings.writeSettingsToStream(entry.getValue(), out);
+            entry.getValue().writeTo(out);
         }
     }
 

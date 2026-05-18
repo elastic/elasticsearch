@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -19,7 +20,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -36,21 +36,16 @@ import static org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig.Builder.
 
 public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder<CategorizeTextAggregationBuilder> {
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        1,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(1, 0, 10, -1);
 
-    static final int MAX_MAX_UNIQUE_TOKENS = 100;
-    static final int MAX_MAX_MATCHED_TOKENS = 100;
     public static final String NAME = "categorize_text";
 
     static final ParseField FIELD_NAME = new ParseField("field");
-    static final ParseField MAX_UNIQUE_TOKENS = new ParseField("max_unique_tokens");
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");
-    static final ParseField MAX_MATCHED_TOKENS = new ParseField("max_matched_tokens");
+    // The next two are unused, but accepted and ignored to avoid breaking client code
+    static final ParseField MAX_UNIQUE_TOKENS = new ParseField("max_unique_tokens").withAllDeprecated();
+    static final ParseField MAX_MATCHED_TOKENS = new ParseField("max_matched_tokens").withAllDeprecated();
     static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
     static final ParseField CATEGORIZATION_ANALYZER = new ParseField("categorization_analyzer");
 
@@ -60,9 +55,10 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     );
     static {
         PARSER.declareString(CategorizeTextAggregationBuilder::setFieldName, FIELD_NAME);
-        PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxUniqueTokens, MAX_UNIQUE_TOKENS);
-        PARSER.declareInt(CategorizeTextAggregationBuilder::setMaxMatchedTokens, MAX_MATCHED_TOKENS);
         PARSER.declareInt(CategorizeTextAggregationBuilder::setSimilarityThreshold, SIMILARITY_THRESHOLD);
+        // The next two are unused, but accepted and ignored to avoid breaking client code
+        PARSER.declareInt((p, c) -> {}, MAX_UNIQUE_TOKENS);
+        PARSER.declareInt((p, c) -> {}, MAX_MATCHED_TOKENS);
         PARSER.declareField(
             CategorizeTextAggregationBuilder::setCategorizationAnalyzerConfig,
             (p, c) -> CategorizationAnalyzerConfig.buildFromXContentFragment(p, false),
@@ -76,18 +72,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         PARSER.declareInt(CategorizeTextAggregationBuilder::size, REQUIRED_SIZE_FIELD_NAME);
     }
 
-    public static CategorizeTextAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new CategorizeTextAggregationBuilder(aggregationName), null);
-    }
-
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
     private CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private String fieldName;
-    private int maxUniqueTokens = 50;
-    private int similarityThreshold = 50;
-    private int maxMatchedTokens = 5;
+    // Default of 70% matches the C++ code
+    private int similarityThreshold = 70;
 
     private CategorizeTextAggregationBuilder(String name) {
         super(name);
@@ -96,6 +87,11 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     public CategorizeTextAggregationBuilder(String name, String fieldName) {
         super(name);
         this.fieldName = ExceptionsHelper.requireNonNull(fieldName, FIELD_NAME);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     public String getFieldName() {
@@ -109,30 +105,11 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     public CategorizeTextAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
         this.fieldName = in.readString();
-        this.maxUniqueTokens = in.readVInt();
-        this.maxMatchedTokens = in.readVInt();
         this.similarityThreshold = in.readVInt();
         this.categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
-    }
-
-    public int getMaxUniqueTokens() {
-        return maxUniqueTokens;
-    }
-
-    public CategorizeTextAggregationBuilder setMaxUniqueTokens(int maxUniqueTokens) {
-        this.maxUniqueTokens = maxUniqueTokens;
-        if (maxUniqueTokens <= 0 || maxUniqueTokens > MAX_MAX_UNIQUE_TOKENS) {
-            throw ExceptionsHelper.badRequestException(
-                "[{}] must be greater than 0 and less than or equal [{}]. Found [{}] in [{}]",
-                MAX_UNIQUE_TOKENS.getPreferredName(),
-                MAX_MAX_UNIQUE_TOKENS,
-                maxUniqueTokens,
-                name
-            );
-        }
-        return this;
     }
 
     public double getSimilarityThreshold() {
@@ -153,6 +130,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     }
 
     public CategorizeTextAggregationBuilder setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
+        if (this.categorizationAnalyzerConfig != null) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] cannot be used with [{}] - instead specify them as pattern_replace char_filters in the analyzer",
+                CATEGORIZATION_FILTERS.getPreferredName(),
+                CATEGORIZATION_ANALYZER.getPreferredName()
+            );
+        }
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         return this;
     }
@@ -185,24 +169,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         return this;
     }
 
-    public int getMaxMatchedTokens() {
-        return maxMatchedTokens;
-    }
-
-    public CategorizeTextAggregationBuilder setMaxMatchedTokens(int maxMatchedTokens) {
-        this.maxMatchedTokens = maxMatchedTokens;
-        if (maxMatchedTokens <= 0 || maxMatchedTokens > MAX_MAX_MATCHED_TOKENS) {
-            throw ExceptionsHelper.badRequestException(
-                "[{}] must be greater than 0 and less than or equal [{}]. Found [{}] in [{}]",
-                MAX_MATCHED_TOKENS.getPreferredName(),
-                MAX_MAX_MATCHED_TOKENS,
-                maxMatchedTokens,
-                name
-            );
-        }
-        return this;
-    }
-
     /**
      * @param size indicating how many buckets should be returned
      */
@@ -220,7 +186,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     *  @param shardSize - indicating the number of buckets each shard
+     * @param shardSize - indicating the number of buckets each shard
      * will return to the coordinating node (the node that coordinates the
      * search execution). The higher the shard size is, the more accurate the
      * results are.
@@ -280,18 +246,15 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         super(clone, factoriesBuilder, metadata);
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(clone.bucketCountThresholds);
         this.fieldName = clone.fieldName;
-        this.maxUniqueTokens = clone.maxUniqueTokens;
-        this.maxMatchedTokens = clone.maxMatchedTokens;
         this.similarityThreshold = clone.similarityThreshold;
         this.categorizationAnalyzerConfig = clone.categorizationAnalyzerConfig;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
         bucketCountThresholds.writeTo(out);
         out.writeString(fieldName);
-        out.writeVInt(maxUniqueTokens);
-        out.writeVInt(maxMatchedTokens);
         out.writeVInt(similarityThreshold);
         out.writeOptionalWriteable(categorizationAnalyzerConfig);
     }
@@ -305,8 +268,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         return new CategorizeTextAggregatorFactory(
             name,
             fieldName,
-            maxUniqueTokens,
-            maxMatchedTokens,
             similarityThreshold,
             bucketCountThresholds,
             categorizationAnalyzerConfig,
@@ -322,8 +283,6 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         builder.startObject();
         bucketCountThresholds.toXContent(builder, params);
         builder.field(FIELD_NAME.getPreferredName(), fieldName);
-        builder.field(MAX_UNIQUE_TOKENS.getPreferredName(), maxUniqueTokens);
-        builder.field(MAX_MATCHED_TOKENS.getPreferredName(), maxMatchedTokens);
         builder.field(SIMILARITY_THRESHOLD.getPreferredName(), similarityThreshold);
         if (categorizationAnalyzerConfig != null) {
             categorizationAnalyzerConfig.toXContent(builder, params);
@@ -345,5 +304,10 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.minimumCompatible();
     }
 }

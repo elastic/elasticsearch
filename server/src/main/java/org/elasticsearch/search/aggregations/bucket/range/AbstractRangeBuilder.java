@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
@@ -55,8 +56,13 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         throws IOException {
         super(in);
         this.rangeFactory = rangeFactory;
-        ranges = in.readList(rangeReader);
+        ranges = in.readCollectionAsList(rangeReader);
         keyed = in.readBoolean();
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -78,7 +84,10 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
-    private static void sortRanges(final Range[] ranges) {
+    /**
+     * Sort the provided ranges in place.
+     */
+    static void sortRanges(final Range[] ranges) {
         new InPlaceMergeSorter() {
 
             @Override
@@ -101,10 +110,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
+        out.writeCollection(ranges);
         out.writeBoolean(keyed);
     }
 

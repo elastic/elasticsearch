@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -76,6 +77,8 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeString(String value) throws IOException;
 
+    void writeStringArray(String[] array) throws IOException;
+
     void writeString(char[] text, int offset, int len) throws IOException;
 
     void writeUTF8String(byte[] value, int offset, int length) throws IOException;
@@ -102,6 +105,11 @@ public interface XContentGenerator extends Closeable, Flushable {
      * Writes a raw value taken from the bytes in the stream
      */
     void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
+
+    /**
+     * Writes a raw value taken from a pre-rendered string representation
+     */
+    void writeRawValue(String value) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 
@@ -141,6 +149,12 @@ public interface XContentGenerator extends Closeable, Flushable {
                     case LONG -> writeNumber(parser.longValue());
                     case FLOAT -> writeNumber(parser.floatValue());
                     case DOUBLE -> writeNumber(parser.doubleValue());
+                    case BIG_INTEGER -> writeNumber((BigInteger) parser.numberValue());
+                    // note: BIG_DECIMAL is not supported, ES only supports up to double.
+                    // BIG_INTEGER above is only for representing unsigned long
+                    default -> {
+                        assert false : "missing xcontent number handling for type [" + parser.numberType() + "]";
+                    }
                 }
                 break;
             case VALUE_BOOLEAN:
@@ -151,6 +165,9 @@ public interface XContentGenerator extends Closeable, Flushable {
                 break;
             case VALUE_EMBEDDED_OBJECT:
                 writeBinary(parser.binaryValue());
+                break;
+            default:
+                assert false : "missing xcontent token handling for token [" + parser.text() + "]";
         }
     }
 

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -15,8 +14,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -25,8 +24,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.license.XPackLicenseState;
@@ -38,15 +39,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -59,13 +61,13 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
@@ -100,7 +102,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
     public void setUpComponents() {
         threadPool = new TestThreadPool(
             "ModelLoadingServiceTests",
-            new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME, 1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool")
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.ml.utility_thread_pool"
+            )
         );
         trainedModelProvider = mock(TrainedModelProvider.class);
         clusterService = mock(ClusterService.class);
@@ -145,7 +154,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             String model = modelIds[i % 3];
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model, future);
+            modelLoadingService.getModelForPipeline(model, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -162,7 +171,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             String model = modelIds[i % 3];
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model, future);
+            modelLoadingService.getModelForPipeline(model, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -217,7 +226,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             // Only reference models 1 and 2, so that cache is only invalidated once for model3 (after initial load)
             String model = modelIds[i % 2];
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model, future);
+            modelLoadingService.getModelForPipeline(model, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -235,7 +244,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // Load model 3, should invalidate 1 and 2
         for (int i = 0; i < 10; i++) {
             PlainActionFuture<LocalModel> future3 = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model3, future3);
+            modelLoadingService.getModelForPipeline(model3, null, future3);
             assertThat(future3.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, times(2)).getTrainedModelForInference(eq(model3), eq(false), any());
@@ -246,7 +255,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // Load model 1, should invalidate 3
         for (int i = 0; i < 10; i++) {
             PlainActionFuture<LocalModel> future1 = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model1, future1);
+            modelLoadingService.getModelForPipeline(model1, null, future1);
             assertThat(future1.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model1), eq(false), any());
@@ -255,7 +264,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // Load model 2
         for (int i = 0; i < 10; i++) {
             PlainActionFuture<LocalModel> future2 = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model2, future2);
+            modelLoadingService.getModelForPipeline(model2, null, future2);
             assertThat(future2.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model2), eq(false), any());
@@ -266,7 +275,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             String model = modelIds[i % 3];
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model, future);
+            modelLoadingService.getModelForPipeline(model, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -295,7 +304,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         for (int i = 0; i < 10; i++) {
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model1, future);
+            modelLoadingService.getModelForPipeline(model1, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -322,7 +331,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(model, future);
+        modelLoadingService.getModelForPipeline(model, null, future);
 
         try {
             future.get();
@@ -353,7 +362,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         );
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(model, future);
+        modelLoadingService.getModelForPipeline(model, null, future);
         try {
             future.get();
             fail("Should not have succeeded");
@@ -381,7 +390,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model, future);
+            modelLoadingService.getModelForPipeline(model, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -408,7 +417,35 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForSearch(modelId, future);
+            modelLoadingService.getModelForAggregation(modelId, future);
+            assertThat(future.get(), is(not(nullValue())));
+        }
+
+        assertTrue(modelLoadingService.isModelCached(modelId));
+
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(modelId), eq(false), any());
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
+    }
+
+    public void testGetModelForLearningToRank() throws Exception {
+        String modelId = "test-get-model-for-ltr";
+        withTrainedModel(modelId, 1L, LearningToRankConfig.EMPTY_PARAMS);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker,
+            mock(XPackLicenseState.class)
+        );
+
+        for (int i = 0; i < 3; i++) {
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
+            modelLoadingService.getModelForLearningToRank(modelId, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -452,9 +489,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // the loading occurred or which models are currently in the cache due to evictions.
         // Verify that we have at least loaded all three
         assertBusy(() -> {
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(GetTrainedModelsAction.Includes.empty()), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(GetTrainedModelsAction.Includes.empty()), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(GetTrainedModelsAction.Includes.empty()), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
         });
         assertBusy(() -> {
             assertThat(circuitBreaker.getUsed(), equalTo(10L));
@@ -463,7 +500,53 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1));
 
-        assertBusy(() -> { assertThat(circuitBreaker.getUsed(), equalTo(5L)); });
+        assertBusy(() -> assertThat(circuitBreaker.getUsed(), equalTo(5L)));
+    }
+
+    public void testExpiredModelsAreEvictedBeforeLoading() throws Exception {
+        String smallModel1 = "small-model-1";
+        String smallModel2 = "small-model-2";
+        String justSmallEnoughModel = "just-small-enough-model";
+        long cbBytes = 13;
+        withTrainedModel(smallModel1, cbBytes / 2);
+        withTrainedModel(smallModel2, cbBytes / 2);
+        long justSmallEnoughModelBytes = cbBytes - 1;
+        withTrainedModel(justSmallEnoughModel, justSmallEnoughModelBytes);
+        CircuitBreaker circuitBreaker = new CustomCircuitBreaker(cbBytes);
+
+        // Create cache with a low TTL value so models can be evicted quickly
+        ModelLoadingService modelLoadingService = new ModelLoadingService(
+            trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker,
+            mock(XPackLicenseState.class),
+            TimeValue.timeValueMillis(200)
+        );
+
+        // These 2 models will be loaded as the circuit breaker has enough free memory
+        modelLoadingService.clusterChanged(ingestChangedEvent(smallModel1, smallModel2));
+
+        assertBusy(() -> {
+            assertTrue(modelLoadingService.isModelCached(smallModel1));
+            assertTrue(modelLoadingService.isModelCached(smallModel2));
+        }, 2, TimeUnit.SECONDS);
+
+        AtomicBoolean modelLoaded = new AtomicBoolean(false);
+
+        // This model can only be loaded if the first 2 are evicted from the cache
+        // and space freed in the circuit breaker.
+        modelLoadingService.addModelLoadedListener(justSmallEnoughModel, ActionListener.wrap(r -> {
+            modelLoaded.set(true);
+            assertThat(circuitBreaker.getUsed(), equalTo(justSmallEnoughModelBytes));
+        }, ESTestCase::fail));
+        modelLoadingService.clusterChanged(ingestChangedEvent(justSmallEnoughModel));
+
+        assertBusy(() -> assertTrue(modelLoaded.get()), 2, TimeUnit.SECONDS);
     }
 
     public void testReferenceCounting() throws Exception {
@@ -485,12 +568,12 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
 
         PlainActionFuture<LocalModel> forPipeline = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(modelId, forPipeline);
+        modelLoadingService.getModelForPipeline(modelId, null, forPipeline);
         final LocalModel model = forPipeline.get();
         assertBusy(() -> assertEquals(2, model.getReferenceCount()));
 
         PlainActionFuture<LocalModel> forSearch = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(modelId, forSearch);
+        modelLoadingService.getModelForPipeline(modelId, null, forSearch);
         forSearch.get();
         assertBusy(() -> assertEquals(3, model.getReferenceCount()));
 
@@ -498,7 +581,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertBusy(() -> assertEquals(2, model.getReferenceCount()));
 
         PlainActionFuture<LocalModel> forSearch2 = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(modelId, forSearch2);
+        modelLoadingService.getModelForPipeline(modelId, null, forSearch2);
         forSearch2.get();
         assertBusy(() -> assertEquals(3, model.getReferenceCount()));
     }
@@ -522,12 +605,12 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
 
         PlainActionFuture<LocalModel> forPipeline = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(modelId, forPipeline);
+        modelLoadingService.getModelForPipeline(modelId, null, forPipeline);
         final LocalModel model = forPipeline.get();
         assertBusy(() -> assertEquals(2, model.getReferenceCount()));
 
         PlainActionFuture<LocalModel> forPipeline2 = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(modelId, forPipeline2);
+        modelLoadingService.getModelForPipeline(modelId, null, forPipeline2);
         forPipeline2.get();
         assertBusy(() -> assertEquals(3, model.getReferenceCount()));
 
@@ -553,7 +636,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         );
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-        modelLoadingService.getModelForPipeline(modelId, future);
+        modelLoadingService.getModelForPipeline(modelId, null, future);
         LocalModel model = future.get();
         assertEquals(1, model.getReferenceCount());
     }
@@ -577,14 +660,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
         );
 
         modelLoadingService.clusterChanged(
-            aliasChangeEvent(true, new String[] { "loaded_model" }, true, Arrays.asList(Tuple.tuple(model1, "loaded_model")))
+            aliasChangeEvent(true, new String[] { "loaded_model" }, true, List.of(Tuple.tuple(model1, "loaded_model")))
         );
 
         String[] modelIds = new String[] { model1, "loaded_model" };
         for (int i = 0; i < 10; i++) {
             String model = modelIds[i % 2];
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model, future);
+            modelLoadingService.getModelForPipeline(model, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -595,14 +678,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // alias change only
         modelLoadingService.clusterChanged(
-            aliasChangeEvent(true, new String[] { "loaded_model" }, false, Arrays.asList(Tuple.tuple(model2, "loaded_model")))
+            aliasChangeEvent(true, new String[] { "loaded_model" }, false, List.of(Tuple.tuple(model2, "loaded_model")))
         );
 
         modelIds = new String[] { model2, "loaded_model" };
         for (int i = 0; i < 10; i++) {
             String model = modelIds[i % 2];
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(model, future);
+            modelLoadingService.getModelForPipeline(model, null, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -629,9 +712,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             mock(XPackLicenseState.class)
         );
 
-        modelLoadingService.clusterChanged(
-            aliasChangeEvent(false, new String[0], false, Arrays.asList(Tuple.tuple(model1, "loaded_model")))
-        );
+        modelLoadingService.clusterChanged(aliasChangeEvent(false, new String[0], false, List.of(Tuple.tuple(model1, "loaded_model"))));
 
         assertThat(modelLoadingService.getModelId("loaded_model"), equalTo(model1));
 
@@ -652,13 +733,17 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertThat(modelLoadingService.getModelId("loaded_model_again"), equalTo(model1));
     }
 
-    @SuppressWarnings("unchecked")
     private void withTrainedModel(String modelId, long size) {
+        withTrainedModel(modelId, size, ClassificationConfig.EMPTY_PARAMS);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void withTrainedModel(String modelId, long size, InferenceConfig inferenceConfig) {
         InferenceDefinition definition = mock(InferenceDefinition.class);
         when(definition.ramBytesUsed()).thenReturn(size);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
         when(trainedModelConfig.getModelId()).thenReturn(modelId);
-        when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
+        when(trainedModelConfig.getInferenceConfig()).thenReturn(inferenceConfig);
         when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
         when(trainedModelConfig.getModelSize()).thenReturn(size);
         doAnswer(invocationOnMock -> {
@@ -669,10 +754,10 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }).when(trainedModelProvider).getTrainedModelForInference(eq(modelId), eq(false), any());
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
             listener.onResponse(trainedModelConfig);
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any());
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -680,19 +765,19 @@ public class ModelLoadingServiceTests extends ESTestCase {
         if (randomBoolean()) {
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return null;
-            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any());
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
         } else {
             TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
             when(trainedModelConfig.getModelSize()).thenReturn(0L);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
                 listener.onResponse(trainedModelConfig);
                 return null;
-            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any());
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
@@ -724,14 +809,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
         if (ingestToo) {
             set.add(IngestMetadata.TYPE);
         }
-        when(event.changedCustomMetadataSet()).thenReturn(set);
+        when(event.changedCustomProjectMetadataSet()).thenReturn(set);
         when(event.state()).thenReturn(withModelReferencesAndAliasChange(isIngestNode, modelId, modelIdAndAliases));
         return event;
     }
 
     private static ClusterChangedEvent ingestChangedEvent(boolean isIngestNode, String... modelId) throws IOException {
         ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.changedCustomMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
+        when(event.changedCustomProjectMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
         when(event.state()).thenReturn(buildClusterStateWithModelReferences(isIngestNode, modelId));
         return event;
     }
@@ -753,13 +838,12 @@ public class ModelLoadingServiceTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        new DiscoveryNode(
+                        DiscoveryNodeUtils.create(
                             "node_name",
                             "node_id",
                             new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                             Collections.emptyMap(),
-                            isIngestNode ? Collections.singleton(DiscoveryNodeRole.INGEST_ROLE) : Collections.emptySet(),
-                            Version.CURRENT
+                            isIngestNode ? Collections.singleton(DiscoveryNodeRole.INGEST_ROLE) : Collections.emptySet()
                         )
                     )
                     .localNodeId("node_id")
@@ -768,7 +852,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
     }
 
     private static Metadata.Builder addIngest(Metadata.Builder builder, String... modelId) throws IOException {
-        Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
+        Map<String, PipelineConfiguration> configurations = Maps.newMapWithExpectedSize(modelId.length);
         for (String id : modelId) {
             configurations.put("pipeline_with_model_" + id, newConfigurationWithInferenceProcessor(id));
         }

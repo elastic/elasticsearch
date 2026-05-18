@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.plain;
 
@@ -17,6 +18,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -24,10 +26,11 @@ import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractIndexOrdinalsFieldData.class);
@@ -36,20 +39,20 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     private final ValuesSourceType valuesSourceType;
     private final IndexFieldDataCache cache;
     protected final CircuitBreakerService breakerService;
-    protected final ToScriptField<SortedSetDocValues> toScriptField;
+    protected final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
     protected AbstractIndexOrdinalsFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         IndexFieldDataCache cache,
         CircuitBreakerService breakerService,
-        ToScriptField<SortedSetDocValues> toScriptField
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.cache = cache;
         this.breakerService = breakerService;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -74,17 +77,13 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             // If a field can't be found then it doesn't mean it isn't there,
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
-            return AbstractLeafOrdinalsFieldData.empty(toScriptField);
+            return AbstractLeafOrdinalsFieldData.empty(toScriptFieldFactory);
         }
 
         try {
             return cache.load(context, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -118,7 +117,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
             try {
-                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this, toScriptField);
+                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this, toScriptFieldFactory);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -126,22 +125,34 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(indexReader, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, toScriptField);
+        return GlobalOrdinalsBuilder.build(
+            indexReader,
+            this,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            logger,
+            toScriptFieldFactory
+        );
     }
 
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return false;
+    }
+
+    private static ElasticsearchException handleCacheLoadException(Exception e) {
+        if (e instanceof ElasticsearchException ese) {
+            return ese;
+        }
+        if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException ese) {
+            throw ese;
+        }
+        throw new ElasticsearchException(e);
     }
 
     /**

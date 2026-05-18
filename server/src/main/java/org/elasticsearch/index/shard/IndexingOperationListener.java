@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.index.engine.Engine;
 
 import java.util.List;
@@ -81,7 +81,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.preIndex(shardId, operation);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
+                    logger.warn(() -> "preIndex listener [" + listener + "] failed", e);
                 }
             }
             return operation;
@@ -94,7 +94,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.postIndex(shardId, index, result);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
+                    logger.warn(() -> "postIndex listener [" + listener + "] failed", e);
                 }
             }
         }
@@ -107,7 +107,7 @@ public interface IndexingOperationListener {
                     listener.postIndex(shardId, index, ex);
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
-                    logger.warn(() -> new ParameterizedMessage("postIndex listener [{}] failed", listener), inner);
+                    logger.warn(() -> "postIndex listener [" + listener + "] failed", inner);
                 }
             }
         }
@@ -119,7 +119,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.preDelete(shardId, delete);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("preDelete listener [{}] failed", listener), e);
+                    logger.warn(() -> "preDelete listener [" + listener + "] failed", e);
                 }
             }
             return delete;
@@ -132,7 +132,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.postDelete(shardId, delete, result);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
+                    logger.warn(() -> "postDelete listener [" + listener + "] failed", e);
                 }
             }
         }
@@ -145,7 +145,7 @@ public interface IndexingOperationListener {
                     listener.postDelete(shardId, delete, ex);
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
-                    logger.warn(() -> new ParameterizedMessage("postDelete listener [{}] failed", listener), inner);
+                    logger.warn(() -> "postDelete listener [" + listener + "] failed", inner);
                 }
             }
         }

@@ -30,13 +30,17 @@ public class SeqNoPrimaryTermAndIndexTests extends ESTestCase {
 
     public void testFromSearchHit() {
         SearchHit searchHit = new SearchHit(1);
-        long seqNo = randomLongBetween(-2, 10_000);
-        long primaryTerm = randomLongBetween(-2, 10_000);
-        String index = randomAlphaOfLength(10);
-        searchHit.setSeqNo(seqNo);
-        searchHit.setPrimaryTerm(primaryTerm);
-        searchHit.shard(new SearchShardTarget("anynode", new ShardId(index, randomAlphaOfLength(10), 1), null));
-        assertThat(SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit), equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index)));
+        try {
+            long seqNo = randomLongBetween(-2, 10_000);
+            long primaryTerm = randomLongBetween(-2, 10_000);
+            String index = randomAlphaOfLength(10);
+            searchHit.setSeqNo(seqNo);
+            searchHit.setPrimaryTerm(primaryTerm);
+            searchHit.shard(new SearchShardTarget("anynode", new ShardId(index, randomAlphaOfLength(10), 1), null));
+            assertThat(SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit), equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index)));
+        } finally {
+            searchHit.decRef();
+        }
     }
 
     public void testFromIndexResponse() {

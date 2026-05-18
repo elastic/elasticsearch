@@ -1,51 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
-public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
+public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
 
     public static final String NAME = "suggest";
 
@@ -71,9 +64,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes", "unchecked", "this-escape" })
     public Suggest(StreamInput in) throws IOException {
-        suggestions = (List) in.readNamedWriteableList(Suggestion.class);
+        suggestions = (List) in.readNamedWriteableCollectionAsList(Suggestion.class);
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
@@ -111,9 +104,39 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return hasScoreDocs;
     }
 
+    /**
+     * Collects completion option SearchHits from this suggest. When shouldIncRef is true (constructor/merge path),
+     * takes 1 ref per hit. When false (stream path), hits already have 1 ref from deserialization so we do not incRef.
+     *
+     * @return null if there are no completion option hits; otherwise an immutable list of hits to release when the response is released.
+     */
+    public List<SearchHit> collectCompletionOptionHits(boolean shouldIncRef) {
+        if (suggestions == null) {
+            return null;
+        }
+        List<SearchHit> hits = new ArrayList<>();
+        for (Suggestion<?> suggestion : suggestions) {
+            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
+                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                    SearchHit hit = option.getHit();
+                    if (hit != null) {
+                        hits.add(hit);
+                        if (shouldIncRef) {
+                            hit.mustIncRef();
+                        }
+                    }
+                }
+            }
+        }
+        if (hits.isEmpty()) {
+            return null;
+        }
+        return Collections.unmodifiableList(hits);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(suggestions);
+        out.writeNamedWriteableCollection(suggestions);
     }
 
     @Override
@@ -124,29 +147,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         }
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * this parsing method assumes that the leading "suggest" field name has already been parsed by the caller
-     */
-    public static Suggest fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
-        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-            String currentField = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            Suggestion<? extends Entry<? extends Option>> suggestion = Suggestion.fromXContent(parser);
-            if (suggestion != null) {
-                suggestions.add(suggestion);
-            } else {
-                throw new ParsingException(
-                    parser.getTokenLocation(),
-                    String.format(Locale.ROOT, "Could not parse suggestion keyed as [%s]", currentField)
-                );
-            }
-        }
-        return new Suggest(suggestions);
     }
 
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
@@ -181,7 +181,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return suggestions.stream()
             .filter(suggestion -> suggestion.getClass() == suggestionType)
             .map(suggestion -> (T) suggestion)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     @Override
@@ -207,7 +207,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @SuppressWarnings("rawtypes")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
-        public static final int TYPE = 0;
         protected final String name;
         protected final int size;
         protected final List<T> entries = new ArrayList<>(5);
@@ -217,6 +216,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             this.size = size; // The suggested term size specified in request, only used for merging shard responses
         }
 
+        @SuppressWarnings("this-escape")
         public Suggestion(StreamInput in) throws IOException {
             name = in.readString();
             size = in.readVInt();
@@ -318,7 +318,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVInt(size);
-            out.writeList(entries);
+            out.writeCollection(entries);
         }
 
         @Override
@@ -363,33 +363,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             return Objects.hash(name, size, entries);
         }
 
-        @SuppressWarnings("unchecked")
-        public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-            SetOnce<Suggestion> suggestion = new SetOnce<>();
-            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);
-            return suggestion.get();
-        }
-
-        protected static <E extends Suggestion.Entry<?>> void parseEntries(
-            XContentParser parser,
-            Suggestion<E> suggestion,
-            CheckedFunction<XContentParser, E, IOException> entryParser
-        ) throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                suggestion.addTerm(entryParser.apply(parser));
-            }
-        }
-
         /**
          * Represents a part from the suggest text with suggested options.
          */
         public abstract static class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentFragment {
 
-            private static final String TEXT = "text";
-            private static final String OFFSET = "offset";
-            private static final String LENGTH = "length";
+            static final String TEXT = "text";
+            static final String OFFSET = "offset";
+            static final String LENGTH = "length";
             protected static final String OPTIONS = "options";
 
             protected Text text;
@@ -406,6 +387,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             protected Entry() {}
 
+            @SuppressWarnings("this-escape")
             public Entry(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();
@@ -543,10 +525,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 out.writeText(text);
                 out.writeVInt(offset);
                 out.writeVInt(length);
-                out.writeVInt(options.size());
-                for (Option option : options) {
-                    option.writeTo(out);
-                }
+                out.writeCollection(options);
             }
 
             @Override
@@ -562,12 +541,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
                 builder.endArray();
                 return builder;
-            }
-
-            protected static void declareCommonFields(ObjectParser<? extends Entry<? extends Option>, Void> parser) {
-                parser.declareString((entry, text) -> entry.text = new Text(text), new ParseField(TEXT));
-                parser.declareInt((entry, offset) -> entry.offset = offset, new ParseField(OFFSET));
-                parser.declareInt((entry, length) -> entry.length = length, new ParseField(LENGTH));
             }
 
             /**
@@ -635,10 +608,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                  */
                 public boolean collateMatch() {
                     return (collateMatch != null) ? collateMatch : true;
-                }
-
-                protected void setScore(float score) {
-                    this.score = score;
                 }
 
                 @Override

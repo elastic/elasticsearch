@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -12,8 +13,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -213,8 +214,8 @@ public class TestTranslog {
         return ops;
     }
 
-    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Operation> operations) {
-        final Iterator<Translog.Operation> iterator = operations.iterator();
+    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Index> operations) {
+        final Iterator<Translog.Index> iterator = operations.iterator();
         return new Translog.Snapshot() {
             @Override
             public int totalOperations() {

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -18,7 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -50,9 +49,9 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
         if (Files.exists(unicastHostsFilePath)) {
             try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
                 return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
-                    .collect(Collectors.toList());
+                    .toList();
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
+                logger.warn(() -> "failed to read file [" + unicastHostsFilePath + "]", e);
                 return Collections.emptyList();
             }
         }

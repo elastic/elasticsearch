@@ -10,17 +10,21 @@ package org.elasticsearch.xpack.transform.rest.action;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +33,14 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPreviewTransformAction extends BaseRestHandler {
+
+    private final TransformParsingContext transformParsingContext;
+
+    public RestPreviewTransformAction(TransformParsingContext transformParsingContext) {
+        this.transformParsingContext = transformParsingContext;
+    }
 
     @Override
     public List<Route> routes() {
@@ -47,7 +58,7 @@ public class RestPreviewTransformAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient nodeClient) throws IOException {
         String transformId = restRequest.param(TransformField.ID.getPreferredName());
 
         if (Strings.isNullOrEmpty(transformId) && restRequest.hasContentOrSourceParam() == false) {
@@ -64,14 +75,23 @@ public class RestPreviewTransformAction extends BaseRestHandler {
             );
         }
 
-        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        var timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        var previewAsIndexRequest = restRequest.paramAsBoolean(TransformField.PREVIEW_AS_INDEX_REQUEST.getPreferredName(), false);
 
         SetOnce<PreviewTransformAction.Request> previewRequestHolder = new SetOnce<>();
 
         if (Strings.isNullOrEmpty(transformId)) {
-            previewRequestHolder.set(PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser(), timeout));
+            previewRequestHolder.set(
+                PreviewTransformAction.Request.fromXContent(
+                    restRequest.contentOrSourceParamParser(),
+                    timeout,
+                    previewAsIndexRequest,
+                    transformParsingContext
+                )
+            );
         }
 
+        Client client = new RestCancellableNodeClient(nodeClient, restRequest.getHttpChannel());
         return channel -> {
             RestToXContentListener<PreviewTransformAction.Response> listener = new RestToXContentListener<>(channel);
 
@@ -91,7 +111,11 @@ public class RestPreviewTransformAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(transforms.get(0), timeout);
+                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(
+                            transforms.getFirst(),
+                            timeout,
+                            previewAsIndexRequest
+                        );
                         client.execute(PreviewTransformAction.INSTANCE, previewRequest, listener);
                     }
                 }, listener::onFailure));

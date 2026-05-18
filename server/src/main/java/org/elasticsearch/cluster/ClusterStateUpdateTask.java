@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -15,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 /**
  * A task that can update the cluster state.
  */
-public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskListener {
+public abstract class ClusterStateUpdateTask implements ClusterStateTaskListener {
 
     private final Priority priority;
 
@@ -47,13 +48,15 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
     public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
-     * A callback for when task execution fails.
-     * <p>
-     * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
-     * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
-     * using a more specific logger and at a less dramatic log level.
+     * Called when the result of the {@link #execute} method has been processed properly by all listeners.
+     *
+     * The {@param newState} parameter is the state that was ultimately published.
+     *
+     * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the master service at {@code ERROR}
+     * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
+     * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
-    public abstract void onFailure(Exception e);
+    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {}
 
     /**
      * If the cluster state update task wasn't processed by the provided timeout, call
@@ -64,7 +67,6 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
         return timeout;
     }
 
-    @Override
     public final Priority priority() {
         return priority;
     }

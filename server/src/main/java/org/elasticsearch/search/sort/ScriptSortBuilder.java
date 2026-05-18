@@ -1,38 +1,41 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.BytesRefProducer;
+import org.elasticsearch.script.BytesRefSortScript;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.Script;
@@ -48,6 +51,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
@@ -72,14 +76,16 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private NestedSortBuilder nestedSort;
 
+    private DocValueFormat scriptResultValueFormat = DocValueFormat.RAW;
+
     /**
      * Constructs a script sort builder with the given script.
      *
      * @param script
      *            The script to use.
      * @param type
-     *            The type of the script, can be either {@link ScriptSortType#STRING} or
-     *            {@link ScriptSortType#NUMBER}
+     *            The type of the script, can be {@link ScriptSortType#STRING},
+     *            {@link ScriptSortType#NUMBER} or {@link ScriptSortType#VERSION}
      */
     public ScriptSortBuilder(Script script, ScriptSortType type) {
         Objects.requireNonNull(script, "script cannot be null");
@@ -104,13 +110,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
-                throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
-                );
-            }
-        }
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
     }
 
@@ -120,10 +119,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalString(null);
-            out.writeOptionalNamedWriteable(null);
-        }
         out.writeOptionalWriteable(nestedSort);
     }
 
@@ -213,22 +208,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
-
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_PATH_FIELD
-        );
-
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_FILTER_FIELD
-        );
     }
 
     /**
@@ -246,10 +225,24 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
+        if ("version".equals(this.type.toString())) {
+            try {
+                // TODO there must be a better way to get the field type...
+                MappedFieldType scriptFieldType = context.buildAnonymousFieldType(this.type.toString());
+                scriptResultValueFormat = scriptFieldType.docValueFormat(null, null);
+            } catch (Exception e) {
+                // "version" type is not available, fall back to RAW and sort as a string
+            }
+        }
         return new SortFieldAndFormat(
             new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
-            DocValueFormat.RAW
+            scriptResultValueFormat == null ? DocValueFormat.RAW : scriptResultValueFormat
         );
+    }
+
+    @Override
+    public String name() {
+        return NAME;
     }
 
     @Override
@@ -279,16 +272,22 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    StringSortScript leafScript;
+                    final Map<Object, StringSortScript> leafScripts = searchScript.needs_score()
+                        ? ConcurrentCollections.newConcurrentMap()
+                        : null;
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        StringSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        if (searchScript.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
@@ -303,8 +302,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        if (searchScript.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
 
                     @Override
@@ -327,16 +328,22 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             case NUMBER -> {
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
-                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
+                final NumberSortScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    NumberSortScript leafScript;
+                    final Map<Object, NumberSortScript> leafScripts = numberSortScriptFactory.needs_score()
+                        ? ConcurrentCollections.newConcurrentMap()
+                        : null;
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                        final NumericDoubleValues values = new NumericDoubleValues() {
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
+                        if (numberSortScriptFactory.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
+                        final DoubleValues values = new DoubleValues() {
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
@@ -350,8 +357,74 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        if (numberSortScriptFactory.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
+                    }
+                };
+            }
+            case VERSION -> {
+                final BytesRefSortScript.Factory factory = context.compile(script, BytesRefSortScript.CONTEXT);
+                final BytesRefSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
+                return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
+                    final Map<Object, BytesRefSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
+
+                    @Override
+                    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        BytesRefSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        if (searchScript.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
+                        final BinaryDocValues values = new AbstractBinaryDocValues() {
+
+                            @Override
+                            public boolean advanceExact(int doc) {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+
+                            @Override
+                            public BytesRef binaryValue() {
+                                Object result = leafScript.execute();
+                                if (result == null) {
+                                    return null;
+                                }
+                                if (result instanceof BytesRefProducer) {
+                                    return ((BytesRefProducer) result).toBytesRef();
+                                }
+
+                                if (scriptResultValueFormat == null) {
+                                    throw new IllegalArgumentException("Invalid sort type: version");
+                                }
+                                return scriptResultValueFormat.parseBytesRef(result);
+                            }
+                        };
+                        return FieldData.singleton(values);
+                    }
+
+                    @Override
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        if (searchScript.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
+                    }
+
+                    @Override
+                    public BucketedSort newBucketedSort(
+                        BigArrays bigArrays,
+                        SortOrder sortOrder,
+                        DocValueFormat format,
+                        int bucketSize,
+                        BucketedSort.ExtraData extra
+                    ) {
+                        throw new IllegalArgumentException(
+                            "error building sort for [_script]: "
+                                + "script sorting only supported on [numeric] scripts but was ["
+                                + type
+                                + "]"
+                        );
                     }
                 };
             }
@@ -385,11 +458,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return NAME;
     }
 
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
     public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,
         /** script sort for a numeric value **/
-        NUMBER;
+        NUMBER,
+        /** script sort for a Version field value **/
+        VERSION;
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
@@ -408,6 +488,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             return switch (str.toLowerCase(Locale.ROOT)) {
                 case ("string") -> ScriptSortType.STRING;
                 case ("number") -> ScriptSortType.NUMBER;
+                case ("version") -> ScriptSortType.VERSION;
                 default -> throw new IllegalArgumentException("Unknown ScriptSortType [" + str + "]");
             };
         }

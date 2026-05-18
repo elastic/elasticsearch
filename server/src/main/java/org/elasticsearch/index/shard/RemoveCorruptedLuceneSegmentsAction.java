@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -11,7 +12,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ import java.io.PrintStream;
  */
 public class RemoveCorruptedLuceneSegmentsAction {
 
-    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
+    public static Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
         Directory indexDirectory,
         Lock writeLock,
         PrintStream printStream,
@@ -32,7 +33,7 @@ public class RemoveCorruptedLuceneSegmentsAction {
 
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
-            checker.setChecksumsOnly(true);
+            checker.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
             checker.setInfoStream(printStream, verbose);
 
             status = checker.checkIndex(null);
@@ -58,12 +59,12 @@ public class RemoveCorruptedLuceneSegmentsAction {
         }
     }
 
-    public void execute(Terminal terminal, Directory indexDirectory, Lock writeLock, PrintStream printStream, boolean verbose)
+    public static void execute(Terminal terminal, Directory indexDirectory, Lock writeLock, PrintStream printStream, boolean verbose)
         throws IOException {
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
 
-            checker.setChecksumsOnly(true);
+            checker.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
             checker.setInfoStream(printStream, verbose);
 
             status = checker.checkIndex(null);

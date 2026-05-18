@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 
 /**
  * A xcontent parser that is used by watcher. This is a special parser that is
@@ -26,7 +27,7 @@ import java.time.ZonedDateTime;
  * {@link Secret}s are encrypted values that are stored in memory and are decrypted
  * on demand when needed.
  */
-public class WatcherXContentParser extends FilterXContentParser {
+public class WatcherXContentParser extends FilterXContentParserWrapper {
 
     public static final String REDACTED_PASSWORD = "::es_redacted::";
 
@@ -50,7 +51,9 @@ public class WatcherXContentParser extends FilterXContentParser {
                     throw new ElasticsearchParseException("found redacted password in field [{}]", parser.currentName());
                 }
             } else if (watcherParser.cryptoService != null) {
-                return new Secret(watcherParser.cryptoService.encrypt(chars));
+                char[] encryptedChars = watcherParser.cryptoService.encrypt(chars);
+                Arrays.fill(chars, '\0'); // Clear chars from unencrypted buffer
+                return new Secret(encryptedChars);
             }
         }
 

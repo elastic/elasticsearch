@@ -49,7 +49,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
 
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = between(10, 10_000); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
         }
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
@@ -58,13 +58,14 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
@@ -95,7 +96,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
                 for (RoutingNode routingNode : event.state().getRoutingNodes()) {
                     for (ShardRouting shardRouting : routingNode) {
                         if (shardRouting.unassignedInfo() != null) {
-                            unassignedReasons.add(shardRouting.unassignedInfo().getReason());
+                            unassignedReasons.add(shardRouting.unassignedInfo().reason());
                         }
                     }
                 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
@@ -91,20 +92,28 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
         builder.register(
             GeoHashGridAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
-            (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize, context, parent, cardinality, metadata) -> {
-                GeoHashCellIdSource cellIdSource = new GeoHashCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox);
-                return new GeoHashGridAggregator(
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                context,
+                parent,
+                cardinality,
+                metadata) -> new GeoHashGridAggregator(
                     name,
                     factories,
-                    cellIdSource,
+                    cb -> new GeoHashCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox, cb),
                     requiredSize,
                     shardSize,
                     context,
                     parent,
                     cardinality,
                     metadata
-                );
-            },
+                ),
             true
         );
     }

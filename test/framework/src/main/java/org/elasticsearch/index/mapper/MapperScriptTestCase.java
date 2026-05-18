@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -14,10 +15,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTestCase {
 
@@ -72,7 +75,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> { b.field("scripted", "foo"); })));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> { b.field("scripted", "foo"); })));
         assertThat(e.getMessage(), containsString("failed to parse field [scripted]"));
         assertEquals("Cannot index data directly into a field with a [script] parameter", e.getCause().getMessage());
     }
@@ -136,8 +139,8 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
-        assertThat(doc.rootDoc().getFields("message_error"), arrayWithSize(0));
-        assertThat(doc.rootDoc().getField("_ignored").stringValue(), equalTo("message_error"));
+        assertThat(doc.rootDoc().getFields("message_error"), hasSize(0));
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "message_error".equals(field.stringValue())));
     }
 
     public final void testRejectScriptErrors() throws IOException {
@@ -151,8 +154,9 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
         assertThat(e.getMessage(), equalTo("Error executing script on field [message_error]"));
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
     }
 
     public final void testMultipleValues() throws IOException {
@@ -164,7 +168,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertMultipleValues(doc.rootDoc().getFields("field"));
     }
 
-    protected abstract void assertMultipleValues(IndexableField[] fields);
+    protected abstract void assertMultipleValues(List<IndexableField> fields);
 
     public final void testDocValuesDisabled() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -176,7 +180,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertDocValuesDisabled(doc.rootDoc().getFields("field"));
     }
 
-    protected abstract void assertDocValuesDisabled(IndexableField[] fields);
+    protected abstract void assertDocValuesDisabled(List<IndexableField> fields);
 
     public final void testIndexDisabled() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -188,5 +192,5 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertIndexDisabled(doc.rootDoc().getFields("field"));
     }
 
-    protected abstract void assertIndexDisabled(IndexableField[] fields);
+    protected abstract void assertIndexDisabled(List<IndexableField> fields);
 }

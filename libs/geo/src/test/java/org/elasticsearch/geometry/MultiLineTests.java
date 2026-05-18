@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -61,5 +62,58 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
             .validate(
                 new MultiLine(Collections.singletonList(new Line(new double[] { 3, 4 }, new double[] { 1, 2 }, new double[] { 6, 5 })))
             );
+    }
+
+    public void testParseMultiLineZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        MultiLine expectedZ = new MultiLine(
+            List.of(
+                new Line(new double[] { 20.0, 30.0 }, new double[] { 10.0, 15.0 }, new double[] { 100.0, 200.0 }),
+                new Line(new double[] { 40.0, 50.0 }, new double[] { 20.0, 25.0 }, new double[] { 300.0, 400.0 })
+            )
+        );
+        assertEquals(
+            expectedZ,
+            WellKnownText.fromWKT(
+                validator,
+                true,
+                "MULTILINESTRING Z ((20.0 10.0 100.0, 30.0 15.0 200.0), (40.0 20.0 300.0, 50.0 25.0 400.0))"
+            )
+        );
+
+        MultiLine expectedM = new MultiLine(
+            List.of(
+                new Line(new double[] { 20.0, 30.0 }, new double[] { 10.0, 15.0 }, new double[] { 100.0, 200.0 }),
+                new Line(new double[] { 40.0, 50.0 }, new double[] { 20.0, 25.0 }, new double[] { 300.0, 400.0 })
+            )
+        );
+        assertEquals(
+            expectedM,
+            WellKnownText.fromWKT(
+                validator,
+                true,
+                "MULTILINESTRING M ((20.0 10.0 100.0, 30.0 15.0 200.0), (40.0 20.0 300.0, 50.0 25.0 400.0))"
+            )
+        );
+    }
+
+    public void testParseMultiLineZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> multiLinesWkt = List.of(
+            "MULTILINESTRING Z ((20.0 10.0, 30.0 15.0), (40.0 20.0, 50.0 25.0))",
+            "MULTILINESTRING M ((20.0 10.0, 30.0 15.0), (40.0 20.0, 50.0 25.0))"
+        );
+        for (String multiLine : multiLinesWkt) {
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> WellKnownText.fromWKT(validator, true, multiLine)
+            );
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
+    }
+
+    @Override
+    protected MultiLine mutateInstance(MultiLine instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

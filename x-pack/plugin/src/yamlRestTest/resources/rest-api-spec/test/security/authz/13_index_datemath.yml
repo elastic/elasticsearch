@@ -46,7 +46,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        id: 1
+        id: "1"
         index: "<write-{now/M}>"
         body: >
           {
@@ -81,7 +81,7 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        id: 4
+        id: "4"
         index: "<read-{now/M}>"
         body: >
           {

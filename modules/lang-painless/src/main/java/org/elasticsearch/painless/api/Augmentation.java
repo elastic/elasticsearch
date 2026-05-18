@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.api;
@@ -455,10 +456,10 @@ public class Augmentation {
     public static String replaceAll(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
         Matcher m = pattern.matcher(receiver);
         if (false == m.find()) {
-            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
-        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
         do {
             m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         } while (m.find());
@@ -476,7 +477,7 @@ public class Augmentation {
             // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
-        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
         m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         m.appendTail(result);
         return result.toString();
@@ -673,6 +674,10 @@ public class Augmentation {
         return MessageDigests.toHexString(MessageDigests.sha256().digest(source.getBytes(StandardCharsets.UTF_8)));
     }
 
+    public static String sha512(String source) {
+        return MessageDigests.toHexString(MessageDigests.sha512().digest(source.getBytes(StandardCharsets.UTF_8)));
+    }
+
     public static final int UNLIMITED_PATTERN_FACTOR = 0;
     public static final int DISABLED_PATTERN_FACTOR = -1;
 
@@ -708,11 +713,83 @@ public class Augmentation {
     /**
      * Convert a {@link TemporalAccessor} into millis since epoch like {@link Instant#toEpochMilli()}.
      */
-    public static long toEpochMilli(TemporalAccessor v) {
-        return v.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + v.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
+    public static long toEpochMilli(TemporalAccessor receiver) {
+        return receiver.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + receiver.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
+    }
+
+    public static long getMillis(TemporalAccessor receiver) {
+        return toEpochMilli(receiver);
     }
 
     public static DayOfWeek getDayOfWeekEnum(ZonedDateTime receiver) {
         return receiver.getDayOfWeek();
+    }
+
+    public static int getCenturyOfEra(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "[getCenturyOfEra] is no longer available; " + "use [get(ChronoField.YEAR_OF_ERA) / 100] instead"
+        );
+    }
+
+    public static int getEra(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getEra] is no longer available; use [get(ChronoField.ERA)] instead");
+    }
+
+    public static int getHourOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getHourOfDay] is no longer available; use [getHour()] instead");
+    }
+
+    public static int getMillisOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getMillisOfDay] is no longer available; use [get(ChronoField.MILLI_OF_DAY)] instead");
+    }
+
+    public static int getMillisOfSecond(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "[getMillisOfSecond] is no longer available; " + "use [get(ChronoField.MILLI_OF_SECOND)] instead"
+        );
+    }
+
+    public static int getMinuteOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "[getMinuteOfDay] is no longer available; " + "use [get(ChronoField.MINUTE_OF_DAY)] instead"
+        );
+    }
+
+    public static int getMinuteOfHour(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getMinuteOfHour] is no longer available; use [getMinute()] instead");
+    }
+
+    public static int getMonthOfYear(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getMonthOfYear] is no longer available; use [getMonthValue()] instead");
+    }
+
+    public static int getSecondOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "[getSecondOfDay] is no longer available; " + "use [get(ChronoField.SECOND_OF_DAY)] instead"
+        );
+    }
+
+    public static int getSecondOfMinute(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getSecondOfMinute] is no longer available; use [getSecond()] instead");
+    }
+
+    public static int getWeekOfWeekyear(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "[getWeekOfWeekyear] is no longer available; " + "use [get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)] instead"
+        );
+    }
+
+    public static int getWeekyear(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getWeekyear] is no longer available; use [get(IsoFields.WEEK_BASED_YEAR)] instead");
+    }
+
+    public static int getYearOfCentury(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "[getYearOfCentury] is no longer available; " + "use [get(ChronoField.YEAR_OF_ERA) % 100] instead"
+        );
+    }
+
+    public static int getYearOfEra(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException("[getYearOfEra] is no longer available; use [get(ChronoField.YEAR_OF_ERA)] instead");
     }
 }

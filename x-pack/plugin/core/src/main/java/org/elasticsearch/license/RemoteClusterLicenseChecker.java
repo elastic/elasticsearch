@@ -18,15 +18,21 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -125,8 +131,8 @@ public final class RemoteClusterLicenseChecker {
 
     }
 
-    private static final ClusterNameExpressionResolver clusterNameExpressionResolver = new ClusterNameExpressionResolver();
     private final Client client;
+    private final Executor remoteClientResponseExecutor;
     private final LicensedFeature feature;
 
     /**
@@ -139,6 +145,7 @@ public final class RemoteClusterLicenseChecker {
      */
     public RemoteClusterLicenseChecker(final Client client, @Nullable final LicensedFeature feature) {
         this.client = client;
+        this.remoteClientResponseExecutor = client.threadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.feature = feature;
     }
 
@@ -210,14 +217,16 @@ public final class RemoteClusterLicenseChecker {
             threadContext.newRestorableContext(false),
             listener
         );
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (var ignore = threadContext.newEmptySystemContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
-            threadContext.markAsSystemContext();
-
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {
-                client.getRemoteClusterClient(clusterAlias).execute(XPackInfoAction.INSTANCE, request, contextPreservingActionListener);
+                client.getRemoteClusterClient(
+                    clusterAlias,
+                    remoteClientResponseExecutor,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                ).execute(XPackInfoAction.REMOTE_TYPE, request, contextPreservingActionListener);
             } catch (final Exception e) {
                 contextPreservingActionListener.onFailure(e);
             }
@@ -231,7 +240,7 @@ public final class RemoteClusterLicenseChecker {
      * @return true if the collection of indices contains a remote index, otherwise false
      */
     public static boolean isRemoteIndex(final String index) {
-        return index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) != -1;
+        return RemoteClusterAware.isRemoteIndexName(index);
     }
 
     /**
@@ -258,20 +267,34 @@ public final class RemoteClusterLicenseChecker {
     /**
      * Extract the list of remote cluster aliases from the list of index names. Remote index names are of the form
      * {@code cluster_alias:index_name} and the cluster_alias is extracted (and expanded if it is a wildcard) for
-     * each index name that represents a remote index.
+     * each index name that represents a remote index. Exclusion patterns of the form {@code -cluster_alias:*} are
+     * handled by removing the corresponding clusters from the result.
+     * Exclusions are applied to the complete set of
+     * included clusters regardless of their position in the list (order-independent).
      *
      * @param remoteClusters the aliases for remote clusters
      * @param indices        the collection of index names
      * @return the remote cluster names
      */
     public static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
-        return indices.stream()
+        Set<String> included = new LinkedHashSet<>();
+        Set<String> excluded = new HashSet<>();
+        indices.stream()
             .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-            .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+            .map(index -> RemoteClusterAware.splitIndexName(index)[0])
             .distinct()
-            .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
-            .distinct()
-            .collect(Collectors.toList());
+            .forEach(clusterExpression -> {
+                boolean isExclusion = clusterExpression.startsWith("-");
+                String expression = isExclusion ? clusterExpression.substring(1) : clusterExpression;
+                List<String> resolved = ClusterNameExpressionResolver.resolveClusterNames(remoteClusters, expression);
+                if (isExclusion) {
+                    excluded.addAll(resolved);
+                } else {
+                    included.addAll(resolved);
+                }
+            });
+        included.removeAll(excluded);
+        return new ArrayList<>(included);
     }
 
     /**

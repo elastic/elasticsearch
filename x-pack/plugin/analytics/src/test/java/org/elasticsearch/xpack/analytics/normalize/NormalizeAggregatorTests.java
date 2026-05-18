@@ -12,13 +12,11 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -136,7 +134,7 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(ValuesSourceAggregationBuilder<?> aggBuilder, Consumer<InternalAggregation> aggAssertion) throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         // index date data
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -161,15 +159,10 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
             MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
             MappedFieldType termFieldType = new KeywordFieldMapper.KeywordFieldType(TERM_FIELD, false, true, Collections.emptyMap());
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 InternalAggregation internalAggregation = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    aggBuilder,
-                    dateFieldType,
-                    valueFieldType,
-                    termFieldType
+                    indexReader,
+                    new AggTestConfig(aggBuilder, dateFieldType, valueFieldType, termFieldType).withQuery(query)
                 );
                 aggAssertion.accept(internalAggregation);
             }

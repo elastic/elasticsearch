@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation.Error;
-import org.elasticsearch.xpack.core.security.support.Validation.Users;
 
 import java.io.IOException;
 
@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * The request that allows to set a user as enabled or disabled
  */
-public class SetEnabledRequest extends ActionRequest implements UserRequest, WriteRequest<SetEnabledRequest> {
+public class SetEnabledRequest extends LegacyActionRequest implements UserRequest, WriteRequest<SetEnabledRequest> {
 
     private Boolean enabled;
     private String username;
@@ -40,7 +40,7 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        Error error = Users.validateUsername(username, true, Settings.EMPTY);
+        Error error = NativeRealmValidationUtil.validateUsername(username, true, Settings.EMPTY);
         if (error != null) {
             validationException = addValidationError(error.toString(), validationException);
         }

@@ -14,6 +14,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
 public class RestDeleteShutdownNodeAction extends BaseRestHandler {
 
     @Override
@@ -27,12 +30,14 @@ public class RestDeleteShutdownNodeAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String nodeId = request.param("nodeId");
-        return channel -> client.execute(
-            DeleteShutdownNodeAction.INSTANCE,
-            new DeleteShutdownNodeAction.Request(nodeId),
-            new RestToXContentListener<>(channel)
-        );
+        final var nodeId = request.param("nodeId");
+        final var parsedRequest = new DeleteShutdownNodeAction.Request(getMasterNodeTimeout(request), getAckTimeout(request), nodeId);
+        return channel -> client.execute(DeleteShutdownNodeAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
     }
 }

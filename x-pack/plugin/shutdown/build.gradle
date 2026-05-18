@@ -4,19 +4,23 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    name 'x-pack-shutdown'
-    description 'Elasticsearch Expanded Pack Plugin - Shutdown'
-    classname 'org.elasticsearch.xpack.shutdown.ShutdownPlugin'
+    name = 'x-pack-shutdown'
+    description = 'Elasticsearch Expanded Pack Plugin - Shutdown'
+    classname ='org.elasticsearch.xpack.shutdown.ShutdownPlugin'
     extendedPlugins = ['x-pack-core']
+    deploymentTarget = 'STATEFUL_ONLY'
 }
-archivesBaseName = 'x-pack-shutdown'
+base {
+  archivesName = 'x-pack-shutdown'
+}
 
 dependencies {
     compileOnly project(path: xpackModule('core'))
     testImplementation(testArtifact(project(xpackModule('core'))))
+    internalClusterTestImplementation project(':test:framework')
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 testClusters.configureEach {
   testDistribution = 'default'

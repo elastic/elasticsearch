@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.SortedSet;
@@ -30,15 +32,16 @@ import java.util.SortedSet;
  *  with the inverted index. */
 public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
-    public TermBasedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+    protected final TextSearchInfo textSearchInfo;
+
+    public TermBasedFieldType(String name, IndexType indexType, boolean isStored, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, indexType, isStored, meta);
+        this.textSearchInfo = textSearchInfo;
+    }
+
+    @Override
+    public TextSearchInfo getTextSearchInfo() {
+        return this.textSearchInfo;
     }
 
     /** Returns the indexed value used to construct search "values".
@@ -51,7 +54,18 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
-        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+        final BytesRef valueForSearch = indexedValueForSearch(value);
+        // check if valueForSearch is the same as an empty string
+        // if we have a length of zero, just do a regular term query
+        if (valueForSearch.length == 0) {
+            return termQuery(value, context);
+        }
+        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), valueForSearch));
+    }
+
+    @Override
+    public boolean mayExistInIndex(SearchExecutionContext context) {
+        return context.fieldExistsInIndex(name());
     }
 
     @Override

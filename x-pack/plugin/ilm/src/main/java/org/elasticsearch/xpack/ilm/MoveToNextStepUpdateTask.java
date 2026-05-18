@@ -8,38 +8,41 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTask {
+
     private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
 
     private final String policy;
     private final Step.StepKey nextStepKey;
     private final LongSupplier nowSupplier;
     private final PolicyStepsRegistry stepRegistry;
-    private final Consumer<ClusterState> stateChangeConsumer;
+    private final Consumer<ProjectState> stateChangeConsumer;
 
     public MoveToNextStepUpdateTask(
+        ProjectId projectId,
         Index index,
         String policy,
         Step.StepKey currentStepKey,
         Step.StepKey nextStepKey,
         LongSupplier nowSupplier,
         PolicyStepsRegistry stepRegistry,
-        Consumer<ClusterState> stateChangeConsumer
+        Consumer<ProjectState> stateChangeConsumer
     ) {
-        super(index, currentStepKey);
+        super(projectId, index, currentStepKey);
         this.policy = policy;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
@@ -48,28 +51,28 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     }
 
     @Override
-    public ClusterState doExecute(ClusterState currentState) {
-        IndexMetadata indexMetadata = currentState.getMetadata().index(index);
-        if (indexMetadata == null) {
+    public ClusterState doExecute(ProjectState currentState) {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
+        if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            return currentState;
+            return currentState.cluster();
         }
-        Settings indexSettings = indexMetadata.getSettings();
-        LifecycleExecutionState indexILMData = currentState.getMetadata().index(index).getLifecycleExecutionState();
-        if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(Step.getCurrentStepKey(indexILMData))) {
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+        if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(lifecycleState))) {
             logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);
-            return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, nextStepKey, nowSupplier, stepRegistry, false);
+            return currentState.updatedState(
+                IndexLifecycleTransition.moveIndexToStep(index, currentState.metadata(), nextStepKey, nowSupplier, stepRegistry, false)
+            );
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In
             // either case we don't want to do anything now
-            return currentState;
+            return currentState.cluster();
         }
     }
 
     @Override
-    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(ProjectState newState) {
         stateChangeConsumer.accept(newState);
     }
 
@@ -92,8 +95,8 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     @Override
     public void handleFailure(Exception e) {
         logger.warn(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",
+            () -> format(
+                "policy [%s] for index [%s] failed trying to move from step [%s] to step [%s].",
                 policy,
                 index,
                 currentStepKey,

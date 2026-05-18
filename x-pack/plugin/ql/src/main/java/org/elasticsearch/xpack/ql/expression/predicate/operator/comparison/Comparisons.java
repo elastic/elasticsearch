@@ -6,7 +6,12 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.versionfield.Version;
+
+import java.math.BigInteger;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics.asBigInteger;
 
 /**
  * Comparison utilities.
@@ -68,13 +73,21 @@ public final class Comparisons {
             return null;
         }
         // typical number comparison
-        if (l instanceof Number && r instanceof Number) {
-            return compare((Number) l, (Number) r);
+        if (l instanceof Number lN && r instanceof Number rN) {
+            return compare(lN, rN);
         }
 
-        if (l instanceof Comparable && r instanceof Comparable) {
+        // automatic conversion for versions
+        if (l instanceof Version lV && r instanceof String rStr) {
+            return lV.compareTo(new Version(rStr));
+        }
+        if (l instanceof String lStr && r instanceof Version rV) {
+            return new Version(lStr).compareTo(rV);
+        }
+
+        if (l instanceof Comparable lC && r instanceof Comparable) {
             try {
-                return Integer.valueOf(((Comparable) l).compareTo(r));
+                return Integer.valueOf(lC.compareTo(r));
             } catch (ClassCastException cce) {
                 // when types are not compatible, cce is thrown
                 // fall back to null
@@ -91,6 +104,9 @@ public final class Comparisons {
         }
         if (l instanceof Float || r instanceof Float) {
             return Float.compare(l.floatValue(), r.floatValue());
+        }
+        if (l instanceof BigInteger || r instanceof BigInteger) {
+            return asBigInteger(l).compareTo(asBigInteger(r));
         }
         if (l instanceof Long || r instanceof Long) {
             return Long.compare(l.longValue(), r.longValue());

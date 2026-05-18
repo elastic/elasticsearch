@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,13 +25,14 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG;
 
 /**
  * Request object for adding/updating a role-mapping to the native store
- *
+ * <p>
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequest extends ActionRequest implements WriteRequest<PutRoleMappingRequest> {
+public class PutRoleMappingRequest extends LegacyActionRequest implements WriteRequest<PutRoleMappingRequest> {
 
     private String name = null;
     private boolean enabled = true;
@@ -46,12 +46,10 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         super(in);
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            this.roleTemplates = in.readList(TemplateRoleName::new);
-        }
+        this.roles = in.readStringCollectionAsList();
+        this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         this.rules = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -59,6 +57,10 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
 
     @Override
     public ActionRequestValidationException validate() {
+        return validate(true);
+    }
+
+    public ActionRequestValidationException validate(boolean validateMetadata) {
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("role-mapping name is missing", validationException);
@@ -72,11 +74,20 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         if (rules == null) {
             validationException = addValidationError("role-mapping rules are missing", validationException);
         }
-        if (MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError(
-                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException
-            );
+        if (validateMetadata && MetadataUtils.containsReservedMetadata(metadata)) {
+            if (metadata.containsKey(READ_ONLY_ROLE_MAPPING_METADATA_FLAG)) {
+                validationException = addValidationError(
+                    "metadata contains ["
+                        + READ_ONLY_ROLE_MAPPING_METADATA_FLAG
+                        + "] flag. You cannot create or update role-mappings with a read-only flag",
+                    validationException
+                );
+            } else {
+                validationException = addValidationError(
+                    "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                    validationException
+                );
+            }
         }
         return validationException;
     }
@@ -151,11 +162,9 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeList(roleTemplates);
-        }
+        out.writeCollection(roleTemplates);
         ExpressionParser.writeExpression(rules, out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         refreshPolicy.writeTo(out);
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -13,10 +14,11 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,7 +29,9 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestNodesUsageAction extends BaseRestHandler {
 
     @Override
@@ -46,7 +50,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesUsageRequest nodesUsageRequest = new NodesUsageRequest(nodesIds);
-        nodesUsageRequest.timeout(request.param("timeout"));
+        nodesUsageRequest.setTimeout(getTimeout(request));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesUsageRequest.all();
@@ -75,7 +79,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
                 response.toXContent(builder, channel.request());
                 builder.endObject();
 
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

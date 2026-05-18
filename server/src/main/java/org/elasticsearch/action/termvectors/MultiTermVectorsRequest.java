@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.RealtimeRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,13 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
-public class MultiTermVectorsRequest extends ActionRequest
-    implements
-        Iterable<TermVectorsRequest>,
-        CompositeIndicesRequest,
-        RealtimeRequest {
+public class MultiTermVectorsRequest extends LegacyActionRequest implements Iterable<TermVectorsRequest>, CompositeIndicesRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
@@ -157,8 +151,6 @@ public class MultiTermVectorsRequest extends ActionRequest
         return requests.size();
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
     public MultiTermVectorsRequest realtime(boolean realtime) {
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);

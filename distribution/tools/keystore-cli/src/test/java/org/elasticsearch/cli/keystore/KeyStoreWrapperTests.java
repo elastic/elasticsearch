@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -14,9 +15,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -34,12 +36,10 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -53,9 +53,12 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends ESTestCase {
@@ -81,8 +84,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
             bytes[i] = (byte) i;
         }
         keystore.setFile("foo", bytes);
-        keystore.save(env.configFile(), password);
-        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore.save(env.configDir(), password);
+        keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(password);
         try (InputStream stream = keystore.getFile("foo")) {
             for (int i = 0; i < 256; ++i) {
@@ -111,8 +114,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
             invalidPassword[realPassword.length] = '#';
         }
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.configFile(), realPassword);
-        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
+        keystore.save(env.configDir(), realPassword);
+        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configDir());
         final SecurityException exception = expectThrows(SecurityException.class, () -> loadedkeystore.decrypt(invalidPassword));
         if (inFipsJvm()) {
             assertThat(
@@ -130,8 +133,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testDecryptKeyStoreWithShortPasswordInFips() throws Exception {
         assumeTrue("This should run only in FIPS mode", inFipsJvm());
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.configFile(), "alongenoughpassword".toCharArray());
-        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
+        keystore.save(env.configDir(), "alongenoughpassword".toCharArray());
+        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configDir());
         final GeneralSecurityException exception = expectThrows(
             GeneralSecurityException.class,
             () -> loadedkeystore.decrypt("shortpwd".toCharArray()) // shorter than 14 characters
@@ -144,7 +147,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         final GeneralSecurityException exception = expectThrows(
             GeneralSecurityException.class,
-            () -> keystore.save(env.configFile(), "shortpwd".toCharArray()) // shorter than 14 characters
+            () -> keystore.save(env.configDir(), "shortpwd".toCharArray()) // shorter than 14 characters
         );
         assertThat(exception.getMessage(), containsString("Error generating an encryption key from the provided password"));
     }
@@ -189,18 +192,18 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final char[] password = getPossibleKeystorePassword();
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
-        keystore.save(env.configFile(), password);
+        keystore.save(env.configDir(), password);
         // upgrade does not overwrite seed
-        KeyStoreWrapper.upgrade(keystore, env.configFile(), password);
+        KeyStoreWrapper.upgrade(keystore, env.configDir(), password);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
-        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(password);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
 
     public void testFailWhenCannotConsumeSecretStream() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
             IndexOutput indexOutput = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT)
@@ -231,7 +234,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testFailWhenCannotConsumeEncryptedBytesStream() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
             IndexOutput indexOutput = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT)
@@ -263,7 +266,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testFailWhenSecretStreamNotConsumed() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
             IndexOutput indexOutput = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT)
@@ -293,7 +296,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testFailWhenEncryptedBytesStreamIsNotConsumed() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
             IndexOutput indexOutput = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT)
@@ -356,11 +359,11 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final char[] password = getPossibleKeystorePassword();
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.remove(KeyStoreWrapper.SEED_SETTING.getKey());
-        keystore.save(env.configFile(), password);
-        KeyStoreWrapper.upgrade(keystore, env.configFile(), password);
+        keystore.save(env.configDir(), password);
+        KeyStoreWrapper.upgrade(keystore, env.configDir(), password);
         SecureString seed = keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey());
         assertNotNull(seed);
-        keystore = KeyStoreWrapper.load(env.configFile());
+        keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(password);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
@@ -375,101 +378,9 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
-    public void testBackcompatV1() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
-        Path configDir = env.configFile();
-        try (
-            Directory directory = newFSDirectory(configDir);
-            IndexOutput output = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT);
-        ) {
-            CodecUtil.writeHeader(output, "elasticsearch.keystore", 1);
-            output.writeByte((byte) 0); // hasPassword = false
-            output.writeString("PKCS12");
-            output.writeString("PBE");
-
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
-            keystore.load(null, null);
-            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
-            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
-            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
-            keystore.store(keystoreBytesStream, new char[0]);
-            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
-            output.writeBytes(keystoreBytes, keystoreBytes.length);
-            CodecUtil.writeFooter(output);
-        }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
-        keystore.decrypt(new char[0]);
-        SecureString testValue = keystore.getString("string_setting");
-        assertThat(testValue.toString(), equalTo("stringSecretValue"));
-    }
-
-    public void testBackcompatV2() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
-        Path configDir = env.configFile();
-        byte[] fileBytes = new byte[20];
-        random().nextBytes(fileBytes);
-        try (
-            Directory directory = newFSDirectory(configDir);
-            IndexOutput output = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT);
-        ) {
-            CodecUtil.writeHeader(output, "elasticsearch.keystore", KeyStoreWrapper.V2_VERSION);
-            output.writeByte((byte) 0); // hasPassword = false
-            output.writeString("PKCS12");
-            output.writeString("PBE"); // string algo
-            output.writeString("PBE"); // file algo
-
-            output.writeVInt(2); // num settings
-            output.writeString("string_setting");
-            output.writeString("STRING");
-            output.writeString("file_setting");
-            output.writeString("FILE");
-
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
-            keystore.load(null, null);
-            SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
-            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
-            keystore.setEntry("string_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            byte[] base64Bytes = Base64.getEncoder().encode(fileBytes);
-            char[] chars = new char[base64Bytes.length];
-            for (int i = 0; i < chars.length; ++i) {
-                chars[i] = (char) base64Bytes[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
-            }
-            secretKey = secretFactory.generateSecret(new PBEKeySpec(chars));
-            keystore.setEntry("file_setting", new KeyStore.SecretKeyEntry(secretKey), protectionParameter);
-
-            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
-            keystore.store(keystoreBytesStream, new char[0]);
-            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
-            output.writeInt(keystoreBytes.length);
-            output.writeBytes(keystoreBytes, keystoreBytes.length);
-            CodecUtil.writeFooter(output);
-        }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
-        keystore.decrypt(new char[0]);
-        SecureString testValue = keystore.getString("string_setting");
-        assertThat(testValue.toString(), equalTo("stringSecretValue"));
-
-        try (InputStream fileInput = keystore.getFile("file_setting")) {
-            byte[] readBytes = new byte[20];
-            assertEquals(20, fileInput.read(readBytes));
-            for (int i = 0; i < fileBytes.length; ++i) {
-                assertThat("byte " + i, readBytes[i], equalTo(fileBytes[i]));
-            }
-            assertEquals(-1, fileInput.read());
-        }
-    }
-
     public void testBackcompatV4() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         try (
             Directory directory = newFSDirectory(configDir);
             IndexOutput indexOutput = EndiannessReverserUtil.createOutput(directory, "elasticsearch.keystore", IOContext.DEFAULT)
@@ -510,10 +421,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final Path temp = createTempDir();
         Files.writeString(temp.resolve("file_setting"), "file_value", StandardCharsets.UTF_8);
         wrapper.setFile("file_setting", Files.readAllBytes(temp.resolve("file_setting")));
-        wrapper.save(env.configFile(), password);
+        wrapper.save(env.configDir(), password);
         wrapper.close();
 
-        final KeyStoreWrapper afterSave = KeyStoreWrapper.load(env.configFile());
+        final KeyStoreWrapper afterSave = KeyStoreWrapper.load(env.configDir());
         assertNotNull(afterSave);
         afterSave.decrypt(password);
         assertThat(afterSave.getSettingNames(), equalTo(Set.of("keystore.seed", "string_setting", "file_setting")));
@@ -526,17 +437,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testLegacyV3() throws GeneralSecurityException, IOException {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         final Path configDir = createTempDir();
-        final Path keystore = configDir.resolve("elasticsearch.keystore");
-        try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-            OutputStream os = Files.newOutputStream(keystore)
-        ) {
-            final byte[] buffer = new byte[4096];
-            int readBytes;
-            while ((readBytes = is.read(buffer)) > 0) {
-                os.write(buffer, 0, readBytes);
-            }
-        }
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v3-elasticsearch.keystore");
+
         final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
         assertNotNull(wrapper);
         wrapper.decrypt(new char[0]);
@@ -546,6 +448,86 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(toByteArray(wrapper.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
         assertThat(wrapper.getString("file_setting"), equalTo("file_value"));
         assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public void testLegacyV5() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v5-with-password-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(5));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed")));
+    }
+
+    public void testLegacyV6() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        copyKeyStoreFromResourceToConfigDir(configDir, "/format-v6-elasticsearch.keystore");
+
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(6));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string")));
+        assertThat(wrapper.getString("string"), equalTo("value"));
+    }
+
+    private void copyKeyStoreFromResourceToConfigDir(Path configDir, String name) throws IOException {
+        final Path keystore = configDir.resolve("elasticsearch.keystore");
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream(name); //
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
+            final byte[] buffer = new byte[4096];
+            int readBytes;
+            while ((readBytes = is.read(buffer)) > 0) {
+                os.write(buffer, 0, readBytes);
+            }
+        }
+    }
+
+    public void testSerializationNewlyCreated() throws Exception {
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
+        wrapper.setString("string_setting", "string_value".toCharArray());
+
+        // testing when dataBytes[] is null
+        final BytesStreamOutput out = new BytesStreamOutput();
+        wrapper.writeTo(out);
+        final KeyStoreWrapper fromStream = new KeyStoreWrapper(out.bytes().streamInput());
+
+        assertThat(fromStream.getFormatVersion(), is(KeyStoreWrapper.CURRENT_VERSION));
+        assertThat(fromStream.getSettingNames(), hasSize(2));
+        assertThat(fromStream.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromStream.getString("string_setting"));
+        assertFalse(wrapper.hasPassword());
+    }
+
+    public void testSerializationWhenLoadedFromFile() throws Exception {
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
+        wrapper.setString("string_setting", "string_value".toCharArray());
+
+        // testing with password and raw dataBytes[]
+        final char[] password = getPossibleKeystorePassword();
+        wrapper.save(env.configDir(), password);
+        final KeyStoreWrapper fromFile = KeyStoreWrapper.load(env.configDir());
+        fromFile.decrypt(password);
+
+        assertThat(fromFile.getSettingNames(), hasSize(2));
+        assertThat(fromFile.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromFile.getString("string_setting"));
+
+        final BytesStreamOutput secondOut = new BytesStreamOutput();
+        fromFile.writeTo(secondOut);
+        final KeyStoreWrapper fromStreamSecond = new KeyStoreWrapper(secondOut.bytes().streamInput());
+
+        assertThat(fromStreamSecond.getSettingNames(), hasSize(2));
+        assertThat(fromStreamSecond.getSettingNames(), containsInAnyOrder("string_setting", "keystore.seed"));
+
+        assertEquals(wrapper.getString("string_setting"), fromStreamSecond.getString("string_setting"));
+        assertEquals(fromFile.hasPassword(), fromStreamSecond.hasPassword());
     }
 
     private byte[] toByteArray(final InputStream is) throws IOException {

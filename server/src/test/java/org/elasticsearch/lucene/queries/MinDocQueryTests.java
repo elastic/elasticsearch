@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.queries;
@@ -11,11 +12,11 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.QueryUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -37,10 +38,11 @@ public class MinDocQueryTests extends ESTestCase {
 
     public void testRewrite() throws Exception {
         IndexReader reader = new MultiReader();
+        IndexSearcher searcher = newSearcher(reader);
         MinDocQuery query = new MinDocQuery(42);
-        Query rewritten = query.rewrite(reader);
+        Query rewritten = query.rewrite(searcher);
         QueryUtils.checkUnequal(query, rewritten);
-        Query rewritten2 = rewritten.rewrite(reader);
+        Query rewritten2 = rewritten.rewrite(searcher);
         assertSame(rewritten, rewritten2);
     }
 

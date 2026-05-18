@@ -12,15 +12,20 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexSettings;
 import org.elasticsearch.reindex.ReindexSslConfig;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -42,13 +47,16 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         ClusterService clusterService,
         ScriptService scriptService,
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
         Environment environment,
-        ResourceWatcherService watcherService
+        ResourceWatcherService watcherService,
+        FeatureService featureService,
+        TaskResultsService taskResultsService
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -56,12 +64,21 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             threadPool,
             actionFilters,
             indexNameExpressionResolver,
+            projectResolver,
             clusterService,
             scriptService,
             autoCreateIndex,
             client,
             transportService,
-            new ReindexSslConfig(settings, environment, watcherService)
+            new ReindexSslConfig(settings, environment, watcherService),
+            null,
+            null,
+            // can't be injected due to different classloaders between enrich and reindex (enrich doesn't extend reindex).
+            ReindexPlugin.getReindexRelocationNodePicker(environment),
+            // Use default reindexer settings values
+            new ReindexSettings(),
+            featureService,
+            taskResultsService
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

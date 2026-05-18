@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -68,7 +68,7 @@ public final class TimeoutUtils {
      * @throws ElasticsearchTimeoutException iff the {@code response} contains any node-level timeout. The exception message identifies the
      *                                       nodes that timed out and mentions {@code collectionTimeout}.
      */
-    public static void ensureNoTimeouts(TimeValue collectionTimeout, BroadcastResponse response) {
+    public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseBroadcastResponse response) {
         HashSet<String> timedOutNodeIds = null;
         for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
             final Throwable shardFailureCause = shardFailure.getCause();

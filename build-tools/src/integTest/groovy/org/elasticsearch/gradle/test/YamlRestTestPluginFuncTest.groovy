@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.test
@@ -11,9 +12,16 @@ package org.elasticsearch.gradle.test
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.Ignore
 
 class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
+        configurationCacheCompatible = false
+    }
+
+    @Ignore('https://github.com/gradle/gradle/issues/21868')
     def "declares default dependencies"() {
         given:
         buildFile << """
@@ -31,7 +39,7 @@ restTestSpecs
 /--- org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch} FAILED""")
         output.contains(normalized("""
 yamlRestTestImplementation - Implementation only dependencies for source set 'yaml rest test'. (n)
-/--- org.elasticsearch.test:framework:${VersionProperties.elasticsearch} (n)"""))
+/--- org.elasticsearch.test:yaml-rest-runner:${VersionProperties.elasticsearch} (n)"""))
     }
 
     def "yamlRestTest does nothing when there are no tests"() {
@@ -40,11 +48,11 @@ yamlRestTestImplementation - Implementation only dependencies for source set 'ya
         plugins {
           id 'elasticsearch.yaml-rest-test'
         }
-        
+
         repositories {
             mavenCentral()
         }
-   
+
         dependencies {
             yamlRestTestImplementation "org.elasticsearch.test:framework:7.14.0"
             restTestSpecs "org.elasticsearch:rest-api-spec:7.14.0"

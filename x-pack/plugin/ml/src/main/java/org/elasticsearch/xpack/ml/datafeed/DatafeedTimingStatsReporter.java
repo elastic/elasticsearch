@@ -8,39 +8,47 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 
 /**
- * {@link DatafeedTimingStatsReporter} class handles the logic of persisting {@link DatafeedTimingStats} if they changed significantly
- * since the last time they were persisted.
- *
+ * {@link DatafeedTimingStatsReporter} class handles the logic of persisting {@link DatafeedTimingStats} for a single job
+ * if they changed significantly since the last time they were persisted.
+ * <p>
  * This class is not thread-safe.
  */
 public class DatafeedTimingStatsReporter {
 
-    private static final Logger LOGGER = LogManager.getLogger(DatafeedTimingStatsReporter.class);
+    private static final Logger logger = LogManager.getLogger(DatafeedTimingStatsReporter.class);
 
     /** Interface used for persisting current timing stats to the results index. */
     @FunctionalInterface
     public interface DatafeedTimingStatsPersister {
         /** Does nothing by default. This behavior is useful when creating fake {@link DatafeedTimingStatsReporter} objects. */
-        void persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy);
+        void persistDatafeedTimingStats(
+            DatafeedTimingStats timingStats,
+            WriteRequest.RefreshPolicy refreshPolicy,
+            ActionListener<BulkResponse> listener
+        );
     }
 
     /** Persisted timing stats. May be stale. */
-    private DatafeedTimingStats persistedTimingStats;
+    private volatile DatafeedTimingStats persistedTimingStats;
     /** Current timing stats. */
-    private volatile DatafeedTimingStats currentTimingStats;
+    private final DatafeedTimingStats currentTimingStats;
     /** Object used to persist current timing stats. */
     private final DatafeedTimingStatsPersister persister;
     /** Whether or not timing stats will be persisted by the persister object. */
     private volatile boolean allowedPersisting;
+    /** Records whether a persist is currently in progress. */
+    private CountDownLatch persistInProgressLatch;
 
     public DatafeedTimingStatsReporter(DatafeedTimingStats timingStats, DatafeedTimingStatsPersister persister) {
         Objects.requireNonNull(timingStats);
@@ -82,9 +90,11 @@ public class DatafeedTimingStatsReporter {
 
     /** Finishes reporting of timing stats. Makes timing stats persisted immediately. */
     public void finishReporting() {
-        // Don't flush if current timing stats are identical to the persisted ones
-        if (currentTimingStats.equals(persistedTimingStats) == false) {
-            flush(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try {
+            flush(WriteRequest.RefreshPolicy.IMMEDIATE, true);
+        } catch (InterruptedException e) {
+            logger.warn("[{}] interrupted while finishing reporting of datafeed timing stats", currentTimingStats.getJobId());
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -95,22 +105,50 @@ public class DatafeedTimingStatsReporter {
 
     private void flushIfDifferSignificantly() {
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
-            flush(WriteRequest.RefreshPolicy.NONE);
+            try {
+                flush(WriteRequest.RefreshPolicy.NONE, false);
+            } catch (InterruptedException e) {
+                assert false : "This should never happen when flush is called with mustWait set to false";
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
-    private void flush(WriteRequest.RefreshPolicy refreshPolicy) {
-        persistedTimingStats = new DatafeedTimingStats(currentTimingStats);
-        if (allowedPersisting) {
-            try {
-                persister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
-            } catch (Exception ex) {
-                // Since persisting datafeed timing stats is not critical, we just log a warning here.
-                LOGGER.warn(
-                    () -> new ParameterizedMessage("[{}] failed to report datafeed timing stats", currentTimingStats.getJobId()),
-                    ex
-                );
-            }
+    private synchronized void flush(WriteRequest.RefreshPolicy refreshPolicy, boolean mustWait) throws InterruptedException {
+        String jobId = currentTimingStats.getJobId();
+        if (allowedPersisting && mustWait && persistInProgressLatch != null) {
+            persistInProgressLatch.await();
+            persistInProgressLatch = null;
+        }
+        // Don't persist if:
+        // 1. Persistence is disallowed
+        // 2. There is already a persist in progress
+        // 3. Current timing stats are identical to the persisted ones
+        if (allowedPersisting == false) {
+            logger.trace("[{}] not persisting datafeed timing stats as persistence is disallowed", jobId);
+            return;
+        }
+        if (persistInProgressLatch != null && persistInProgressLatch.getCount() > 0) {
+            logger.trace("[{}] not persisting datafeed timing stats as the previous persist is still in progress", jobId);
+            return;
+        }
+        if (currentTimingStats.equals(persistedTimingStats)) {
+            logger.trace("[{}] not persisting datafeed timing stats as they are identical to latest already persisted", jobId);
+            return;
+        }
+        final CountDownLatch thisPersistLatch = new CountDownLatch(1);
+        final DatafeedTimingStats thisPersistTimingStats = new DatafeedTimingStats(currentTimingStats);
+        persistInProgressLatch = thisPersistLatch;
+        persister.persistDatafeedTimingStats(thisPersistTimingStats, refreshPolicy, ActionListener.wrap(r -> {
+            persistedTimingStats = thisPersistTimingStats;
+            thisPersistLatch.countDown();
+        }, e -> {
+            thisPersistLatch.countDown();
+            // Since persisting datafeed timing stats is not critical, we just log a warning here.
+            logger.warn(() -> "[" + jobId + "] failed to report datafeed timing stats", e);
+        }));
+        if (mustWait) {
+            thisPersistLatch.await();
         }
     }
 

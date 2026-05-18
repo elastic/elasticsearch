@@ -1,0 +1,4 @@
+The files under this directory come from the input test files from Uber's h3 repository
+(https://github.com/uber/h3/tree/master/tests/inputfiles) and are made available here
+under the same Apache 2 license.
+

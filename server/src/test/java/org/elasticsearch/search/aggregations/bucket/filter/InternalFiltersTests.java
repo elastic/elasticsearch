@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -29,12 +31,19 @@ import static org.hamcrest.Matchers.sameInstance;
 public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase<InternalFilters> {
 
     private boolean keyed;
+    private boolean keyedBucket;
     private List<String> keys;
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         keyed = randomBoolean();
+        keyedBucket = randomBoolean();
         keys = new ArrayList<>();
         int numBuckets = randomNumberOfBuckets();
         for (int i = 0; i < numBuckets; i++) {
@@ -50,12 +59,11 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     @Override
     protected InternalFilters createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final List<InternalFilters.InternalBucket> buckets = new ArrayList<>();
-        for (int i = 0; i < keys.size(); ++i) {
-            String key = keys.get(i);
+        for (String key : keys) {
             int docCount = randomIntBetween(0, 1000);
-            buckets.add(new InternalFilters.InternalBucket(key, docCount, aggregations, keyed));
+            buckets.add(new InternalBucket(key, docCount, aggregations));
         }
-        return new InternalFilters(name, buckets, keyed, metadata);
+        return new InternalFilters(name, buckets, keyed, keyedBucket, metadata);
     }
 
     @Override
@@ -77,11 +85,6 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     }
 
     @Override
-    protected Class<ParsedFilters> implementationClass() {
-        return ParsedFilters.class;
-    }
-
-    @Override
     protected InternalFilters mutateInstance(InternalFilters instance) {
         String name = instance.getName();
         List<InternalBucket> buckets = instance.getBuckets();
@@ -90,18 +93,18 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
             case 0 -> name += randomAlphaOfLength(5);
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
-                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY, keyed));
+                buckets.add(new InternalBucket("test", randomIntBetween(0, 1000), InternalAggregations.EMPTY));
             }
             default -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
             }
         }
-        return new InternalFilters(name, buckets, keyed, metadata);
+        return new InternalFilters(name, buckets, keyed, keyedBucket, metadata);
     }
 
     public void testReducePipelinesReturnsSameInstanceWithoutPipelines() {

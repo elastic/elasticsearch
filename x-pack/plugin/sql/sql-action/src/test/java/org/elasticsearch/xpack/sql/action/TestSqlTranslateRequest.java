@@ -61,6 +61,8 @@ public class TestSqlTranslateRequest extends SqlTranslateRequest implements ToXC
             null,
             null,
             false,
+            null,
+            false,
             null
         );
         return SqlTestUtils.toXContentBuilder(builder, this, protoInstance);

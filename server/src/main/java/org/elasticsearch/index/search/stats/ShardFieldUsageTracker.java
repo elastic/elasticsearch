@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.search.stats.FieldUsageStats.PerFieldUsageStats;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader.FieldUsageNotifier;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,7 +45,7 @@ public class ShardFieldUsageTracker {
      * returns information for all fields.
      */
     public FieldUsageStats stats(String... fields) {
-        final Map<String, PerFieldUsageStats> stats = new HashMap<>(perFieldStats.size());
+        final Map<String, PerFieldUsageStats> stats = Maps.newMapWithExpectedSize(perFieldStats.size());
         for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
             InternalFieldStats ifs = entry.getValue();
             if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {
@@ -110,7 +111,7 @@ public class ShardFieldUsageTracker {
 
         @Override
         public void close() {
-            usages.entrySet().stream().forEach(e -> {
+            usages.entrySet().forEach(e -> {
                 InternalFieldStats fieldStats = perFieldStats.computeIfAbsent(e.getKey(), f -> new InternalFieldStats());
                 PerField pf = e.getValue();
                 boolean any = false;

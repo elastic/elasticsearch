@@ -21,6 +21,11 @@ public class ResetJobRequestTests extends AbstractWireSerializingTestCase<ResetJ
     }
 
     @Override
+    protected ResetJobAction.Request mutateInstance(ResetJobAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ResetJobAction.Request> instanceReader() {
         return ResetJobAction.Request::new;
     }

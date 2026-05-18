@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script;
 
@@ -14,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 public class ScriptCacheTests extends ESTestCase {
     private static final LongSupplier time = () -> 1L;
@@ -22,9 +22,7 @@ public class ScriptCacheTests extends ESTestCase {
     // even though circuit breaking is allowed to be configured per minute, we actually weigh this over five minutes
     // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
-        String context = randomFrom(
-            ScriptModule.CORE_CONTEXTS.values().stream().filter(c -> c.compilationRateLimited).collect(Collectors.toList())
-        ).name;
+        String context = randomFrom(ScriptModule.CORE_CONTEXTS.values().stream().filter(c -> c.compilationRateLimited).toList()).name;
         final TimeValue expire = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         final Integer size = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         Setting<ScriptCache.CompilationRate> rateSetting = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING
@@ -105,9 +103,7 @@ public class ScriptCacheTests extends ESTestCase {
     }
 
     public void testUnlimitedCompilationRate() {
-        String context = randomFrom(
-            ScriptModule.CORE_CONTEXTS.values().stream().filter(c -> c.compilationRateLimited).collect(Collectors.toList())
-        ).name;
+        String context = randomFrom(ScriptModule.CORE_CONTEXTS.values().stream().filter(c -> c.compilationRateLimited).toList()).name;
         final Integer size = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         final TimeValue expire = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         String settingName = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context).getKey();

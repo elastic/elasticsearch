@@ -1,26 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -40,11 +36,9 @@ public class RecoveriesCollection {
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     private final Logger logger;
-    private final ThreadPool threadPool;
 
-    public RecoveriesCollection(Logger logger, ThreadPool threadPool) {
+    public RecoveriesCollection(Logger logger) {
         this.logger = logger;
-        this.threadPool = threadPool;
     }
 
     /**
@@ -55,23 +49,24 @@ public class RecoveriesCollection {
     public long startRecovery(
         IndexShard indexShard,
         DiscoveryNode sourceNode,
+        long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
         PeerRecoveryTargetService.RecoveryListener listener,
-        TimeValue activityTimeout,
         @Nullable Releasable snapshotFileDownloadsPermit
     ) {
         RecoveryTarget recoveryTarget = new RecoveryTarget(
             indexShard,
             sourceNode,
+            clusterStateVersion,
             snapshotFilesProvider,
             snapshotFileDownloadsPermit,
             listener
         );
-        startRecoveryInternal(recoveryTarget, activityTimeout);
+        startRecoveryInternal(recoveryTarget);
         return recoveryTarget.recoveryId();
     }
 
-    private void startRecoveryInternal(RecoveryTarget recoveryTarget, TimeValue activityTimeout) {
+    private void startRecoveryInternal(RecoveryTarget recoveryTarget) {
         RecoveryTarget existingTarget = onGoingRecoveries.putIfAbsent(recoveryTarget.recoveryId(), recoveryTarget);
         assert existingTarget == null : "found two RecoveryStatus instances with the same id";
         logger.trace(
@@ -79,11 +74,6 @@ public class RecoveriesCollection {
             recoveryTarget.shardId(),
             recoveryTarget.sourceNode(),
             recoveryTarget.recoveryId()
-        );
-        threadPool.schedule(
-            new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout),
-            activityTimeout,
-            ThreadPool.Names.GENERIC
         );
     }
 
@@ -93,7 +83,7 @@ public class RecoveriesCollection {
      * @see IndexShard#performRecoveryRestart()
      * @return newly created RecoveryTarget
      */
-    public RecoveryTarget resetRecovery(final long recoveryId, final TimeValue activityTimeout) {
+    public RecoveryTarget resetRecovery(final long recoveryId) {
         RecoveryTarget oldRecoveryTarget = null;
         final RecoveryTarget newRecoveryTarget;
 
@@ -107,7 +97,7 @@ public class RecoveriesCollection {
                 }
 
                 newRecoveryTarget = oldRecoveryTarget.retryCopy();
-                startRecoveryInternal(newRecoveryTarget, activityTimeout);
+                startRecoveryInternal(newRecoveryTarget);
             }
 
             // Closes the current recovery target
@@ -255,11 +245,11 @@ public class RecoveriesCollection {
     }
 
     /**
-     * a reference to {@link RecoveryTarget}, which implements {@link AutoCloseable}. closing the reference
+     * a reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */
-    public static class RecoveryRef implements AutoCloseable {
+    public static class RecoveryRef implements Releasable {
 
         private final RecoveryTarget status;
         private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -270,7 +260,6 @@ public class RecoveriesCollection {
          */
         public RecoveryRef(RecoveryTarget status) {
             this.status = status;
-            this.status.setLastAccessTime();
         }
 
         @Override
@@ -282,46 +271,6 @@ public class RecoveriesCollection {
 
         public RecoveryTarget target() {
             return status;
-        }
-    }
-
-    private class RecoveryMonitor extends AbstractRunnable {
-        private final long recoveryId;
-        private final TimeValue checkInterval;
-
-        private volatile long lastSeenAccessTime;
-
-        private RecoveryMonitor(long recoveryId, long lastSeenAccessTime, TimeValue checkInterval) {
-            this.recoveryId = recoveryId;
-            this.checkInterval = checkInterval;
-            this.lastSeenAccessTime = lastSeenAccessTime;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected error while monitoring recovery [{}]", recoveryId), e);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            RecoveryTarget status = onGoingRecoveries.get(recoveryId);
-            if (status == null) {
-                logger.trace("[monitor] no status found for [{}], shutting down", recoveryId);
-                return;
-            }
-            long accessTime = status.lastAccessTime();
-            if (accessTime == lastSeenAccessTime) {
-                String message = "no activity after [" + checkInterval + "]";
-                failRecovery(
-                    recoveryId,
-                    new RecoveryFailedException(status.state(), message, new ElasticsearchTimeoutException(message)),
-                    true // to be safe, we don't know what go stuck
-                );
-                return;
-            }
-            lastSeenAccessTime = accessTime;
-            logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", recoveryId, lastSeenAccessTime);
-            threadPool.schedule(this, checkInterval, ThreadPool.Names.GENERIC);
         }
     }
 

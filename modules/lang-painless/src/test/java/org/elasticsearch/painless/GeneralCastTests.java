@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -269,14 +270,12 @@ public class GeneralCastTests extends ScriptTestCase {
     }
 
     public void testIllegalVoidCasts() {
-        expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def map = ['a': 1,'b': 2,'c': 3]; map.c = Collections.sort(new ArrayList(map.keySet()));"); }
-        );
-        expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());"); }
-        );
+        expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def map = ['a': 1,'b': 2,'c': 3]; map.c = Collections.sort(new ArrayList(map.keySet()));");
+        });
+        expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());");
+        });
     }
 
     public void testBoxedDefCalls() {

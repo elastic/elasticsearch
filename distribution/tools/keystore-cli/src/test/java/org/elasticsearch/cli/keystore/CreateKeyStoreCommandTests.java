@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
@@ -17,7 +21,6 @@ import org.elasticsearch.env.Environment;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -27,7 +30,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new CreateKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };
@@ -45,7 +48,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testDefaultNotPromptForPassword() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         execute();
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -60,7 +63,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -76,13 +79,13 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testOverwrite() throws Exception {
         String password = getPossibleKeystorePassword();
-        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
 
@@ -94,16 +97,19 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute();
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
-        terminal.addTextInput("y"); // overwrite
+        terminal.reset();
         // Sometimes (rarely) test with explicit empty password
         final boolean withPassword = password.length() > 0 || rarely();
         if (withPassword) {
             terminal.addSecretInput(password);
             terminal.addSecretInput(password);
+        }
+        terminal.addTextInput("y"); // overwrite
+        if (withPassword) {
             execute(randomFrom("-p", "--password"));
         } else {
             execute();
         }
-        assertNotNull(KeyStoreWrapper.load(env.configFile()));
+        assertNotNull(KeyStoreWrapper.load(env.configDir()));
     }
 }

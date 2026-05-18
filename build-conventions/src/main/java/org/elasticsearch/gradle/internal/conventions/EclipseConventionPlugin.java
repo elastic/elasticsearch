@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions;
@@ -14,6 +15,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Transformer;
+import org.gradle.api.invocation.Gradle;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.Copy;
@@ -37,6 +39,15 @@ public class EclipseConventionPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(EclipsePlugin.class);
+        Gradle gradle = project.getGradle();
+
+        boolean isEclipse = project.getProviders().systemProperty("eclipse.launcher").isPresent() ||   // Gradle launched from Eclipse
+            project.getProviders().systemProperty("eclipse.application").isPresent() || // Gradle launched from the Eclipse compiler server
+            gradle.getStartParameter().getTaskNames().contains("eclipse") ||  // Gradle launched from the command line to do eclipse stuff
+            gradle.getStartParameter().getTaskNames().contains("cleanEclipse");
+        // for eclipse ide specific hacks...
+        project.getExtensions().add("isEclipse", isEclipse);
+
         EclipseModel eclipseModel = project.getExtensions().getByType(EclipseModel.class);
         EclipseProject eclipseProject = eclipseModel.getProject();
 
@@ -78,7 +89,7 @@ public class EclipseConventionPlugin implements Plugin<Project> {
                 copy.filter(new Transformer<String, String>() {
                     @Override
                     public String transform(String s) {
-                        return s.replaceAll("@@LICENSE_HEADER_TEXT@@", finalLicenseHeader);
+                        return s.replace("@@LICENSE_HEADER_TEXT@@", finalLicenseHeader);
                     }
                 });
         });

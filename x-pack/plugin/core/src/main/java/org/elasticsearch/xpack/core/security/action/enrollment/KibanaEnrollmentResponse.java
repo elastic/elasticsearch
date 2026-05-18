@@ -24,7 +24,6 @@ public final class KibanaEnrollmentResponse extends ActionResponse implements To
     private final String httpCa;
 
     public KibanaEnrollmentResponse(StreamInput in) throws IOException {
-        super(in);
         tokenName = in.readString();
         tokenValue = in.readSecureString();
         httpCa = in.readString();

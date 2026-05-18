@@ -8,18 +8,20 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.junit.After;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
@@ -31,9 +33,14 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class WriteActionsTests extends SecurityIntegTestCase {
 
+    @After
+    public void cleanupSecurityIndex() {
+        super.deleteSecurityIndex();
+    }
+
     @Override
     protected String configRoles() {
-        return """
+        return super.configRoles() + "\n" + Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:
@@ -45,33 +52,33 @@ public class WriteActionsTests extends SecurityIntegTestCase {
                   privileges: [ manage, write ]
                 - names: '/test.*/'
                   privileges: [ read ]
-            """.formatted(SecuritySettingsSource.TEST_ROLE);
+            """, SecuritySettingsSource.TEST_ROLE);
     }
 
     public void testIndex() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
+        prepareIndex("test1").setId("id").setSource("field", "value").get();
 
         assertThrowsAuthorizationExceptionDefaultUsers(
-            client().prepareIndex("index1").setId("id").setSource("field", "value")::get,
-            BulkAction.NAME + "[s]"
+            prepareIndex("index1").setId("id").setSource("field", "value")::get,
+            TransportBulkAction.NAME + "[s]"
         );
 
-        client().prepareIndex("test4").setId("id").setSource("field", "value").get();
+        prepareIndex("test4").setId("id").setSource("field", "value").get();
         // the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
         assertThrowsAuthorizationExceptionDefaultUsers(
-            client().prepareIndex("missing").setId("id").setSource("field", "value")::get,
-            BulkAction.NAME + "[s]"
+            prepareIndex("missing").setId("id").setSource("field", "value")::get,
+            TransportBulkAction.NAME + "[s]"
         );
         ensureGreen();
     }
 
     public void testDelete() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
+        prepareIndex("test1").setId("id").setSource("field", "value").get();
         assertEquals(RestStatus.OK, client().prepareDelete("test1", "id").get().status());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "id")::get, BulkAction.NAME + "[s]");
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "id")::get, TransportBulkAction.NAME + "[s]");
 
         expectThrows(IndexNotFoundException.class, () -> client().prepareDelete("test4", "id").get());
         ensureGreen();
@@ -79,7 +86,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     public void testUpdate() {
         createIndex("test1", "index1");
-        client().prepareIndex("test1").setId("id").setSource("field", "value").get();
+        prepareIndex("test1").setId("id").setSource("field", "value").get();
         assertEquals(
             RestStatus.OK,
             client().prepareUpdate("test1", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2").get().status()
@@ -87,7 +94,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(
             client().prepareUpdate("index1", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
-            UpdateAction.NAME
+            TransportUpdateAction.NAME
         );
 
         expectThrows(
@@ -97,7 +104,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(
             client().prepareUpdate("missing", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
-            UpdateAction.NAME
+            TransportUpdateAction.NAME
         );
         ensureGreen();
     }
@@ -129,7 +136,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[1].getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
         assertThat(bulkResponse.getItems()[1].getFailure().getIndex(), equalTo("index1"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[1].getFailure().getCause(), BulkAction.NAME + "[s]");
+        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[1].getFailure().getCause(), TransportBulkAction.NAME + "[s]");
         assertThat(
             bulkResponse.getItems()[1].getFailure().getCause().getMessage(),
             containsString("[indices:data/write/bulk[s]] is unauthorized")
@@ -144,7 +151,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         // the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
         assertThat(bulkResponse.getItems()[3].getFailure().getIndex(), equalTo("missing"));
         assertThat(bulkResponse.getItems()[3].getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[3].getFailure().getCause(), BulkAction.NAME + "[s]");
+        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[3].getFailure().getCause(), TransportBulkAction.NAME + "[s]");
         assertThat(
             bulkResponse.getItems()[3].getFailure().getCause().getMessage(),
             containsString("[indices:data/write/bulk[s]] is unauthorized")
@@ -157,7 +164,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         assertThat(bulkResponse.getItems()[5].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[5].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
         assertThat(bulkResponse.getItems()[5].getFailure().getIndex(), equalTo("index1"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[5].getFailure().getCause(), BulkAction.NAME + "[s]");
+        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[5].getFailure().getCause(), TransportBulkAction.NAME + "[s]");
         assertThat(
             bulkResponse.getItems()[5].getFailure().getCause().getMessage(),
             containsString("[indices:data/write/bulk[s]] is unauthorized")
@@ -170,7 +177,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         assertThat(bulkResponse.getItems()[7].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[7].getOpType(), equalTo(DocWriteRequest.OpType.DELETE));
         assertThat(bulkResponse.getItems()[7].getFailure().getIndex(), equalTo("missing"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[7].getFailure().getCause(), BulkAction.NAME + "[s]");
+        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[7].getFailure().getCause(), TransportBulkAction.NAME + "[s]");
         assertThat(
             bulkResponse.getItems()[7].getFailure().getCause().getMessage(),
             containsString("[indices:data/write/bulk[s]] is unauthorized")
@@ -187,7 +194,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         assertThat(bulkResponse.getItems()[10].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[10].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
         assertThat(bulkResponse.getItems()[10].getFailure().getIndex(), equalTo("index1"));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[10].getFailure().getCause(), BulkAction.NAME + "[s]");
+        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[10].getFailure().getCause(), TransportBulkAction.NAME + "[s]");
         assertThat(
             bulkResponse.getItems()[10].getFailure().getCause().getMessage(),
             containsString("[indices:data/write/bulk[s]] is unauthorized")
@@ -202,7 +209,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         assertThat(bulkResponse.getItems()[12].getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
         assertThat(bulkResponse.getItems()[12].getFailure().getIndex(), equalTo("missing"));
         assertThat(bulkResponse.getItems()[12].getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
-        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[12].getFailure().getCause(), BulkAction.NAME + "[s]");
+        assertAuthorizationExceptionDefaultUsers(bulkResponse.getItems()[12].getFailure().getCause(), TransportBulkAction.NAME + "[s]");
         assertThat(
             bulkResponse.getItems()[12].getFailure().getCause().getMessage(),
             containsString("[indices:data/write/bulk[s]] is unauthorized")

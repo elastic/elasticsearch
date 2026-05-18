@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -22,7 +25,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -32,10 +34,11 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == CompositeFieldScript.CONTEXT) {
-            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup) -> ctx -> new CompositeFieldScript(
+            return (T) (CompositeFieldScript.Factory) (fieldName, params, searchLookup, onScriptError) -> ctx -> new CompositeFieldScript(
                 fieldName,
                 params,
                 searchLookup,
+                OnScriptError.FAIL,
                 ctx
             ) {
                 @Override
@@ -51,7 +54,13 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             };
         }
         if (context == LongFieldScript.CONTEXT) {
-            return (T) (LongFieldScript.Factory) (field, params, lookup) -> ctx -> new LongFieldScript(field, params, lookup, ctx) {
+            return (T) (LongFieldScript.Factory) (field, params, lookup, onScriptError) -> ctx -> new LongFieldScript(
+                field,
+                params,
+                lookup,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
 
@@ -108,7 +117,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
 
         RuntimeField rf = mapperService.mappingLookup().getMapping().getRoot().getRuntimeField("obj");
         assertEquals("obj", rf.name());
-        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().collect(Collectors.toList());
+        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().toList();
         for (MappedFieldType mappedFieldType : mappedFieldTypes) {
             if (mappedFieldType.name().equals("obj.long-subfield")) {
                 assertSame(longSubfield, mappedFieldType);
@@ -264,7 +273,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         RuntimeField rf = mapperService.mappingLookup().getMapping().getRoot().getRuntimeField("obj");
         assertEquals("obj", rf.name());
 
-        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().collect(Collectors.toList());
+        Collection<MappedFieldType> mappedFieldTypes = rf.asMappedFieldTypes().toList();
         assertEquals(1, mappedFieldTypes.size());
         assertSame(doubleSubField, mappedFieldTypes.iterator().next());
 
@@ -334,7 +343,10 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocuments(Arrays.asList(doc1.rootDoc(), doc2.rootDoc())), reader -> {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
-                (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                    new FieldDataContext("test", null, lookupSupplier, mapperService.mappingLookup()::sourcePaths, () -> false, fdo)
+                ).build(null, null),
+                SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
             );
 
             LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(reader.leaves().get(0));
@@ -414,7 +426,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         assertNotNull(doc1.rootDoc().get("obj.bool"));
 
         assertEquals("""
-            {"_doc":{"properties":{"obj":{"properties":{"bool":{"type":"boolean"}}}}}}""", Strings.toString(doc1.dynamicMappingsUpdate()));
+            {"_doc":{"properties":{"obj":{"properties":{"bool":{"type":"boolean"}}}}}}""", doc1.dynamicMappingsUpdate().string());
 
         MapperService mapperService2 = createMapperService(topMapping(b -> {
             b.field("dynamic", "runtime");
@@ -433,6 +445,6 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         assertNull(doc2.rootDoc().get("obj.long"));
         assertNull(doc2.rootDoc().get("obj.bool"));
         assertEquals("""
-            {"_doc":{"dynamic":"runtime","runtime":{"obj.bool":{"type":"boolean"}}}}""", Strings.toString(doc2.dynamicMappingsUpdate()));
+            {"_doc":{"dynamic":"runtime","runtime":{"obj.bool":{"type":"boolean"}}}}""", doc2.dynamicMappingsUpdate().string());
     }
 }

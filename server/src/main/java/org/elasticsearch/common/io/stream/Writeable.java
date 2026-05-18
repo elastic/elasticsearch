@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -25,7 +26,7 @@ public interface Writeable {
     /**
      * Reference to a method that can write some object to a {@link StreamOutput}.
      * <p>
-     * By convention this is a method from {@link StreamOutput} itself (e.g., {@link StreamOutput#writeString}). If the value can be
+     * By convention this is a method from {@link StreamOutput} itself (e.g., {@link StreamOutput#writeString(String)}. If the value can be
      * {@code null}, then the "optional" variant of methods should be used!
      * <p>
      * Most classes should implement {@link Writeable} and the {@link Writeable#writeTo(StreamOutput)} method should <em>use</em>
@@ -73,7 +74,6 @@ public interface Writeable {
          * @param in Input to read the value from
          */
         V read(StreamInput in) throws IOException;
-
     }
 
 }

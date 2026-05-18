@@ -17,10 +17,6 @@ import org.opensaml.xmlsec.signature.support.Signer;
 import org.opensaml.xmlsec.signature.support.SignerProvider;
 import org.w3c.dom.Element;
 
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-
 /**
  * Signs OpenSAML {@link SignableXMLObject} instances using {@link SamlIdentityProvider#getSigningCredential()}.
  */
@@ -41,17 +37,10 @@ public class SamlObjectSigner {
         signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
         signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
         object.setSignature(signature);
-        Element element = samlFactory.toDomElement(object);
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignerProvider.class)) {
-                    Signer.signObject(signature);
-                } catch (SignatureException e) {
-                    throw new SecurityException("failed to sign SAML object " + object, e);
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
+        Element element = SamlFactory.toDomElement(object);
+        try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignerProvider.class)) {
+            Signer.signObject(signature);
+        } catch (SignatureException e) {
             throw new SecurityException("failed to sign SAML object " + object, e);
         }
         return element;

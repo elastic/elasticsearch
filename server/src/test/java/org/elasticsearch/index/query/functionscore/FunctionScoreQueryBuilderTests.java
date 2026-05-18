@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -22,6 +20,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,7 +48,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
@@ -91,7 +90,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(TestPlugin.class);
     }
 
     @Override
@@ -110,6 +109,22 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionScoreQueryBuilder.setMinScore(randomFloat());
         }
         return functionScoreQueryBuilder;
+    }
+
+    @Override
+    protected FunctionScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (randomBoolean()) {
+            return new FunctionScoreQueryBuilder(queryBuilder);
+        }
+        int iters = randomIntBetween(1, 3);
+        FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[iters];
+        for (int i = 0; i < iters; i++) {
+            filterFunctionBuilders[i] = new FilterFunctionBuilder(queryBuilder, new RandomScoreFunctionBuilder());
+        }
+        if (randomBoolean()) {
+            return new FunctionScoreQueryBuilder(filterFunctionBuilders);
+        }
+        return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 
     @Override
@@ -139,7 +154,11 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             case 0:
                 FilterFunctionBuilder[] functions = new FilterFunctionBuilder[randomIntBetween(0, 3)];
                 for (int i = 0; i < functions.length; i++) {
-                    functions[i] = new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
+                    functions[i] = new FilterFunctionBuilder(
+                        RandomQueryBuilder.createQuery(random()),
+                        randomBoolean() ? randomAlphanumericOfLength(10) : null,
+                        randomScoreFunction()
+                    );
                 }
                 if (randomBoolean()) {
                     return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), functions);
@@ -238,8 +257,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)),
                     ZoneOffset.UTC
                 ).toString();
-                scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
-                offset = randomPositiveTimeValue();
+                scale = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m");
+                offset = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m", "micros", "nanos");
             }
             default -> {
                 origin = randomBoolean() ? randomInt() : randomFloat();
@@ -600,7 +619,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     ]
                 }
             }""";
-        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(json));
+        XContentParseException e = expectThrows(XContentParseException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("Unexpected character ('{"));
     }
 
@@ -881,7 +900,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         Directory directory = newDirectory();
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
         iw.addDocument(new Document());
-        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        final IndexSearcher searcher = newSearcher(iw.getReader());
         iw.close();
         assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
 

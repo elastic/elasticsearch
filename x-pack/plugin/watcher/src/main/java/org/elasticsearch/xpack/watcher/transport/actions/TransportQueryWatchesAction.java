@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -34,7 +34,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -99,11 +98,11 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
     }
 
     void transformResponse(SearchResponse searchResponse, ActionListener<QueryWatchesAction.Response> listener) {
-        assert searchResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
+        assert searchResponse.getHits().getTotalHits().relation() == TotalHits.Relation.EQUAL_TO;
         List<QueryWatchesAction.Response.Item> items = Arrays.stream(searchResponse.getHits().getHits())
             .map(this::transformSearchHit)
-            .collect(Collectors.toList());
-        listener.onResponse(new QueryWatchesAction.Response(searchResponse.getHits().getTotalHits().value, items));
+            .toList();
+        listener.onResponse(new QueryWatchesAction.Response(searchResponse.getHits().getTotalHits().value(), items));
     }
 
     QueryWatchesAction.Response.Item transformSearchHit(SearchHit searchHit) {

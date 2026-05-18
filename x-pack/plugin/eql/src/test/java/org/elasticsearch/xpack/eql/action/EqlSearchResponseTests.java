@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,16 +38,31 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<EqlSearchResponse> {
 
+    @Override
+    protected void dispose(EqlSearchResponse instance) {
+        if (instance != null) {
+            instance.decRef();
+        }
+    }
+
     public void testFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values()).canonical();
         EqlSearchResponse response = randomEqlSearchResponse(xContentType);
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        EqlSearchResponse parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsed = EqlSearchResponse.fromXContent(parser);
+        try {
+            boolean humanReadable = randomBoolean();
+            BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+            EqlSearchResponse parsed;
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                parsed = EqlSearchResponse.fromXContent(parser);
+            }
+            try {
+                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            } finally {
+                parsed.decRef();
+            }
+        } finally {
+            response.decRef();
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
     private static class RandomSource implements ToXContentObject {
@@ -100,16 +116,20 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         if (randomBoolean()) {
             hits = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
-                Map<String, DocumentField> fetchFields = new HashMap<>();
-                int fieldsCount = randomIntBetween(0, 5);
-                for (int j = 0; j < fieldsCount; j++) {
-                    fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
+                if (randomBoolean()) {
+                    hits.add(Event.MISSING_EVENT);
+                } else {
+                    BytesReference bytes = new RandomSource(() -> randomAlphaOfLength(10)).toBytes(xType);
+                    Map<String, DocumentField> fetchFields = new HashMap<>();
+                    int fieldsCount = randomIntBetween(0, 5);
+                    for (int j = 0; j < fieldsCount; j++) {
+                        fetchFields.put(randomAlphaOfLength(10), randomDocumentField(xType).v1());
+                    }
+                    if (fetchFields.isEmpty() && randomBoolean()) {
+                        fetchFields = null;
+                    }
+                    hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields, false));
                 }
-                if (fetchFields.isEmpty() && randomBoolean()) {
-                    fetchFields = null;
-                }
-                hits.add(new Event(String.valueOf(i), randomAlphaOfLength(10), bytes, fetchFields));
             }
         }
         if (randomBoolean()) {
@@ -139,9 +159,9 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                     () -> Map.of(
                         randomAlphaOfLength(5),
                         randomInt(),
-                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(6),
                         randomBoolean(),
-                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(7),
                         randomAlphaOfLength(10)
                     )
                 );
@@ -155,6 +175,11 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     @Override
     protected EqlSearchResponse createTestInstance() {
         return randomEqlSearchResponse(XContentType.JSON);
+    }
+
+    @Override
+    protected EqlSearchResponse mutateInstance(EqlSearchResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -176,7 +201,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -184,7 +209,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomBoolean(),
                 randomAlphaOfLength(10),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                ShardSearchFailure.EMPTY_ARRAY
             );
         }
     }
@@ -208,7 +234,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -216,7 +242,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomBoolean(),
                 randomAlphaOfLength(10),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                ShardSearchFailure.EMPTY_ARRAY
             );
         }
     }
@@ -241,7 +268,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
     }
 
     @Override
-    protected EqlSearchResponse mutateInstanceForVersion(EqlSearchResponse instance, Version version) {
+    protected EqlSearchResponse mutateInstanceForVersion(EqlSearchResponse instance, TransportVersion version) {
         List<Event> mutatedEvents = mutateEvents(instance.hits().events(), version);
 
         List<Sequence> sequences = instance.hits().sequences();
@@ -259,17 +286,18 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             instance.isTimeout(),
             instance.id(),
             instance.isRunning(),
-            instance.isPartial()
+            instance.isPartial(),
+            ShardSearchFailure.EMPTY_ARRAY
         );
     }
 
-    private List<Event> mutateEvents(List<Event> original, Version version) {
+    private List<Event> mutateEvents(List<Event> original, TransportVersion version) {
         if (original == null || original.isEmpty()) {
             return original;
         }
         List<Event> mutatedEvents = new ArrayList<>(original.size());
         for (Event e : original) {
-            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), version.onOrAfter(Version.V_7_13_0) ? e.fetchFields() : null));
+            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), e.fetchFields(), e.missing()));
         }
         return mutatedEvents;
     }

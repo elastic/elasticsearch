@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -11,30 +12,39 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -52,6 +62,13 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
     @Override
@@ -70,7 +87,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     @Override
-    protected List<InternalTopHits> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalTopHits> randomResultsToReduce(String name, int size) {
         /*
          * Make sure all scores are unique so we can get
          * deterministic test results.
@@ -95,7 +112,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             supplier = () -> createTestInstanceSortedScore(name, requestedSize, null, scoreSupplier);
         }
-        return Stream.generate(supplier).limit(size).collect(toList());
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), Stream.generate(supplier).limit(size).collect(toList()));
     }
 
     private InternalTopHits createTestInstanceSortedByFields(
@@ -149,7 +166,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
             Map<String, DocumentField> searchHitFields = new HashMap<>();
             scoreDocs[i] = docBuilder.apply(docId, score);
-            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields, Collections.emptyMap());
+            hits[i] = new SearchHit(docId, Integer.toString(i));
+            hits[i].addDocumentFields(searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
@@ -175,35 +193,6 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         for (int i = 0; i < searchHits.length; i++) {
             searchHits[i] = hitScores.get(i).v1();
             scoreDocs[i] = hitScores.get(i).v2();
-        }
-    }
-
-    @Override
-    protected void assertFromXContent(InternalTopHits aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        final SearchHits expectedSearchHits = aggregation.getHits();
-
-        assertTrue(parsedAggregation instanceof ParsedTopHits);
-        ParsedTopHits parsed = (ParsedTopHits) parsedAggregation;
-        final SearchHits actualSearchHits = parsed.getHits();
-
-        assertEquals(expectedSearchHits.getTotalHits().value, actualSearchHits.getTotalHits().value);
-        assertEquals(expectedSearchHits.getTotalHits().relation, actualSearchHits.getTotalHits().relation);
-        assertEquals(expectedSearchHits.getMaxScore(), actualSearchHits.getMaxScore(), 0.0f);
-
-        List<SearchHit> expectedHits = Arrays.asList(expectedSearchHits.getHits());
-        List<SearchHit> actualHits = Arrays.asList(actualSearchHits.getHits());
-
-        assertEquals(expectedHits.size(), actualHits.size());
-        for (int i = 0; i < expectedHits.size(); i++) {
-            SearchHit expected = expectedHits.get(i);
-            SearchHit actual = actualHits.get(i);
-
-            assertEquals(expected.getIndex(), actual.getIndex());
-            assertEquals(expected.getId(), actual.getId());
-            assertEquals(expected.getVersion(), actual.getVersion());
-            assertEquals(expected.getScore(), actual.getScore(), 0.0f);
-            assertEquals(expected.getFields(), actual.getFields());
-            assertEquals(expected.getSourceAsMap(), actual.getSourceAsMap());
         }
     }
 
@@ -239,8 +228,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
         for (int input = 0; input < inputs.size(); input++) {
             SearchHits internalHits = inputs.get(input).getHits();
-            totalHits += internalHits.getTotalHits().value;
-            if (internalHits.getTotalHits().relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            totalHits += internalHits.getTotalHits().value();
+            if (internalHits.getTotalHits().relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 relation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
             maxScore = max(maxScore, internalHits.getMaxScore());
@@ -258,6 +247,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SearchHit[] expectedHitsHits = new SearchHit[min(inputs.get(0).getSize(), allHits.size())];
         for (int i = 0; i < expectedHitsHits.length; i++) {
             expectedHitsHits[i] = allHits.get(i).v2();
+            expectedHitsHits[i].incRef();
         }
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
         SearchHits expectedHits = new SearchHits(
@@ -265,14 +255,174 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             new TotalHits(totalHits, relation),
             maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore
         );
-        assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
+        try {
+            assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
+        } finally {
+            expectedHits.decRef();
+        }
+    }
+
+    public void testGetProperty() {
+        // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
+        SearchHit hit = new SearchHit(0);
+        hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef());
+        hit.sortValues(new Object[] { 10.0 }, new DocValueFormat[] { DocValueFormat.RAW });
+        hit.score(1.0f);
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
+        InternalTopHits internalTopHits = new InternalTopHits("test", 0, 0, null, hits, null);
+        try {
+            assertEquals(internalTopHits, internalTopHits.getProperty(Collections.emptyList()));
+            assertEquals(1000.0, internalTopHits.getProperty(List.of("_source.foo")));
+            assertEquals(10.0, internalTopHits.getProperty(List.of("_sort")));
+            assertEquals(1.0f, internalTopHits.getProperty(List.of("_score")));
+
+            expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("nosuchfield")));
+            expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("too", "many", "fields")));
+
+            // Sort value retrieval requires a single value.
+            hit.sortValues(new Object[] { 10.0, 20.0 }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+            expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("_sort")));
+
+            // Two SearchHit instances are not allowed, only the first will be used without assertion.
+            SearchHits hits2 = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
+            hit.incRef();
+            hit.incRef();
+            InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits2, null);
+            try {
+                expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
+            } finally {
+                internalTopHits3.getHits().decRef();
+            }
+        } finally {
+            internalTopHits.getHits().decRef();
+        }
+    }
+
+    public void testReduceWithMixedSortFieldTypes() {
+        AggregationBuilder builder = mock(AggregationBuilder.class);
+        List<SearchHits> topHitsToRelease = new ArrayList<>();
+        AggregationReduceContext reduceContext = InternalAggregationTestCase.mockReduceContext(builder).forFinalReduction(topHitsToRelease);
+
+        // Test FLOAT/LONG mixing - should convert to DOUBLE and merge successfully without ClassCastException
+        // Before the fix, this would throw ClassCastException when merging TopDocs.
+        InternalTopHits floatShard = createTopHitsWithSortType("test", SortField.Type.FLOAT, 1.5f, 0);
+        InternalTopHits longShard = createTopHitsWithSortType("test", SortField.Type.LONG, 2L, 1);
+        try {
+            // This should not throw ClassCastException - the fix converts incompatible types
+            InternalTopHits reduced = (InternalTopHits) InternalAggregationTestCase.reduce(List.of(floatShard, longShard), reduceContext);
+            assertNotNull("Reduced result should not be null", reduced);
+            // Each shard has size=1, so merged result should have at least 1 hit (the top one)
+            assertThat("Should have at least one merged result", reduced.getHits().getHits().length, greaterThanOrEqualTo(1));
+            releaseTopHits(topHitsToRelease);
+        } finally {
+            floatShard.getHits().decRef();
+            longShard.getHits().decRef();
+        }
+
+        // Test INT/LONG mixing - should convert to LONG (not DOUBLE) and merge successfully
+        InternalTopHits intShard = createTopHitsWithSortType("test", SortField.Type.INT, 1, 0);
+        InternalTopHits longShard2 = createTopHitsWithSortType("test", SortField.Type.LONG, 2L, 1);
+        try {
+            InternalTopHits reduced2 = (InternalTopHits) InternalAggregationTestCase.reduce(List.of(intShard, longShard2), reduceContext);
+            assertNotNull("Reduced result should not be null", reduced2);
+            assertThat("Should have at least one merged result", reduced2.getHits().getHits().length, greaterThanOrEqualTo(1));
+            // Ensure INT/LONG mix was rewritten to LONG, not DOUBLE
+            Object sortValue = reduced2.getHits().getHits()[0].getSortValues()[0];
+            assertThat("Sort value after INT/LONG reduce should be Long, not Double", sortValue, instanceOf(Long.class));
+            releaseTopHits(topHitsToRelease);
+        } finally {
+            intShard.getHits().decRef();
+            longShard2.getHits().decRef();
+        }
+
+        // Test incompatible types - should throw IllegalArgumentException with clear error message
+        InternalTopHits stringShard = createTopHitsWithSortType("test", SortField.Type.STRING, new BytesRef("a"), 0);
+        InternalTopHits longShard3 = createTopHitsWithSortType("test", SortField.Type.LONG, 1L, 1);
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> InternalAggregationTestCase.reduce(List.of(stringShard, longShard3), reduceContext)
+            );
+            assertThat(e.getMessage(), containsString("incompatible sort types"));
+        } finally {
+            stringShard.getHits().decRef();
+            longShard3.getHits().decRef();
+        }
+    }
+
+    /**
+     * Round-trip serialization reads SearchHits with pooled=true so that coordinator can release them.
+     * This test ensures deserialized InternalTopHits has pooled hits when they have source, and content equality is preserved.
+     */
+    public void testRoundTripDeserializesWithPooledHits() throws IOException {
+        // Build an instance with at least one hit that has source; SearchHit isPooled is true only when pooled && source != null
+        SearchHit hit = new SearchHit(0, "id");
+        hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+        hit.score(1.0f);
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(
+            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+            1.0f
+        );
+        InternalTopHits instance = new InternalTopHits("test", 0, 1, topDocsAndMaxScore, searchHits, null);
+
+        InternalTopHits roundTripped = (InternalTopHits) ESTestCase.copyNamedWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            InternalAggregation.class,
+            TransportVersion.current()
+        );
+        try {
+            assertTrue("Round-tripped InternalTopHits should have pooled SearchHits", roundTripped.getHits().isPooled());
+            assertTrue("Hit with source should be pooled after round-trip", roundTripped.getHits().getHits()[0].isPooled());
+            assertEquals("Round-trip should preserve content equality", instance, roundTripped);
+        } finally {
+            instance.getHits().decRef();
+            roundTripped.getHits().decRef();
+        }
+    }
+
+    private static void releaseTopHits(List<SearchHits> list) {
+        for (SearchHits h : list) {
+            h.decRef();
+        }
+        list.clear();
+    }
+
+    private InternalTopHits createTopHitsWithSortType(String name, SortField.Type type, Object sortValue, int shardIndex) {
+        SortField sortField = new SortField("field", type);
+        FieldDoc fieldDoc = new FieldDoc(0, 1.0f, new Object[] { sortValue });
+        TopFieldDocs topFieldDocs = new TopFieldDocs(
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+            new FieldDoc[] { fieldDoc },
+            new SortField[] { sortField }
+        );
+        fieldDoc.shardIndex = shardIndex;
+
+        SearchHit hit = new SearchHit(0, "doc" + shardIndex);
+        hit.score(1.0f);
+        hit.sortValues(new Object[] { sortValue }, new DocValueFormat[] { DocValueFormat.RAW });
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topFieldDocs, 1.0f);
+        return new InternalTopHits(name, 0, 1, topDocsAndMaxScore, searchHits, null);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalTopHits sampled, InternalTopHits reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getHits(), equalTo(reduced.getHits()));
     }
 
     /**
      * Assert that two objects are equals, calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} to print out their
      * differences if they aren't equal.
      */
-    private static <T extends ToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
+    private static <T extends ChunkedToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
         if (Objects.equals(expected, actual)) {
             return;
         }
@@ -284,10 +434,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         }
         try (XContentBuilder actualJson = JsonXContent.contentBuilder(); XContentBuilder expectedJson = JsonXContent.contentBuilder()) {
             actualJson.startObject();
-            actual.toXContent(actualJson, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(actual).toXContent(actualJson, ToXContent.EMPTY_PARAMS);
             actualJson.endObject();
             expectedJson.startObject();
-            expected.toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(expected).toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(
@@ -320,7 +470,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         FieldComparator[] comparators = new FieldComparator[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             // Values passed to getComparator shouldn't matter
-            comparators[i] = sortFields[i].getComparator(0, 0);
+            comparators[i] = sortFields[i].getComparator(0, Pruning.NONE);
         }
         return (lhs, rhs) -> {
             FieldDoc l = (FieldDoc) lhs;
@@ -349,7 +499,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         int from = instance.getFrom();
         int size = instance.getSize();
         TopDocsAndMaxScore topDocs = instance.getTopDocs();
-        SearchHits searchHits = instance.getHits();
+        SearchHits original = instance.getHits();
+        SearchHit[] originalHits = original.getHits();
+        SearchHit[] hitsCopy = new SearchHit[originalHits.length];
+        for (int i = 0; i < originalHits.length; i++) {
+            originalHits[i].incRef();
+            hitsCopy[i] = originalHits[i];
+        }
+        SearchHits searchHits = new SearchHits(hitsCopy, original.getTotalHits(), original.getMaxScore());
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
             case 0 -> name += randomAlphaOfLength(5);
@@ -357,21 +514,28 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             case 2 -> size += between(1, 100);
             case 3 -> topDocs = new TopDocsAndMaxScore(
                 new TopDocs(
-                    new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100), topDocs.topDocs.totalHits.relation),
+                    new TotalHits(topDocs.topDocs.totalHits.value() + between(1, 100), topDocs.topDocs.totalHits.relation()),
                     topDocs.topDocs.scoreDocs
                 ),
                 topDocs.maxScore + randomFloat()
             );
             case 4 -> {
                 TotalHits totalHits = new TotalHits(
-                    searchHits.getTotalHits().value + between(1, 100),
+                    searchHits.getTotalHits().value() + between(1, 100),
                     randomFrom(TotalHits.Relation.values())
                 );
-                searchHits = new SearchHits(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
+                float newMaxScore = searchHits.getMaxScore() + randomFloat();
+                SearchHit[] case4HitsCopy = new SearchHit[hitsCopy.length];
+                for (int i = 0; i < hitsCopy.length; i++) {
+                    hitsCopy[i].incRef();
+                    case4HitsCopy[i] = hitsCopy[i];
+                }
+                searchHits.decRef();
+                searchHits = new SearchHits(case4HitsCopy, totalHits, newMaxScore);
             }
             case 5 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
@@ -379,6 +543,9 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTopHits(name, from, size, topDocs, searchHits, metadata);
+
+        InternalTopHits mutated = new InternalTopHits(name, from, size, topDocs, searchHits, metadata);
+        aggregationsToRelease.add(mutated);
+        return mutated;
     }
 }

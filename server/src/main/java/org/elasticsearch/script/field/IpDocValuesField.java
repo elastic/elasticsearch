@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
@@ -29,7 +30,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocValues.Supplier<String> {
+public class IpDocValuesField extends AbstractScriptFieldFactory<IPAddress>
+    implements
+        Field<IPAddress>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<String> {
     protected final String name;
     protected final ScriptDocValues.Supplier<InetAddress> raw;
 
@@ -58,7 +63,7 @@ public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocVal
     }
 
     @Override
-    public ScriptDocValues<String> getScriptDocValues() {
+    public ScriptDocValues<String> toScriptDocValues() {
         if (strings == null) {
             strings = new ScriptDocValues.Strings(this);
         }
@@ -152,7 +157,8 @@ public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocVal
         public void setNextDocId(int docId) throws IOException {
             count = 0;
             if (in.advanceExact(docId)) {
-                for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                for (int i = 0; i < in.docValueCount(); i++) {
+                    long ord = in.nextOrd();
                     ords = ArrayUtil.grow(ords, count + 1);
                     ords[count++] = ord;
                 }

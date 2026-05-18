@@ -3,7 +3,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -41,7 +41,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -89,7 +89,7 @@
 ---
 "Response for version conflict (version powered)":
   - skip:
-      version: "6.7.0 - "
+      cluster_features: ["gte_v6.7.0"]
       reason: reindex moved to rely on sequence numbers for concurrency control
 
   - do:
@@ -101,7 +101,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -109,7 +109,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test2" }
 
   - do:
@@ -153,7 +153,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -161,7 +161,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test2" }
 
   - do:
@@ -204,7 +204,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -212,7 +212,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test2" }
 
   - do:
@@ -245,12 +245,12 @@
   - do:
       index:
         index:   twitter
-        id:      1
+        id:      "1"
         body:    { "user": "kimchy" }
   - do:
       index:
         index:   twitter
-        id:      2
+        id:      "2"
         body:    { "user": "junk" }
   - do:
       indices.refresh: {}
@@ -278,18 +278,18 @@
 ---
 "Limit by size pre 7.3":
   - skip:
-      version: "7.3.0 - "
+      cluster_features: ["gte_v7.3.0"]
       reason: "7.3 should use max_docs or get deprecation warning"
 
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
@@ -320,19 +320,19 @@
 
 ---
 "Limit by max_docs in URL":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
@@ -363,19 +363,19 @@
 
 ---
 "Limit by max_docs in body":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:  twitter
-        id:     1
+        id:     "1"
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        id:     2
+        id:     "2"
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
@@ -448,8 +448,8 @@
 
 ---
 tsdb:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -499,12 +499,9 @@ tsdb:
           - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434521831, "rx": 530575198}}}}'
 
   - do:
-      catch: bad_request
       delete_by_query:
         index: tsdb
         body:
           query:
             match_all: {}
-
-  - match: {failures.0.status: 400}
-  - match: {failures.0.cause.reason: "delete is not supported because the destination index [tsdb] is in time series mode"}
+  - match: {deleted: 1}

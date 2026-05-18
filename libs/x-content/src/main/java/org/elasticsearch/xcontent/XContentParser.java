@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.Closeable;
@@ -32,78 +34,27 @@ import java.util.function.Supplier;
 public interface XContentParser extends Closeable {
 
     enum Token {
-        START_OBJECT {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        END_OBJECT {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        START_ARRAY {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        END_ARRAY {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        FIELD_NAME {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        VALUE_STRING {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
-
-        VALUE_NUMBER {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
-
-        VALUE_BOOLEAN {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
-
+        START_OBJECT(false),
+        END_OBJECT(false),
+        START_ARRAY(false),
+        END_ARRAY(false),
+        FIELD_NAME(false),
+        VALUE_STRING(true),
+        VALUE_NUMBER(true),
+        VALUE_BOOLEAN(true),
         // usually a binary value
-        VALUE_EMBEDDED_OBJECT {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
+        VALUE_EMBEDDED_OBJECT(true),
+        VALUE_NULL(false);
 
-        VALUE_NULL {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        };
+        private final boolean isValue;
 
-        public abstract boolean isValue();
+        Token(boolean isValue) {
+            this.isValue = isValue;
+        }
+
+        public boolean isValue() {
+            return isValue;
+        }
     }
 
     enum NumberType {
@@ -121,11 +72,23 @@ public interface XContentParser extends Closeable {
 
     Token nextToken() throws IOException;
 
+    @Nullable
+    default String nextFieldName() throws IOException {
+        return nextToken() == Token.FIELD_NAME ? currentName() : null;
+    }
+
     void skipChildren() throws IOException;
 
     Token currentToken();
 
     String currentName() throws IOException;
+
+    /**
+     * Whether bulk map helpers ({@link #map()}, {@link #mapOrdered()}, etc.) are supported for this parser.
+     */
+    default boolean supportsMap() {
+        return true;
+    }
 
     Map<String, Object> map() throws IOException;
 
@@ -145,6 +108,13 @@ public interface XContentParser extends Closeable {
     <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException;
 
+    /**
+     * Whether bulk list helpers ({@link #list()}, {@link #listOrderedMap()}) are supported for this parser.
+     */
+    default boolean supportsList() {
+        return true;
+    }
+
     List<Object> list() throws IOException;
 
     List<Object> listOrderedMap() throws IOException;
@@ -152,6 +122,10 @@ public interface XContentParser extends Closeable {
     String text() throws IOException;
 
     String textOrNull() throws IOException;
+
+    XContentString optimizedText() throws IOException;
+
+    XContentString optimizedTextOrNull() throws IOException;
 
     CharBuffer charBufferOrNull() throws IOException;
 
@@ -246,6 +220,30 @@ public interface XContentParser extends Closeable {
      */
     XContentLocation getTokenLocation();
 
+    /**
+     * Returns the location of the last processed input unit (byte or character).
+     * This tracks the parser's current read position — how far it has consumed
+     * into the underlying stream — not necessarily the end of the current value.
+     * The semantics match Jackson's {@code JsonParser.currentLocation()}.
+     *
+     * <p>For scalar tokens (strings, numbers, booleans, null), {@code nextToken()}
+     * fully consumes the value, so this returns the position just past it.
+     * For structural tokens ({@code START_OBJECT}, {@code START_ARRAY}),
+     * only the opening delimiter has been consumed.
+     *
+     * <p>To get the byte range of an arbitrary value (scalar or composite),
+     * use the pattern:
+     * <pre>{@code
+     * long start = parser.getTokenLocation().byteOffset();
+     * parser.skipChildren();  // no-op for scalars
+     * long end = parser.getCurrentLocation().byteOffset();
+     * }</pre>
+     *
+     * @return the current read position, or null if cannot be determined
+     * @see #getTokenLocation()
+     */
+    XContentLocation getCurrentLocation();
+
     // TODO remove context entirely when it isn't needed
     /**
      * Parse an object by name.
@@ -265,4 +263,12 @@ public interface XContentParser extends Closeable {
      * The callback to notify when parsing encounters a deprecated field.
      */
     DeprecationHandler getDeprecationHandler();
+
+    /**
+     * Switch to a different underlying parser.
+     * Typically, that's a noop but some filter parsers might want to wrap the underlying parser again.
+     */
+    default XContentParser switchParser(XContentParser parser) throws IOException {
+        return parser;
+    }
 }

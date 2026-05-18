@@ -18,19 +18,19 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "my_date": "2018-05-11", "my_ip": ":::1" }
 
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "my_date": "bar", "my_ip": "192.168.1.42" }
 
   - do:
       index:
         index:  test
-        id:     3
+        id:     "3"
         body:   { "my_date": "bar", "my_ip": "quux" }
 
   - do:
@@ -92,8 +92,8 @@ setup:
 
 ---
 "ignored_field_values is returned by default":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: ignored_field_values was added in 8.0
 
   - do:

@@ -15,12 +15,13 @@ import org.elasticsearch.xpack.ml.job.process.diagnostics.DataStreamDiagnostics;
 
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 /**
  * Status reporter for tracking counts of the good/bad records written to the API.
  * Call one of the reportXXX() methods to update the records counts.
- *
+ * <p>
  * Stats are logged at specific stages
  * <ol>
  * <li>Every 10,000 records for the first 100,000 records</li>
@@ -42,6 +43,8 @@ public class DataCountsReporter {
 
     private final DataCounts totalRecordStats;
     private volatile DataCounts incrementalRecordStats;
+
+    private final AtomicReference<DataCounts> unreportedStats = new AtomicReference<>();
 
     private long analyzedFieldsPerRecord = 1;
 
@@ -236,7 +239,28 @@ public class DataCountsReporter {
         totalRecordStats.setLastDataTimeStamp(now);
         diagnostics.flush();
         retrieveDiagnosticsIntermediateResults();
-        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats());
+        unreportedStats.set(null);
+        DataCounts statsToReport = runningTotalStats();
+        try {
+            if (dataCountsPersister.persistDataCounts(job.getId(), statsToReport, false) == false) {
+                unreportedStats.set(statsToReport);
+            }
+        } catch (InterruptedException e) {
+            assert false : "This should never happen when persistDataCounts is called with mustWait set to false";
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Report the most recent counts, if any, that {@link #finishReporting} failed to
+     * report when the previous persistence was in progress.
+     */
+    public void writeUnreportedCounts() throws InterruptedException {
+        DataCounts stats = unreportedStats.getAndSet(null);
+        if (stats != null) {
+            boolean persisted = dataCountsPersister.persistDataCounts(job.getId(), stats, true);
+            assert persisted;
+        }
     }
 
     /**
@@ -306,7 +330,7 @@ public class DataCountsReporter {
         return incrementalRecordStats;
     }
 
-    public synchronized DataCounts runningTotalStats() {
+    public DataCounts runningTotalStats() {
         totalRecordStats.calcProcessedFieldCount(getAnalysedFieldsPerRecord());
         return totalRecordStats;
     }

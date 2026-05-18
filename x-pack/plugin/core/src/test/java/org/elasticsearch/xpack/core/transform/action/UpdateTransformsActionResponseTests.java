@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 
@@ -24,13 +26,23 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
     }
 
     @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected Response mutateInstanceForVersion(Response instance, TransportVersion version) {
+        return new Response(TransformConfigTests.mutateForVersion(instance.getConfig(), version));
+    }
+
+    @Override
     protected Reader<Response> instanceReader() {
         return Response::new;
     }
 
     @Override
     protected Response doParseInstance(XContentParser parser) throws IOException {
-        return new Response(TransformConfig.fromXContent(parser, null, false));
+        return new Response(TransformConfig.fromXContent(parser, null, false, new TransformParsingContext(false)));
     }
 
 }

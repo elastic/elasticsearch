@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 /**
@@ -33,7 +34,7 @@
  * of the appropriate type, which in turn builds the
  * {@link org.elasticsearch.search.aggregations.Aggregator} for that node.  This
  * collects the data from that shard, via
- * {@link org.elasticsearch.search.aggregations.Aggregator#getLeafCollector(org.apache.lucene.index.LeafReaderContext)}
+ * {@link org.elasticsearch.search.aggregations.Aggregator#getLeafCollector(AggregationExecutionContext)}
  * more or less.  These values are shipped back to the coordinating node, which
  * performs the reduction on them (partial reductions in place on the data nodes
  * are also possible).</p>

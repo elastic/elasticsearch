@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
@@ -24,14 +23,13 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
  * A NLP processor that directly returns the PyTorch result
  * without any post-processing
  */
-public class PassThroughProcessor implements NlpTask.Processor {
+public class PassThroughProcessor extends NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
-    private final String resultsField;
 
-    PassThroughProcessor(NlpTokenizer tokenizer, PassThroughConfig config) {
+    PassThroughProcessor(NlpTokenizer tokenizer) {
+        super(tokenizer);
         this.requestBuilder = tokenizer.requestBuilder();
-        this.resultsField = config.getResultsField();
     }
 
     @Override
@@ -46,15 +44,24 @@ public class PassThroughProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        return (tokenization, pyTorchResult) -> processResult(tokenization, pyTorchResult, config.getResultsField());
+        return (tokenization, pyTorchResult, chunkResult) -> processResult(
+            tokenization,
+            pyTorchResult,
+            config.getResultsField(),
+            chunkResult
+        );
     }
 
     private static InferenceResults processResult(
         TokenizationResult tokenization,
         PyTorchInferenceResult pyTorchResult,
-        String resultsField
+        String resultsField,
+        boolean chunkResult
     ) {
-        // TODO - process all results in the batch
+        if (chunkResult) {
+            throw chunkingNotSupportedException(TaskType.NER);
+        }
+
         return new PyTorchPassThroughResults(
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
             pyTorchResult.getInferenceResult()[0],

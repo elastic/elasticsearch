@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;
@@ -27,7 +28,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -46,7 +46,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
@@ -98,6 +100,7 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_SMALLINT", SHORT);
         ODBC_TO_ES.put("SQL_INTEGER", INTEGER);
         ODBC_TO_ES.put("SQL_BIGINT", LONG);
+        ODBC_TO_ES.put("SQL_UBIGINT", UNSIGNED_LONG);
         ODBC_TO_ES.put("SQL_REAL", FLOAT);
         ODBC_TO_ES.put("SQL_FLOAT", DOUBLE);
         ODBC_TO_ES.put("SQL_DOUBLE", DOUBLE);
@@ -161,7 +164,7 @@ public class SqlDataTypes {
             GEO_POINT,
             SHAPE
         )
-    ).sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
+    ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
@@ -227,6 +230,9 @@ public class SqlDataTypes {
         }
         if (value instanceof GeoShape) {
             return GEO_SHAPE;
+        }
+        if (value instanceof Version) {
+            return VERSION;
         }
 
         return null;
@@ -334,6 +340,9 @@ public class SqlDataTypes {
         if (dataType == LONG) {
             return JDBCType.BIGINT;
         }
+        if (dataType == UNSIGNED_LONG) {
+            return JDBCType.NUMERIC;
+        }
         if (dataType == DOUBLE) {
             return JDBCType.DOUBLE;
         }
@@ -356,6 +365,9 @@ public class SqlDataTypes {
             return JDBCType.TIMESTAMP;
         }
         if (dataType == IP) {
+            return JDBCType.VARCHAR;
+        }
+        if (dataType == VERSION) {
             return JDBCType.VARCHAR;
         }
         if (dataType == BINARY) {
@@ -457,6 +469,9 @@ public class SqlDataTypes {
         if (dataType == LONG) {
             return 19;
         }
+        if (dataType == UNSIGNED_LONG) {
+            return 20;
+        }
         if (dataType == DOUBLE) {
             return 15;
         }
@@ -479,6 +494,9 @@ public class SqlDataTypes {
             return 9;
         }
         if (dataType == IP) {
+            return dataType.size();
+        }
+        if (dataType == VERSION) {
             return dataType.size();
         }
         if (dataType == BINARY) {
@@ -574,7 +592,7 @@ public class SqlDataTypes {
         if (dataType == INTEGER) {
             return 11;
         }
-        if (dataType == LONG) {
+        if (dataType == LONG || dataType == UNSIGNED_LONG) {
             return 20;
         }
         if (dataType == DOUBLE) {
@@ -599,6 +617,9 @@ public class SqlDataTypes {
             return 34;
         }
         if (dataType == IP) {
+            return dataType.size();
+        }
+        if (dataType == VERSION) {
             return dataType.size();
         }
         if (dataType == BINARY) {

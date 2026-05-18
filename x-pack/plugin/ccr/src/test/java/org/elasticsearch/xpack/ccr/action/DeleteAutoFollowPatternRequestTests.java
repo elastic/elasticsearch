@@ -19,6 +19,11 @@ public class DeleteAutoFollowPatternRequestTests extends AbstractWireSerializing
 
     @Override
     protected DeleteAutoFollowPatternAction.Request createTestInstance() {
-        return new DeleteAutoFollowPatternAction.Request(randomAlphaOfLength(4));
+        return new DeleteAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(4));
+    }
+
+    @Override
+    protected DeleteAutoFollowPatternAction.Request mutateInstance(DeleteAutoFollowPatternAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

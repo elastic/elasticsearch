@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.sql.qa.cli;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.terminal.Terminal;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xpack.sql.cli.Cli;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.cli.JLineTerminal;
@@ -28,12 +28,15 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -65,6 +68,24 @@ public class EmbeddedCli implements Closeable {
 
     public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, @Nullable SecurityConfig security)
         throws IOException {
+        this(elasticsearchAddress, checkConnectionOnStartup, security, null);
+    }
+
+    /**
+     * Create an embedded CLI with API key authentication.
+     */
+    public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, ApiKeySecurityConfig apiKeySecurity)
+        throws IOException {
+        this(elasticsearchAddress, checkConnectionOnStartup, null, apiKeySecurity);
+    }
+
+    @SuppressWarnings("this-escape")
+    private EmbeddedCli(
+        String elasticsearchAddress,
+        boolean checkConnectionOnStartup,
+        @Nullable SecurityConfig security,
+        @Nullable ApiKeySecurityConfig apiKeySecurity
+    ) throws IOException {
         PipedOutputStream outgoing = new PipedOutputStream();
         PipedInputStream cliIn = new PipedInputStream(outgoing);
         PipedInputStream incoming = new PipedInputStream();
@@ -73,19 +94,30 @@ public class EmbeddedCli implements Closeable {
             new ExternalTerminal("test", "xterm-256color", cliIn, cliOut, StandardCharsets.UTF_8),
             false
         );
-        cli = new Cli(cliTerminal) {
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
-        };
+        cli = new Cli(cliTerminal) {};
         out = new BufferedWriter(new OutputStreamWriter(outgoing, StandardCharsets.UTF_8));
         in = new BufferedReader(new InputStreamReader(incoming, StandardCharsets.UTF_8));
 
         List<String> args = new ArrayList<>();
-        if (security == null) {
+        if (security == null && apiKeySecurity == null) {
             args.add(elasticsearchAddress);
+        } else if (apiKeySecurity != null) {
+            // API key authentication
+            String address = elasticsearchAddress;
+            if (apiKeySecurity.https) {
+                address = "https://" + address;
+            } else if (randomBoolean()) {
+                address = "http://" + address;
+            }
+            args.add(address);
+            args.add("-apikey");
+            args.add(apiKeySecurity.apiKey);
+            if (apiKeySecurity.keystoreLocation != null) {
+                args.add("-keystore_location");
+                args.add(apiKeySecurity.keystoreLocation);
+            }
         } else {
+            // Basic authentication
             String address = security.user + "@" + elasticsearchAddress;
             if (security.https) {
                 address = "https://" + address;
@@ -116,8 +148,8 @@ public class EmbeddedCli implements Closeable {
                  * trying to test our interaction with jLine which doesn't
                  * support Elasticsearch's Terminal abstraction.
                  */
-                Terminal terminal = new MockTerminal();
-                int exitCode = cli.main(args.toArray(new String[0]), terminal);
+                Terminal terminal = MockTerminal.create();
+                int exitCode = cli.main(args.toArray(new String[0]), terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
                 returnCode.set(exitCode);
                 logger.info("cli exited with code [{}]", exitCode);
             } catch (Exception e) {
@@ -127,7 +159,7 @@ public class EmbeddedCli implements Closeable {
         exec.start();
 
         try {
-            // Feed it passwords if needed
+            // Feed it passwords if needed (only for basic auth, not API key)
             if (security != null) {
                 String passwordPrompt = "[?1h=[?2004hpassword: ";
                 if (security.keystoreLocation != null) {
@@ -155,6 +187,15 @@ public class EmbeddedCli implements Closeable {
                 out.flush();
                 logger.info("out: {}", security.password);
                 // Read the newline echoed after the password prompt
+                assertEquals("", readLine());
+            } else if (apiKeySecurity != null && apiKeySecurity.keystoreLocation != null) {
+                // For API key auth with SSL, we still need to provide keystore password
+                assertEquals("[?1h=[?2004hkeystore password: ", readUntil(s -> s.endsWith(": ")));
+                out.write(apiKeySecurity.keystorePassword + "\n");
+                out.flush();
+                logger.info("out: {}", apiKeySecurity.keystorePassword);
+                // Read the newline echoed after the password prompt
+                assertEquals("", readLine());
                 assertEquals("", readLine());
             }
 
@@ -274,8 +315,8 @@ public class EmbeddedCli implements Closeable {
      * Create the "echo" that we expect jLine to send to the terminal
      * while we're typing a command.
      */
-    private List<String> expectedCommandEchos(String command) {
-        List<String> commandLines = Strings.splitSmart(command, "\n", false);
+    private static List<String> expectedCommandEchos(String command) {
+        List<String> commandLines = Arrays.stream(command.split("\n")).filter(s -> s.isEmpty() == false).toList();
         List<String> result = new ArrayList<>(commandLines.size() * 2);
         result.add("[?1h=[?2004h[33msql> [0m" + commandLines.get(0));
         // Every line gets an extra new line because, I dunno, but it looks right in the CLI
@@ -366,6 +407,46 @@ public class EmbeddedCli implements Closeable {
             this.https = https;
             this.user = user;
             this.password = password;
+            this.keystoreLocation = keystoreLocation;
+            this.keystorePassword = keystorePassword;
+        }
+
+        public String keystoreLocation() {
+            return keystoreLocation;
+        }
+
+        public String keystorePassword() {
+            return keystorePassword;
+        }
+    }
+
+    /**
+     * Configuration for API key authentication.
+     */
+    public static class ApiKeySecurityConfig {
+        private final boolean https;
+        private final String apiKey;
+        @Nullable
+        private final String keystoreLocation;
+        @Nullable
+        private final String keystorePassword;
+
+        public ApiKeySecurityConfig(boolean https, String apiKey, @Nullable String keystoreLocation, @Nullable String keystorePassword) {
+            if (apiKey == null) {
+                throw new IllegalArgumentException("[apiKey] is required.");
+            }
+            if (keystoreLocation == null) {
+                if (keystorePassword != null) {
+                    throw new IllegalArgumentException("[keystorePassword] cannot be specified if [keystoreLocation] is not specified");
+                }
+            } else {
+                if (keystorePassword == null) {
+                    throw new IllegalArgumentException("[keystorePassword] is required if [keystoreLocation] is specified");
+                }
+            }
+
+            this.https = https;
+            this.apiKey = apiKey;
             this.keystoreLocation = keystoreLocation;
             this.keystorePassword = keystorePassword;
         }

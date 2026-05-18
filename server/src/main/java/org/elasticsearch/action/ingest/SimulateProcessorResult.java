@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.ingest;
 
@@ -125,7 +126,19 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     ) {
         this.processorTag = processorTag;
         this.description = description;
-        this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
+        WriteableIngestDocument wid = null;
+        if (ingestDocument != null) {
+            try {
+                wid = new WriteableIngestDocument(ingestDocument);
+            } catch (Exception ex) {
+                // if there was a failure already, then track it as a suppressed exception
+                if (failure != null) {
+                    ex.addSuppressed(failure);
+                }
+                failure = ex;
+            }
+        }
+        this.ingestDocument = wid;
         this.failure = failure;
         this.conditionalWithResult = conditionalWithResult;
         this.type = type;
@@ -159,7 +172,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
      * Read from a stream.
      */
     SimulateProcessorResult(StreamInput in) throws IOException {
-        this.processorTag = in.readString();
+        this.processorTag = in.readOptionalString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
         this.description = in.readOptionalString();
@@ -174,7 +187,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(processorTag);
+        out.writeOptionalString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
         out.writeOptionalString(description);

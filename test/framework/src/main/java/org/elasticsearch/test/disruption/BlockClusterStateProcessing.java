@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.disruption;
 
@@ -17,6 +18,9 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class BlockClusterStateProcessing extends SingleNodeDisruption {
 
@@ -38,18 +42,20 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
             return;
         }
         logger.info("delaying cluster state updates on node [{}]", disruptionNodeCopy);
-        boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
-        assert success : "startDisrupting called without waiting on stopDisrupting to complete";
+        assertTrue(disruptionLatch.compareAndSet(null, new CountDownLatch(1)));
         final CountDownLatch started = new CountDownLatch(1);
         clusterService.getClusterApplierService().runOnApplierThread("service_disruption_block", Priority.IMMEDIATE, currentState -> {
             started.countDown();
             CountDownLatch latch = disruptionLatch.get();
-            if (latch != null) {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    Throwables.rethrow(e);
-                }
+            assertNotNull(latch);
+            try {
+                logger.info("waiting for removal of cluster state update disruption on node [{}]", disruptionNodeCopy);
+                latch.await();
+                logger.info("removing cluster state update disruption on node [{}]", disruptionNodeCopy);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error("interrupted during disruption", e);
+                Throwables.rethrow(e);
             }
         }, new ActionListener<>() {
             @Override
@@ -58,20 +64,24 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
             @Override
             public void onFailure(Exception e) {
                 logger.error("unexpected error during disruption", e);
+                assert false : e;
             }
         });
         try {
             started.await();
-        } catch (InterruptedException e) {}
+            logger.info("cluster state updates on node [{}] are now being delayed", disruptionNodeCopy);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("interrupted waiting for disruption to start", e);
+            assert false : e;
+        }
     }
 
     @Override
     public void stopDisrupting() {
         CountDownLatch latch = disruptionLatch.get();
-        if (latch != null) {
-            latch.countDown();
-        }
-
+        assertNotNull(latch);
+        latch.countDown();
     }
 
     @Override

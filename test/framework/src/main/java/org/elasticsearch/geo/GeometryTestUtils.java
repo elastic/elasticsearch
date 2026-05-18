@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geo;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -22,6 +23,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -87,8 +89,18 @@ public class GeometryTestUtils {
         }
     }
 
+    /**
+     * Returns a Lucene polygon with non-zero area, so its vertices are not all collinear and the polygon
+     * survives {@link org.apache.lucene.geo.Tessellator}. Lucene's {@code GeoTestUtil.nextPolygon} on its
+     * own occasionally returns degenerate polygons; callers that hand the result to the geo_shape indexer
+     * should use this wrapper.
+     */
+    public static org.apache.lucene.geo.Polygon nextLucenePolygon() {
+        return randomValueOtherThanMany(p -> area(p) == 0, GeoTestUtil::nextPolygon);
+    }
+
     public static Polygon randomPolygon(boolean hasAlt) {
-        org.apache.lucene.geo.Polygon lucenePolygon = randomValueOtherThanMany(p -> area(p) == 0, GeoTestUtil::nextPolygon);
+        org.apache.lucene.geo.Polygon lucenePolygon = nextLucenePolygon();
         if (lucenePolygon.numHoles() > 0) {
             org.apache.lucene.geo.Polygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();
@@ -197,12 +209,17 @@ public class GeometryTestUtils {
             case CIRCLE -> randomCircle(hasAlt);
             case MULTIPOINT -> randomMultiPoint(hasAlt);
             case POINT -> randomPoint(hasAlt);
-            default -> throw new IllegalArgumentException("Ussuported shape type [" + type + "]");
+            default -> throw new IllegalArgumentException("Unsupported shape type [" + type + "]");
         };
     }
 
     public static Geometry randomGeometry(boolean hasAlt) {
         return randomGeometry(0, hasAlt);
+    }
+
+    public static Geometry randomGeometry(boolean hasAlt, int maxPoints) {
+        var pointCounter = new GeometryPointCountVisitor();
+        return randomValueOtherThanMany(g -> g.visit(pointCounter) > maxPoints, () -> randomGeometry(0, hasAlt));
     }
 
     protected static Geometry randomGeometry(int level, boolean hasAlt) {

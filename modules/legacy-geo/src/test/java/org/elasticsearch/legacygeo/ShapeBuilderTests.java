@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.legacygeo;
@@ -225,7 +226,7 @@ public class ShapeBuilderTests extends ESTestCase {
             new CoordinatesBuilder().coordinate(-40.0, 50.0).coordinate(40.0, 50.0).coordinate(-40.0, -50.0).coordinate(40.0, -50.0).close()
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> newPolygon.buildS4J());
-        assertThat(e.getMessage(), containsString("Cannot determine orientation: signed area equal to 0"));
+        assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0, 0.0, NaN)"));
     }
 
     /** note: only supported by S4J at the moment */

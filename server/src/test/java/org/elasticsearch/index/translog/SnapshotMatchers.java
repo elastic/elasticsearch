@@ -1,15 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
-
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 
 import org.elasticsearch.ElasticsearchException;
 import org.hamcrest.Description;
@@ -19,8 +17,9 @@ import org.hamcrest.TypeSafeMatcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 public final class SnapshotMatchers {
     private SnapshotMatchers() {
@@ -154,8 +153,8 @@ public final class SnapshotMatchers {
         protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
                 List<Translog.Operation> actualOps = drainAll(snapshot);
-                notFoundOps = expectedOps.stream().filter(o -> actualOps.contains(o) == false).collect(Collectors.toList());
-                notExpectedOps = actualOps.stream().filter(o -> expectedOps.contains(o) == false).collect(Collectors.toList());
+                notFoundOps = expectedOps.stream().filter(o -> actualOps.contains(o) == false).toList();
+                notExpectedOps = actualOps.stream().filter(o -> expectedOps.contains(o) == false).toList();
                 return notFoundOps.isEmpty() && notExpectedOps.isEmpty();
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read snapshot content", ex);
@@ -194,7 +193,7 @@ public final class SnapshotMatchers {
         @Override
         protected boolean matchesSafely(Translog.Snapshot snapshot) {
             try {
-                final LongSet seqNoList = new LongHashSet();
+                final Set<Long> seqNoList = new HashSet<>();
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
                     seqNoList.add(op.seqNo());

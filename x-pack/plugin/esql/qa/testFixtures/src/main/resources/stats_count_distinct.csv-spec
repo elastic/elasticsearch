@@ -1,0 +1,180 @@
+countDistinctOfLong
+from employees | stats l = count_distinct(languages.long);
+
+l:long
+5
+;
+
+countDistinctOfInteger
+from employees | stats l = count_distinct(languages);
+
+l:long
+5
+;
+
+countDistinctOfShort
+// short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = count_distinct(languages.short);
+
+l:long
+5
+;
+
+countDistinctOfByte
+// byte becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = count_distinct(languages.byte);
+
+l:long
+5
+;
+
+countDistinctOfDouble
+from employees | stats h = count_distinct(height, 100);
+
+h:long
+54
+;
+
+countDistinctOfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.float);
+
+h:long
+54
+;
+
+countDistinctOfHalfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.half_float);
+
+h:long
+54
+;
+
+countDistinctOfScaledFloat
+required_capability: fix_precision_of_scaled_float_fields
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.scaled_float);
+
+h:long
+54
+;
+
+countDistinctOfBoolean
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats c = count_distinct(still_hired);
+
+c:long
+2
+;
+
+countDistinctOfKeywords
+from employees | eval hire_year_str = date_format("yyyy", hire_date) | stats g = count_distinct(gender), h = count_distinct(hire_year_str);
+
+g:long | h:long
+2      | 14
+;
+
+countDistinctOfIp
+// tag::count-distinct[]
+FROM hosts
+| STATS COUNT_DISTINCT(ip0), COUNT_DISTINCT(ip1)
+// end::count-distinct[]
+;
+
+// tag::count-distinct-result[]
+COUNT_DISTINCT(ip0):long | COUNT_DISTINCT(ip1):long
+7                        | 8
+// end::count-distinct-result[]
+;
+
+countDistinctOfIpPrecision#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+// tag::count-distinct-precision[]
+FROM hosts
+| STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)
+// end::count-distinct-precision[]
+;
+
+// tag::count-distinct-precision-result[]
+COUNT_DISTINCT(ip0, 80000):long | COUNT_DISTINCT(ip1, 5):long
+7                              | 9
+// end::count-distinct-precision-result[]
+;
+
+countDistinctOfDates
+from employees | eval d = date_trunc(1 year, hire_date) | stats h = count_distinct(d);  
+
+h:long
+14
+;
+
+countDistinctWithGroup
+from employees | stats m = count_distinct(height, 9876) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+countDistinctOfIpGroupByKeyword
+from hosts | stats h0 = count_distinct(ip0), h1 = count_distinct(ip1)  by host | sort host;
+
+h0:long | h1:long | host:keyword
+2       | 2       | alpha
+1       | 3       | beta
+5       | 6       | epsilon
+1       | 2       | gamma
+;
+
+countDistinctWithPrecisionExpression
+from employees | stats m = count_distinct(height, 9875+1) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+countDistinctWithComplexPrecisionExpression
+from employees | stats m = count_distinct(height, 9876*3+(-9876*2)) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+docsCountDistinctWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsCountDistinctWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS distinct_word_count = COUNT_DISTINCT(SPLIT(words, ";"))
+// end::docsCountDistinctWithExpression[]
+;
+
+// tag::docsCountDistinctWithExpression-result[]
+distinct_word_count:long
+5
+// end::docsCountDistinctWithExpression-result[]
+;
+
+countDistinctWithGroupPrecisionAndNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+from employees | stats m = count_distinct(height + 5, 9876) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;

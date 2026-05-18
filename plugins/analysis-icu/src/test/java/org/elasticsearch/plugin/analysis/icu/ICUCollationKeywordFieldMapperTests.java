@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.plugin.analysis.icu;
 
@@ -19,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -29,6 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
@@ -57,6 +61,24 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("numeric", b -> b.field("numeric", true));
         checker.registerConflictCheck("variable_top", b -> b.field("variable_top", ":"));
         checker.registerConflictCheck("hiragana_quaternary_mode", b -> b.field("hiragana_quaternary_mode", true));
+        checker.registerConflictCheck("language", b -> b.field("language", "tr"));
+        checker.registerConflictCheck("country", b -> b.field("country", "US"));
+        checker.registerConflictCheck("variant", b -> b.field("variant", "traditional"));
+        checker.registerConflictCheck("rules", b -> b.field("rules", "&a<b"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
+        checker.registerUpdateCheck("ignore_above", b -> b.field("ignore_above", 5), m -> {});
+        checker.registerConflictCheck("norms", b -> b.field("norms", true));
+        checker.registerUpdateCheck("norms", b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }, b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
     }
 
     @Override
@@ -74,15 +96,15 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
         Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
-        assertEquals(expected, fields[0].binaryValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        assertEquals(expected, fields.get(0).binaryValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -93,8 +115,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        assertEquals(expected, fields[1].binaryValue());
-        fieldType = fields[1].fieldType();
+        assertEquals(expected, fields.get(1).binaryValue());
+        fieldType = fields.get(1).fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
@@ -102,15 +124,15 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     public void testNullValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+        assertThat(doc.rootDoc().getFields("field"), empty());
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("null_value", "1234")));
         doc = mapper.parse(
             new SourceToParse("1", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields, empty());
 
         doc = mapper.parse(source(b -> b.nullField("field")));
         Collator collator = Collator.getInstance(ULocale.ROOT);
@@ -118,48 +140,53 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
         fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals(expected, fields[0].binaryValue());
+        assertEquals(2, fields.size());
+        assertEquals(expected, fields.get(0).binaryValue());
     }
 
     public void testEnableStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertTrue(fields.get(0).fieldType().stored());
     }
 
-    public void testDisableIndex() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index", false)));
+    public void testHighCardinality() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", FIELD_TYPE).startObject("doc_values").field("cardinality", "high").endObject())
+        );
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals(IndexOptions.NONE, fields[0].fieldType().indexOptions());
-        assertEquals(DocValuesType.SORTED_SET, fields[0].fieldType().docValuesType());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals(IndexOptions.DOCS, fields.get(0).fieldType().indexOptions());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(IndexOptions.NONE, fields.get(1).fieldType().indexOptions());
+        assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("doc_values", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
     }
 
     public void testMultipleValues() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", List.of("1234", "5678"))));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(4, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(4, fields.size());
 
         Collator collator = Collator.getInstance(ULocale.ROOT);
         RawCollationKey key = collator.getRawCollationKey("1234", null);
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
-        assertEquals(expected, fields[0].binaryValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        assertEquals(expected, fields.get(0).binaryValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -170,8 +197,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        assertEquals(expected, fields[1].binaryValue());
-        fieldType = fields[1].fieldType();
+        assertEquals(expected, fields.get(1).binaryValue());
+        fieldType = fields.get(1).fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 
@@ -179,8 +206,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         key = collator.getRawCollationKey("5678", null);
         expected = new BytesRef(key.bytes, 0, key.size);
 
-        assertEquals(expected, fields[2].binaryValue());
-        fieldType = fields[2].fieldType();
+        assertEquals(expected, fields.get(2).binaryValue());
+        fieldType = fields.get(2).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -191,8 +218,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        assertEquals(expected, fields[3].binaryValue());
-        fieldType = fields[3].fieldType();
+        assertEquals(expected, fields.get(3).binaryValue());
+        fieldType = fields.get(3).fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
@@ -200,9 +227,9 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     public void testIndexOptions() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", "freqs")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals(IndexOptions.DOCS_AND_FREQS, fields[0].fieldType().indexOptions());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals(IndexOptions.DOCS_AND_FREQS, fields.get(0).fieldType().indexOptions());
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
             Exception e = expectThrows(
@@ -219,9 +246,9 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     public void testEnableNorms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("norms", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertFalse(fields[0].fieldType().omitNorms());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertFalse(fields.get(0).fieldType().omitNorms());
     }
 
     public void testCollator() throws IOException {
@@ -234,11 +261,11 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         RawCollationKey key = collator.getRawCollationKey("ı will use turkish casıng", null); // should collate to same value
         BytesRef expected = new BytesRef(key.bytes, 0, key.size);
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
-        assertEquals(expected, fields[0].binaryValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        assertEquals(expected, fields.get(0).binaryValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -249,8 +276,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        assertEquals(expected, fields[1].binaryValue());
-        fieldType = fields[1].fieldType();
+        assertEquals(expected, fields.get(1).binaryValue());
+        fieldType = fields.get(1).fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
@@ -270,25 +297,25 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     public void testIgnoreAbove() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(0, fields.length);
+        assertThat(fields, empty());
 
         doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
         fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        assertThat(fields, empty());
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.length);
-        assertEquals("field", fields[0].stringValue());
+        assertEquals(2, fields.size());
+        assertTrue(fields.stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
     public void testUpdateIgnoreAbove() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         merge(mapperService, fieldMapping(b -> b.field("type", FIELD_TYPE).field("ignore_above", 5)));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "elasticsearch")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields, empty());
     }
 
     @Override
@@ -299,5 +326,30 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
          * docvalue_fields loads garbage bytes.
          */
         return null;
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

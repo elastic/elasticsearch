@@ -6,15 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 
@@ -34,44 +35,29 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         final String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        final String repositoryName = lifecycleState.getSnapshotRepository();
+        final String repositoryName = lifecycleState.snapshotRepository();
         // if the snapshot information is missing from the ILM execution state there is nothing to delete so we move on
         if (Strings.hasText(repositoryName) == false) {
             listener.onResponse(null);
             return;
         }
-        final String snapshotName = lifecycleState.getSnapshotName();
+        final String snapshotName = lifecycleState.snapshotName();
         if (Strings.hasText(snapshotName) == false) {
             listener.onResponse(null);
             return;
         }
-        getClient().admin()
-            .cluster()
-            .prepareDeleteSnapshot(repositoryName, snapshotName)
-            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-            .execute(new ActionListener<>() {
+        getClient(currentProject.id()).execute(
+            TransportDeleteSnapshotAction.TYPE,
+            new DeleteSnapshotRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName),
+            new ActionListener<>() {
 
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (acknowledgedResponse.isAcknowledged() == false) {
-                        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-                        throw new ElasticsearchException(
-                            "cleanup snapshot step request for repository ["
-                                + repositoryName
-                                + "] and snapshot "
-                                + "["
-                                + snapshotName
-                                + "] policy ["
-                                + policyName
-                                + "] and index ["
-                                + indexName
-                                + "] failed to be acknowledged"
-                        );
-                    }
+                    assert acknowledgedResponse.isAcknowledged();
                     listener.onResponse(null);
                 }
 
@@ -82,7 +68,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                         listener.onResponse(null);
                     } else {
                         if (e instanceof RepositoryMissingException) {
-                            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                            String policyName = indexMetadata.getLifecyclePolicyName();
                             listener.onFailure(
                                 new IllegalStateException(
                                     "repository ["
@@ -100,6 +86,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                         }
                     }
                 }
-            });
+            }
+        );
     }
 }

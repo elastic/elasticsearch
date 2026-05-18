@@ -45,15 +45,15 @@ setup:
         body:
           - index:
               _index: docs
-              _id:    1
+              _id:    "1"
           - snapshot: one
           - index:
               _index: docs
-              _id:    2
+              _id:    "2"
           - snapshot: one
           - index:
               _index: docs
-              _id:    3
+              _id:    "3"
           - snapshot: one
 
   - do:
@@ -90,19 +90,19 @@ setup:
         body:
           - index:
               _index: docs
-              _id:    4
+              _id:    "4"
           - snapshot: two
           - index:
               _index: docs
-              _id:    5
+              _id:    "5"
           - snapshot: two
           - index:
               _index: docs
-              _id:    6
+              _id:    "6"
           - snapshot: two
           - index:
               _index: docs
-              _id:    7
+              _id:    "7"
           - snapshot: two
 
   - do:
@@ -194,6 +194,20 @@ setup:
             client: integration_test
 
 ---
+"Register a read-only repository with a non existing container":
+
+  - do:
+      catch: /repository_verification_exception/
+      snapshot.create_repository:
+        repository: repository
+        body:
+          type: azure
+          settings:
+            container: zHHkfSqlbnBsbpSgvCYtxrEfFLqghXtyPvvvKPNBnRCicNHQLE
+            client: integration_test
+            readonly: true
+
+---
 "Register a repository with a non existing client":
 
   - do:
@@ -234,6 +248,14 @@ setup:
         repository: repository
         snapshot: missing
         wait_for_completion: true
+
+---
+"Usage stats":
+  - do:
+      cluster.stats: {}
+
+  - gte: { repositories.azure.count: 1 }
+  - gte: { repositories.azure.read_write: 1 }
 
 ---
 teardown:

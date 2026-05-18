@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -37,36 +39,44 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * references as well as mutable state. That makes it impractical to send tasks over transport channels
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
+ *
+ * @param startTime Start time in millis since the epoch. In some API responses, this may be the start time of a task whose work this task
+ *     is continuing.
+ * @param runningTimeNanos Approximate running time in nanos (relative to the start time given by {@link #startTime}: see notes there)
+ * @param originalTaskId If this task is continuing the work of another task on a node that was shut down, this is the ID of the original
+ *     task; otherwise, this will be the same as taskId
+ * @param originalStartTimeMillis The {@link #startTime} of the task given by {@link #originalTaskId}
  */
-public final class TaskInfo implements Writeable, ToXContentFragment {
+public record TaskInfo(
+    TaskId taskId,
+    String type,
+    String node,
+    String action,
+    String description,
+    Task.Status status,
+    long startTime,
+    long runningTimeNanos,
+    boolean cancellable,
+    boolean cancelled,
+    TaskId parentTaskId,
+    Map<String, String> headers,
+    TaskId originalTaskId,
+    long originalStartTimeMillis
+) implements Writeable, ToXContentFragment {
 
+    private static final TransportVersion INCLUDE_ORIGINAL_TASK = TransportVersion.fromName("task_info_include_original_task");
     static final String INCLUDE_CANCELLED_PARAM = "include_cancelled";
 
-    private final TaskId taskId;
+    public TaskInfo {
+        assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
+    }
 
-    private final String type;
-
-    private final String action;
-
-    private final String description;
-
-    private final long startTime;
-
-    private final long runningTimeNanos;
-
-    private final Task.Status status;
-
-    private final boolean cancellable;
-
-    private final boolean cancelled;
-
-    private final TaskId parentTaskId;
-
-    private final Map<String, String> headers;
-
+    /// Constructor for a task which is not continuing the work of another task, so `originalTaskId == taskId` and
+    /// `originalStartTimeMillis == startTime`.
     public TaskInfo(
         TaskId taskId,
         String type,
+        String node,
         String action,
         String description,
         Task.Status status,
@@ -77,42 +87,94 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         TaskId parentTaskId,
         Map<String, String> headers
     ) {
-        assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
-        this.taskId = taskId;
-        this.type = type;
-        this.action = action;
-        this.description = description;
-        this.status = status;
-        this.startTime = startTime;
-        this.runningTimeNanos = runningTimeNanos;
-        this.cancellable = cancellable;
-        this.cancelled = cancelled;
-        this.parentTaskId = parentTaskId;
-        this.headers = headers;
+        this(
+            taskId,
+            type,
+            node,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers,
+            taskId,
+            startTime
+        );
+    }
+
+    /**
+     * Returns a {@link TaskInfo} snapshot for API responses where a relocated task should appear as one continuous job:
+     * {@link #taskId}, {@link #node}, {@link #startTime}, and {@link #runningTimeNanos} reflect the original task identity
+     * and elapsed time since that original start, while {@link #originalTaskId} and {@link #originalStartTimeMillis}
+     * match the returned {@code taskId} / {@code startTime} (the 12-argument constructor shape).
+     * <p>
+     * For tasks that were not relocated, {@code originalTaskId == taskId} and {@code originalStartTimeMillis == startTime},
+     * so this is a NOP.
+     */
+    public TaskInfo withOriginalRelocationIdentity() {
+        TaskId originalId = originalTaskId();
+        long originalStartMillis = originalStartTimeMillis();
+        long adjustedRunningTimeNanos = runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(startTime() - originalStartMillis);
+        return new TaskInfo(
+            originalId,
+            type(),
+            originalId.getNodeId(),
+            action(),
+            description(),
+            status(),
+            originalStartMillis,
+            adjustedRunningTimeNanos,
+            cancellable(),
+            cancelled(),
+            parentTaskId(),
+            headers()
+        );
     }
 
     /**
      * Read from a stream.
      */
-    public TaskInfo(StreamInput in) throws IOException {
-        taskId = TaskId.readFromStream(in);
-        type = in.readString();
-        action = in.readString();
-        description = in.readOptionalString();
-        status = in.readOptionalNamedWriteable(Task.Status.class);
-        startTime = in.readLong();
-        runningTimeNanos = in.readLong();
-        cancellable = in.readBoolean();
-        cancelled = in.readBoolean();
-        assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
-        parentTaskId = TaskId.readFromStream(in);
-        headers = in.readMap(StreamInput::readString, StreamInput::readString);
+    public static TaskInfo from(StreamInput in) throws IOException {
+        TaskId taskId = TaskId.readFromStream(in);
+        String type = in.readString();
+        String node = in.readString();
+        String action = in.readString();
+        String description = in.readOptionalString();
+        Task.Status status = in.readOptionalNamedWriteable(Task.Status.class);
+        long startTime = in.readLong();
+        long runningTimeNanos = in.readLong();
+        boolean cancellable = in.readBoolean();
+        boolean cancelled = in.readBoolean();
+        TaskId parentTaskId = TaskId.readFromStream(in);
+        Map<String, String> headers = in.readMap(StreamInput::readString);
+        TaskId originalTaskId = in.getTransportVersion().supports(INCLUDE_ORIGINAL_TASK) ? TaskId.readFromStream(in) : taskId;
+        long originalStartTimeMillis = in.getTransportVersion().supports(INCLUDE_ORIGINAL_TASK) ? in.readLong() : startTime;
+        return new TaskInfo(
+            taskId,
+            type,
+            node,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers,
+            originalTaskId,
+            originalStartTimeMillis
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         taskId.writeTo(out);
         out.writeString(type);
+        out.writeString(node);
         out.writeString(action);
         out.writeOptionalString(description);
         out.writeOptionalNamedWriteable(status);
@@ -121,83 +183,24 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeBoolean(cancellable);
         out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
+        if (out.getTransportVersion().supports(INCLUDE_ORIGINAL_TASK)) {
+            originalTaskId.writeTo(out);
+            out.writeLong(originalStartTimeMillis);
+        }
     }
 
-    public TaskId getTaskId() {
-        return taskId;
-    }
-
-    public long getId() {
+    public long id() {
         return taskId.getId();
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getAction() {
-        return action;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    /**
-     * The status of the running task. Only available if TaskInfos were build
-     * with the detailed flag.
-     */
-    public Task.Status getStatus() {
-        return status;
-    }
-
-    /**
-     * Returns the task start time
-     */
-    public long getStartTime() {
-        return startTime;
-    }
-
-    /**
-     * Returns the task running time
-     */
-    public long getRunningTimeNanos() {
-        return runningTimeNanos;
-    }
-
-    /**
-     * Returns true if the task supports cancellation
-     */
-    public boolean isCancellable() {
-        return cancellable;
-    }
-
-    /**
-     * Returns true if the task supports cancellation and has been cancelled
-     */
-    public boolean isCancelled() {
-        return cancelled;
-    }
-
-    /**
-     * Returns the parent task id
-     */
-    public TaskId getParentTaskId() {
-        return parentTaskId;
-    }
-
-    /**
-     * Returns the task headers
-     */
-    public Map<String, String> getHeaders() {
-        return headers;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("node", taskId.getNodeId());
+        builder.field("node", node);
         builder.field("id", taskId.getId());
+        if (!originalTaskId.equals(taskId)) {
+            builder.field("original_task_id", originalTaskId.toString());
+        }
         builder.field("type", type);
         builder.field("action", action);
         if (status != null) {
@@ -206,11 +209,14 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         if (description != null) {
             builder.field("description", description);
         }
-        builder.timeField("start_time_in_millis", "start_time", startTime);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTime);
         if (builder.humanReadable()) {
             builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
         }
         builder.field("running_time_in_nanos", runningTimeNanos);
+        if (!originalTaskId.equals(taskId)) {
+            builder.timestampFieldsFromUnixEpochMillis("original_start_time_in_millis", "original_start_time", originalStartTimeMillis);
+        }
         builder.field("cancellable", cancellable);
 
         if (params.paramAsBoolean(INCLUDE_CANCELLED_PARAM, true) && cancellable) {
@@ -235,7 +241,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>("task_info", true, a -> {
         int i = 0;
-        TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
+        String node = (String) a[i++];
+        TaskId id = new TaskId(node, (Long) a[i++]);
         String type = (String) a[i++];
         String action = (String) a[i++];
         String description = (String) a[i++];
@@ -247,15 +254,21 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         String parentTaskIdString = (String) a[i++];
         @SuppressWarnings("unchecked")
         Map<String, String> headers = (Map<String, String>) a[i++];
+        String originalTaskIdString = (String) a[i++];
+        Long optionalOriginalStartTimeMillis = (Long) a[i++];
+
         if (headers == null) {
             // This might happen if we are reading an old version of task info
             headers = Collections.emptyMap();
         }
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
+        TaskId originalTaskId = originalTaskIdString == null ? id : new TaskId(originalTaskIdString);
+        long originalStartTimeMillis = parseOriginalStartTimeMillis(optionalOriginalStartTimeMillis, startTime, originalTaskIdString);
         return new TaskInfo(
             id,
             type,
+            node,
             action,
             description,
             status,
@@ -264,9 +277,12 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancellable,
             cancelled,
             parentTaskId,
-            headers
+            headers,
+            originalTaskId,
+            originalStartTimeMillis
         );
     });
+
     static {
         // Note for the future: this has to be backwards and forwards compatible with all changes to the task storage format
         PARSER.declareString(constructorArg(), new ParseField("node"));
@@ -274,55 +290,42 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("type"));
         PARSER.declareString(constructorArg(), new ParseField("action"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-        ObjectParserHelper<TaskInfo, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("status"));
+        ObjectParserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("status"));
         PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
         PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField("cancelled"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("original_task_id"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("original_start_time_in_millis"));
+    }
+
+    private static long parseOriginalStartTimeMillis(
+        @Nullable Long optionalOriginalStartTimeMillis,
+        long startTime,
+        @Nullable String originalTaskIdString
+    ) {
+        if (originalTaskIdString == null) {
+            if (optionalOriginalStartTimeMillis == null) {
+                // The regular case: neither original_task_id nor original_start_time_in_millis is set.
+                // We default originalStartTimeMillis to startTime.
+                return startTime;
+            } else {
+                throw new IllegalArgumentException("Task info must not set original_start_time_in_millis if original_task_id is not set");
+            }
+        } else {
+            if (optionalOriginalStartTimeMillis != null) {
+                // This task is continuing the work of another one: both original_task_id and original_start_time_in_millis are set.
+                return optionalOriginalStartTimeMillis;
+            } else {
+                throw new IllegalArgumentException("Task info must set original_start_time_in_millis if original_task_id is set");
+            }
+        }
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
-    }
-
-    // Implements equals and hashCode for testing
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != TaskInfo.class) {
-            return false;
-        }
-        TaskInfo other = (TaskInfo) obj;
-        return Objects.equals(taskId, other.taskId)
-            && Objects.equals(type, other.type)
-            && Objects.equals(action, other.action)
-            && Objects.equals(description, other.description)
-            && Objects.equals(startTime, other.startTime)
-            && Objects.equals(runningTimeNanos, other.runningTimeNanos)
-            && Objects.equals(parentTaskId, other.parentTaskId)
-            && Objects.equals(cancellable, other.cancellable)
-            && Objects.equals(cancelled, other.cancelled)
-            && Objects.equals(status, other.status)
-            && Objects.equals(headers, other.headers);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-            taskId,
-            type,
-            action,
-            description,
-            startTime,
-            runningTimeNanos,
-            parentTaskId,
-            cancellable,
-            cancelled,
-            status,
-            headers
-        );
     }
 }

@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedTokenStream;
-import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.apache.lucene.tests.analysis.Token;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -22,16 +24,20 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -67,10 +73,15 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
-        checker.registerUpdateCheck(this::minimalMapping, b -> b.field("type", "token_count").field("analyzer", "standard"), m -> {
-            TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
-            assertThat(tcfm.analyzer(), equalTo("standard"));
-        });
+        checker.registerUpdateCheck(
+            "analyzer",
+            this::minimalMapping,
+            b -> b.field("type", "token_count").field("analyzer", "standard"),
+            m -> {
+                TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
+                assertThat(tcfm.analyzer(), equalTo("standard"));
+            }
+        );
     }
 
     @Override
@@ -78,7 +89,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         NamedAnalyzer dflt = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer standard = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer keyword = new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer());
-        return new IndexAnalyzers(Map.of("default", dflt, "standard", standard, "keyword", keyword), Map.of(), Map.of());
+        return IndexAnalyzers.of(Map.of("default", dflt, "standard", standard, "keyword", keyword));
     }
 
     /**
@@ -103,6 +114,16 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     public void testCountPositionsWithoutIncrements() throws IOException {
         Analyzer analyzer = createMockAnalyzer();
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", false), equalTo(2));
+    }
+
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        return DocValuesType.NUMERIC;
     }
 
     private Analyzer createMockAnalyzer() {
@@ -185,5 +206,88 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "token_count").field("analyzer", "standard");
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse(ignoreMalformed);
+
+        var nullValue = usually() ? null : randomNonNegativeInt();
+        return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
+            public SyntheticSourceExample example(int maxValues) {
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value.text, value.text, this::mapping);
+                }
+
+                var values = randomList(1, 5, this::generateValue);
+                var textArray = values.stream().map(Value::text).toList();
+
+                return new SyntheticSourceExample(textArray, textArray, this::mapping);
+            }
+
+            private record Value(String text, Integer tokenCount) {}
+
+            private Value generateValue() {
+                if (rarely()) {
+                    return new Value(null, nullValue);
+                }
+
+                var text = randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
+                // with keyword analyzer token count is always 1
+                return new Value(text, 1);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "token_count").field("analyzer", "keyword");
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", true);
+                }
+                if (nullValue != null) {
+                    b.field("null_value", nullValue);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

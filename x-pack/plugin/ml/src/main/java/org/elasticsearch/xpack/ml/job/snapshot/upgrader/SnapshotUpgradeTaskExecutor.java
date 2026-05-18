@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -50,6 +51,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecutor<SnapshotUpgradeTaskParams> {
 
     private static final Logger logger = LogManager.getLogger(SnapshotUpgradeTaskExecutor.class);
@@ -67,7 +70,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         MlMemoryTracker memoryTracker,
         IndexNameExpressionResolver expressionResolver,
         Client client,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        AnomalyDetectionAuditor auditor
     ) {
         super(
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
@@ -78,7 +82,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             expressionResolver
         );
         this.autodetectProcessManager = autodetectProcessManager;
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.auditor = auditor;
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.client = client;
         this.licenseState = licenseState;
@@ -86,10 +90,11 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         SnapshotUpgradeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
     ) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
         Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
@@ -150,7 +155,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     logger.info("[{}] [{}] finished upgrading snapshot", jobId, snapshotId);
                     task.markAsCompleted();
                 } else {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed upgrading snapshot [{}]", jobId, snapshotId), e);
+                    logger.warn(() -> format("[%s] failed upgrading snapshot [%s]", jobId, snapshotId), e);
                     auditor.warning(
                         jobId,
                         "failed upgrading snapshot [" + snapshotId + "] with exception " + ExceptionsHelper.unwrapCause(e).getMessage()
@@ -159,14 +164,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 }
             }),
             e -> {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed upgrading snapshot [{}] as ml state alias creation failed",
-                        jobId,
-                        snapshotId
-                    ),
-                    e
-                );
+                logger.warn(() -> format("[%s] failed upgrading snapshot [%s] as ml state alias creation failed", jobId, snapshotId), e);
                 auditor.warning(
                     jobId,
                     "failed upgrading snapshot [" + snapshotId + "] with exception " + ExceptionsHelper.unwrapCause(e).getMessage()
@@ -176,7 +174,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 task.updatePersistentTaskState(
                     new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, -1, e.getMessage()),
                     ActionListener.wrap(r -> task.markAsFailed(e), failure -> {
-                        logger.warn(new ParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), failure);
+                        logger.warn(() -> format("[%s] [%s] failed to set task to failed", jobId, snapshotId), failure);
                         task.markAsFailed(e);
                     })
                 );
@@ -203,19 +201,21 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 client,
                 clusterState,
                 MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-                resultsMappingUpdateHandler
+                resultsMappingUpdateHandler,
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
             ),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
-                logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
+                logger.warn(() -> "[" + jobId + "] ML annotations index could not be updated with latest mappings", e);
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                     AnomalyDetectorsIndex::wrappedResultsMapping,
                     client,
                     clusterState,
                     MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-                    resultsMappingUpdateHandler
+                    resultsMappingUpdateHandler,
+                    AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
                 );
             }
         );
@@ -296,10 +296,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     )
                 );
             }, failure -> {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] [{}] failed to clean up potentially bad snapshot", jobId, snapshotId),
-                    failure
-                );
+                logger.warn(() -> format("[%s] [%s] failed to clean up potentially bad snapshot", jobId, snapshotId), failure);
                 task.markAsFailed(
                     new ElasticsearchStatusException(
                         "Task to upgrade job [{}] snapshot [{}] got reassigned while running leaving an unknown snapshot state. "
@@ -323,7 +320,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 );
                 return;
             }
-            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to load bad snapshot for deletion", jobId, snapshotId), e);
+            logger.warn(() -> format("[%s] [%s] failed to load bad snapshot for deletion", jobId, snapshotId), e);
             task.markAsFailed(
                 new ElasticsearchStatusException(
                     "Task to upgrade job [{}] snapshot [{}] got reassigned while running leaving an unknown snapshot state. "
@@ -335,6 +332,6 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             );
 
         });
-        jobResultsProvider.getModelSnapshot(jobId, snapshotId, modelSnapshotListener::onResponse, modelSnapshotListener::onFailure);
+        jobResultsProvider.getModelSnapshot(jobId, snapshotId, false, modelSnapshotListener::onResponse, modelSnapshotListener::onFailure);
     }
 }

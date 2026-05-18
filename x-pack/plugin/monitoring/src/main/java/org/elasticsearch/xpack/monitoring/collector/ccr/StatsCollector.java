@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -77,7 +78,7 @@ public final class StatsCollector extends Collector {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
 
-            final CcrStatsAction.Request request = new CcrStatsAction.Request();
+            final CcrStatsAction.Request request = new CcrStatsAction.Request(getCollectionTimeout());
             final CcrStatsAction.Response response = client.execute(CcrStatsAction.INSTANCE, request).actionGet(getCollectionTimeout());
 
             final AutoFollowStatsMonitoringDoc autoFollowStatsDoc = new AutoFollowStatsMonitoringDoc(
@@ -94,7 +95,7 @@ public final class StatsCollector extends Collector {
                 .stream()
                 .filter(statsResponse -> collectionIndices.isEmpty() || collectionIndices.contains(statsResponse.status().followerIndex()))
                 .map(stats -> new FollowStatsMonitoringDoc(clusterUuid, timestamp, interval, node, stats.status()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(ArrayList::new));
             docs.add(autoFollowStatsDoc);
             return docs;
         }

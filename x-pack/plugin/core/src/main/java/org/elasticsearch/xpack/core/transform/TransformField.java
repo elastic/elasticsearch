@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ParseField;
 
 /*
@@ -22,9 +23,11 @@ public final class TransformField {
     public static final ParseField COUNT = new ParseField("count");
     public static final ParseField GROUP_BY = new ParseField("group_by");
     public static final ParseField TIMEOUT = new ParseField("timeout");
+    public static final ParseField FROM = new ParseField("from");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField WAIT_FOR_CHECKPOINT = new ParseField("wait_for_checkpoint");
     public static final ParseField STATS_FIELD = new ParseField("stats");
+    public static final ParseField BASIC_STATS = new ParseField("basic");
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESCRIPTION = new ParseField("description");
@@ -35,15 +38,21 @@ public final class TransformField {
     public static final ParseField METADATA = new ParseField("_meta");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField DELETE_DEST_INDEX = new ParseField("delete_dest_index");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
     public static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
     public static final ParseField ALIGN_CHECKPOINTS = new ParseField("align_checkpoints");
     public static final ParseField USE_PIT = new ParseField("use_point_in_time");
+    public static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
+    public static final ParseField NUM_FAILURE_RETRIES = new ParseField("num_failure_retries");
+    public static final ParseField UNATTENDED = new ParseField("unattended");
+
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField DEFER = new ParseField("defer");
     // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
     public static final ParseField DRY_RUN = new ParseField("dry_run");
@@ -51,6 +60,8 @@ public final class TransformField {
     public static final ParseField MAX_AGE = new ParseField("max_age");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final ParseField CHECK_FOR_DANGLING_TASKS = new ParseField("check_dangling_tasks");
+    public static final ParseField PREVIEW_AS_INDEX_REQUEST = new ParseField("as_index_request");
     /**
      * Fields for checkpointing
      */
@@ -92,7 +103,18 @@ public final class TransformField {
     public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     // internal document id
-    public static String DOCUMENT_ID_FIELD = "_id";
+    public static final String DOCUMENT_ID_FIELD = "_id";
+    // internal document source
+    public static final String DOCUMENT_SOURCE_FIELD = "_source";
+
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned while upgrade mode is enabled."
+    );
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned as a feature reset is in progress."
+    );
 
     private TransformField() {}
 }

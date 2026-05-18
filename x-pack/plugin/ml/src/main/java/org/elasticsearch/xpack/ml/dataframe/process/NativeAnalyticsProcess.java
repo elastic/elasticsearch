@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -26,6 +25,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<AnalyticsResult> {
 
@@ -65,19 +66,6 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     }
 
     @Override
-    public void persistState() {
-        // Nothing to persist
-    }
-
-    @Override
-    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {}
-
-    @Override
-    public void writeEndOfDataMessage() throws IOException {
-        new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
-    }
-
-    @Override
     public AnalyticsProcessConfig getConfig() {
         return config;
     }
@@ -97,12 +85,16 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
                     .setSize(1)
                     .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum))
                     .get();
-                if (stateResponse.getHits().getHits().length == 0) {
-                    break;
+                try {
+                    if (stateResponse.getHits().getHits().length == 0) {
+                        break;
+                    }
+                    SearchHit stateDoc = stateResponse.getHits().getAt(0);
+                    logger.debug(() -> format("[%s] Restoring state document [%s]", config.jobId(), stateDoc.getId()));
+                    StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
+                } finally {
+                    stateResponse.decRef();
                 }
-                SearchHit stateDoc = stateResponse.getHits().getAt(0);
-                logger.debug(() -> new ParameterizedMessage("[{}] Restoring state document [{}]", config.jobId(), stateDoc.getId()));
-                StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
             }
         }
     }

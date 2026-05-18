@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,6 +45,7 @@ public class OperationRouting {
 
     private boolean useAdaptiveReplicaSelection;
 
+    @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
@@ -50,97 +57,186 @@ public class OperationRouting {
 
     /**
      * Shards to use for a {@code GET} operation.
+     * @return A shard iterator that can be used for GETs, or null if e.g. due to preferences no match is found.
      */
     public ShardIterator getShards(
-        ClusterState clusterState,
+        ProjectState projectState,
         String index,
         String id,
         @Nullable String routing,
         @Nullable String preference
     ) {
-        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
-        IndexShardRoutingTable shards = clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
-        return preferenceActiveShardIterator(shards, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(projectState.metadata(), index));
+        IndexShardRoutingTable shards = projectState.routingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
+        DiscoveryNodes nodes = projectState.cluster().nodes();
+        return preferenceActiveShardIterator(shards, nodes.getLocalNodeId(), nodes, preference, null, null);
     }
 
-    public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
-        final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        return preferenceActiveShardIterator(
-            indexShard,
-            clusterState.nodes().getLocalNodeId(),
-            clusterState.nodes(),
-            preference,
-            null,
-            null
-        );
+    public ShardIterator getShards(ProjectState projectState, String index, int shardId, @Nullable String preference) {
+        IndexShardRoutingTable indexShard = projectState.routingTable().shardRoutingTable(index, shardId);
+        DiscoveryNodes nodes = projectState.cluster().nodes();
+        return preferenceActiveShardIterator(indexShard, nodes.getLocalNodeId(), nodes, preference, null, null);
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
-        ClusterState clusterState,
+    public List<SearchShardRouting> searchShards(
+        ProjectState projectState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference
     ) {
-        return searchShards(clusterState, concreteIndices, routing, preference, null, null);
+        return searchShards(projectState, concreteIndices, routing, preference, null, null, true);
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
-        ClusterState clusterState,
+    public List<SearchShardRouting> searchShards(
+        ProjectState projectState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        boolean shouldSort
     ) {
-        final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
-        final Set<ShardIterator> set = new HashSet<>(shards.size());
-        for (IndexShardRoutingTable shard : shards) {
+        final Set<SearchTargetShard> shards = computeTargetedShards(projectState, concreteIndices, routing);
+        DiscoveryNodes nodes = projectState.cluster().nodes();
+        var res = new ArrayList<SearchShardRouting>(shards.size());
+        for (SearchTargetShard targetShard : shards) {
             ShardIterator iterator = preferenceActiveShardIterator(
-                shard,
-                clusterState.nodes().getLocalNodeId(),
-                clusterState.nodes(),
+                targetShard.shardRoutingTable(),
+                nodes.getLocalNodeId(),
+                nodes,
                 preference,
                 collectorService,
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(iterator);
+                res.add(
+                    SearchShardRouting.fromShardIterator(ShardIterator.allSearchableShards(iterator), targetShard.splitShardCountSummary())
+                );
             }
         }
-        return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
+
+        if (shouldSort) {
+            res.sort(SearchShardRouting::compareTo);
+        }
+
+        return res;
     }
 
-    public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
-        final IndexShardRoutingTable shard = clusterState.routingTable().shardRoutingTable(shardId);
+    public Iterator<IndexShardRoutingTable> allWritableShards(ProjectState projectState, String index) {
+        return allWriteAddressableShards(projectState, index);
+    }
+
+    public static ShardIterator getShards(RoutingTable routingTable, ShardId shardId) {
+        final IndexShardRoutingTable shard = routingTable.shardRoutingTable(shardId);
         return shard.activeInitializingShardsRandomIt();
     }
 
-    private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
+    private record SearchTargetShard(IndexShardRoutingTable shardRoutingTable, SplitShardCountSummary splitShardCountSummary) {}
 
-    private Set<IndexShardRoutingTable> computeTargetedShards(
-        ClusterState clusterState,
+    private static Set<SearchTargetShard> computeTargetedShards(
+        ProjectState projectState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing
     ) {
-        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
-        final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
+        if (routing == null || routing.isEmpty()) {
+            return collectTargetShardsNoRouting(projectState, concreteIndices);
+        }
+        return collectTargetShardsWithRouting(projectState, concreteIndices, routing);
+    }
+
+    private static Set<SearchTargetShard> collectTargetShardsWithRouting(
+        ProjectState projectState,
+        String[] concreteIndices,
+        Map<String, Set<String>> routing
+    ) {
+        var result = new HashSet<SearchTargetShard>();
         for (String index : concreteIndices) {
-            final IndexRoutingTable indexRoutingTable = indexRoutingTable(clusterState, index);
-            final IndexMetadata indexMetadata = indexMetadata(clusterState, index);
+            final IndexRoutingTable indexRoutingTable = indexRoutingTable(projectState.routingTable(), index);
             final Set<String> indexSearchRouting = routing.get(index);
             if (indexSearchRouting != null) {
+                IndexMetadata indexMetadata = indexMetadata(projectState.metadata(), index);
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
                 for (String r : indexSearchRouting) {
-                    indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
+                    indexRouting.collectSearchShards(
+                        r,
+                        shardId -> result.add(
+                            new SearchTargetShard(
+                                RoutingTable.shardRoutingTable(indexRoutingTable, shardId),
+                                SplitShardCountSummary.forSearch(indexMetadata, shardId)
+                            )
+                        )
+                    );
                 }
             } else {
-                for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                    set.add(indexShard);
-                }
+                Iterator<SearchTargetShard> iterator = allSearchAddressableShards(projectState, index);
+                iterator.forEachRemaining(result::add);
             }
         }
-        return set;
+        return result;
+    }
+
+    private static Set<SearchTargetShard> collectTargetShardsNoRouting(ProjectState projectState, String[] concreteIndices) {
+        var result = new HashSet<SearchTargetShard>();
+        for (String index : concreteIndices) {
+            Iterator<SearchTargetShard> iterator = allSearchAddressableShards(projectState, index);
+            iterator.forEachRemaining(result::add);
+        }
+        return result;
+    }
+
+    /**
+     * Returns an iterator of shards that can possibly serve searches. A shard may not be addressable during processes like resharding.
+     * This logic is not related to shard state or a recovery process. A shard returned here may f.e. be unassigned.
+     */
+    private static Iterator<SearchTargetShard> allSearchAddressableShards(ProjectState projectState, String index) {
+        final IndexRoutingTable indexRoutingTable = indexRoutingTable(projectState.routingTable(), index);
+        final IndexMetadata indexMetadata = indexMetadata(projectState.metadata(), index);
+        if (indexMetadata.getReshardingMetadata() == null) {
+            return indexRoutingTable.allShards()
+                .map(srt -> new SearchTargetShard(srt, SplitShardCountSummary.forSearch(indexMetadata, srt.shardId.id())))
+                .iterator();
+        }
+
+        final IndexReshardingMetadata indexReshardingMetadata = indexMetadata.getReshardingMetadata();
+        assert indexReshardingMetadata.isSplit();
+        final IndexReshardingState.Split splitState = indexReshardingMetadata.getSplit();
+
+        var shards = new ArrayList<SearchTargetShard>();
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            if (splitState.isTargetShard(shardId) == false
+                || splitState.targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.SPLIT)) {
+                shards.add(
+                    new SearchTargetShard(indexRoutingTable.shard(shardId), SplitShardCountSummary.forSearch(indexMetadata, shardId))
+                );
+            }
+        }
+        return shards.iterator();
+    }
+
+    /**
+     * Returns an iterator of shards that can possibly serve writes. A shard may not be addressable during processes like resharding.
+     * This logic is not related to shard state or a recovery process. A shard returned here may f.e. be unassigned.
+     */
+    private static Iterator<IndexShardRoutingTable> allWriteAddressableShards(ProjectState projectState, String index) {
+        final IndexRoutingTable indexRoutingTable = indexRoutingTable(projectState.routingTable(), index);
+        final IndexMetadata indexMetadata = indexMetadata(projectState.metadata(), index);
+        if (indexMetadata.getReshardingMetadata() == null) {
+            return indexRoutingTable.allShards().iterator();
+        }
+
+        final IndexReshardingMetadata indexReshardingMetadata = indexMetadata.getReshardingMetadata();
+        assert indexReshardingMetadata.isSplit();
+        final IndexReshardingState.Split splitState = indexReshardingMetadata.getSplit();
+
+        var shards = new ArrayList<IndexShardRoutingTable>();
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            if (splitState.isTargetShard(i) == false
+                || splitState.targetStateAtLeast(i, IndexReshardingState.Split.TargetShardState.HANDOFF)) {
+                shards.add(indexRoutingTable.shard(i));
+            }
+        }
+        return shards.iterator();
     }
 
     private ShardIterator preferenceActiveShardIterator(
@@ -152,7 +248,7 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+            return shardRoutings(indexShard, collectorService, nodeCounts);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -179,7 +275,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, collectorService, nodeCounts);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -212,7 +308,6 @@ public class OperationRouting {
 
     private ShardIterator shardRoutings(
         IndexShardRoutingTable indexShard,
-        DiscoveryNodes nodes,
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
@@ -223,24 +318,24 @@ public class OperationRouting {
         }
     }
 
-    protected IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
-        IndexRoutingTable indexRouting = clusterState.routingTable().index(index);
+    protected static IndexRoutingTable indexRoutingTable(RoutingTable routingTable, String index) {
+        IndexRoutingTable indexRouting = routingTable.index(index);
         if (indexRouting == null) {
             throw new IndexNotFoundException(index);
         }
         return indexRouting;
     }
 
-    private IndexMetadata indexMetadata(ClusterState clusterState, String index) {
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+    private static IndexMetadata indexMetadata(ProjectMetadata project, String index) {
+        IndexMetadata indexMetadata = project.index(index);
         if (indexMetadata == null) {
             throw new IndexNotFoundException(index);
         }
         return indexMetadata;
     }
 
-    public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
-        IndexMetadata indexMetadata = indexMetadata(clusterState, index);
+    public static ShardId shardId(ProjectMetadata projectMetadata, String index, String id, @Nullable String routing) {
+        IndexMetadata indexMetadata = indexMetadata(projectMetadata, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
     }
 }

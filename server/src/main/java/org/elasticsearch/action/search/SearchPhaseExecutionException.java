@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -25,26 +26,31 @@ import java.util.List;
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
     private final ShardSearchFailure[] shardFailures;
+    private final ElasticsearchException guessedCause; // log4j requires a stable cause!
 
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         this(phaseName, msg, null, shardFailures);
     }
 
+    @SuppressWarnings("this-escape")
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+        this.guessedCause = cause == null || super.getCause() == null ? guessFirstRootCause(shardFailures) : null;
     }
 
+    @SuppressWarnings("this-escape")
     public SearchPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
         phaseName = in.readOptionalString();
         shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
+        guessedCause = super.getCause() == null ? guessFirstRootCause(shardFailures) : null;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeOptionalString(phaseName);
         out.writeArray(shardFailures);
     }
@@ -72,15 +78,21 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
             return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
         }
-        RestStatus status = shardFailures[0].status();
-        if (shardFailures.length > 1) {
-            for (int i = 1; i < shardFailures.length; i++) {
-                if (shardFailures[i].status().getStatus() >= 500) {
-                    status = shardFailures[i].status();
-                }
+        RestStatus status = null;
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            RestStatus shardStatus = shardFailure.status();
+            int statusCode = shardStatus.getStatus();
+
+            // Return if it's an error that can be retried.
+            // These currently take precedence over other status code(s).
+            if (statusCode >= 502 && statusCode <= 504) {
+                return shardStatus;
+            } else if (statusCode >= 500) {
+                status = shardStatus;
             }
         }
-        return status;
+
+        return status == null ? shardFailures[0].status() : status;
     }
 
     public ShardSearchFailure[] shardFailures() {
@@ -89,30 +101,9 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
 
     @Override
     public Throwable getCause() {
+        // note: log4j requires this to return a stable, consistent cause when called multiple times
         Throwable cause = super.getCause();
-        if (cause == null) {
-            // fall back to guessed root cause
-            for (ElasticsearchException rootCause : guessRootCauses()) {
-                return rootCause;
-            }
-        }
-        return cause;
-    }
-
-    private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Failed to execute phase [").append(phaseName).append("], ").append(msg);
-        if (CollectionUtils.isEmpty(shardFailures) == false) {
-            sb.append("; shardFailures ");
-            for (ShardSearchFailure shardFailure : shardFailures) {
-                if (shardFailure.shard() != null) {
-                    sb.append("{").append(shardFailure.shard()).append(": ").append(shardFailure.reason()).append("}");
-                } else {
-                    sb.append("{").append(shardFailure.reason()).append("}");
-                }
-            }
-        }
-        return sb.toString();
+        return cause != null ? cause : guessedCause;
     }
 
     @Override
@@ -129,15 +120,15 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this);
+            generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), getHeaders(), getMetadata(), super.getCause());
+            innerToXContent(builder, params, this, getBodyHeaders(), getMetadata(), super.getCause(), nestedLevel);
         }
         return builder;
     }
@@ -153,9 +144,35 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return rootCauses.toArray(new ElasticsearchException[0]);
     }
 
+    private static ElasticsearchException guessFirstRootCause(ShardSearchFailure[] shardFailures) {
+        for (ShardOperationFailedException failure : shardFailures) {
+            ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(failure.getCause());
+            if (rootCauses.length > 0) {
+                return rootCauses[0];
+            }
+        }
+        return null;
+    }
+
     @Override
     public String toString() {
-        return buildMessage(phaseName, getMessage(), shardFailures);
+        return "Failed to execute phase ["
+            + phaseName
+            + "], "
+            + getMessage()
+            + (CollectionUtils.isEmpty(shardFailures) ? "" : buildShardFailureString());
+    }
+
+    private String buildShardFailureString() {
+        StringBuilder sb = new StringBuilder("; shardFailures ");
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            sb.append("{");
+            if (shardFailure.shard() != null) {
+                sb.append(shardFailure.shard()).append(": ");
+            }
+            sb.append(shardFailure.reason()).append("}");
+        }
+        return sb.toString();
     }
 
     public String getPhaseName() {

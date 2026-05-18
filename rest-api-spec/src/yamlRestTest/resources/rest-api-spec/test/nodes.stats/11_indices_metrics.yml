@@ -110,6 +110,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - multi":
@@ -138,7 +139,8 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
-
+  - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - recovery":
@@ -168,6 +170,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - _all include_segment_file_sizes":
@@ -226,13 +229,14 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
 "Metric - segments include_unloaded_segments":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.13.0"]
       reason: "support for include_unloaded_segments only added in 7.13"
   - do:
       nodes.info: {}
@@ -258,12 +262,13 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - _all include_unloaded_segments":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.13.0"]
       reason: "support for include_unloaded_segments only added in 7.13"
   - do:
       nodes.info: {}
@@ -291,9 +296,9 @@
 
 ---
 "Metric - http":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.13.0"]
       reason: "HTTP client stats added in 7.13.0"
   - do:
       nodes.info: {}
@@ -309,7 +314,6 @@
   - gte: { nodes.$node_id.http.total_opened: 1 }
   - is_true:  nodes.$node_id.http.clients
   - gte: { nodes.$node_id.http.clients.0.id: 1 }
-  - match: { nodes.$node_id.http.clients.0.agent: "/.*/" }
   - match: { nodes.$node_id.http.clients.0.local_address: "/.*/" }
   - match: { nodes.$node_id.http.clients.0.remote_address: "/.*/" }
   - is_true:  nodes.$node_id.http.clients.0.last_uri
@@ -317,14 +321,13 @@
   - gte: { nodes.$node_id.http.clients.0.last_request_time_millis: 1614028911317 }
   - gte: { nodes.$node_id.http.clients.0.request_count: 1 }
   - gte: { nodes.$node_id.http.clients.0.request_size_bytes: 0 }
-  # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
-  # null and cannot be tested here
+  # Values for clients.0.{agent, closed_time_millis, x_forwarded_for, x_opaque_id} can be null and cannot be tested here
 
 ---
 "Metric - blank for indices shard_stats":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.15.0"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.15.1"]
       reason:  "total shard count added in version 7.15.0, and fixed in 7.15.1"
   - do:
       nodes.info: {}
@@ -339,9 +342,9 @@
 
 ---
 "Metric - _all for indices shard_stats":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.15.0"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.15.1"]
       reason:  "total shard count added in version 7.15.0, and fixed in 7.15.1"
   - do:
       nodes.info: {}
@@ -358,9 +361,9 @@
 ---
 "indices shard_stats total count test":
 
-  - skip:
-      features: ["allowed_warnings", arbitrary_key]
-      version: " - 7.15.0"
+  - requires:
+      test_runner_features: ["allowed_warnings", arbitrary_key]
+      cluster_features: ["gte_v7.15.1"]
       reason:  "total shard count added in version 7.15.0, and fixed in 7.15.1"
 
   - do:
@@ -388,3 +391,58 @@
       nodes.stats: { metric: _all }
 
   - gte: { nodes.$node_id.indices.shard_stats.total_count: 1 }
+
+---
+"Metric - blank for indices mappings":
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v8.5.0"]
+      reason:  "mappings added in version 8.5.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: {}
+
+  - is_true:  nodes.$node_id.indices.mappings
+  - match: { nodes.$node_id.indices.mappings.total_count: 0 }
+  - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 0 }
+
+---
+
+"indices mappings does not exist in shards level":
+
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v8.5.0"]
+      reason:  "mappings added in version 8.5.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 4
+            number_of_replicas: 0
+          mappings:
+            properties:
+              prop1:
+                type: "keyword"
+              prop2:
+                type: "keyword"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all, level: "shards", human: true }
+
+  # We assert that there are at least two fields (for the mapping above), and that each accounts for at least 1 byte estimated overhead
+  - gte: { nodes.$node_id.indices.mappings.total_count: 2 }
+  - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 2 }
+  - is_false: nodes.$node_id.indices.shards.index1.0.mappings

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.cli;
@@ -33,7 +34,7 @@ import java.util.Set;
  * Elasticsearch plugin.
  */
 public class PluginsConfig {
-    private List<PluginDescriptor> plugins;
+    private List<InstallablePlugin> plugins;
     private String proxy;
 
     public PluginsConfig() {
@@ -41,7 +42,7 @@ public class PluginsConfig {
         proxy = null;
     }
 
-    public void setPlugins(List<PluginDescriptor> plugins) {
+    public void setPlugins(List<InstallablePlugin> plugins) {
         this.plugins = plugins == null ? List.of() : plugins;
     }
 
@@ -52,7 +53,7 @@ public class PluginsConfig {
     /**
      * Validate this instance. For example:
      * <ul>
-     *     <li>All {@link PluginDescriptor}s must have IDs</li>
+     *     <li>All {@link InstallablePlugin}s must have IDs</li>
      *     <li>Any proxy must be well-formed.</li>
      *     <li>Unofficial plugins must have locations</li>
      * </ul>
@@ -68,13 +69,13 @@ public class PluginsConfig {
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
-        for (final PluginDescriptor plugin : plugins) {
+        for (final InstallablePlugin plugin : plugins) {
             if (uniquePluginIds.add(plugin.getId()) == false) {
                 throw new PluginSyncException("Duplicate plugin ID [" + plugin.getId() + "] found in [elasticsearch-plugins.yml]");
             }
         }
 
-        for (PluginDescriptor plugin : this.plugins) {
+        for (InstallablePlugin plugin : this.plugins) {
             if (officialPlugins.contains(plugin.getId()) == false
                 && migratedPlugins.contains(plugin.getId()) == false
                 && plugin.getLocation() == null) {
@@ -95,7 +96,7 @@ public class PluginsConfig {
             }
         }
 
-        for (PluginDescriptor p : plugins) {
+        for (InstallablePlugin p : plugins) {
             if (p.getLocation() != null) {
                 if (p.getLocation().isBlank()) {
                     throw new PluginSyncException("Empty location for plugin [" + p.getId() + "]");
@@ -111,7 +112,7 @@ public class PluginsConfig {
         }
     }
 
-    public List<PluginDescriptor> getPlugins() {
+    public List<InstallablePlugin> getPlugins() {
         return plugins;
     }
 
@@ -152,20 +153,19 @@ public class PluginsConfig {
         // Normally a parser is declared and built statically in the class, but we'll only
         // use this when starting up Elasticsearch, so there's no point keeping one around.
 
-        final ObjectParser<PluginDescriptor, Void> descriptorParser = new ObjectParser<>("descriptor parser", PluginDescriptor::new);
-        descriptorParser.declareString(PluginDescriptor::setId, new ParseField("id"));
-        descriptorParser.declareStringOrNull(PluginDescriptor::setLocation, new ParseField("location"));
+        final ObjectParser<InstallablePlugin, Void> descriptorParser = new ObjectParser<>("descriptor parser", InstallablePlugin::new);
+        descriptorParser.declareString(InstallablePlugin::setId, new ParseField("id"));
+        descriptorParser.declareStringOrNull(InstallablePlugin::setLocation, new ParseField("location"));
 
         final ObjectParser<PluginsConfig, Void> parser = new ObjectParser<>("plugins parser", PluginsConfig::new);
         parser.declareStringOrNull(PluginsConfig::setProxy, new ParseField("proxy"));
         parser.declareObjectArrayOrNull(PluginsConfig::setPlugins, descriptorParser, new ParseField("plugins"));
 
-        final XContentParser yamlXContentParser = xContent.createParser(
-            XContentParserConfiguration.EMPTY,
-            Files.newInputStream(configPath)
-        );
-
-        return parser.parse(yamlXContentParser, null);
+        try (
+            XContentParser yamlXContentParser = xContent.createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(configPath))
+        ) {
+            return parser.parse(yamlXContentParser, null);
+        }
     }
 
     /**
@@ -181,7 +181,7 @@ public class PluginsConfig {
 
         builder.startObject();
         builder.startArray("plugins");
-        for (PluginDescriptor p : config.getPlugins()) {
+        for (InstallablePlugin p : config.getPlugins()) {
             builder.startObject();
             {
                 builder.field("id", p.getId());

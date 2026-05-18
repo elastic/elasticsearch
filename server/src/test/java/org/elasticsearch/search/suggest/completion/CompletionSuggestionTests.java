@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,11 +92,7 @@ public class CompletionSuggestionTests extends ESTestCase {
             }
             shardSuggestions.add(suggestion);
         }
-        List<CompletionSuggestion.Entry.Option> expected = options.stream()
-            .sorted(COMPARATOR)
-            .distinct()
-            .limit(size)
-            .collect(Collectors.toList());
+        List<CompletionSuggestion.Entry.Option> expected = options.stream().sorted(COMPARATOR).distinct().limit(size).toList();
         CompletionSuggestion reducedSuggestion = (CompletionSuggestion) shardSuggestions.get(0).reduce(shardSuggestions);
         assertNotNull(reducedSuggestion);
         assertThat(reducedSuggestion.getOptions().size(), lessThanOrEqualTo(size));

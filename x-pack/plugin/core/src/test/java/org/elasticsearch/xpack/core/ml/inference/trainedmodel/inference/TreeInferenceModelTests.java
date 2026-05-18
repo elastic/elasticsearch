@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -28,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -165,12 +165,9 @@ public class TreeInferenceModelTests extends ESTestCase {
         );
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2, 1.0f) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         assertThat(
             0.1,
             closeTo(
@@ -222,12 +219,9 @@ public class TreeInferenceModelTests extends ESTestCase {
         }
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         probabilities = ((ClassificationInferenceResults) tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
             .getTopClasses();
         for (int i = 0; i < expectedProbs.size(); i++) {
@@ -288,6 +282,23 @@ public class TreeInferenceModelTests extends ESTestCase {
         featureImportance = tree.featureImportance(new double[] { 0.75, 0.75 });
         assertThat(featureImportance[0][0], closeTo(5.0, eps));
         assertThat(featureImportance[1][0], closeTo(2.5, eps));
+    }
+
+    public void testMinAndMaxBoundaries() throws IOException {
+        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
+        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
+        builder.addLeaf(rootNode.getRightChild(), 0.3);
+        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
+        builder.addLeaf(leftChildNode.getLeftChild(), 0.1);
+        builder.addLeaf(leftChildNode.getRightChild(), 0.2);
+
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree treeObject = builder.setFeatureNames(featureNames).build();
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
+        tree.rewriteFeatureIndices(Collections.emptyMap());
+
+        assertThat(tree.getMinPredictedValue(), equalTo(0.1));
+        assertThat(tree.getMaxPredictedValue(), equalTo(0.3));
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {

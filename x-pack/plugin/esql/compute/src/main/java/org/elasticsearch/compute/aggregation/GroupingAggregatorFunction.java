@@ -1,0 +1,184 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.aggregation;
+
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantNullBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.IntVectorBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.core.Releasable;
+
+/**
+ * Applies some grouping function like {@code min} or {@code avg} to many values,
+ * grouped into buckets.
+ */
+public interface GroupingAggregatorFunction extends Releasable {
+    /**
+     * Consume group ids to cause the {@link GroupingAggregatorFunction}
+     * to group values at a particular position into a particular group.
+     */
+    interface AddInput extends Releasable {
+        /**
+         * Send a batch of group ids to the aggregator. The {@code groupIds}
+         * may be offset from the start of the block to allow for sending chunks
+         * of group ids.
+         * <p>
+         *     Any single position may be collected into arbitrarily many group
+         *     ids. Often it's just one, but it's quite possible for a single
+         *     position to be collected into thousands or millions of group ids.
+         *     The {@code positionOffset} controls the start of the chunk of group
+         *     ids contained in {@code groupIds}.
+         * </p>
+         * <p>
+         *     It is possible for an input position to be cut into more than one
+         *     chunk. In other words, it's possible for this method to be called
+         *     multiple times with the same {@code positionOffset} and a
+         *     {@code groupIds} {@linkplain Block} that contains thousands of
+         *     values at a single positions.
+         * </p>
+         * <p>
+         *     Finally, it's possible for a single position to be collected into
+         *     <strong>groupIds</strong>. In that case it's positionOffset may
+         *     be skipped entirely or the groupIds block could contain a
+         *     {@code null} value at that position.
+         * </p>
+         * <p>
+         *     This method delegates the processing to the other overloads for specific groupIds block types.
+         * </p>
+         * @param positionOffset offset into the {@link Page} used to build this
+         *                       {@link AddInput} of these ids
+         * @param groupIds {@link Block} of group id, some of which may be null
+         *                 or multivalued
+         */
+        default void add(int positionOffset, IntBlock groupIds) {
+            switch (groupIds) {
+                case ConstantNullBlock ignored:
+                    // No-op
+                    break;
+                case IntVectorBlock b:
+                    add(positionOffset, b.asVector());
+                    break;
+                case IntArrayBlock b:
+                    add(positionOffset, b);
+                    break;
+                case IntBigArrayBlock b:
+                    add(positionOffset, b);
+                    break;
+                default:
+                    throw new IllegalStateException("unexpected block type for groupIds: " + groupIds.getClass());
+            }
+        }
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         */
+        void add(int positionOffset, IntArrayBlock groupIds);
+
+        /**
+         * Implementation of {@link #add(int, IntBlock)} for a specific type of block.
+         */
+        void add(int positionOffset, IntBigArrayBlock groupIds);
+
+        /**
+         * Send a batch of group ids to the aggregator. The {@code groupIds}
+         * may be offset from the start of the block to allow for sending chunks
+         * of group ids.
+         * <p>
+         *     See {@link #add(int, IntBlock)} for discussion on the offset. This
+         *     method can only be called with blocks contained in a {@link Vector}
+         *     which only allows a single value per position.
+         * </p>
+         * @param positionOffset offset into the {@link Page} used to build this
+         *                       {@link AddInput} of these ids
+         * @param groupIds {@link Vector} of group id, some of which may be null
+         *                 or multivalued
+         */
+        void add(int positionOffset, IntVector groupIds);
+    }
+
+    /**
+     * Prepare to process a single page of raw input.
+     * <p>
+     *     This should load the input {@link Block}s and check their types and
+     *     select an optimal path and return that path as an {@link AddInput}.
+     * </p>
+     */
+    /**
+     * Returns {@code null} to opt out of the callback loop for this page entirely,
+     * e.g. when the values block is all-null and contributes nothing to the aggregation.
+     */
+    AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);
+
+    /**
+     * Call this to signal to the aggregation that the {@code selected}
+     * parameter that's passed to {@link #prepareEvaluateIntermediate} or
+     * {@link #prepareEvaluateFinal} may reference groups that haven't been
+     * seen. This puts the underlying storage into a mode where it'll
+     * track which group ids have been seen, even if that increases the
+     * overhead.
+     */
+    void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds);
+
+    /**
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
+     */
+    void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page);
+
+    /**
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
+     */
+    void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page);
+
+    /**
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
+     */
+    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
+
+    /**
+     * View into the agg that's prepared to emit results. Built with a {@code selected} range.
+     */
+    interface PreparedForEvaluation extends Releasable {
+        /**
+         * Build a page of results.
+         * @param blocks array to write the target blocks
+         * @param offset offset into {@code blocks} to write the first block
+         * @param selectedInPage The results to include in this page. This is a subset of the
+         *                 {@code selected} set to the method that built this.
+         */
+        void evaluate(Block[] blocks, int offset, IntVector selectedInPage);
+
+        @Override
+        default void close() {}
+    }
+
+    /**
+     * Prepare to build the intermediate results for this aggregation.
+     * @param selected the groupIds that have been selected to be included in
+     *                 the results. Always ascending.
+     */
+    PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx);
+
+    /**
+     * Prepare to build the final results for this aggregation.
+     * @param selected the groupIds that have been selected to be included in
+     *                 the results. Always ascending.
+     *
+     * <p>This function is called in the coordinator node after all intermediate
+     *    results have been gathered from the worker nodes, and aggregated into
+     *    intermediate blocks.</p>
+     */
+    PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx);
+
+    /** The number of blocks used by intermediate state. */
+    int intermediateBlockCount();
+}

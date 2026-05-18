@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -99,29 +100,18 @@ public interface CharMatcher {
         }
 
         public CharMatcher build() {
-            switch (matchers.size()) {
-                case 0:
-                    return new CharMatcher() {
-                        @Override
-                        public boolean isTokenChar(int c) {
-                            return false;
+            return switch (matchers.size()) {
+                case 0 -> c -> false;
+                case 1 -> matchers.iterator().next();
+                default -> c -> {
+                    for (CharMatcher matcher : matchers) {
+                        if (matcher.isTokenChar(c)) {
+                            return true;
                         }
-                    };
-                case 1:
-                    return matchers.iterator().next();
-                default:
-                    return new CharMatcher() {
-                        @Override
-                        public boolean isTokenChar(int c) {
-                            for (CharMatcher matcher : matchers) {
-                                if (matcher.isTokenChar(c)) {
-                                    return true;
-                                }
-                            }
-                            return false;
-                        }
-                    };
-            }
+                    }
+                    return false;
+                };
+            };
         }
     }
 

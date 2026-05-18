@@ -14,13 +14,16 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,15 +40,16 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private UpdateTransformAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final TransformConfigUpdate update;
         private final String id;
         private final boolean deferValidation;
         private TransformConfig config;
+        private AuthorizationState authState;
 
         public Request(TransformConfigUpdate update, String id, boolean deferValidation, TimeValue timeout) {
             this.update = update;
@@ -62,15 +66,19 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             if (in.readBoolean()) {
                 this.config = new TransformConfig(in);
             }
+            if (in.readBoolean()) {
+                this.authState = new AuthorizationState(in);
+            }
         }
 
         public static Request fromXContent(
             final XContentParser parser,
             final String id,
             final boolean deferValidation,
-            final TimeValue timeout
+            final TimeValue timeout,
+            final TransformParsingContext transformParsingContext
         ) {
-            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation, timeout);
+            return new Request(TransformConfigUpdate.fromXContent(parser, transformParsingContext), id, deferValidation, timeout);
         }
 
         /**
@@ -124,6 +132,14 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             this.config = config;
         }
 
+        public AuthorizationState getAuthState() {
+            return authState;
+        }
+
+        public void setAuthState(AuthorizationState authState) {
+            this.authState = authState;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -136,12 +152,18 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 out.writeBoolean(true);
                 config.writeTo(out);
             }
+            if (authState == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                authState.writeTo(out);
+            }
         }
 
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(getTimeout(), update, id, deferValidation, config);
+            return Objects.hash(getTimeout(), update, id, deferValidation, config, authState);
         }
 
         @Override
@@ -159,7 +181,13 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 && this.deferValidation == other.deferValidation
                 && this.id.equals(other.id)
                 && Objects.equals(config, other.config)
+                && Objects.equals(authState, other.authState)
                 && getTimeout().equals(other.getTimeout());
+        }
+
+        @Override
+        public boolean match(Task task) {
+            return task instanceof TransformTaskMatcher matcher && matcher.match(id);
         }
     }
 

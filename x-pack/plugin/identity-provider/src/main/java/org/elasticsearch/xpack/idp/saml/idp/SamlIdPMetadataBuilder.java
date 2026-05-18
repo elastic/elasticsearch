@@ -246,7 +246,7 @@ public class SamlIdPMetadataBuilder {
         return org;
     }
 
-    private ContactPerson buildContact(SamlIdentityProvider.ContactInfo contact) {
+    private static ContactPerson buildContact(SamlIdentityProvider.ContactInfo contact) {
         final GivenName givenName = new GivenNameBuilder().buildObject();
         givenName.setValue(contact.givenName);
         final SurName surName = new SurNameBuilder().buildObject();

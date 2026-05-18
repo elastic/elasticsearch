@@ -1,0 +1,32 @@
+{
+  "security.create_cross_cluster_api_key": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key",
+      "description": "Create a cross-cluster API key"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/cross_cluster/api_key",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The request to create a cross-cluster API key",
+      "required": true
+    }
+  }
+}

@@ -45,13 +45,13 @@ public final class FieldExpression implements RoleMapperExpression {
     }
 
     public FieldExpression(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(FieldValue::readFrom));
+        this(in.readString(), in.readCollectionAsList(FieldValue::readFrom));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeList(values);
+        out.writeCollection(values);
     }
 
     @Override
@@ -118,8 +118,7 @@ public final class FieldExpression implements RoleMapperExpression {
         }
 
         private static CharacterRunAutomaton buildAutomaton(Object value) {
-            if (value instanceof String) {
-                final String str = (String) value;
+            if (value instanceof final String str) {
                 if (Regex.isSimpleMatchPattern(str) || Automatons.isLuceneRegex(str)) {
                     return new CharacterRunAutomaton(Automatons.patterns(str));
                 }

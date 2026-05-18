@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,8 +18,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -36,19 +39,28 @@ public class CompositeRuntimeField implements RuntimeField {
             false,
             () -> null,
             RuntimeField::parseScript,
-            RuntimeField.initializerNotSupported()
+            RuntimeField.initializerNotSupported(),
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(s -> {
             if (s == null) {
                 throw new IllegalArgumentException("composite runtime field [" + name + "] must declare a [script]");
             }
         });
 
+        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
+            m -> m.builderParams.onScriptError(),
+            script
+        );
+
         private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<Map<String, Object>>(
             "fields",
             false,
             Collections::emptyMap,
             (f, p, o) -> parseFields(f, o),
-            RuntimeField.initializerNotSupported()
+            RuntimeField.initializerNotSupported(),
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(objectMap -> {
             if (objectMap == null || objectMap.isEmpty()) {
                 throw new IllegalArgumentException("composite runtime field [" + name + "] must declare its [fields]");
@@ -60,6 +72,7 @@ public class CompositeRuntimeField implements RuntimeField {
             List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
             parameters.add(script);
             parameters.add(fields);
+            parameters.add(onScriptError);
             return Collections.unmodifiableList(parameters);
         }
 
@@ -67,7 +80,8 @@ public class CompositeRuntimeField implements RuntimeField {
         protected RuntimeField createChildRuntimeField(
             MappingParserContext parserContext,
             String parent,
-            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+            OnScriptError onScriptError
         ) {
             throw new IllegalArgumentException("Composite field [" + name + "] cannot be a child of composite field [" + parent + "]");
         }
@@ -78,9 +92,15 @@ public class CompositeRuntimeField implements RuntimeField {
             Function<RuntimeField.Builder, RuntimeField> builder = b -> b.createChildRuntimeField(
                 parserContext,
                 name,
-                lookup -> factory.newFactory(name, script.get().getParams(), lookup)
+                lookup -> factory.newFactory(name, script.get().getParams(), lookup, onScriptError.get()),
+                onScriptError.get()
             );
-            Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(), parserContext, builder, false);
+            Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(
+                new HashMap<>(fields.getValue()),
+                parserContext,
+                builder,
+                false
+            );
             return new CompositeRuntimeField(name, getParameters(), runtimeFields.values());
         }
     });
@@ -113,11 +133,6 @@ public class CompositeRuntimeField implements RuntimeField {
         for (FieldMapper.Parameter<?> parameter : parameters) {
             parameter.toXContent(builder, includeDefaults);
         }
-        builder.startObject("fields");
-        for (RuntimeField subfield : subfields) {
-            subfield.toXContent(builder, params);
-        }
-        builder.endObject();
         builder.endObject();
         return builder;
     }

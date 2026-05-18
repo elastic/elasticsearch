@@ -1,0 +1,107 @@
+{
+  "cat.component_templates": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-component-templates",
+      "description": "Get component templates"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "text/plain",
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_cat/component_templates",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_cat/component_templates/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "A pattern that returned component template names must match"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "format": {
+        "type": "string",
+        "default": "text",
+        "description": "a short version of the Accept header, e.g. json, yaml"
+      },
+      "local": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "h": {
+        "type": "list",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "name",
+          "version",
+          "alias_count",
+          "mapping_count",
+          "settings_count",
+          "metadata_count",
+          "included_in"
+        ]
+      },
+      "help": {
+        "type": "boolean",
+        "description": "Return help information",
+        "default": false
+      },
+      "s": {
+        "type": "list",
+        "description": "Comma-separated list of column names or column aliases to sort by"
+      },
+      "v": {
+        "type": "boolean",
+        "description": "Verbose mode. Display column headers",
+        "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
+      },
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
+      }
+    }
+  }
+}

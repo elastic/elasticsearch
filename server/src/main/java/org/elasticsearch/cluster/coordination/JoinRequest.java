@@ -1,27 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
-public class JoinRequest extends TransportRequest {
+public class JoinRequest extends AbstractTransportRequest {
 
     /**
      * The sending (i.e. joining) node.
      */
     private final DiscoveryNode sourceNode;
+
+    /**
+     * The compatibility versions used by the sending node.
+     */
+    private final CompatibilityVersions compatibilityVersions;
+
+    /**
+     * The features that are supported by the joining node.
+     */
+    private final Set<String> features;
 
     /**
      * The minimum term for which the joining node will accept any cluster state publications. If the joining node is in a strictly greater
@@ -38,9 +51,17 @@ public class JoinRequest extends TransportRequest {
      */
     private final Optional<Join> optionalJoin;
 
-    public JoinRequest(DiscoveryNode sourceNode, long minimumTerm, Optional<Join> optionalJoin) {
-        assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
+    public JoinRequest(
+        DiscoveryNode sourceNode,
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features,
+        long minimumTerm,
+        Optional<Join> optionalJoin
+    ) {
+        assert optionalJoin.isPresent() == false || optionalJoin.get().votingNode().equals(sourceNode);
         this.sourceNode = sourceNode;
+        this.compatibilityVersions = compatibilityVersions;
+        this.features = features;
         this.minimumTerm = minimumTerm;
         this.optionalJoin = optionalJoin;
     }
@@ -48,6 +69,8 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
+        compatibilityVersions = CompatibilityVersions.readVersion(in);
+        features = in.readCollectionAsSet(StreamInput::readString);
         minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
@@ -56,12 +79,22 @@ public class JoinRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
+        compatibilityVersions.writeTo(out);
+        out.writeCollection(features, StreamOutput::writeString);
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }
 
     public DiscoveryNode getSourceNode() {
         return sourceNode;
+    }
+
+    public CompatibilityVersions getCompatibilityVersions() {
+        return compatibilityVersions;
+    }
+
+    public Set<String> getFeatures() {
+        return features;
     }
 
     public long getMinimumTerm() {
@@ -72,7 +105,7 @@ public class JoinRequest extends TransportRequest {
         // If the join is also present then its term will normally equal the corresponding term, but we do not require callers to
         // obtain the term and the join in a synchronized fashion so it's possible that they disagree. Also older nodes do not share the
         // minimum term, so for BWC we can take it from the join if present.
-        return Math.max(minimumTerm, optionalJoin.map(Join::getTerm).orElse(0L));
+        return Math.max(minimumTerm, optionalJoin.map(Join::term).orElse(0L));
     }
 
     public Optional<Join> getOptionalJoin() {
@@ -88,16 +121,29 @@ public class JoinRequest extends TransportRequest {
 
         if (minimumTerm != that.minimumTerm) return false;
         if (sourceNode.equals(that.sourceNode) == false) return false;
+        if (compatibilityVersions.equals(that.compatibilityVersions) == false) return false;
+        if (features.equals(that.features) == false) return false;
         return optionalJoin.equals(that.optionalJoin);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, minimumTerm, optionalJoin);
+        return Objects.hash(sourceNode, compatibilityVersions, features, minimumTerm, optionalJoin);
     }
 
     @Override
     public String toString() {
-        return "JoinRequest{" + "sourceNode=" + sourceNode + ", minimumTerm=" + minimumTerm + ", optionalJoin=" + optionalJoin + '}';
+        return "JoinRequest{"
+            + "sourceNode="
+            + sourceNode
+            + ", compatibilityVersions="
+            + compatibilityVersions
+            + ", features="
+            + features
+            + ", minimumTerm="
+            + minimumTerm
+            + ", optionalJoin="
+            + optionalJoin
+            + '}';
     }
 }

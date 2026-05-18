@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -35,7 +36,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolatedBeforeRunning;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolated;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -96,10 +97,18 @@ public class DatafeedRunner {
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
             String jobId = datafeedJob.getJobId();
-            Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob, new ProblemTracker(auditor, jobId), finishHandler);
-            if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
-                runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
-                task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
+            Holder holder = new Holder(
+                task,
+                task.getDatafeedId(),
+                datafeedJob,
+                new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours()),
+                finishHandler
+            );
+            StoppedOrIsolated stoppedOrIsolated = task.executeIfNotStoppedOrIsolated(
+                () -> runningDatafeedsOnThisNode.put(task.getAllocationId(), holder)
+            );
+            if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
+                task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTask<?> persistentTask) {
                         taskRunner.runWhenJobIsOpened(task, jobId);
@@ -121,20 +130,21 @@ public class DatafeedRunner {
                 logger.info(
                     "[{}] Datafeed has been {} before running",
                     task.getDatafeedId(),
-                    task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT)
+                    stoppedOrIsolated.toString().toLowerCase(Locale.ROOT)
                 );
                 finishHandler.accept(null);
             }
         }, finishHandler);
 
         ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(datafeedContext -> {
-            if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
+            StoppedOrIsolated stoppedOrIsolated = task.getStoppedOrIsolated();
+            if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
                 datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler);
             } else {
                 logger.info(
                     "[{}] Datafeed has been {} while building context",
                     task.getDatafeedId(),
-                    task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT)
+                    stoppedOrIsolated.toString().toLowerCase(Locale.ROOT)
                 );
                 finishHandler.accept(null);
             }
@@ -143,11 +153,43 @@ public class DatafeedRunner {
         datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), datafeedContextListener);
     }
 
+    /**
+     * Stops a running datafeed on this node using default auto-close behavior for lookback-only datafeeds.
+     *
+     * @param task    the persistent datafeed task whose in-memory runner should be stopped
+     * @param reason  short label for logs and audits explaining why the datafeed is stopping (for example {@code
+     *                stop_datafeed (api)} or cancellation reason)
+     * @param timeout maximum time to wait when acquiring the datafeed job lock before proceeding with shutdown
+     */
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
+        stopDatafeed(task, reason, timeout, null);
+    }
+
+    /**
+     * Stops a running datafeed on this node, optionally overriding whether the associated anomaly detection job is
+     * auto-closed when the datafeed finishes stopping.
+     *
+     * @param task                 the persistent datafeed task whose in-memory runner should be stopped
+     * @param reason               short label for logs and audits explaining why the datafeed is stopping
+     * @param timeout              maximum time to wait when acquiring the datafeed job lock before proceeding with
+     *                             shutdown
+     * @param autoCloseJobOverride when non-null, whether to submit a {@link CloseJobAction} after the datafeed stops;
+     *                             when {@code null}, the default applies (lookback-only datafeeds, i.e. an {@code end_time}
+     *                             is set, auto-close when stopped, which matches natural lookback completion without
+     *                             realtime). API stops pass {@link Boolean#FALSE} when the stop request has
+     *                             {@code close_job=false} so the job remains open as documented
+     */
+    public void stopDatafeed(
+        TransportStartDatafeedAction.DatafeedTask task,
+        String reason,
+        TimeValue timeout,
+        Boolean autoCloseJobOverride
+    ) {
         logger.info("[{}] attempt to stop datafeed [{}] [{}]", reason, task.getDatafeedId(), task.getAllocationId());
         Holder holder = runningDatafeedsOnThisNode.remove(task.getAllocationId());
         if (holder != null) {
-            holder.stop(reason, timeout, null);
+            boolean autoCloseJob = autoCloseJobOverride != null ? autoCloseJobOverride : task.isLookbackOnly();
+            holder.stop(reason, timeout, null, autoCloseJob, null);
         }
     }
 
@@ -180,10 +222,10 @@ public class DatafeedRunner {
         }
     }
 
-    public void isolateDatafeed(long allocationId) {
+    public void isolateDatafeed(TransportStartDatafeedAction.DatafeedTask task) {
         // This calls get() rather than remove() because we expect that the persistent task will
         // be removed shortly afterwards and that operation needs to be able to find the holder
-        Holder holder = runningDatafeedsOnThisNode.get(allocationId);
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         if (holder != null) {
             holder.isolateDatafeed();
         }
@@ -216,6 +258,11 @@ public class DatafeedRunner {
     public SearchInterval getSearchInterval(TransportStartDatafeedAction.DatafeedTask task) {
         Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         return holder == null ? null : holder.datafeedJob.getSearchInterval();
+    }
+
+    public CrossClusterSearchStatsSnapshot getCrossClusterStats(TransportStartDatafeedAction.DatafeedTask task) {
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
+        return holder == null ? null : holder.datafeedJob.getCrossClusterSearchStats().snapshot();
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,
@@ -310,15 +357,15 @@ public class DatafeedRunner {
                     } catch (DatafeedJob.EmptyDataCountException e) {
                         int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
                         if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {
-                            logger.warn(
-                                "Datafeed for ["
-                                    + jobId
-                                    + "] has seen no data in ["
-                                    + emptyDataCount
-                                    + "] attempts, and never seen any data previously, so stopping..."
-                            );
+                            String noDataMessage = "Datafeed for ["
+                                + jobId
+                                + "] has seen no data in ["
+                                + emptyDataCount
+                                + "] attempts, and never seen any data previously, so stopping...";
+                            logger.warn(noDataMessage);
+
                             // In this case we auto-close the job, as though a lookback-only datafeed stopped
-                            holder.stop("no_data", TimeValue.timeValueSeconds(20), e, true);
+                            holder.stop("no_data", TimeValue.timeValueSeconds(20), e, true, noDataMessage);
                             return;
                         }
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
@@ -332,7 +379,7 @@ public class DatafeedRunner {
                         doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
                     }
                 }
-            }, delay, MachineLearning.DATAFEED_THREAD_POOL_NAME);
+            }, delay, threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME));
         }
     }
 
@@ -347,7 +394,7 @@ public class DatafeedRunner {
         return holder.getJobId();
     }
 
-    private JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
+    private static JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
         return MlTasks.getJobStateModifiedForReassignments(jobId, tasks);
     }
 
@@ -372,8 +419,8 @@ public class DatafeedRunner {
     /**
      * Visible for testing
      */
-    boolean isRunning(long allocationId) {
-        return runningDatafeedsOnThisNode.containsKey(allocationId);
+    boolean isRunning(TransportStartDatafeedAction.DatafeedTask task) {
+        return runningDatafeedsOnThisNode.containsKey(task.getAllocationId());
     }
 
     public class Holder {
@@ -429,10 +476,10 @@ public class DatafeedRunner {
         }
 
         public void stop(String source, TimeValue timeout, Exception e) {
-            stop(source, timeout, e, defaultAutoCloseJob);
+            stop(source, timeout, e, defaultAutoCloseJob, null);
         }
 
-        public void stop(String source, TimeValue timeout, Exception e, boolean autoCloseJob) {
+        public void stop(String source, TimeValue timeout, Exception e, boolean autoCloseJob, String stoppedReason) {
             if (isNodeShuttingDown) {
                 return;
             }
@@ -463,10 +510,16 @@ public class DatafeedRunner {
                     if (cancellable != null) {
                         cancellable.cancel();
                     }
-                    auditor.info(
-                        datafeedJob.getJobId(),
-                        Messages.getMessage(isIsolated() ? Messages.JOB_AUDIT_DATAFEED_ISOLATED : Messages.JOB_AUDIT_DATAFEED_STOPPED)
-                    );
+                    String auditMessage;
+                    if (isIsolated()) {
+                        auditMessage = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_ISOLATED);
+                    } else {
+                        auditMessage = stoppedReason == null
+                            ? Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED)
+                            : Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON, stoppedReason);
+                    }
+                    auditor.info(datafeedJob.getJobId(), auditMessage);
+
                     datafeedJob.finishReportingTimingStats();
                     finishHandler.accept(e);
                     logger.info(
@@ -554,7 +607,7 @@ public class DatafeedRunner {
 
         private void closeJob() {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             JobState jobState = MlTasks.getJobState(getJobId(), tasks);
             if (jobState != JobState.OPENED) {
                 logger.debug("[{}] No need to auto-close job as job state is [{}]", getJobId(), jobState);
@@ -582,33 +635,27 @@ public class DatafeedRunner {
                             for the close job api call.
                         */
                         closeJobRequest.setLocal(true);
-                        executeAsyncWithOrigin(
-                            client,
-                            ML_ORIGIN,
-                            CloseJobAction.INSTANCE,
-                            closeJobRequest,
-                            new ActionListener<CloseJobAction.Response>() {
+                        executeAsyncWithOrigin(client, ML_ORIGIN, CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<>() {
 
-                                @Override
-                                public void onResponse(CloseJobAction.Response response) {
-                                    if (response.isClosed() == false) {
-                                        logger.error("[{}] job close action was not acknowledged", getJobId());
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
-                                    // quite likely that the auto-close here will get interrupted by a process kill request,
-                                    // and it's misleading/worrying to log an error in this case.
-                                    if (e instanceof ElasticsearchStatusException exception && exception.status() == RestStatus.CONFLICT) {
-                                        logger.debug("[{}] {}", getJobId(), e.getMessage());
-                                    } else {
-                                        logger.error("[" + getJobId() + "] failed to auto-close job", e);
-                                    }
+                            @Override
+                            public void onResponse(CloseJobAction.Response response) {
+                                if (response.isClosed() == false) {
+                                    logger.error("[{}] job close action was not acknowledged", getJobId());
                                 }
                             }
-                        );
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
+                                // quite likely that the auto-close here will get interrupted by a process kill request,
+                                // and it's misleading/worrying to log an error in this case.
+                                if (e instanceof ElasticsearchStatusException exception && exception.status() == RestStatus.CONFLICT) {
+                                    logger.debug("[{}] {}", getJobId(), e.getMessage());
+                                } else {
+                                    logger.error("[" + getJobId() + "] failed to auto-close job", e);
+                                }
+                            }
+                        });
                     }
 
                     @Override
@@ -626,7 +673,7 @@ public class DatafeedRunner {
 
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask, String jobId) {
             ClusterState clusterState = clusterService.state();
-            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             if (getJobState(tasks, jobId) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, jobId)) {
                 runTask(datafeedTask);
             } else {
@@ -658,8 +705,14 @@ public class DatafeedRunner {
             if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
-            PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata previousTasks = event.previousState()
+                .getMetadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata currentTasks = event.state()
+                .getMetadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
             if (Objects.equals(previousTasks, currentTasks)) {
                 return;
             }

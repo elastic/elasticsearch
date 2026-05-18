@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -12,6 +13,7 @@ import junit.framework.AssertionFailedError;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -25,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -34,6 +35,9 @@ import static org.hamcrest.Matchers.hasSize;
  * Typically just asserts the output of {@code exec()}
  */
 public abstract class ScriptTestCase extends ESTestCase {
+
+    protected static final List<Whitelist> PAINLESS_BASE_WHITELIST = PainlessPlugin.baseWhiteList();
+
     protected PainlessScriptEngine scriptEngine;
 
     @Before
@@ -53,7 +57,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.test"));
         contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
@@ -71,9 +75,7 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
     public Object exec(String script, Map<String, Object> vars, boolean picky) {
-        Map<String, String> compilerSettings = new HashMap<>();
-        compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
-        return exec(script, vars, compilerSettings, picky);
+        return exec(script, vars, Map.of(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10"), picky);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */

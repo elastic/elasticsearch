@@ -13,8 +13,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
@@ -28,14 +31,17 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
+/// This implementation **is not thread-safe by itself**; callers must serialize `lifecycle` and `add()` invocations.
+/// [org.elasticsearch.xpack.watcher.trigger.TriggerService] provides this guarantee.
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     public static final Setting<TimeValue> TICKER_INTERVAL_SETTING = positiveTimeSetting(
@@ -49,6 +55,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
     private final Ticker ticker;
+    private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
@@ -57,60 +64,108 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void start(Collection<Watch> jobs) {
+    public void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
-        Map<String, ActiveSchedule> startingSchedules = new HashMap<>(jobs.size());
+        logger.info("Starting watcher engine at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
+        schedules.clear();
         for (Watch job : jobs) {
-            if (job.trigger()instanceof ScheduleTrigger trigger) {
-                startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
+            if (job.trigger() instanceof ScheduleTrigger trigger) {
+                schedules.put(job.id(), createSchedule(job, trigger, startTime));
             }
         }
-        // why are we calling putAll() here instead of assigning a brand
-        // new concurrent hash map you may ask yourself over here
-        // This requires some explanation how TriggerEngine.start() is
-        // invoked, when a reload due to the cluster state listener is done
-        // If the watches index does not exist, and new document is stored,
-        // then the creation of that index will trigger a reload which calls
-        // this method. The index operation however will run at the same time
-        // as the reload, so if we clean out the old data structure here,
-        // that can lead to that one watch not being triggered
-        this.schedules.putAll(startingSchedules);
+        isRunning.set(true);
+    }
+
+    private ActiveSchedule createSchedule(Watch job, ScheduleTrigger trigger, long currentTimeInMillis) {
+        return new ActiveSchedule(
+            job.id(),
+            trigger.getSchedule(),
+            trigger.getSchedule() instanceof IntervalSchedule ? calculateLastStartTime(job) : currentTimeInMillis
+        );
     }
 
     @Override
     public void stop() {
+        logger.info("Stopping watcher engine");
+        isRunning.set(false);
         schedules.clear();
         ticker.close();
     }
 
     @Override
-    public synchronized void pauseExecution() {
+    public void pauseExecution() {
+        logger.info("Pausing watcher engine");
+        isRunning.set(false);
         schedules.clear();
     }
 
     @Override
-    public void add(Watch watch) {
+    public boolean add(Watch watch) {
+        logger.trace("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
         assert watch.trigger() instanceof ScheduleTrigger;
-        ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
-        ActiveSchedule currentSchedule = schedules.get(watch.id());
+        // While the engine is paused (between pauseExecution and start) the schedules map has been cleared. Adding
+        // here would only get wiped out by start(), so we report "not added" and let the caller retain the watch
+        // (typically in WatcherService.pendingWatches) until the next start() merges it back in.
+        if (isRunning.get() == false) {
+            return false;
+        }
+        final ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
+        final ActiveSchedule currentSchedule = schedules.get(watch.id());
         // only update the schedules data structure if the scheduled trigger really has changed, otherwise the time would be reset again
         // resulting in later executions, as the time would only count after a watch has been stored, as this code is triggered by the
         // watcher indexing listener
         // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
         if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
-            schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
+            schedules.put(watch.id(), createSchedule(watch, trigger, clock.millis()));
         }
+        return true;
+    }
+
+    /**
+     * Attempts to calculate the epoch millis of the last time the watch was checked, If the watch has never been checked, the timestamp of
+     * the last state change is used. If the watch has never been checked and has never been in an active state, the current time is used.
+     * @param job the watch to calculate the last start time for
+     * @return the epoch millis of the last time the watch was checked or now
+     */
+    private long calculateLastStartTime(Watch job) {
+        var lastChecked = Optional.ofNullable(job)
+            .map(Watch::status)
+            .map(WatchStatus::lastChecked)
+            .map(ZonedDateTime::toInstant)
+            .map(Instant::toEpochMilli);
+
+        return lastChecked.orElseGet(
+            () -> Optional.ofNullable(job)
+                .map(Watch::status)
+                .map(WatchStatus::state)
+                .map(WatchStatus.State::getTimestamp)
+                .map(ZonedDateTime::toInstant)
+                .map(Instant::toEpochMilli)
+                .orElse(clock.millis())
+        );
     }
 
     @Override
     public boolean remove(String jobId) {
+        logger.debug("Removing watch [{}] from engine (engine is running: {})", jobId, isRunning.get());
         return schedules.remove(jobId) != null;
     }
 
     void checkJobs() {
+        if (isRunning.get() == false) {
+            logger.debug(
+                "Watcher not running because the engine is paused. Currently scheduled watches being skipped: {}",
+                schedules.size()
+            );
+            return;
+        }
         long triggeredTime = clock.millis();
         List<TriggerEvent> events = new ArrayList<>();
         for (ActiveSchedule schedule : schedules.values()) {
+            if (isRunning.get() == false) {
+                logger.debug("Watcher paused while running [{}]", schedule.name);
+                break;
+            }
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
                 ZonedDateTime triggeredDateTime = utcDateTimeAtEpochMillis(triggeredTime);
@@ -128,7 +183,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
     }
 
-    private ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
+    private static ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
         return Instant.ofEpochMilli(triggeredTime).atZone(ZoneOffset.UTC);
     }
 
@@ -154,6 +209,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             this.schedule = schedule;
             this.startTime = startTime;
             this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, startTime);
+            logger.debug(
+                "Watcher: activating schedule for watch '{}', first run at {}",
+                name,
+                WatcherDateTimeUtils.dateTimeFormatter.formatMillis(scheduledTime)
+            );
         }
 
         /**
@@ -168,6 +228,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             long prevScheduledTime = scheduledTime == 0 ? time : scheduledTime;
             scheduledTime = schedule.nextScheduledTimeAfter(startTime, time);
             return prevScheduledTime;
+        }
+
+        // visible for testing
+        Schedule getSchedule() {
+            return schedule;
         }
     }
 

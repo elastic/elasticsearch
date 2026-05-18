@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.util.List;
 
@@ -42,12 +41,12 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override
@@ -56,11 +55,11 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
     }
 
     private static Decision allowAllocation(IndexMetadata indexMetadata, RoutingAllocation allocation) {
-        final Settings settings = indexMetadata.getSettings();
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(settings)) {
+        if (indexMetadata.isSearchableSnapshot()) {
+            final Settings settings = indexMetadata.getSettings();
 
-            final RepositoriesMetadata repositoriesMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
-            if (repositoriesMetadata == null || repositoriesMetadata.repositories().isEmpty()) {
+            final var repositoriesMetadata = RepositoriesMetadata.get(allocation.getClusterState());
+            if (repositoriesMetadata.repositories().isEmpty()) {
                 return allocation.decision(Decision.NO, NAME, "there are no repositories registered in this cluster");
             }
 

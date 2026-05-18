@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
@@ -26,9 +26,9 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -44,8 +44,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -112,6 +110,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         if (randomBoolean()) {
             result.fuzzyTranspositions(randomBoolean());
         }
+        // TODO extend checks in doAssertLuceneQuery for the three failing cases
+        result.type(
+            randomFrom(
+                List.of(
+                    MultiMatchQueryBuilder.Type.BEST_FIELDS,
+                    MultiMatchQueryBuilder.Type.MOST_FIELDS,
+                    MultiMatchQueryBuilder.Type.PHRASE
+                )
+            )
+        );
         return result;
     }
 
@@ -158,6 +166,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             FuzzyQuery.defaultTranspositions,
             SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS
         );
+        assertEquals(SimpleQueryStringBuilder.DEFAULT_TYPE, qb.type());
     }
 
     public void testDefaultNullComplainFlags() {
@@ -183,11 +192,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testDefaultNullComplainOp() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.defaultOperator(null);
+        qb.type(null);
         assertEquals(
             "Setting operator to null should result in returning to default value.",
             SimpleQueryStringBuilder.DEFAULT_OPERATOR,
             qb.defaultOperator()
         );
+        assertEquals("Setting type to null should result in returning to default value.", SimpleQueryStringBuilder.DEFAULT_TYPE, qb.type());
     }
 
     // Check operator handling, and default field handling.
@@ -248,24 +259,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals("fields cannot be null", e.getMessage());
     }
 
-    public void testDefaultFieldParsing() throws IOException {
-        String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
-        String contentString = """
-            {
-              "simple_query_string": {
-                "query": "%s"
-              }
-            }""".formatted(query);
-        SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
-        assertThat(queryBuilder.value(), equalTo(query));
-        assertThat(queryBuilder.fields(), notNullValue());
-        assertThat(queryBuilder.fields().size(), equalTo(0));
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        Query luceneQuery = queryBuilder.toQuery(searchExecutionContext);
-        assertThat(luceneQuery, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
-    }
-
     /*
      * This assumes that Lucene query parsing is being checked already, adding
      * checks only for our parsing extensions.
@@ -323,7 +316,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     private static int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
-            if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+            if (c.occur() == BooleanClause.Occur.SHOULD) {
                 result++;
             }
         }
@@ -362,6 +355,27 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(builder, equalTo(otherBuilder));
     }
 
+    public void testFromSimpleJson() throws IOException {
+        String json = """
+            {
+              "simple_query_string" : {
+                "query" : "\\"fried eggs\\" +(eggplant | potato) -frittata",
+                "fields" : [ "body^5.0" ],
+                "type" : "best_fields"
+              }
+            }""";
+
+        SimpleQueryStringBuilder parsed = (SimpleQueryStringBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "\"fried eggs\" +(eggplant | potato) -frittata", parsed.value());
+        assertEquals(json, 1, parsed.fields().size());
+        assertEquals(json, 0, parsed.fuzzyPrefixLength());
+        assertEquals(json, 50, parsed.fuzzyMaxExpansions());
+        assertEquals(json, true, parsed.fuzzyTranspositions());
+        assertEquals(json, MultiMatchQueryBuilder.Type.BEST_FIELDS, parsed.type());
+    }
+
     public void testFromJson() throws IOException {
         String json = """
             {
@@ -369,16 +383,17 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "query" : "\\"fried eggs\\" +(eggplant | potato) -frittata",
                 "fields" : [ "body^5.0" ],
                 "analyzer" : "snowball",
-                "flags" : -1,
+                "flags" : 8,
                 "default_operator" : "and",
                 "lenient" : false,
-                "analyze_wildcard" : false,
+                "analyze_wildcard" : true,
                 "quote_field_suffix" : ".quote",
-                "auto_generate_synonyms_phrase_query" : true,
+                "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_prefix_length" : 1,
                 "fuzzy_max_expansions" : 5,
                 "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "type" : "cross_fields",
+                "boost" : 2.0
               }
             }""";
 
@@ -392,6 +407,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(json, 1, parsed.fuzzyPrefixLength());
         assertEquals(json, 5, parsed.fuzzyMaxExpansions());
         assertEquals(json, false, parsed.fuzzyTranspositions());
+        assertEquals(json, MultiMatchQueryBuilder.Type.CROSS_FIELDS, parsed.type());
     }
 
     public void testMinimumShouldMatch() throws IOException {
@@ -621,64 +637,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("\"bar\""));
     }
 
-    public void testDefaultField() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        // default value `*` sets leniency to true
-        Query query = new SimpleQueryStringBuilder("hello").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        try {
-            // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, "*", KEYWORD_FIELD_NAME).build()
-                    )
-                );
-            query = new SimpleQueryStringBuilder("hello").toQuery(context);
-            assertQueryWithAllFieldsWildcard(query);
-
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME + "^5").build()
-                    )
-                );
-            query = new SimpleQueryStringBuilder("hello").toQuery(context);
-            Query expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
-                ),
-                1.0f
-            );
-            assertEquals(expected, query);
-        } finally {
-            // Reset to the default value
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", "*").build()
-                    )
-                );
-        }
-    }
-
-    public void testAllFieldsWildcard() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        Query query = new SimpleQueryStringBuilder("hello").field("*").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        query = new SimpleQueryStringBuilder("hello").field(TEXT_FIELD_NAME).field("*").field(KEYWORD_FIELD_NAME).toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-    }
-
     public void testToFuzzyQuery() throws Exception {
         Query query = new SimpleQueryStringBuilder("text~2").field(TEXT_FIELD_NAME)
             .fuzzyPrefixLength(2)
@@ -695,7 +653,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .lenient(true)
             .toQuery(createSearchExecutionContext());
         List<Query> expectedQueries = new ArrayList<>();
-        expectedQueries.add(new MatchNoDocsQuery(""));
+        expectedQueries.add(Queries.NO_DOCS_INSTANCE);
         expectedQueries.add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "t")));
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(expectedQueries, 1.0f);
         assertEquals(expected, query);
@@ -735,11 +693,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         query = new BoolQueryBuilder().should(new SimpleQueryStringBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.SHOULD).build();
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
@@ -782,9 +740,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field("another_unmapped")
             .defaultOperator(Operator.AND)
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
             .build();
         assertEquals(expected, query);
     }
@@ -797,65 +755,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .toQuery(createSearchExecutionContext())
         );
         assertThat(exc.getMessage(), containsString("negative [boost]"));
-    }
-
-    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
-        Settings build = Settings.builder().put(oldIndexSettings).put(indexSettings).build();
-        return IndexMetadata.builder(name).settings(build).build();
-    }
-
-    private void assertQueryWithAllFieldsWildcard(Query query) {
-        assertEquals(DisjunctionMaxQuery.class, query.getClass());
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        int noMatchNoDocsQueries = 0;
-        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
-            if (q.getClass() == MatchNoDocsQuery.class) {
-                noMatchNoDocsQueries++;
-            }
-        }
-        assertEquals(9, noMatchNoDocsQueries);
-        assertThat(
-            disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
-        );
-    }
-
-    /**
-     * Query terms that contain "now" can trigger a query to not be cacheable.
-     * This test checks the search context cacheable flag is updated accordingly.
-     */
-    public void testCachingStrategiesWithNow() throws IOException {
-        // if we hit all fields, this should contain a date field and should diable cachability
-        String query = "now " + randomAlphaOfLengthBetween(4, 10);
-        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(query);
-        assertQueryCachability(queryBuilder, false);
-
-        // if we hit a date field with "now", this should diable cachability
-        queryBuilder = new SimpleQueryStringBuilder("now");
-        queryBuilder.field(DATE_FIELD_NAME);
-        assertQueryCachability(queryBuilder, false);
-
-        // everything else is fine on all fields
-        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
-        queryBuilder = new SimpleQueryStringBuilder(query);
-        assertQueryCachability(queryBuilder, true);
-    }
-
-    private void assertQueryCachability(SimpleQueryStringBuilder qb, boolean cachingExpected) throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext();
-        assert context.isCacheable();
-        /*
-         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
-         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
-         * actual lucene query
-         */
-        QueryBuilder rewritten = rewriteQuery(qb, new SearchExecutionContext(context));
-        assertNotNull(rewritten.toQuery(context));
-        assertEquals(
-            "query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(),
-            cachingExpected,
-            context.isCacheable()
-        );
     }
 
     public void testLenientFlag() throws Exception {

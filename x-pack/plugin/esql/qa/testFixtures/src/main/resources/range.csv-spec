@@ -1,0 +1,62 @@
+Invalid boundaries integer literal
+
+FROM employees 
+| WHERE salary > 200 AND salary < 100 
+| KEEP salary;
+
+salary:integer
+;
+
+Invalid boundaries date 
+
+FROM employees
+| WHERE hire_date > TO_DATETIME("2025-01-01") AND hire_date < TO_DATETIME("2020-01-01")
+| KEEP hire_date;
+
+hire_date:datetime
+;
+
+Invalid boundaries, date with implicit casting
+
+FROM employees
+| WHERE hire_date > "2025-01-01" AND hire_date < "2020-01-01"
+| KEEP hire_date;
+
+hire_date:datetime
+;
+
+Invalid Boundaries, date nanos 
+required_capability: date_nanos_type
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
+required_capability:  fix_date_nanos_mixed_range_pushdown_bug
+
+FROM date_nanos
+| WHERE nanos > TO_DATE_NANOS("2025-01-01") and nanos < TO_DATE_NANOS("2020-01-01")
+| KEEP nanos;
+warningRegex:Line 2:49: evaluation of \[nanos < TO_DATE_NANOS\(\\\"2020-01-01\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:49: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos > TO_DATE_NANOS\(\\\"2025-01-01\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+;
+
+Invalid Boundaries, date nanos implicit casting
+required_capability: date_nanos_type
+required_capability: date_nanos_binary_comparison
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+required_capability:  fix_date_nanos_mixed_range_pushdown_bug
+
+FROM date_nanos
+| WHERE nanos > "2025-01-01" and nanos < "2020-01-01"
+| KEEP nanos;
+warningRegex:Line 2:34: evaluation of \[nanos < \\\"2020-01-01\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:34: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2025-01-01\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+;

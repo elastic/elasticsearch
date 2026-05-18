@@ -1,0 +1,76 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.validation;
+
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+
+import java.util.Objects;
+
+public class ModelValidatorBuilder {
+    public static ModelValidator buildModelValidator(TaskType taskType, InferenceService service) {
+        if (service instanceof ElasticsearchInternalService) {
+            return new ElasticsearchInternalServiceModelValidator(new SimpleServiceIntegrationValidator());
+        } else {
+            return buildModelValidatorForTaskType(taskType, service);
+        }
+    }
+
+    private static ModelValidator buildModelValidatorForTaskType(TaskType taskType, InferenceService service) {
+        if (taskType == null) {
+            throw new IllegalArgumentException("Task type can't be null");
+        }
+        if (service == null) {
+            throw new IllegalArgumentException("Service can't be null");
+        }
+
+        ServiceIntegrationValidator validatorFromService = service.getServiceIntegrationValidator(taskType);
+
+        switch (taskType) {
+            case TEXT_EMBEDDING -> {
+                return new DenseEmbeddingModelValidator(
+                    Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator())
+                );
+            }
+            case COMPLETION -> {
+                return new ChatCompletionModelValidator(
+                    Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator())
+                );
+            }
+            case CHAT_COMPLETION -> {
+                return new ChatCompletionModelValidator(
+                    Objects.requireNonNullElse(validatorFromService, new SimpleChatCompletionServiceIntegrationValidator())
+                );
+            }
+            case RERANK -> {
+                if (service.supportsNewRerankCodePath()) {
+                    return new SimpleModelValidator(
+                        Objects.requireNonNullElse(validatorFromService, new RerankServiceIntegrationValidator())
+                    );
+                } else {
+                    // TODO: once all services support the new rerank code path, remove this branch
+                    return new SimpleModelValidator(
+                        Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator())
+                    );
+                }
+            }
+            case SPARSE_EMBEDDING, ANY -> {
+                return new SimpleModelValidator(Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator()));
+            }
+            case EMBEDDING -> {
+                return new DenseEmbeddingModelValidator(
+                    Objects.requireNonNullElse(validatorFromService, new SimpleEmbeddingServiceIntegrationValidator())
+                );
+            }
+            default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model for task type %s", taskType));
+        }
+    }
+}

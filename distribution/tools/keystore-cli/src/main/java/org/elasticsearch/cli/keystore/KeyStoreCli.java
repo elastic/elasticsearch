@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
 
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
+import org.elasticsearch.cli.MultiCommand;
 
 /**
  * A cli tool for managing secrets in the elasticsearch keystore.
  */
-public class KeyStoreCli extends LoggingAwareMultiCommand {
+class KeyStoreCli extends MultiCommand {
 
-    private KeyStoreCli() {
+    KeyStoreCli() {
         super("A tool for managing settings stored in the elasticsearch keystore");
         subcommands.put("create", new CreateKeyStoreCommand());
         subcommands.put("list", new ListKeyStoreCommand());
@@ -28,9 +28,4 @@ public class KeyStoreCli extends LoggingAwareMultiCommand {
         subcommands.put("passwd", new ChangeKeyStorePasswordCommand());
         subcommands.put("has-passwd", new HasPasswordKeyStoreCommand());
     }
-
-    public static void main(String[] args) throws Exception {
-        exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
-    }
-
 }

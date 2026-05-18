@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -160,14 +162,14 @@ public class SimpleFeatureFactory {
         commands[2] = BitUtil.zigZagEncode(minY);
         commands[3] = encodeCommand(LINETO, 3);
         // 1
-        commands[4] = BitUtil.zigZagEncode(maxX - minX);
-        commands[5] = BitUtil.zigZagEncode(0);
+        commands[4] = BitUtil.zigZagEncode(0);
+        commands[5] = BitUtil.zigZagEncode(maxY - minY);
         // 2
-        commands[6] = BitUtil.zigZagEncode(0);
-        commands[7] = BitUtil.zigZagEncode(maxY - minY);
+        commands[6] = BitUtil.zigZagEncode(maxX - minX);
+        commands[7] = BitUtil.zigZagEncode(0);
         // 3
-        commands[8] = BitUtil.zigZagEncode(minX - maxX);
-        commands[9] = BitUtil.zigZagEncode(0);
+        commands[8] = BitUtil.zigZagEncode(0);
+        commands[9] = BitUtil.zigZagEncode(minY - maxY);
         // close
         commands[10] = encodeCommand(CLOSEPATH, 1);
         return writeCommands(commands, 3, 11);
@@ -178,16 +180,14 @@ public class SimpleFeatureFactory {
     }
 
     private static byte[] writeCommands(final int[] commands, final int type, final int length) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
+        try (BytesStreamOutput output = new BytesStreamOutput(); CountingStreamOutput counting = new CountingStreamOutput()) {
             for (int i = 0; i < length; i++) {
-                output.writeVInt(commands[i]);
+                counting.writeVInt(commands[i]);
             }
-            final int dataSize = output.size();
-            output.reset();
             output.writeVInt(24);
             output.writeVInt(type);
             output.writeVInt(34);
-            output.writeVInt(dataSize);
+            output.writeVInt(Math.toIntExact(counting.position()));
             for (int i = 0; i < length; i++) {
                 output.writeVInt(commands[i]);
             }

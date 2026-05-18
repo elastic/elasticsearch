@@ -1,36 +1,42 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
@@ -38,7 +44,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -49,17 +54,19 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
 
@@ -80,7 +87,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             baseSettings,
             Collections.singletonMap(engine.getType(), engine),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
@@ -149,7 +157,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
             SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext).build(mockShardContext);
-            sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
+            sortFieldAssertions(sortBuilder, sortField.field(), sortField.format());
         }
     }
 
@@ -178,31 +186,41 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext() {
-        return createMockSearchExecutionContext(null);
+        return createMockSearchExecutionContext(null, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexVersion indexVersion) {
+        return createMockSearchExecutionContext(null, indexVersion);
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher) {
+        return createMockSearchExecutionContext(searcher, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher, IndexVersion indexVersion) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion).build()
         );
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
+        NestedLookup nestedLookup = NestedLookup.build(List.of(new NestedObjectMapper.Builder("path", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).build(MapperBuilderContext.root(false, false))));
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             idxSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
-            null,
-            null,
+            mapperService,
+            MappingLookup.EMPTY,
             null,
             scriptService,
             parserConfig(),
@@ -214,7 +232,10 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
 
             @Override
@@ -223,8 +244,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
 
             @Override
-            public ObjectMapper getObjectMapper(String name) {
-                return new NestedObjectMapper.Builder(name, Version.CURRENT).build(MapperBuilderContext.ROOT);
+            public NestedLookup nestedLookup() {
+                return nestedLookup;
             }
         };
     }

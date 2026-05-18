@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.spi;
 
-import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -59,23 +59,12 @@ public final class WhitelistClass {
         List<WhitelistField> whitelistFields,
         List<Object> painlessAnnotations
     ) {
-
         this.origin = Objects.requireNonNull(origin);
         this.javaClassName = Objects.requireNonNull(javaClassName);
-
-        this.whitelistConstructors = Collections.unmodifiableList(Objects.requireNonNull(whitelistConstructors));
-        this.whitelistMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistMethods));
-        this.whitelistFields = Collections.unmodifiableList(Objects.requireNonNull(whitelistFields));
-
-        if (painlessAnnotations.isEmpty()) {
-            this.painlessAnnotations = Collections.emptyMap();
-        } else {
-            this.painlessAnnotations = Collections.unmodifiableMap(
-                Objects.requireNonNull(painlessAnnotations)
-                    .stream()
-                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            );
-        }
+        this.whitelistConstructors = List.copyOf(whitelistConstructors);
+        this.whitelistMethods = List.copyOf(whitelistMethods);
+        this.whitelistFields = List.copyOf(whitelistFields);
+        this.painlessAnnotations = painlessAnnotations.stream()
+            .collect(Collectors.toUnmodifiableMap(Object::getClass, Function.identity()));
     }
 }

@@ -6,11 +6,9 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
@@ -23,6 +21,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -34,7 +33,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLException;
@@ -43,6 +44,7 @@ import javax.net.ssl.SSLSocketFactory;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -168,11 +170,12 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
+            Collection<List<?>> subjectAlternativeNames = trustedCert.certificate.getSubjectAlternativeNames();
             logger.warn(
-                new ParameterizedMessage(
-                    "unexpected handshake failure with certificate [{}] [{}]",
-                    trustedCert.certificate.getSubjectDN(),
-                    trustedCert.certificate.getSubjectAlternativeNames()
+                () -> format(
+                    "unexpected handshake failure with certificate [%s] [%s]",
+                    trustedCert.certificate.getSubjectX500Principal(),
+                    subjectAlternativeNames
                 ),
                 ex
             );
@@ -240,8 +243,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
+        SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        SSLSocketFactory sslSocketFactory = sslProfile.socketFactory();
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));
@@ -273,16 +276,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             this.certPath = certPath;
         }
 
-        private PrivateKey getKey() {
-            return key;
-        }
-
         private Path getKeyPath() {
             return keyPath;
-        }
-
-        private X509Certificate getCertificate() {
-            return certificate;
         }
 
         private Path getCertPath() {

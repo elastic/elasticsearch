@@ -7,17 +7,18 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.AbstractTransportSetResetModeAction;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
+
+import java.util.function.Consumer;
 
 public class TransportSetTransformResetModeAction extends AbstractTransportSetResetModeAction {
 
@@ -27,14 +28,14 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
         ThreadPool threadPool,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
-        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, indexNameExpressionResolver);
+        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, projectResolver);
     }
 
     @Override
-    protected boolean isResetMode(ClusterState clusterState) {
-        return TransformMetadata.getTransformMetadata(clusterState).isResetMode();
+    protected boolean isResetMode(ProjectMetadata project) {
+        return TransformMetadata.transformMetadata(project).resetMode();
     }
 
     @Override
@@ -43,16 +44,14 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
     }
 
     @Override
-    protected ClusterState setState(ClusterState oldState, SetResetModeActionRequest request) {
-        ClusterState.Builder newState = ClusterState.builder(oldState);
+    protected Consumer<ProjectMetadata.Builder> createProjectUpdate(SetResetModeActionRequest request, ProjectMetadata project) {
         if (request.shouldDeleteMetadata()) {
             assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
-            newState.metadata(Metadata.builder(oldState.getMetadata()).removeCustom(TransformMetadata.TYPE).build());
-        } else {
-            TransformMetadata.Builder builder = TransformMetadata.Builder.from(oldState.metadata().custom(TransformMetadata.TYPE))
-                .isResetMode(request.isEnabled());
-            newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(TransformMetadata.TYPE, builder.build()).build());
+            return b -> b.removeCustom(TransformMetadata.TYPE);
         }
-        return newState.build();
+        TransformMetadata updatedMetadata = TransformMetadata.Builder.from(project.custom(TransformMetadata.TYPE))
+            .resetMode(request.isEnabled())
+            .build();
+        return b -> b.putCustom(TransformMetadata.TYPE, updatedMetadata);
     }
 }

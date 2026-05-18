@@ -63,7 +63,7 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
-            .put("url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+            .put("url", smbFixture.getAdLdapUrl())
             .put("group_search.base_dn", groupSearchBase)
             .put("user_search.base_dn", userSearchBase)
             .put("bind_dn", "ironman@ad.test.elasticsearch.com")
@@ -72,6 +72,8 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
             .put("user_search.pool.enabled", randomBoolean())
             .put("follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
             .put("order", 0)
+            .put("timeout.tcp_connect", "10s")
+            .put("timeout.response", "10s")
             .build();
         Settings.Builder builder = Settings.builder().put(globalSettings);
         settings.keySet().forEach(k -> { builder.copy("xpack.security.authc.realms.ldap.ad-as-ldap-test." + k, k, settings); });

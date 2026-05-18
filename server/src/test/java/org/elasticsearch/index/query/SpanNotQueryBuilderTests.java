@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -41,6 +42,14 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             }
         }
         return queryBuilder;
+    }
+
+    @Override
+    protected SpanNotQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanNotQueryBuilder) {
+            return new SpanNotQueryBuilder((SpanNotQueryBuilder) queryBuilder, (SpanNotQueryBuilder) queryBuilder);
+        }
+        return new SpanNotQueryBuilder(new SpanTermQueryBuilder("field", "value"), new SpanTermQueryBuilder("field", "value"));
     }
 
     @Override
@@ -168,8 +177,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 "include" : {
                   "span_term" : {
                     "field1" : {
-                      "value" : "hoya",
-                      "boost" : 1.0
+                      "value" : "hoya"
                     }
                   }
                 },
@@ -178,25 +186,20 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                     "clauses" : [ {
                       "span_term" : {
                         "field1" : {
-                          "value" : "la",
-                          "boost" : 1.0
+                          "value" : "la"
                         }
                       }
                     }, {
                       "span_term" : {
                         "field1" : {
-                          "value" : "hoya",
-                          "boost" : 1.0
+                          "value" : "hoya"
                         }
                       }
                     } ],
                     "slop" : 0,
-                    "in_order" : true,
-                    "boost" : 1.0
+                    "in_order" : true
                   }
                 },
-                "pre" : 0,
-                "post" : 0,
                 "boost" : 2.0
               }
             }""";

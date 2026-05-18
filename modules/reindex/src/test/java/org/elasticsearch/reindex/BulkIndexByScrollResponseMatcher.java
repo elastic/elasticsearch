@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -25,6 +26,10 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScro
     private Matcher<Long> createdMatcher = equalTo(0L);
     private Matcher<Long> updatedMatcher = equalTo(0L);
     private Matcher<Long> deletedMatcher = equalTo(0L);
+
+    /// Matches for the `total` field on the response (number of matching source documents the reindex/UBQ/DBQ task
+    /// planned to process). Optional, because most existing tests only care about the running counters.
+    private Matcher<Long> totalMatcher;
 
     /**
      * Matches for number of batches. Optional.
@@ -60,6 +65,16 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScro
 
     public BulkIndexByScrollResponseMatcher deleted(long deleted) {
         return deleted(equalTo(deleted));
+    }
+
+    /// Set the matcher for the `total` field on the response (the planned number of source documents to process).
+    public BulkIndexByScrollResponseMatcher total(Matcher<Long> totalMatcher) {
+        this.totalMatcher = totalMatcher;
+        return this;
+    }
+
+    public BulkIndexByScrollResponseMatcher total(long total) {
+        return total(equalTo(total));
     }
 
     /**
@@ -125,6 +140,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScro
         return updatedMatcher.matches(item.getUpdated())
             && createdMatcher.matches(item.getCreated())
             && deletedMatcher.matches(item.getDeleted())
+            && (totalMatcher == null || totalMatcher.matches(item.getStatus().getTotal()))
             && (batchesMatcher == null || batchesMatcher.matches(item.getBatches()))
             && versionConflictsMatcher.matches(item.getVersionConflicts())
             && failuresMatcher.matches(item.getBulkFailures().size())
@@ -137,6 +153,9 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScro
         description.appendText("updated matches ").appendDescriptionOf(updatedMatcher);
         description.appendText(" and created matches ").appendDescriptionOf(createdMatcher);
         description.appendText(" and deleted matches ").appendDescriptionOf(deletedMatcher);
+        if (totalMatcher != null) {
+            description.appendText(" and total matches ").appendDescriptionOf(totalMatcher);
+        }
         if (batchesMatcher != null) {
             description.appendText(" and batches matches ").appendDescriptionOf(batchesMatcher);
         }

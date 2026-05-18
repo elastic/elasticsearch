@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.ssl;
 
@@ -11,7 +12,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.SSLParameters;
 
@@ -82,7 +82,7 @@ public enum SslClientAuthenticationMode {
     public static SslClientAuthenticationMode parse(String value) {
         final SslClientAuthenticationMode mode = LOOKUP.get(value.toLowerCase(Locale.ROOT));
         if (mode == null) {
-            final String allowedValues = LOOKUP.keySet().stream().collect(Collectors.joining(","));
+            final String allowedValues = String.join(",", LOOKUP.keySet());
             throw new SslConfigException(
                 "could not resolve ssl client authentication, unknown value [" + value + "], recognised values are [" + allowedValues + "]"
             );

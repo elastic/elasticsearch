@@ -13,9 +13,10 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -67,7 +68,7 @@ public class LdapSessionFactory extends SessionFactory {
     public void session(String username, SecureString password, ActionListener<LdapSession> listener) {
         try {
             new AbstractRunnable() {
-                final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+                final LDAPConnection connection = serverSet.getConnection();
                 final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                 Exception containerException = null;
                 int loopIndex = 0;
@@ -120,13 +121,18 @@ public class LdapSessionFactory extends SessionFactory {
         }
     }
 
+    @Override
+    public void reload(Settings settings) {
+        // nothing to reload in DN template mode
+    }
+
     /**
      * Securely escapes the username and inserts it into the template using MessageFormat
      *
      * @param username username to insert into the DN template.  Any commas, equals or plus will be escaped.
      * @return DN (distinguished name) build from the template.
      */
-    String buildDnFromTemplate(String username, String template) {
+    static String buildDnFromTemplate(String username, String template) {
         // this value must be escaped to avoid manipulation of the template DN.
         String escapedUsername = escapedRDNValue(username);
         return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();

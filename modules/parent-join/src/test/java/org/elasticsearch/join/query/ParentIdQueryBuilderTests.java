@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.query;
@@ -23,7 +24,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
@@ -48,7 +48,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -113,7 +113,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
               "parent_id" : {
                 "type" : "child",
                 "id" : "123",
-                "ignore_unmapped" : false,
+                "ignore_unmapped" : true,
                 "boost" : 3.0,
                 "_name" : "name"  }
             }""";
@@ -123,6 +123,25 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         assertThat(queryBuilder.getId(), Matchers.equalTo("123"));
         assertThat(queryBuilder.boost(), Matchers.equalTo(3f));
         assertThat(queryBuilder.queryName(), Matchers.equalTo("name"));
+    }
+
+    public void testDefaultsRemoved() throws IOException {
+        String query = """
+            {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123",
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
+        checkGeneratedJson("""
+              {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123"
+              }
+            }""", parseQuery(query));
     }
 
     public void testIgnoreUnmapped() throws IOException {
@@ -136,6 +155,11 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no relation found for child [unmapped]"));
+    }
+
+    public void testThrowsOnNullTypeOrId() {
+        expectThrows(IllegalArgumentException.class, () -> new ParentIdQueryBuilder(null, randomAlphaOfLength(5)));
+        expectThrows(IllegalArgumentException.class, () -> new ParentIdQueryBuilder(randomAlphaOfLength(5), null));
     }
 
     public void testDisallowExpensiveQueries() {

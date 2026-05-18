@@ -1,0 +1,576 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-with-two-data-stream-processors"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "logs-router"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "logs-nginx"
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-router
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-nginx
+        ignore: 404
+  - do:
+      indices.delete:
+        index: "index-1"
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: "index-2"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-1"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-2"
+        ignore: 404
+  - do:
+      indices.delete_data_stream:
+        name: "data-stream-*"
+        expand_wildcards: all
+---
+"Test first matching router terminates pipeline":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102144"
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-with-two-data-stream-processors"
+        body: >
+          {
+            "processors": [
+              {
+                "reroute" : {
+                  "dataset" : "first"
+                }
+              },
+              {
+                "reroute" : {
+                  "dataset" : "second"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        op_type: create
+        id: "1"
+        pipeline: "pipeline-with-two-data-stream-processors"
+        body: {
+          foo: "bar"
+        }
+
+  - do:
+      search:
+        index: logs-first-default
+        body:
+          query:
+            match: {"_id": "1"}
+  - match: { hits.hits.0._source.foo: "bar" }
+
+---
+"Test two stage routing":
+  - skip:
+      features: allowed_warnings
+  - do:
+      ingest.put_pipeline:
+        id: "logs-router"
+        body: >
+          {
+            "processors": [
+              {
+                 "set" : {
+                   "field": "added-in-pipeline-before-first-reroute",
+                   "value": true
+                 }
+              },
+              {
+                "reroute" : {
+                  "tag": "nginx",
+                  "if" : "ctx?.log?.file?.path?.contains('nginx')",
+                  "dataset": "nginx"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - "index template [logs-router] has index patterns [logs-router-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-router] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-router
+        body:
+          index_patterns: [ "logs-router-*" ]
+          priority: 500
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "logs-router"
+  - do:
+      ingest.put_pipeline:
+        id: "logs-nginx"
+        body: >
+          {
+            "processors": [
+              {
+                 "set" : {
+                   "field": "added-in-pipeline-before-second-reroute",
+                   "value": true
+                 }
+              },
+              {
+                "reroute": {
+                  "tag": "nginx.access",
+                  "if": "ctx?.log?.file?.path?.contains('access')",
+                  "dataset": "nginx.access"
+                }
+              },
+              {
+                "reroute": {
+                  "tag": "nginx.error",
+                  "if": "ctx?.log?.file?.path?.contains('error')",
+                  "dataset": "nginx.error"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - "index template [logs-nginx] has index patterns [logs-nginx-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-nginx] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-nginx
+        body:
+          index_patterns: [ "logs-nginx-*" ]
+          priority: 500
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "logs-nginx"
+
+  - do:
+      index:
+        refresh: true
+        index: logs-router-default
+        id: "example-log"
+        op_type: create
+        body:
+          "@timestamp": "2022-04-13"
+          message: "this is an error log"
+          log:
+            file:
+              path: "nginx-error.log"
+
+  - do:
+      search:
+        index: logs-nginx.error-default
+        body:
+          query:
+            match: {"_id": "example-log"}
+  - match: { hits.hits.0._source.message: "this is an error log" }
+  - match: { hits.hits.0._source.added-in-pipeline-before-first-reroute: true }
+  - match: { hits.hits.0._source.added-in-pipeline-before-second-reroute: true }
+
+---
+"Test pipeline run after reroute":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "added-in-pipeline-before-reroute",
+                  "value": true
+                }
+              },
+              {
+                "reroute" : {
+                  "destination": "index-2"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-2"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "added-in-pipeline-after-reroute",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      indices.create:
+        index: index-1
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-1"
+  - match: { acknowledged: true }
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-2"
+  - match: { acknowledged: true }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "index-1", "_id": "1" }}'
+          - '{"existing-field": true}'
+  - do:
+      indices.refresh:
+        index: [index-2]
+  - do:
+      get:
+        index: index-2
+        id: "1"
+  - match: { _source.existing-field : true }
+  - match: { _source.added-in-pipeline-before-reroute : true }
+  - match: { _source.added-in-pipeline-after-reroute : true }
+
+---
+"Test data stream with lazy rollover obtains pipeline from template":
+  # This test starts with chain of reroutes, from data-stream-1, to data-stream-2, to data-stream-3
+  # We then add higher priority templates that remove the reroute processors. Then we show that
+  # after a lazy rollover on data-stream-2, a document written to data-stream-1 still gets rerouted
+  # to data-steam-2, but not on to data-stream-3. Finally, after a lazy rollover on data-stream-1
+  # causes the new template to also take effect on data-stream-1, and the last write goes directly
+  # into data-stream-1. Multiple reroute steps are tested because pipeline resolution using a
+  # different code path for initial index and indices after a reroute.
+
+  # start with pipeline that reroutes from ds-1 to ds-2
+  - do:
+      ingest.put_pipeline:
+        id: "reroute-1"
+        body: >
+          {
+            "processors": [
+              {
+                "reroute" : {"destination": "data-stream-2"}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # and pipeline that reroutes from ds-2 to ds-3
+  - do:
+      ingest.put_pipeline:
+        id: "reroute-2"
+        body: >
+          {
+            "processors": [
+              {
+                "reroute" : {"destination": "data-stream-3"}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # set pipelines in templates
+  - do:
+      indices.put_index_template:
+        name: template-1
+        body:
+          index_patterns: [ "data-stream-1"]
+          priority: 1
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "reroute-1"
+  - match: { acknowledged: true }
+  - do:
+      indices.put_index_template:
+        name: template-2
+        body:
+          index_patterns: [ "data-stream-2"]
+          priority: 1
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "reroute-2"
+  - match: { acknowledged: true }
+  - do:
+      indices.put_index_template:
+        name: template_3
+        body:
+          index_patterns: [ "data-stream-3" ]
+          priority: 1
+          data_stream: { }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-1
+  - match: { acknowledged: true }
+  - do:
+      indices.create_data_stream:
+        name: data-stream-2
+  - match: { acknowledged: true }
+  - do:
+      indices.create_data_stream:
+        name: data-stream-3
+  - match: { acknowledged: true }
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 1
+  - do:
+      indices.refresh:
+        index: data-stream-3
+
+  # document is rerouted to ds-3
+  - do:
+      search:
+        index: data-stream-3
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.some-field: 1 }
+
+  # add higher priority templates without reroute processors
+  - do:
+      indices.put_index_template:
+        name: template_4
+        body:
+          index_patterns: [ "data-stream-1" ]
+          priority: 2 # higher priority
+          data_stream: { }
+  - match: { acknowledged: true }
+  - do:
+      indices.put_index_template:
+        name: template_5
+        body:
+          index_patterns: [ "data-stream-2" ]
+          priority: 2 # higher priority
+          data_stream: { }
+  - match: { acknowledged: true }
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 2
+  - do:
+      indices.refresh:
+        index: data-stream-3
+
+  # still rerouted because ds-1 and ds-2 rolled over
+  - do:
+      search:
+        index: data-stream-3
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 2 }
+
+  # perform lazy rollover on ds-2
+  - do:
+      indices.rollover:
+        alias: data-stream-2
+        lazy: true
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 3
+  - do:
+      indices.refresh:
+        index: data-stream-2
+
+  # written to ds-2, as rerouted to ds-2, but not on to ds-3
+  - do:
+      search:
+        index: data-stream-2
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.some-field: 3 }
+
+  # perform lazy rollover on 1
+  - do:
+      indices.rollover:
+        alias: data-stream-1
+        lazy: true
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 4
+  - do:
+      indices.refresh:
+        index: data-stream-1
+
+  # written to ds-1, as not rerouted to ds-2
+  - do:
+      search:
+        index: data-stream-1
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.some-field: 4 }
+
+---
+"Test remove then add reroute processor with and without lazy rollover":
+  # start with pipeline that reroutes from ds-1 to ds-2
+  - do:
+      ingest.put_pipeline:
+        id: "reroute-1"
+        body: >
+          {
+            "processors": [
+              {
+                "reroute" : {"destination": "data-stream-2"}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+ # set pipelines in templates
+  - do:
+      indices.put_index_template:
+        name: template-1
+        body:
+          index_patterns: [ "data-stream-1"]
+          priority: 1
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "reroute-1"
+  - match: { acknowledged: true }
+  - do:
+      indices.put_index_template:
+        name: template_2
+        body:
+          index_patterns: [ "data-stream-2" ]
+          priority: 1
+          data_stream: { }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-1
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-2
+  - match: { acknowledged: true }
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 1
+  - do:
+      indices.refresh:
+        index: data-stream-2
+
+  # document is rerouted to ds-2
+  - do:
+      search:
+        index: data-stream-2
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+
+  # add higher priority templates without reroute processors
+  - do:
+      indices.put_index_template:
+        name: template_3
+        body:
+          index_patterns: [ "data-stream-1" ]
+          priority: 2 # higher priority
+          data_stream: { }
+  - match: { acknowledged: true }
+
+  # perform lazy rollover on ds-2
+  - do:
+      indices.rollover:
+        alias: data-stream-1
+        lazy: true
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 2
+  - do:
+      indices.refresh:
+        index: data-stream-1
+
+  # written to ds-1, as not rerouted to ds-2
+  - do:
+      search:
+        index: data-stream-1
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+
+  # add another higher priority templates with reroute processors
+  - do:
+      indices.put_index_template:
+        name: template-3
+        body:
+          index_patterns: [ "data-stream-1" ]
+          priority: 3
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "reroute-1"
+  - match: { acknowledged: true }
+
+  # don't do a lazy rollover
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 3
+  - do:
+      indices.refresh:
+        index: data-stream-1
+
+  # because no lazy rollover, still no reroute processor
+  - do:
+      search:
+        index: data-stream-1
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 2 }

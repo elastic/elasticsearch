@@ -42,21 +42,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
@@ -64,20 +62,17 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.net.ssl.HostnameVerifier;
 
 public class HttpClient implements Closeable {
 
@@ -118,9 +113,7 @@ public class HttpClient implements Closeable {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
-        SslConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
-        HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
+        SSLConnectionSocketFactory factory = sslService.profile(SETTINGS_SSL_PREFIX).connectionSocketFactory();
         clientBuilder.setSSLSocketFactory(factory);
 
         final SocketConfig.Builder socketConfigBuilder = SocketConfig.custom();
@@ -136,6 +129,12 @@ public class HttpClient implements Closeable {
         clientBuilder.evictExpiredConnections();
         clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+        /*
+         * This client will potentially be used by multiple users. We do not want it to keep any state like cookies, because that will
+         * result in that state unexpectedly being shared across all users.
+         */
+        clientBuilder.disableCookieManagement();
+
         clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
             @Override
             public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response, HttpContext context)
@@ -229,6 +228,7 @@ public class HttpClient implements Closeable {
         }
 
         RequestConfig.Builder config = RequestConfig.custom();
+        validateProxyAgainstWhitelist(request.proxy);
         setProxy(config, request, settingsProxy);
         HttpClientContext localContext = HttpClientContext.create();
         // auth
@@ -265,21 +265,26 @@ public class HttpClient implements Closeable {
 
         internalRequest.setConfig(config.build());
 
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(httpHost, internalRequest, localContext))) {
+        try (CloseableHttpResponse response = client.execute(httpHost, internalRequest, localContext)) {
             // headers
             Header[] headers = response.getAllHeaders();
-            Map<String, String[]> responseHeaders = new HashMap<>(headers.length);
+            Map<String, String[]> responseHeaders = Maps.newMapWithExpectedSize(headers.length);
+            /*
+             * Headers are not case sensitive, so in the following loop we lowercase all of them. We also roll up all values for the same
+             * case-insensitive header into a list.
+             */
             for (Header header : headers) {
-                if (responseHeaders.containsKey(header.getName())) {
-                    String[] old = responseHeaders.get(header.getName());
+                String lowerCaseHeaderName = header.getName().toLowerCase(Locale.ROOT);
+                if (responseHeaders.containsKey(lowerCaseHeaderName)) {
+                    String[] old = responseHeaders.get(lowerCaseHeaderName);
                     String[] values = new String[old.length + 1];
 
                     System.arraycopy(old, 0, values, 0, old.length);
                     values[values.length - 1] = header.getValue();
 
-                    responseHeaders.put(header.getName(), values);
+                    responseHeaders.put(lowerCaseHeaderName, values);
                 } else {
-                    responseHeaders.put(header.getName(), new String[] { header.getValue() });
+                    responseHeaders.put(lowerCaseHeaderName, new String[] { header.getValue() });
                 }
             }
 
@@ -323,7 +328,7 @@ public class HttpClient implements Closeable {
      *
      * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
-    private HttpProxy getProxyFromSettings(Settings settings) {
+    private static HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings)
             ? Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings))
@@ -366,7 +371,7 @@ public class HttpClient implements Closeable {
                     String part = pathParts[i];
                     boolean isLast = i == pathParts.length - 1;
                     if (Strings.isEmpty(part) == false) {
-                        unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
+                        unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8));
                         // if the passed URL ends with a slash, adding an empty string to the
                         // unescaped paths will ensure the slash will be added back
                         boolean appendSlash = isPathEndsWithSlash && isLast;
@@ -385,7 +390,7 @@ public class HttpClient implements Closeable {
                 .build();
             final HttpHost httpHost = URIUtils.extractHost(uri);
             return new Tuple<>(httpHost, uri);
-        } catch (URISyntaxException | UnsupportedEncodingException e) {
+        } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
     }
@@ -398,7 +403,7 @@ public class HttpClient implements Closeable {
     /**
      * Helper class to have all HTTP methods except HEAD allow for an body, including GET
      */
-    final class HttpMethodWithEntity extends HttpEntityEnclosingRequestBase {
+    static final class HttpMethodWithEntity extends HttpEntityEnclosingRequestBase {
 
         private final String methodName;
 
@@ -418,6 +423,26 @@ public class HttpClient implements Closeable {
         return whitelistAutomaton.get().run(host);
     }
 
+    /**
+     * Validates that a per-request proxy host is whitelisted. System-wide proxies configured via {@code xpack.http.proxy.host} are exempt
+     */
+    private void validateProxyAgainstWhitelist(HttpProxy proxy) {
+        if (proxy == null || proxy.equals(HttpProxy.NO_PROXY)) {
+            return;
+        }
+        HttpHost proxyHost = new HttpHost(proxy.getHost(), proxy.getPort(), proxy.getScheme() != null ? proxy.getScheme().scheme() : null);
+        if (isWhitelisted(proxyHost.toURI()) == false) {
+            throw new ElasticsearchException(
+                "proxy host ["
+                    + proxyHost.toURI()
+                    + "] is not whitelisted in setting ["
+                    + HttpSettings.HOSTS_WHITELIST.getKey()
+                    + "], "
+                    + "will not connect"
+            );
+        }
+    }
+
     private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
 
     // visible for testing
@@ -429,7 +454,7 @@ public class HttpClient implements Closeable {
         }
 
         Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
-        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        whiteListAutomaton = Operations.determinize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(whiteListAutomaton);
     }
 }

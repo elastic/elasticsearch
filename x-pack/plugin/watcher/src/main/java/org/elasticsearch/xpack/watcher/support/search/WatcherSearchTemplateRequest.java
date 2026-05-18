@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -42,6 +43,10 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
     private final Script template;
     private final BytesReference searchSource;
     private boolean restTotalHitsAsInt = true;
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(WatcherSearchTemplateRequest.class);
+    static final String TYPES_DEPRECATION_MESSAGE =
+        "[types removal] Specifying empty types array in a watcher search request is deprecated.";
 
     public WatcherSearchTemplateRequest(
         String[] indices,
@@ -167,7 +172,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         BytesReference searchSource = null;
         Script template = null;
-        // TODO this is to retain BWC compatibility in 7.0 and can be removed for 8.0
         boolean totalHitsAsInt = true;
 
         XContentParser.Token token;
@@ -268,7 +272,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
+        return Objects.hash(Arrays.hashCode(indices), searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
     }
 
     private static final ParseField INDICES_FIELD = new ParseField("indices");

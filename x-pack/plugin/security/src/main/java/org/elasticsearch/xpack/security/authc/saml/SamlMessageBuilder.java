@@ -18,7 +18,6 @@ import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Abstract base class for object that build some sort of {@link org.opensaml.saml.common.SAMLObject}
@@ -46,8 +45,8 @@ public abstract class SamlMessageBuilder {
             .map(rd -> (IDPSSODescriptor) rd)
             .flatMap(idp -> selector.apply(idp).stream())
             .filter(endp -> binding.equals(endp.getBinding()))
-            .map(sso -> sso.getLocation())
-            .collect(Collectors.toList());
+            .map(Endpoint::getLocation)
+            .toList();
         if (locations.isEmpty()) {
             return null;
         }
@@ -68,7 +67,7 @@ public abstract class SamlMessageBuilder {
         return issuer;
     }
 
-    protected String buildId() {
+    protected static String buildId() {
         // 20 bytes (160 bits) of randomness as recommended by the SAML spec
         return SamlUtils.generateSecureNCName(20);
     }

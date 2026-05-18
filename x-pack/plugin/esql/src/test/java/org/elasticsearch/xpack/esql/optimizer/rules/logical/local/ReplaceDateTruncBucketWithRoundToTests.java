@@ -1,0 +1,309 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
+
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestOptimizer;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLocalLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogicalPlanOptimizerTests {
+
+    // Key is the predicate,
+    // Value is the number of items in the round_to function, if the number of item is 0, that means the min/max in predicates do not
+    // overlap with SearchStats, so the substitution does not happen.
+    private static final Map<String, Integer> predicatesWithDateTruncBucket = new HashMap<>(
+        Map.ofEntries(
+            Map.entry("", 4),
+            Map.entry(" | where hire_date == \"2023-10-22\" ", 1),
+            Map.entry(" | where hire_date == \"2023-10-19\" ", 0),
+            Map.entry(" | where hire_date >= \"2023-10-20\" ", 4),
+            Map.entry(" | where hire_date >= \"2023-10-22\" ", 2),
+            Map.entry(" | where hire_date >  \"2023-10-24\" ", 0),
+            Map.entry(" | where hire_date <  \"2023-10-24\" ", 4),
+            Map.entry(" | where hire_date <= \"2023-10-22\" ", 3),
+            Map.entry(" | where hire_date <= \"2023-10-19\" ", 0),
+            Map.entry(" | where hire_date >= \"2023-10-20\" and hire_date <= \"2023-10-24\" ", 4),
+            Map.entry(" | where hire_date >= \"2023-10-21\" and hire_date <= \"2023-10-23\" ", 3),
+            Map.entry(" | where hire_date >= \"2023-10-24\" and hire_date <= \"2023-10-31\" ", 0)
+        )
+    );
+
+    private static final Map<String, Integer> evalRenamePredicatesWithDateTruncBucket = new HashMap<>(
+        Map.ofEntries(
+            // ReplaceAliasingEvalWithProject replaces x with hire_date so that the DateTrunc can be transformed to RoundTo
+            Map.entry(" | eval x = hire_date ", 4),
+            // DateTrunc cannot be transformed to RoundTo if it references an expression
+            Map.entry(" | eval x = hire_date + 1 year ", -1),
+            // PushDownEval replaces the reference(x) in DateTrunc with the corresponding field hire_date
+            Map.entry(" | rename hire_date as x ", 4),
+            Map.entry(" | rename hire_date as a, a as x ", 4),
+            Map.entry(" | rename hire_date as x, x as hire_date ", 4),
+            Map.entry(" | eval a = hire_date | rename a as x ", 4),
+            Map.entry(" | eval x = hire_date | where x >= \"2023-10-22\" ", 2),
+            Map.entry(" | rename hire_date as x | where x >= \"2023-10-20\" ", 4),
+            Map.entry(" | rename hire_date as a, a as x | where x <= \"2023-10-22\" ", 3),
+            Map.entry(" | rename hire_date as x, x as hire_date | where hire_date >= \"2023-10-21\" and hire_date <= \"2023-10-23\" ", 3),
+            Map.entry(" | eval a = hire_date | rename a as x | where x <= \"2023-10-22\" ", 3)
+        )
+    );
+
+    // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
+    private static final SearchStats searchStats = searchStats("hire_date", 1697804103360L, 1698069301543L);
+
+    public void testSubstituteDateTruncInEvalWithRoundTo() {
+        for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | sort hire_date
+                | eval x = date_trunc(1 day, hire_date)
+                | keep emp_no, hire_date, x
+                {}
+                | limit 5
+                """, predicateString);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            Project project = as(localPlan, Project.class);
+            TopN topN = as(project.child(), TopN.class);
+            Eval eval = as(topN.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(1, fields.size());
+            Alias a = fields.get(0);
+            assertEquals("x", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = predicateString.isEmpty() ? eval : eval.child();
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    public void testSubstituteDateTruncInAggWithRoundTo() {
+        for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                {}
+                | stats count(*) by x = date_trunc(1 day, hire_date)
+                """, predicateString);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(1, fields.size());
+            Alias a = fields.get(0);
+            assertEquals("x", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = predicateString.isEmpty() ? eval : eval.child();
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    public void testSubstituteBucketInAggWithRoundTo() {
+        for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                {}
+                | stats count(*) by x = bucket(hire_date, 1 day)
+                """, predicateString);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(1, fields.size());
+            Alias a = fields.get(0);
+            assertEquals("x", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = predicateString.isEmpty() ? eval : eval.child();
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    public void testSubstituteDateTruncInEvalWithRoundToWithEvalRename() {
+        for (Map.Entry<String, Integer> predicate : evalRenamePredicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            boolean hasWhere = predicateString.contains("where");
+            boolean renameBack = predicateString.contains("rename hire_date as x, x as hire_date");
+            boolean dateTruncOnExpression = predicateString.contains("hire_date + 1 year");
+            String fieldName = renameBack ? "hire_date" : "x";
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | sort hire_date
+                {}
+                | eval y = date_trunc(1 day, {})
+                | keep emp_no, {}, y
+                | limit 5
+                """, predicateString, fieldName, fieldName);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            Project project = as(localPlan, Project.class);
+            TopN topN = as(project.child(), TopN.class);
+            Eval eval = as(topN.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
+            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            assertEquals("y", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = hasWhere ? eval.child() : eval;
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    public void testSubstituteBucketInAggWithRoundToWithEvalRename() {
+        for (Map.Entry<String, Integer> predicate : evalRenamePredicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            boolean hasWhere = predicateString.contains("where");
+            boolean renameBack = predicateString.contains("rename hire_date as x, x as hire_date");
+            boolean dateTruncOnExpression = predicateString.contains("hire_date + 1 year");
+            String fieldName = renameBack ? "hire_date" : "x";
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                {}
+                | stats count(*) by y = bucket({}, 1 day)
+                """, predicateString, fieldName);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
+            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            assertEquals("y", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = hasWhere ? eval.child() : eval;
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    public void testSubstituteDateTruncInAggWithRoundToWithEvalRename() {
+        for (Map.Entry<String, Integer> predicate : evalRenamePredicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            boolean hasWhere = predicateString.contains("where");
+            boolean renameBack = predicateString.contains("rename hire_date as x, x as hire_date");
+            boolean dateTruncOnExpression = predicateString.contains("hire_date + 1 year");
+            String fieldName = renameBack ? "hire_date" : "x";
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                {}
+                | stats count(*) by y = date_trunc(1 day, {})
+                """, predicateString, fieldName);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
+            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            assertEquals("y", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = hasWhere ? eval.child() : eval;
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    private void verifySubstitution(Alias a, int roundToPointsSize) {
+        Expression e = a.child();
+        if (roundToPointsSize > 0) {
+            RoundTo roundTo = as(e, RoundTo.class);
+            FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
+            assertEquals(roundToPointsSize, roundTo.points().size());
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
+        } else if (roundToPointsSize == 0) {
+            // Predicates exclude all rounding points so DateTrunc/Bucket was kept as-is
+            FieldAttribute fa;
+            if (e instanceof DateTrunc dateTrunc) {
+                fa = as(dateTrunc.field(), FieldAttribute.class);
+            } else if (e instanceof Bucket bucket) {
+                fa = as(bucket.field(), FieldAttribute.class);
+            } else {
+                fail(e.getClass() + " is not supported");
+                return;
+            }
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
+        } else {
+            // DateTrunc/Bucket applied to a non-field expression so substitution was not possible
+            if (e instanceof DateTrunc dateTrunc) {
+                assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
+            } else if (e instanceof Bucket bucket) {
+                assertTrue(bucket.field() instanceof ReferenceAttribute);
+            } else {
+                fail(e.getClass() + " is not supported");
+            }
+        }
+    }
+
+    private static SearchStats searchStats(String field, long min, long max) {
+        return new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(field, min), Map.of(field, max));
+    }
+
+    /**
+     * TStep (upper-bound) buckets are NOT substituted with a {@link RoundTo}: ceiling lookup needs a
+     * specialized RoundTo path that does not exist yet, so the rule keeps the {@link Bucket} so the
+     * eval path uses the wrapped {@code Rounding.Prepared} directly.
+     */
+    public void testRightClosedBucketIsNotSubstituted() {
+        String query = """
+            FROM sample_data
+            | WHERE @timestamp >= "2023-10-23T12:00:00Z" AND @timestamp <= "2023-10-23T14:00:00Z"
+            | STATS count(*) BY x = TSTEP(10 minutes, "2023-10-23T12:15:00Z", "2023-10-23T14:00:00Z")
+            """;
+        TestOptimizer analyzer = EsqlTestUtils.optimizer().addSampleData();
+        SearchStats stats = searchStats("@timestamp", 1698063303360L, 1698069301543L);
+        LogicalPlan localPlan = localPlan(analyzer.coordinatorPlan(query), TEST_CFG, stats);
+        Limit limit = as(localPlan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        Eval eval = as(aggregate.child(), Eval.class);
+        List<Alias> fields = eval.fields();
+        assertEquals(1, fields.size());
+        Alias a = fields.get(0);
+        assertEquals("x", a.name());
+        Bucket bucket = as(a.child(), Bucket.class);
+        FieldAttribute fa = as(bucket.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        assertEquals(DATETIME, fa.dataType());
+    }
+}

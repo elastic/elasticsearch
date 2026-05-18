@@ -7,12 +7,25 @@
 package org.elasticsearch.xpack.ml.notifications;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.ml.notifications.DataFrameAnalyticsAuditMessage;
 
 public class DataFrameAnalyticsAuditor extends AbstractMlAuditor<DataFrameAnalyticsAuditMessage> {
 
-    public DataFrameAnalyticsAuditor(Client client, ClusterService clusterService) {
-        super(client, DataFrameAnalyticsAuditMessage::new, clusterService);
+    private final boolean includeNodeInfo;
+
+    public DataFrameAnalyticsAuditor(
+        Client client,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean includeNodeInfo
+    ) {
+        super(client, DataFrameAnalyticsAuditMessage::new, clusterService, indexNameExpressionResolver);
+        this.includeNodeInfo = includeNodeInfo;
+    }
+
+    public boolean includeNodeInfo() {
+        return includeNodeInfo;
     }
 }

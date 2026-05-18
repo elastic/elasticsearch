@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -54,7 +54,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
-        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
+        this.processConnectTimeout = processConnectTimeout.toDuration();
     }
 
     @Override
@@ -116,7 +116,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         ProcessPipes processPipes
     ) {
         AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
-            env::tmpFile,
+            env::tmpDir,
             nativeController,
             processPipes,
             analyticsProcessConfig,

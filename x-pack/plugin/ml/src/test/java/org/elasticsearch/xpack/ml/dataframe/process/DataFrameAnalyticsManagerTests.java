@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
+import static org.elasticsearch.xpack.ml.DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -34,7 +35,8 @@ public class DataFrameAnalyticsManagerTests extends ESTestCase {
             mock(DataFrameAnalyticsAuditor.class),
             mock(IndexNameExpressionResolver.class),
             mock(ResultsPersisterService.class),
-            mock(ModelLoadingService.class)
+            mock(ModelLoadingService.class),
+            ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS
         );
         assertThat(manager.isNodeShuttingDown(), is(false));
 

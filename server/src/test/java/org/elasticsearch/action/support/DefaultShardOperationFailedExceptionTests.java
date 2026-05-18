@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -35,7 +36,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -172,8 +172,8 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
                 // Serialising and deserialising an exception seems to remove the "java.base/" part from the stack trace
                 // in the `reason` property, so we don't compare it directly. Instead, check that the first lines match,
                 // and that the stack trace has the same number of lines.
-                List<String> expectedReasonLines = exception.reason().lines().collect(Collectors.toList());
-                List<String> actualReasonLines = deserializedException.reason().lines().collect(Collectors.toList());
+                List<String> expectedReasonLines = exception.reason().lines().toList();
+                List<String> actualReasonLines = deserializedException.reason().lines().toList();
                 assertThat(actualReasonLines.get(0), equalTo(expectedReasonLines.get(0)));
                 assertThat("Exceptions have a different number of lines", actualReasonLines, hasSize(expectedReasonLines.size()));
 

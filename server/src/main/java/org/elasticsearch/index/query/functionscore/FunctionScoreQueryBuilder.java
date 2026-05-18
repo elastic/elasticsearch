@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
@@ -24,6 +27,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -137,7 +141,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public FunctionScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        filterFunctionBuilders = in.readList(FilterFunctionBuilder::new).toArray(new FilterFunctionBuilder[0]);
+        filterFunctionBuilders = in.readArray(FilterFunctionBuilder::new, FilterFunctionBuilder[]::new);
         maxBoost = in.readFloat();
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
@@ -147,7 +151,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(query);
-        out.writeList(Arrays.asList(filterFunctionBuilders));
+        out.writeCollection(Arrays.asList(filterFunctionBuilders));
         out.writeFloat(maxBoost);
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);
@@ -238,15 +242,19 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         builder.endArray();
 
-        builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        if (scoreMode != DEFAULT_SCORE_MODE) {
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        }
         if (boostMode != null) {
             builder.field(BOOST_MODE_FIELD.getPreferredName(), boostMode.name().toLowerCase(Locale.ROOT));
         }
-        builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        if (maxBoost != FunctionScoreQuery.DEFAULT_MAX_BOOST) {
+            builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        }
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -287,22 +295,39 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         ScoreFunction[] filterFunctions = new ScoreFunction[filterFunctionBuilders.length];
         int i = 0;
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
             ScoreFunction scoreFunction = filterFunctionBuilder.getScoreFunction().toFunction(context);
             if (filterFunctionBuilder.getFilter().getName().equals(MatchAllQueryBuilder.NAME)) {
+                if (filterFunctionBuilder.getFilter().queryName() != null) {
+                    String queryName = filterFunctionBuilder.getFilter().queryName();
+                    Query namedScoreQuery = filterFunctionBuilder.toNamedScoreQuery(context, scoreFunction);
+                    if (context.rewriteToNamedQuery()) {
+                        namedScoreQuery = NamedMatches.wrapQuery(queryName, namedScoreQuery);
+                    }
+                    context.addNamedQuery(queryName, namedScoreQuery);
+                }
                 filterFunctions[i++] = scoreFunction;
             } else {
                 Query filter = filterFunctionBuilder.getFilter().toQuery(context);
+                if (filterFunctionBuilder.getFilter().queryName() != null) {
+                    String queryName = filterFunctionBuilder.getFilter().queryName();
+                    Query namedScoreQuery = filterFunctionBuilder.toNamedScoreQuery(filter, scoreFunction);
+                    if (context.rewriteToNamedQuery()) {
+                        namedScoreQuery = NamedMatches.wrapQuery(queryName, namedScoreQuery);
+                    }
+                    context.addNamedQuery(queryName, namedScoreQuery);
+                }
                 filterFunctions[i++] = new FunctionScoreQuery.FilterScoreFunction(filter, scoreFunction);
             }
         }
 
-        Query query = this.query.toQuery(context);
+        Query query = this.query.toQuery(context, queryVisitor);
         if (query == null) {
-            query = new MatchAllDocsQuery();
+            query = Queries.ALL_DOCS_INSTANCE;
+            query.visit(queryVisitor);
         }
 
         CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;
@@ -321,14 +346,20 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * that match the given filter.
      */
     public static class FilterFunctionBuilder implements ToXContentObject, Writeable {
+        public static final TransportVersion FILTER_FUNCTION_NAME = TransportVersion.fromName("filter_function_name");
         private final QueryBuilder filter;
         private final ScoreFunctionBuilder<?> scoreFunction;
+        private final String name;
 
         public FilterFunctionBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder) {
             this(new MatchAllQueryBuilder(), scoreFunctionBuilder);
         }
 
         public FilterFunctionBuilder(QueryBuilder filter, ScoreFunctionBuilder<?> scoreFunction) {
+            this(filter, null, scoreFunction);
+        }
+
+        public FilterFunctionBuilder(QueryBuilder filter, String name, ScoreFunctionBuilder<?> scoreFunction) {
             if (filter == null) {
                 throw new IllegalArgumentException("function_score: filter must not be null");
             }
@@ -337,6 +368,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             }
             this.filter = filter;
             this.scoreFunction = scoreFunction;
+            this.name = name;
+            if (this.filter != null && this.name != null) {
+                this.filter.queryName(this.name);
+            }
         }
 
         /**
@@ -345,12 +380,20 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         public FilterFunctionBuilder(StreamInput in) throws IOException {
             filter = in.readNamedWriteable(QueryBuilder.class);
             scoreFunction = in.readNamedWriteable(ScoreFunctionBuilder.class);
+            if (in.getTransportVersion().supports(FILTER_FUNCTION_NAME)) {
+                name = in.readOptionalString();
+            } else {
+                name = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(filter);
             out.writeNamedWriteable(scoreFunction);
+            if (out.getTransportVersion().supports(FILTER_FUNCTION_NAME)) {
+                out.writeOptionalString(name);
+            }
         }
 
         public QueryBuilder getFilter() {
@@ -361,19 +404,42 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             return scoreFunction;
         }
 
+        public String getName() {
+            return name;
+        }
+
+        void applyNameToFilter() {
+            filter.queryName(name);
+        }
+
+        Query toNamedScoreQuery(SearchExecutionContext context, ScoreFunction scoreFunction) throws IOException {
+            if (name != null) {
+                filter.queryName(name);
+            }
+            Query filterQuery = filter.getName().equals(MatchAllQueryBuilder.NAME) ? Queries.ALL_DOCS_INSTANCE : filter.toQuery(context);
+            return toNamedScoreQuery(filterQuery, scoreFunction);
+        }
+
+        Query toNamedScoreQuery(Query filterQuery, ScoreFunction scoreFunction) {
+            return new FunctionScoreQuery(filterQuery, scoreFunction, CombineFunction.REPLACE, null, FunctionScoreQuery.DEFAULT_MAX_BOOST);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(FILTER_FIELD.getPreferredName());
             filter.toXContent(builder, params);
             scoreFunction.toXContent(builder, params);
+            if (name != null) {
+                builder.field(NAME_FIELD.getPreferredName(), name);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(filter, scoreFunction);
+            return Objects.hash(filter, name, scoreFunction);
         }
 
         @Override
@@ -385,13 +451,15 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 return false;
             }
             FilterFunctionBuilder that = (FilterFunctionBuilder) obj;
-            return Objects.equals(this.filter, that.filter) && Objects.equals(this.scoreFunction, that.scoreFunction);
+            return Objects.equals(this.filter, that.filter)
+                && Objects.equals(this.scoreFunction, that.scoreFunction)
+                && Objects.equals(this.name, that.name);
         }
 
         public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
             QueryBuilder rewrite = filter.rewrite(context);
             if (rewrite != filter) {
-                return new FilterFunctionBuilder(rewrite, scoreFunction);
+                return new FilterFunctionBuilder(rewrite, name, scoreFunction);
             }
             return this;
         }
@@ -444,7 +512,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         boolean singleFunctionFound = false;
         String singleFunctionName = null;
         List<FunctionScoreQueryBuilder.FilterFunctionBuilder> filterFunctionBuilders = new ArrayList<>();
-
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -581,6 +648,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             QueryBuilder filter = null;
             ScoreFunctionBuilder<?> scoreFunction = null;
+            String name = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(
@@ -611,6 +679,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     } else if (token.isValue()) {
                         if (WEIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             functionWeight = parser.floatValue();
+                        } else if (NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            name = parser.text();
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -639,8 +709,13 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     NAME
                 );
             }
-            filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction));
+            filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, name, scoreFunction));
         }
         return currentFieldName;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

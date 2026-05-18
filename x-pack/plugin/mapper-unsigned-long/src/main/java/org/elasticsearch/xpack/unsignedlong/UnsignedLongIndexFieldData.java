@@ -8,19 +8,26 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
     private final IndexNumericFieldData signedLongIFD;
-    protected final ToScriptField<SortedNumericDocValues> toScriptField;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+    protected final IndexType indexType;
 
-    UnsignedLongIndexFieldData(IndexNumericFieldData signedLongFieldData, ToScriptField<SortedNumericDocValues> toScriptField) {
+    UnsignedLongIndexFieldData(
+        IndexNumericFieldData signedLongFieldData,
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+        IndexType indexType
+    ) {
         this.signedLongIFD = signedLongFieldData;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexType = indexType;
     }
 
     @Override
@@ -35,17 +42,22 @@ public class UnsignedLongIndexFieldData extends IndexNumericFieldData {
 
     @Override
     public LeafNumericFieldData load(LeafReaderContext context) {
-        return new UnsignedLongLeafFieldData(signedLongIFD.load(context), toScriptField);
+        return new UnsignedLongLeafFieldData(signedLongIFD.load(context), toScriptFieldFactory);
     }
 
     @Override
     public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new UnsignedLongLeafFieldData(signedLongIFD.loadDirect(context), toScriptField);
+        return new UnsignedLongLeafFieldData(signedLongIFD.loadDirect(context), toScriptFieldFactory);
     }
 
     @Override
     protected boolean sortRequiresCustomComparator() {
         return false;
+    }
+
+    @Override
+    protected IndexType indexType() {
+        return indexType;
     }
 
     @Override

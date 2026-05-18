@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.annotations;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -67,22 +66,22 @@ public class AnnotationPersister {
     }
 
     public Builder bulkPersisterBuilder(String jobId) {
-        return new Builder(jobId);
+        return new Builder(jobId, () -> true);
+    }
+
+    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
+        return new Builder(jobId, shouldRetry);
     }
 
     public class Builder {
 
         private final String jobId;
         private BulkRequest bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
-        private Supplier<Boolean> shouldRetry = () -> true;
+        private final Supplier<Boolean> shouldRetry;
 
-        private Builder(String jobId) {
+        private Builder(String jobId, Supplier<Boolean> shouldRetry) {
             this.jobId = Objects.requireNonNull(jobId);
-        }
-
-        public Builder shouldRetry(Supplier<Boolean> shouldRetry) {
             this.shouldRetry = Objects.requireNonNull(shouldRetry);
-            return this;
         }
 
         public Builder persistAnnotation(Annotation annotation) {
@@ -94,7 +93,7 @@ public class AnnotationPersister {
             try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
                 bulkRequest.add(new IndexRequest().id(annotationId).source(xContentBuilder).setRequireAlias(true));
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising annotation", jobId), e);
+                logger.error(() -> "[" + jobId + "] Error serialising annotation", e);
             }
 
             if (bulkRequest.numberOfActions() >= bulkLimit) {

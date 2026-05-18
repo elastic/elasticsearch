@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -65,5 +66,18 @@ public class SphericalMercatorUtilTests extends ESTestCase {
         assertThat(mercatorRect.getMaxX(), Matchers.equalTo(lonToSphericalMercator(rect.getMaxX())));
         assertThat(mercatorRect.getMinY(), Matchers.equalTo(latToSphericalMercator(rect.getMinY())));
         assertThat(mercatorRect.getMaxY(), Matchers.equalTo(latToSphericalMercator(rect.getMaxY())));
+    }
+
+    public void testLatitudeExactMath() {
+        // check that the maths we are using are precise to 1mm from the strict maths
+        for (int i = 0; i < 10000; i++) {
+            double lat = randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, true);
+            assertEquals(lat + "", strictLatToSphericalMercator(lat), latToSphericalMercator(lat), 1e-3);
+        }
+    }
+
+    private static double strictLatToSphericalMercator(double lat) {
+        double y = Math.log(Math.tan((90 + Math.max(lat, Math.nextUp(-90.0))) * Math.PI / 360)) / (Math.PI / 180);
+        return y * SphericalMercatorUtils.MERCATOR_BOUNDS / 180;
     }
 }

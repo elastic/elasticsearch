@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
@@ -12,10 +13,11 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90Codec;
-import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * {@link PerFieldMapperCodec This Lucene codec} provides the default
@@ -25,41 +27,37 @@ import org.elasticsearch.index.mapper.MapperService;
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMapperCodec extends Lucene90Codec {
-    private final MapperService mapperService;
+public final class PerFieldMapperCodec extends Elasticsearch93Lucene104Codec {
 
-    private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
+    private final PerFieldFormatSupplier formatSupplier;
 
-    static {
-        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
-            : "PerFieldMapperCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
-    }
-
-    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService) {
+    public PerFieldMapperCodec(
+        Zstd814StoredFieldsFormat.Mode compressionMode,
+        MapperService mapperService,
+        BigArrays bigArrays,
+        ThreadPool threadPool
+    ) {
         super(compressionMode);
-        this.mapperService = mapperService;
+        this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool);
+        // If the below assertion fails, it is a sign that Lucene released a new codec. You must create a copy of the current Elasticsearch
+        // codec that delegates to this new Lucene codec, and make PerFieldMapperCodec extend this new Elasticsearch codec.
+        assert Codec.forName(Lucene.LATEST_CODEC).getClass() == delegate.getClass()
+            : "PerFieldMapperCodec must be on the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
-        if (format == null) {
-            return super.getPostingsFormatForField(field);
-        }
-        return format;
+        return formatSupplier.getPostingsFormatForField(field);
     }
 
     @Override
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-        KnnVectorsFormat format = mapperService.mappingLookup().getKnnVectorsFormatForField(field);
-        if (format == null) {
-            return super.getKnnVectorsFormatForField(field);
-        }
-        return format;
+        return formatSupplier.getKnnVectorsFormatForField(field);
     }
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        return docValuesFormat;
+        return formatSupplier.getDocValuesFormatForField(field);
     }
+
 }

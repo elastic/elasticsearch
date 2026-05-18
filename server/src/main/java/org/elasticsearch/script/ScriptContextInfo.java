@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -11,6 +12,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -100,7 +102,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         this.name = in.readString();
         this.execute = new ScriptMethodInfo(in);
         int numGetters = in.readInt();
-        Set<ScriptMethodInfo> getters = new HashSet<>(numGetters);
+        Set<ScriptMethodInfo> getters = Sets.newHashSetWithExpectedSize(numGetters);
         for (int i = 0; i < numGetters; i++) {
             getters.add(new ScriptMethodInfo(in));
         }
@@ -164,7 +166,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field(NAME_FIELD, name).startArray(METHODS_FIELD);
         execute.toXContent(builder, params);
-        for (ScriptMethodInfo method : getters.stream().sorted(Comparator.comparing(g -> g.name)).collect(Collectors.toList())) {
+        for (ScriptMethodInfo method : getters.stream().sorted(Comparator.comparing(g -> g.name)).toList()) {
             method.toXContent(builder, params);
         }
         return builder.endArray().endObject();

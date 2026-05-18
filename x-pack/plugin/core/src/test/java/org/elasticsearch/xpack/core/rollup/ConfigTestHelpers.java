@@ -74,25 +74,6 @@ public class ConfigTestHelpers {
         return new GroupConfig(dateHistogram, histogram, terms);
     }
 
-    public static RollupActionGroupConfig randomRollupActionGroupConfig(final Random random) {
-        RollupActionDateHistogramGroupConfig dateHistogram = randomRollupActionDateHistogramGroupConfig(random);
-        HistogramGroupConfig histogram = random.nextBoolean() ? randomHistogramGroupConfig(random) : null;
-        TermsGroupConfig terms = random.nextBoolean() ? randomTermsGroupConfig(random) : null;
-        return new RollupActionGroupConfig(dateHistogram, histogram, terms);
-    }
-
-    public static RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(final Random random) {
-        final String field = randomField(random);
-        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
-        if (random.nextBoolean()) {
-            return new RollupActionDateHistogramGroupConfig.FixedInterval(field, randomInterval(), timezone);
-        } else {
-            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
-            Collections.shuffle(units, random);
-            return new RollupActionDateHistogramGroupConfig.CalendarInterval(field, new DateHistogramInterval(units.get(0)), timezone);
-        }
-    }
-
     public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
         return randomDateHistogramGroupConfigWithField(random, randomField(random));
     }

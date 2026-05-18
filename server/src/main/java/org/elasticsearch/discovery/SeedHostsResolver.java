@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -38,7 +39,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver, SeedHostsProvider.HostsResolver {
     public static final Setting<Integer> DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING = Setting.intSetting(
@@ -91,7 +91,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         // create tasks to submit to the executor service; we will wait up to resolveTimeout for these tasks to complete
         final List<Callable<TransportAddress[]>> callables = hosts.stream()
             .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
-            .collect(Collectors.toList());
+            .toList();
         final SetOnce<List<Future<TransportAddress[]>>> futures = new SetOnce<>();
         final long startTimeNanos = transportService.getThreadPool().relativeTimeInNanos();
         try {
@@ -156,6 +156,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                 concurrentConnects,
                 60,
                 TimeUnit.SECONDS,
+                false,
                 threadFactory,
                 transportService.getThreadPool().getThreadContext()
             )
@@ -179,7 +180,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         }
 
         if (resolveInProgress.compareAndSet(false, true)) {
-            transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+            transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("failure when resolving unicast hosts list", e);

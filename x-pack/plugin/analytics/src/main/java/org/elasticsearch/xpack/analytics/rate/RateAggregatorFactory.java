@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -64,13 +65,19 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
             HistogramRateAggregator::new,
             true
         );
+        builder.register(
+            RateAggregationBuilder.REGISTRY_KEY,
+            Collections.singletonList(TimeSeriesValuesSourceType.COUNTER),
+            TimeSeriesRateAggregator::new,
+            true
+        );
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new AbstractRateAggregator(name, config, rateUnit, rateMode, context, parent, metadata) {
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         };

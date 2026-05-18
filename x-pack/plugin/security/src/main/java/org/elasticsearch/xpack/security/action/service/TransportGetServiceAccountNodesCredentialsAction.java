@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
-import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,9 +35,10 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
     GetServiceAccountCredentialsNodesRequest,
     GetServiceAccountCredentialsNodesResponse,
     GetServiceAccountCredentialsNodesRequest.Node,
-    GetServiceAccountCredentialsNodesResponse.Node> {
+    GetServiceAccountCredentialsNodesResponse.Node,
+    Void> {
 
-    private final FileServiceAccountTokenStore fileServiceAccountTokenStore;
+    private final NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore;
 
     @Inject
     public TransportGetServiceAccountNodesCredentialsAction(
@@ -45,20 +46,17 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        FileServiceAccountTokenStore fileServiceAccountTokenStore
+        NodeLocalServiceAccountTokenStore readOnlyServiceAccountTokenStore
     ) {
         super(
             GetServiceAccountNodesCredentialsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            GetServiceAccountCredentialsNodesRequest::new,
             GetServiceAccountCredentialsNodesRequest.Node::new,
-            ThreadPool.Names.SAME,
-            GetServiceAccountCredentialsNodesResponse.Node.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
-        this.fileServiceAccountTokenStore = fileServiceAccountTokenStore;
+        this.readOnlyServiceAccountTokenStore = readOnlyServiceAccountTokenStore;
     }
 
     @Override
@@ -86,7 +84,7 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
         Task task
     ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-        final List<TokenInfo> tokenInfos = fileServiceAccountTokenStore.findTokensFor(accountId);
+        final List<TokenInfo> tokenInfos = readOnlyServiceAccountTokenStore.findNodeLocalTokensFor(accountId);
         return new GetServiceAccountCredentialsNodesResponse.Node(
             clusterService.localNode(),
             tokenInfos.stream().map(TokenInfo::getName).toArray(String[]::new)

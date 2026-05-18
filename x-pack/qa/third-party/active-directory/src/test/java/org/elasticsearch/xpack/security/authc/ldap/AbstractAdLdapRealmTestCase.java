@@ -6,58 +6,66 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.fixtures.smb.SmbTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
-import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope.ONE_LEVEL;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope.SUB_TREE;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_GC_LDAPS_PORT;
-import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_GC_LDAP_PORT;
-import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_LDAPS_PORT;
-import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_LDAP_PORT;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * This test assumes all subclass tests will be of type SUITE.  It picks a random realm configuration for the tests, and
  * writes a group to role mapping file for each node.
  */
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase {
 
     public static final String XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL = "xpack.security.authc.realms.active_directory.external";
@@ -66,6 +74,9 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public static final String ASGARDIAN_INDEX = "gods";
     public static final String PHILANTHROPISTS_INDEX = "philanthropists";
     public static final String SECURITY_INDEX = "security";
+
+    @ClassRule
+    public static final SmbTestContainer smbFixture = new SmbTestContainer();
 
     private static final RoleMappingEntry[] AD_ROLE_MAPPING = new RoleMappingEntry[] {
         new RoleMappingEntry("SHIELD:  [ \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
@@ -170,20 +181,25 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     @Before
     public void setupRoleMappings() throws Exception {
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
 
-        List<String> content = getRoleMappingContent(RoleMappingEntry::getNativeContent);
+        List<String> content = getRoleMappingContent(RoleMappingEntry::nativeContent);
         if (content.isEmpty()) {
             return;
         }
-        Map<String, ActionFuture<PutRoleMappingResponse>> futures = new LinkedHashMap<>(content.size());
+        Map<String, ActionFuture<PutRoleMappingResponse>> futures = Maps.newLinkedHashMapWithExpectedSize(content.size());
         for (int i = 0; i < content.size(); i++) {
             final String name = "external_" + i;
-            final PutRoleMappingRequestBuilder builder = new PutRoleMappingRequestBuilder(client()).source(
-                name,
-                new BytesArray(content.get(i)),
-                XContentType.JSON
-            );
+            final PutRoleMappingRequestBuilder builder;
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    new BytesArray(content.get(i)),
+                    XContentType.JSON
+                )
+            ) {
+                builder = new PutRoleMappingRequestBuilder(client()).source(name, parser);
+            }
             futures.put(name, builder.execute());
         }
         for (String mappingName : futures.keySet()) {
@@ -206,7 +222,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     protected final void configureFileRoleMappings(Settings.Builder builder, String realmType, List<RoleMappingEntry> mappings) {
-        String content = getRoleMappingContent(RoleMappingEntry::getFileContent, mappings).stream().collect(Collectors.joining("\n"));
+        String content = getRoleMappingContent(RoleMappingEntry::fileContent, mappings).stream().collect(Collectors.joining("\n"));
         Path nodeFiles = createTempDir();
         String file = writeFile(nodeFiles, "role_mapping.yml", content);
         builder.put("xpack.security.authc.realms." + realmType + ".external.files.role_mapping", file);
@@ -246,10 +262,14 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     protected void assertAccessAllowed(String user, String index) throws IOException {
         Client client = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, userHeader(user, PASSWORD)));
-        IndexResponse indexResponse = client.prepareIndex(index)
+
+        // Force an authentication to populate the cache.
+        // We can safely re-try this if it fails, which makes it less likely that the index request will fail
+        authenticateUser(client, user, 3);
+
+        DocWriteResponse indexResponse = client.prepareIndex(index)
             .setSource(jsonBuilder().startObject().field("name", "value").endObject())
-            .execute()
-            .actionGet();
+            .get();
 
         assertEquals(
             "user " + user + " should have write access to index " + index,
@@ -265,12 +285,13 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     protected void assertAccessDenied(String user, String index) throws IOException {
+        final Client client = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, userHeader(user, PASSWORD)));
+        // Force an authentication to populate the cache.
+        // We can safely re-try this if it fails, which means we can be more confident that the index request failed for the correct reason
+        authenticateUser(client, user, 3);
+
         try {
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, userHeader(user, PASSWORD)))
-                .prepareIndex(index)
-                .setSource(jsonBuilder().startObject().field("name", "value").endObject())
-                .execute()
-                .actionGet();
+            client.prepareIndex(index).setSource(jsonBuilder().startObject().field("name", "value").endObject()).get();
             fail("Write access to index " + index + " should not be allowed for user " + user);
         } catch (ElasticsearchSecurityException e) {
             // expected
@@ -280,6 +301,22 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     protected static String userHeader(String username, String password) {
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
+    }
+
+    private void authenticateUser(Client client, String username, int retryCount) {
+        for (int i = 1; i <= retryCount; i++) {
+            try {
+                final AuthenticateResponse response = client.execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
+                    .actionGet(10, TimeUnit.SECONDS);
+                assertThat(response.authentication().getEffectiveSubject().getUser().principal(), is(username));
+                return;
+            } catch (ElasticsearchException e) {
+                if (i == retryCount) {
+                    throw e;
+                }
+                logger.info("Failed to authenticate [{}] - [{}], retrying", username, e.toString());
+            }
+        }
     }
 
     /**
@@ -304,24 +341,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         );
     }
 
-    static class RoleMappingEntry {
-        @Nullable
-        public final String fileContent;
-        @Nullable
-        public final String nativeContent;
-
-        RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
-            this.fileContent = fileContent;
-            this.nativeContent = nativeContent;
-        }
-
-        String getFileContent() {
-            return fileContent;
-        }
-
-        String getNativeContent() {
-            return nativeContent;
-        }
+    record RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
 
         RoleMappingEntry pickEntry(Supplier<Boolean> shouldPickFileContent) {
             if (nativeContent == null) {
@@ -335,26 +355,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             } else {
                 return new RoleMappingEntry(null, nativeContent);
             }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            final RoleMappingEntry that = (RoleMappingEntry) o;
-            return Objects.equals(this.fileContent, that.fileContent) && Objects.equals(this.nativeContent, that.nativeContent);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hashCode(fileContent);
-            result = 31 * result + Objects.hashCode(nativeContent);
-            return result;
         }
     }
 
@@ -370,12 +370,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                 .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".domain_name", ActiveDirectorySessionFactoryTests.AD_DOMAIN)
                 .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                 .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
-                .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".url", smbFixture.getAdLdapUrl())
                 .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
-                .put(getFullSettingKey("external", ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
-                .put(getFullSettingKey("external", ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
-                .put(getFullSettingKey("external", ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
-                .put(getFullSettingKey("external", ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
                 .build(),
             "active_directory"
         ),
@@ -384,7 +380,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             true,
             AD_ROLE_MAPPING,
             Settings.builder()
-                .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".url", smbFixture.getAdLdapUrl())
                 .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                 .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
                 .putList(
@@ -400,7 +396,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             true,
             AD_ROLE_MAPPING,
             Settings.builder()
-                .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".url", smbFixture.getAdLdapUrl())
                 .putList(
                     XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".user_dn_templates",
                     "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"

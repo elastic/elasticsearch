@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -11,8 +12,10 @@ package org.elasticsearch.test;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +27,9 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -78,18 +83,18 @@ public class MapMatcherTests extends ESTestCase {
             baz: <unexpected> but was <2>"""));
     }
 
-    void testExtraOk() {
+    public void testExtraOk() {
         assertMap(Map.of("foo", 1), matchesMap().extraOk());
     }
 
-    void testExtraOkMismatchSimple() {
+    public void testExtraOkMismatchSimple() {
         assertMismatch(Map.of("foo", 1), matchesMap().entry("bar", 1).extraOk(), equalTo("""
             a map containing
             bar: expected <1> but was <missing>
             foo: <1> unexpected but ok"""));
     }
 
-    void testExtraOkMismatchExtraMap() {
+    public void testExtraOkMismatchExtraMap() {
         assertMismatch(Map.of("foo", Map.of("i", 1)), matchesMap().entry("bar", 1).extraOk(), equalTo("""
             a map containing
             bar: expected <1> but was <missing>
@@ -393,6 +398,58 @@ public class MapMatcherTests extends ESTestCase {
             foo: <1>
             bar: a map containing
               baz: <0>"""));
+    }
+
+    public void testSubMatcherDescribeFails() {
+        assertMismatch(Map.of("foo", 2.0, "bar", 2), matchesMap().entry("foo", new TypeSafeMatcher<Object>() {
+            @Override
+            public void describeTo(Description description) {
+                throw new IllegalStateException("intentional failure");
+            }
+
+            @Override
+            protected boolean matchesSafely(Object o) {
+                return false;
+            }
+        }).entry("bar", 2), both(containsString("""
+            a map containing
+            foo: expected error describing <java.lang.IllegalStateException: intentional failure""")).and(containsString("""
+            bar: <2>""")));
+    }
+
+    public void testSubMatcherMismatchFails() {
+        assertMismatch(Map.of("foo", 2.0, "bar", 2), matchesMap().entry("foo", new TypeSafeMatcher<Object>() {
+            @Override
+            protected void describeMismatchSafely(Object item, Description mismatchDescription) {
+                throw new IllegalStateException("intentional failure");
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendValue("foo");
+            }
+
+            @Override
+            protected boolean matchesSafely(Object o) {
+                return false;
+            }
+        }).entry("bar", 2), both(containsString("""
+            a map containing
+            foo: expected "foo" but error describing <java.lang.IllegalStateException: intentional failure""")).and(containsString("""
+            bar: <2>""")));
+    }
+
+    public void testOptionalEntry() {
+        // optional entry absent
+        assertMap(Map.of("foo", 1), matchesMap().entry("foo", 1).optionalEntry("bar", 2));
+        // optional entry present
+        assertMap(Map.of("foo", 1, "bar", 2), matchesMap().entry("foo", 1).optionalEntry("bar", 2));
+        // optional entry different
+        assertMismatch(Map.of("foo", 1, "bar", 3), matchesMap().entry("foo", 1).optionalEntry("bar", 2), equalTo("""
+            a map containing
+            foo: <1>
+            bar: expected <2> but was <3>
+            """.strip()));
     }
 
     static <T> void assertMismatch(T v, Matcher<? super T> matcher, Matcher<String> mismatchDescriptionMatcher) {

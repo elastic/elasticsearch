@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -57,9 +58,11 @@ public class GeoPointScriptFieldGeoShapeQueryTests extends AbstractGeoPointScrip
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(new long[] { 1L }, randomIntBetween(1, Integer.MAX_VALUE)));
-        assertFalse(createTestInstance().matches(new long[0], 0));
-        assertFalse(createTestInstance().matches(new long[1], 0));
+        // TODO this should actually reject some points
+        assertTrue(createTestInstance().matches(new double[] { 1 }, new double[] { 2 }, randomIntBetween(1, Integer.MAX_VALUE)));
+        assertFalse(createTestInstance().matches(new double[0], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[1], new double[0], 0));
+        assertFalse(createTestInstance().matches(new double[0], new double[1], 0));
     }
 
     @Override

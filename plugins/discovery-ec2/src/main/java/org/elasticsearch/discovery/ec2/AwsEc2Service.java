@@ -1,23 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
+
+import software.amazon.awssdk.services.ec2.Ec2Client;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
+/**
+ * Abstract representation of a connection to the EC2 API service: exposes an {@link AmazonEc2Reference} via {@link #client()} and allows
+ * to refresh the client settings via {@link #refreshAndClearCache}.
+ */
+// This is kinda pointless extra indirection and only has one implementation; TODO fold it into Ec2DiscoveryPlugin
 interface AwsEc2Service extends Closeable {
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
 
@@ -35,12 +40,7 @@ interface AwsEc2Service extends Closeable {
      * XXXX refers to a name of a tag configured for all EC2 instances. Instances which don't
      * have this tag set will be ignored by the discovery process. Defaults to private_ip.
      */
-    Setting<String> HOST_TYPE_SETTING = new Setting<>(
-        "discovery.ec2.host_type",
-        HostType.PRIVATE_IP,
-        Function.identity(),
-        Property.NodeScope
-    );
+    Setting<String> HOST_TYPE_SETTING = Setting.simpleString("discovery.ec2.host_type", HostType.PRIVATE_IP, Property.NodeScope);
     /**
      * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
      * discovery. Defaults to true.
@@ -50,22 +50,12 @@ interface AwsEc2Service extends Closeable {
      * discovery.ec2.groups: Either a comma separated list or array based list of (security) groups. Only instances with the provided
      * security groups will be used in the cluster discovery. (NOTE: You could provide either group NAME or group ID.)
      */
-    Setting<List<String>> GROUPS_SETTING = Setting.listSetting(
-        "discovery.ec2.groups",
-        new ArrayList<>(),
-        s -> s.toString(),
-        Property.NodeScope
-    );
+    Setting<List<String>> GROUPS_SETTING = Setting.stringListSetting("discovery.ec2.groups", Property.NodeScope);
     /**
      * discovery.ec2.availability_zones: Either a comma separated list or array based list of availability zones. Only instances within
      * the provided availability zones will be used in the cluster discovery.
      */
-    Setting<List<String>> AVAILABILITY_ZONES_SETTING = Setting.listSetting(
-        "discovery.ec2.availability_zones",
-        Collections.emptyList(),
-        s -> s.toString(),
-        Property.NodeScope
-    );
+    Setting<List<String>> AVAILABILITY_ZONES_SETTING = Setting.stringListSetting("discovery.ec2.availability_zones", Property.NodeScope);
     /**
      * discovery.ec2.node_cache_time: How long the list of hosts is cached to prevent further requests to the AWS API. Defaults to 10s.
      */
@@ -83,12 +73,12 @@ interface AwsEc2Service extends Closeable {
      */
     Setting.AffixSetting<List<String>> TAG_SETTING = Setting.prefixKeySetting(
         "discovery.ec2.tag.",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope)
+        key -> Setting.stringListSetting(key, Property.NodeScope)
     );
 
     /**
-     * Builds then caches an {@code AmazonEC2} client using the current client
-     * settings. Returns an {@code AmazonEc2Reference} wrapper which should be
+     * Builds then caches an {@link Ec2Client} client using the current client
+     * settings. Returns an {@link AmazonEc2Reference} wrapper which should be
      * released as soon as it is not required anymore.
      */
     AmazonEc2Reference client();

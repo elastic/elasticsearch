@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -22,7 +26,7 @@ import java.util.Locale;
 public interface DateFormatter {
 
     /**
-     * Try to parse input to a java time TemporalAccessor
+     * Parse input to a java time TemporalAccessor
      * @param input                   An arbitrary string resembling the string representation of a date or time
      * @throws DateTimeParseException If parsing fails, this exception will be thrown.
      *                                Note that it can contained suppressed exceptions when several formatters failed parse this value
@@ -31,10 +35,25 @@ public interface DateFormatter {
     TemporalAccessor parse(String input);
 
     /**
+     * Try to parse input to a java time TemporalAccessor
+     * @param input An arbitrary string resembling the string representation of a date or time
+     * @return      The java time object containing the parsed input, or {@code null} if parsing failed
+     */
+    @Nullable
+    TemporalAccessor tryParse(String input);
+
+    /**
      * Parse the given input into millis-since-epoch.
      */
     default long parseMillis(String input) {
         return DateFormatters.from(parse(input)).toInstant().toEpochMilli();
+    }
+
+    /**
+     * Parse the given input into nanos-since-epoch.
+     */
+    default long parseNanos(String input) {
+        return DateUtils.toLong(DateFormatters.from(parse(input)).toInstant());
     }
 
     /**
@@ -70,6 +89,14 @@ public interface DateFormatter {
     }
 
     /**
+     * Return the given nanoseconds-since-epoch formatted with this format.
+     */
+    default String formatNanos(long nanos) {
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(nanos / 1_000_000).plusNanos(nanos % 1_000_000).atZone(zone));
+    }
+
+    /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
      *
@@ -99,6 +126,10 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
+        return forPattern(input, IndexVersion.current());
+    }
+
+    static DateFormatter forPattern(String input, IndexVersion supportedVersion) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
@@ -108,10 +139,14 @@ public interface DateFormatter {
             input = input.substring(1);
         }
 
-        List<DateFormatter> formatters = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            if (Strings.hasLength(pattern) == false) {
-                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+        // forPattern can be hot (e.g. executing a date processor on each document in a 1000 document bulk index request),
+        // so this is a for each loop instead of the equivalent stream pipeline
+        String[] patterns = splitCombinedPatterns(input);
+        List<DateFormatter> formatters = new ArrayList<>(patterns.length);
+        for (String pattern : patterns) {
+            // make sure we still support camel case for indices created before 8.0
+            if (supportedVersion.before(IndexVersions.V_8_0_0)) {
+                pattern = LegacyFormatNames.camelCaseToSnakeCase(pattern);
             }
             formatters.add(DateFormatters.forPattern(pattern));
         }
@@ -121,5 +156,15 @@ public interface DateFormatter {
         }
 
         return JavaDateFormatter.combined(input, formatters);
+    }
+
+    static String[] splitCombinedPatterns(String input) {
+        String[] patterns = Strings.delimitedListToStringArray(input, "||");
+        for (String pattern : patterns) {
+            if (Strings.hasLength(pattern) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+            }
+        }
+        return patterns;
     }
 }

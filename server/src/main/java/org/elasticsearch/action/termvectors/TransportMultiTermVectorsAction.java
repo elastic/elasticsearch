@@ -1,25 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ReshardingActionHelper;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -31,7 +39,9 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
 
     private final ClusterService clusterService;
     private final NodeClient client;
+    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ReshardingActionHelper reshardingActionHelper;
 
     @Inject
     public TransportMultiTermVectorsAction(
@@ -39,19 +49,53 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         ClusterService clusterService,
         NodeClient client,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ReshardingActionHelper reshardingActionHelper
     ) {
-        super(MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
+        super(
+            MultiTermVectorsAction.NAME,
+            transportService,
+            actionFilters,
+            MultiTermVectorsRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.clusterService = clusterService;
         this.client = client;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.reshardingActionHelper = reshardingActionHelper;
     }
 
     @Override
     protected void doExecute(Task task, final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
-        ClusterState clusterState = clusterService.state();
+        executeOnce(request, listener.delegateFailure((delegate, response) -> {
+            // if the request succeeds overall but some shard requests are stale, then retry when index metadata has caught up
+            final HashMap<ShardId, StaleRequestException> staleRequestExceptions = new HashMap<>();
+            for (int i = 0; i < response.getResponses().length; i++) {
+                final MultiTermVectorsResponse.Failure failure = response.getResponses()[i].getFailure();
+                if (failure != null && failure.getCause() instanceof StaleRequestException sre) {
+                    // we just need one per shard, not one per item
+                    staleRequestExceptions.put(sre.getShardId(), sre);
+                }
+            }
+            if (staleRequestExceptions.isEmpty() == false) {
+                // todo: this retries the entire request on any StaleRequestException. It might be worth saving the other items
+                // and only retrying the ones that failed with StaleRequestException, then merging the results.
+                reshardingActionHelper.waitForRoutingUpdate(
+                    staleRequestExceptions,
+                    listener.delegateFailureAndWrap((l, unused) -> executeOnce(request, l))
+                );
+            } else {
+                listener.onResponse(response);
+            }
+        }));
+    }
 
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+    private void executeOnce(final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
+        ClusterState clusterState = clusterService.state();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+        clusterState.blocks().globalBlockedRaiseException(project.id(), ClusterBlockLevel.READ);
 
         final AtomicArray<MultiTermVectorsItemResponse> responses = new AtomicArray<>(request.requests.size());
 
@@ -60,13 +104,17 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             ShardId shardId;
             try {
-                termVectorsRequest.routing(
-                    clusterState.metadata().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index())
-                );
-                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
-                shardId = clusterService.operationRouting()
-                    .shardId(clusterState, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
+                termVectorsRequest.routing(project.resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index()));
+                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project, termVectorsRequest).getName();
+                shardId = OperationRouting.shardId(project, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
+                termVectorsRequest.setSplitShardCountSummary(project, concreteSingleIndex);
             } catch (RoutingMissingException e) {
+                responses.set(
+                    i,
+                    new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(e.getIndex().getName(), e.getId(), e))
+                );
+                continue;
+            } catch (SliceMissingException e) {
                 responses.set(
                     i,
                     new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(e.getIndex().getName(), e.getId(), e))

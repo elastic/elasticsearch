@@ -1,27 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.util.LenientBooleans;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Contains information about the execution of a lifecycle policy for a single
  * index, and serializes/deserializes this information to and from custom
  * index metadata.
  */
-public class LifecycleExecutionState {
+public record LifecycleExecutionState(
+    String phase,
+    String action,
+    String step,
+    String failedStep,
+    Boolean isAutoRetryableError,
+    Integer failedStepRetryCount,
+    String stepInfo,
+    String previousStepInfo,
+    String phaseDefinition,
+    Long lifecycleDate,
+    Long phaseTime,
+    Long actionTime,
+    Long stepTime,
+    String snapshotRepository,
+    String snapshotName,
+    String shrinkIndexName,
+    String snapshotIndexName,
+    String downsampleIndexName,
+    String forceMergeCloneIndexName
+) {
+
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
+    public static final int MAXIMUM_STEP_INFO_STRING_LENGTH = 1024;
 
     private static final String PHASE = "phase";
     private static final String ACTION = "action";
@@ -34,70 +59,16 @@ public class LifecycleExecutionState {
     private static final String IS_AUTO_RETRYABLE_ERROR = "is_auto_retryable_error";
     private static final String FAILED_STEP_RETRY_COUNT = "failed_step_retry_count";
     private static final String STEP_INFO = "step_info";
+    private static final String PREVIOUS_STEP_INFO = "previous_step_info";
     private static final String PHASE_DEFINITION = "phase_definition";
     private static final String SNAPSHOT_NAME = "snapshot_name";
     private static final String SNAPSHOT_REPOSITORY = "snapshot_repository";
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
-    private static final String ROLLUP_INDEX_NAME = "rollup_index_name";
+    private static final String DOWNSAMPLE_INDEX_NAME = "rollup_index_name";
+    private static final String FORCE_MERGE_CLONE_INDEX_NAME = "force_merge_clone_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
-
-    private final String phase;
-    private final String action;
-    private final String step;
-    private final String failedStep;
-    private final Boolean isAutoRetryableError;
-    private final Integer failedStepRetryCount;
-    private final String stepInfo;
-    private final String phaseDefinition;
-    private final Long lifecycleDate;
-    private final Long phaseTime;
-    private final Long actionTime;
-    private final Long stepTime;
-    private final String snapshotName;
-    private final String snapshotRepository;
-    private final String shrinkIndexName;
-    private final String snapshotIndexName;
-    private final String rollupIndexName;
-
-    private LifecycleExecutionState(
-        String phase,
-        String action,
-        String step,
-        String failedStep,
-        Boolean isAutoRetryableError,
-        Integer failedStepRetryCount,
-        String stepInfo,
-        String phaseDefinition,
-        Long lifecycleDate,
-        Long phaseTime,
-        Long actionTime,
-        Long stepTime,
-        String snapshotRepository,
-        String snapshotName,
-        String shrinkIndexName,
-        String snapshotIndexName,
-        String rollupIndexName
-    ) {
-        this.phase = phase;
-        this.action = action;
-        this.step = step;
-        this.failedStep = failedStep;
-        this.isAutoRetryableError = isAutoRetryableError;
-        this.failedStepRetryCount = failedStepRetryCount;
-        this.stepInfo = stepInfo;
-        this.phaseDefinition = phaseDefinition;
-        this.lifecycleDate = lifecycleDate;
-        this.phaseTime = phaseTime;
-        this.actionTime = actionTime;
-        this.stepTime = stepTime;
-        this.snapshotRepository = snapshotRepository;
-        this.snapshotName = snapshotName;
-        this.shrinkIndexName = shrinkIndexName;
-        this.snapshotIndexName = snapshotIndexName;
-        this.rollupIndexName = rollupIndexName;
-    }
 
     public static Builder builder() {
         return new Builder();
@@ -111,6 +82,7 @@ public class LifecycleExecutionState {
             .setIsAutoRetryableError(state.isAutoRetryableError)
             .setFailedStepRetryCount(state.failedStepRetryCount)
             .setStepInfo(state.stepInfo)
+            .setPreviousStepInfo(state.previousStepInfo)
             .setPhaseDefinition(state.phaseDefinition)
             .setIndexCreationDate(state.lifecycleDate)
             .setPhaseTime(state.phaseTime)
@@ -119,8 +91,9 @@ public class LifecycleExecutionState {
             .setSnapshotName(state.snapshotName)
             .setShrinkIndexName(state.shrinkIndexName)
             .setSnapshotIndexName(state.snapshotIndexName)
-            .setRollupIndexName(state.rollupIndexName)
-            .setStepTime(state.stepTime);
+            .setDownsampleIndexName(state.downsampleIndexName)
+            .setStepTime(state.stepTime)
+            .setForceMergeCloneIndexName(state.forceMergeCloneIndexName);
     }
 
     public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
@@ -143,7 +116,7 @@ public class LifecycleExecutionState {
         }
         String isAutoRetryableError = customData.get(IS_AUTO_RETRYABLE_ERROR);
         if (isAutoRetryableError != null) {
-            builder.setIsAutoRetryableError(Boolean.parseBoolean(isAutoRetryableError));
+            builder.setIsAutoRetryableError(parseIsAutoRetryableError(isAutoRetryableError));
         }
         String failedStepRetryCount = customData.get(FAILED_STEP_RETRY_COUNT);
         if (failedStepRetryCount != null) {
@@ -152,6 +125,10 @@ public class LifecycleExecutionState {
         String stepInfo = customData.get(STEP_INFO);
         if (stepInfo != null) {
             builder.setStepInfo(stepInfo);
+        }
+        String previousStepInfo = customData.get(PREVIOUS_STEP_INFO);
+        if (previousStepInfo != null) {
+            builder.setPreviousStepInfo(previousStepInfo);
         }
         String phaseDefinition = customData.get(PHASE_DEFINITION);
         if (phaseDefinition != null) {
@@ -225,16 +202,30 @@ public class LifecycleExecutionState {
         if (snapshotIndexName != null) {
             builder.setSnapshotIndexName(snapshotIndexName);
         }
-        String rollupIndexName = customData.get(ROLLUP_INDEX_NAME);
-        if (rollupIndexName != null) {
-            builder.setRollupIndexName(rollupIndexName);
+        String downsampleIndexName = customData.get(DOWNSAMPLE_INDEX_NAME);
+        if (downsampleIndexName != null) {
+            builder.setDownsampleIndexName(downsampleIndexName);
+        }
+        String forceMergeCloneIndexName = customData.get(FORCE_MERGE_CLONE_INDEX_NAME);
+        if (forceMergeCloneIndexName != null) {
+            builder.setForceMergeCloneIndexName(forceMergeCloneIndexName);
         }
         return builder.build();
+    }
+
+    private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(
+            isAutoRetryableError,
+            LenientBooleans.UsageCategory.INDEX_METADATA,
+            IS_AUTO_RETRYABLE_ERROR,
+            DeprecationCategory.PARSING
+        );
     }
 
     /**
      * Converts this object to an immutable map representation for use with
      * {@link IndexMetadata.Builder#putCustom(String, Map)}.
+     *
      * @return An immutable Map representation of this execution state.
      */
     public Map<String, String> asMap() {
@@ -259,6 +250,9 @@ public class LifecycleExecutionState {
         }
         if (stepInfo != null) {
             result.put(STEP_INFO, stepInfo);
+        }
+        if (previousStepInfo != null) {
+            result.put(PREVIOUS_STEP_INFO, previousStepInfo);
         }
         if (lifecycleDate != null) {
             result.put(INDEX_CREATION_DATE, String.valueOf(lifecycleDate));
@@ -287,130 +281,40 @@ public class LifecycleExecutionState {
         if (snapshotIndexName != null) {
             result.put(SNAPSHOT_INDEX_NAME, snapshotIndexName);
         }
-        if (rollupIndexName != null) {
-            result.put(ROLLUP_INDEX_NAME, rollupIndexName);
+        if (downsampleIndexName != null) {
+            result.put(DOWNSAMPLE_INDEX_NAME, downsampleIndexName);
+        }
+        if (forceMergeCloneIndexName != null) {
+            result.put(FORCE_MERGE_CLONE_INDEX_NAME, forceMergeCloneIndexName);
         }
         return Collections.unmodifiableMap(result);
     }
 
-    public String getPhase() {
-        return phase;
-    }
-
-    public String getAction() {
-        return action;
-    }
-
-    public String getStep() {
-        return step;
-    }
-
-    public String getFailedStep() {
-        return failedStep;
-    }
-
-    public Boolean isAutoRetryableError() {
-        return isAutoRetryableError;
-    }
-
-    public Integer getFailedStepRetryCount() {
-        return failedStepRetryCount;
-    }
-
-    public String getStepInfo() {
-        return stepInfo;
-    }
-
-    public String getPhaseDefinition() {
-        return phaseDefinition;
-    }
-
-    public Long getLifecycleDate() {
-        return lifecycleDate;
-    }
-
-    public Long getPhaseTime() {
-        return phaseTime;
-    }
-
-    public Long getActionTime() {
-        return actionTime;
-    }
-
-    public Long getStepTime() {
-        return stepTime;
-    }
-
-    public String getSnapshotName() {
-        return snapshotName;
-    }
-
-    public String getSnapshotRepository() {
-        return snapshotRepository;
-    }
-
-    public String getShrinkIndexName() {
-        return shrinkIndexName;
-    }
-
-    public String getSnapshotIndexName() {
-        return snapshotIndexName;
-    }
-
-    public String getRollupIndexName() {
-        return rollupIndexName;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LifecycleExecutionState that = (LifecycleExecutionState) o;
-        return Objects.equals(getLifecycleDate(), that.getLifecycleDate())
-            && Objects.equals(getPhaseTime(), that.getPhaseTime())
-            && Objects.equals(getActionTime(), that.getActionTime())
-            && Objects.equals(getStepTime(), that.getStepTime())
-            && Objects.equals(getPhase(), that.getPhase())
-            && Objects.equals(getAction(), that.getAction())
-            && Objects.equals(getStep(), that.getStep())
-            && Objects.equals(getFailedStep(), that.getFailedStep())
-            && Objects.equals(isAutoRetryableError(), that.isAutoRetryableError())
-            && Objects.equals(getFailedStepRetryCount(), that.getFailedStepRetryCount())
-            && Objects.equals(getStepInfo(), that.getStepInfo())
-            && Objects.equals(getSnapshotRepository(), that.getSnapshotRepository())
-            && Objects.equals(getSnapshotName(), that.getSnapshotName())
-            && Objects.equals(getSnapshotIndexName(), that.getSnapshotIndexName())
-            && Objects.equals(getShrinkIndexName(), that.getShrinkIndexName())
-            && Objects.equals(getRollupIndexName(), that.getRollupIndexName())
-            && Objects.equals(getPhaseDefinition(), that.getPhaseDefinition());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-            getPhase(),
-            getAction(),
-            getStep(),
-            getFailedStep(),
-            isAutoRetryableError(),
-            getFailedStepRetryCount(),
-            getStepInfo(),
-            getPhaseDefinition(),
-            getLifecycleDate(),
-            getPhaseTime(),
-            getActionTime(),
-            getStepTime(),
-            getSnapshotRepository(),
-            getSnapshotName(),
-            getSnapshotIndexName(),
-            getShrinkIndexName(),
-            getRollupIndexName()
-        );
-    }
-
-    @Override
-    public String toString() {
-        return asMap().toString();
+    /**
+     * Truncates a potentially long JSON string to ensure it does not exceed {@link #MAXIMUM_STEP_INFO_STRING_LENGTH}. If truncation
+     * occurs, an explanation suffix is appended to the truncated string indicating <i>approximately</i> how many characters were removed.
+     * We return an approximation because we're valuing code simplicity over accuracy in this area.
+     *
+     * @param json the JSON string to potentially truncate
+     * @return the original JSON string if its length is within the limit, otherwise a truncated version with an explanation suffix - in
+     * correct JSON format
+     */
+    public static String potentiallyTruncateLongJsonWithExplanation(String json) {
+        if (json == null || json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH) {
+            return json;
+        }
+        // we'll now do our best to truncate the JSON and have the result be valid JSON.
+        // a long input JSON should generally only be possible with an exception turned into JSON that's well-formatted.
+        // if we fail to produce valid JSON, we might return invalid JSON in REST API in niche cases, so this isn't catastrophic.
+        assert json.startsWith("{\"") && json.endsWith("\"}") : "expected more specific JSON format, might produce invalid JSON";
+        final int roughNumberOfCharsTruncated = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH;
+        final String truncationExplanation = "... (~" + roughNumberOfCharsTruncated + " chars truncated)\"}";
+        // To ensure that the resulting string is always <= the max, we also need to remove the length of our suffix.
+        // This means that the actual number of characters removed is `truncationExplanation.length()` more than we say it is.
+        final String truncated = Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH - truncationExplanation.length())
+            + truncationExplanation;
+        assert truncated.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH : "truncation didn't work";
+        return truncated;
     }
 
     public static class Builder {
@@ -419,6 +323,7 @@ public class LifecycleExecutionState {
         private String step;
         private String failedStep;
         private String stepInfo;
+        private String previousStepInfo;
         private String phaseDefinition;
         private Long indexCreationDate;
         private Long phaseTime;
@@ -430,7 +335,8 @@ public class LifecycleExecutionState {
         private String snapshotRepository;
         private String shrinkIndexName;
         private String snapshotIndexName;
-        private String rollupIndexName;
+        private String downsampleIndexName;
+        private String forceMergeCloneIndexName;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -453,7 +359,12 @@ public class LifecycleExecutionState {
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = stepInfo;
+            this.stepInfo = potentiallyTruncateLongJsonWithExplanation(stepInfo);
+            return this;
+        }
+
+        public Builder setPreviousStepInfo(String previousStepInfo) {
+            this.previousStepInfo = previousStepInfo;
             return this;
         }
 
@@ -512,8 +423,13 @@ public class LifecycleExecutionState {
             return this;
         }
 
-        public Builder setRollupIndexName(String rollupIndexName) {
-            this.rollupIndexName = rollupIndexName;
+        public Builder setDownsampleIndexName(String downsampleIndexName) {
+            this.downsampleIndexName = downsampleIndexName;
+            return this;
+        }
+
+        public Builder setForceMergeCloneIndexName(String forceMergeCloneIndexName) {
+            this.forceMergeCloneIndexName = forceMergeCloneIndexName;
             return this;
         }
 
@@ -526,6 +442,7 @@ public class LifecycleExecutionState {
                 isAutoRetryableError,
                 failedStepRetryCount,
                 stepInfo,
+                previousStepInfo,
                 phaseDefinition,
                 indexCreationDate,
                 phaseTime,
@@ -535,7 +452,8 @@ public class LifecycleExecutionState {
                 snapshotName,
                 shrinkIndexName,
                 snapshotIndexName,
-                rollupIndexName
+                downsampleIndexName,
+                forceMergeCloneIndexName
             );
         }
     }

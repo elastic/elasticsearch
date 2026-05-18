@@ -1,10 +1,11 @@
+setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
 ---
 "Test exists query on aggregate metric field":
-  - skip:
-      version: " - 7.10.99"
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  aggregate_metric_test
         body:
@@ -18,7 +19,7 @@
   - do:
       index:
         index:  aggregate_metric_test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
@@ -57,11 +58,9 @@
 
 ---
 "Test term query on aggregate metric field":
-  - skip:
-      version: " - 7.10.99"
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test
         body:
@@ -69,27 +68,32 @@
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
+  # we keep max == avg so that the test will keep working bwc
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
             max: 100
+            sum: 10000
+            value_count: 100
         refresh: true
 
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           metric:
             min: 50
             max: 1000
+            sum: 20000
+            value_count: 20
         refresh: true
 
   - do:
@@ -133,11 +137,9 @@
 
 ---
 "Test range query on aggregate metric field":
-  - skip:
-      version: " - 7.10.99"
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test
         body:
@@ -145,27 +147,31 @@
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
-
+  # we keep max == avg so that the test will keep working bwc
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
             max: 100
+            sum: 10000
+            value_count: 100
         refresh: true
 
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           metric:
             min: 50
             max: 1000
+            sum: 20000
+            value_count: 20
         refresh: true
 
   - do:
@@ -210,11 +216,9 @@
 
 ---
 "Sort":
-  - skip:
-      version: " - 7.10.99"
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test
         body:
@@ -222,37 +226,43 @@
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           metric:
             min: 18.2
             max: 3000
+            sum: 4000
+            value_count: 5
         refresh: true
 
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           metric:
             min: 50
             max: 1000
+            sum: 4000
+            value_count: 25
         refresh: true
 
   - do:
       index:
         index:  test
-        id:     3
+        id:     "3"
         body:
           metric:
             min: 150
             max: 5000
+            sum: 6000
+            value_count: 5
         refresh: true
 
   - do:
@@ -290,3 +300,109 @@
         index: test
         body:
           sort: [ { metric.min: desc } ]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [ { metric.sum: desc } ]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [ { metric.value_count: desc } ]
+
+---
+"Test fields api":
+  - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, sum, value_count]
+                default_metric: sum
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          metric:
+            min: 10
+            max: 100
+            sum: 200
+            value_count: 5
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric:
+            min: 50
+            max: 1000
+            sum: 5000
+            value_count: 10
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          fields: [ metric ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.metric.0.min: 10 }
+  - match: { hits.hits.0.fields.metric.0.max: 100 }
+  - match: { hits.hits.0.fields.metric.0.sum: 200 }
+  - match: { hits.hits.0.fields.metric.0.value_count: 5 }
+  - match: { hits.hits.1.fields.metric.0.min: 50 }
+  - match: { hits.hits.1.fields.metric.0.max: 1000 }
+  - match: { hits.hits.1.fields.metric.0.sum: 5000 }
+  - match: { hits.hits.1.fields.metric.0.value_count: 10 }
+---
+"deprecated use of multi-fields":
+  - requires:
+      test_runner_features: warnings
+
+  - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      warnings:
+        - "Adding multifields to [aggregate_metric_double] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: aggregate_metric_double-multi-field
+        body:
+          mappings:
+            properties:
+              aggregated: { "type": "aggregate_metric_double", "metrics": ["max"], "default_metric": "max", "fields": {"keyword": {"type": "keyword"}} }
+
+---
+"deprecated use of default metric":
+  - requires:
+      test_runner_features: warnings
+  - do:
+      warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max

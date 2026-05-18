@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanNotQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
-public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder {
+public class SpanNotQueryBuilder extends LeafQueryBuilder<SpanNotQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_not";
 
     /** the default pre parameter size */
@@ -145,9 +147,13 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         include.toXContent(builder, params);
         builder.field(EXCLUDE_FIELD.getPreferredName());
         exclude.toXContent(builder, params);
-        builder.field(PRE_FIELD.getPreferredName(), pre);
-        builder.field(POST_FIELD.getPreferredName(), post);
-        printBoostAndQueryName(builder);
+        if (pre != DEFAULT_PRE) {
+            builder.field(PRE_FIELD.getPreferredName(), pre);
+        }
+        if (post != DEFAULT_POST) {
+            builder.field(POST_FIELD.getPreferredName(), post);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -254,5 +260,10 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

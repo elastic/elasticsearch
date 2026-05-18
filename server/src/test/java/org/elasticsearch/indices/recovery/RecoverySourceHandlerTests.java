@@ -1,41 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -46,18 +42,22 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -71,15 +71,15 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardRecoveryPlan;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,7 +92,6 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -117,6 +116,7 @@ import java.util.zip.CRC32;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -125,19 +125,19 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RecoverySourceHandlerTests extends ESTestCase {
+public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
-        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
     );
+    private static final BytesArray TRANSLOG_OPERATION_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
+    private final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
 
     private ThreadPool threadPool;
     private Executor recoveryExecutor;
@@ -151,7 +151,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             // verify that both sending and receiving files can be completed with a single thread
             threadPool = new TestThreadPool(
                 getTestName(),
-                new FixedExecutorBuilder(Settings.EMPTY, "recovery_executor", between(1, 16), between(16, 128), "recovery_executor", false)
+                new FixedExecutorBuilder(
+                    Settings.EMPTY,
+                    "recovery_executor",
+                    between(1, 16),
+                    between(16, 128),
+                    "recovery_executor",
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                )
             );
             recoveryExecutor = threadPool.executor("recovery_executor");
         }
@@ -184,7 +191,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metas.add(md);
         }
         Store targetStore = newStore(createTempDir());
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger);
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -226,7 +233,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         IOUtils.close(reader, store, multiFileWriter, targetStore);
     }
 
-    public StartRecoveryRequest getStartRecoveryRequest() throws IOException {
+    public StartRecoveryRequest getStartRecoveryRequest() {
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY
             : new Store.MetadataSnapshot(
@@ -237,17 +244,19 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         return new StartRecoveryRequest(
             shardId,
             null,
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
+            DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
+            0L,
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
-            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
+            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
             true
         );
     }
 
     public void testSendSnapshotSendsOps() throws IOException {
+        IndexOpFactory iof = randomBoolean() ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
         final int fileChunkSizeInBytes = between(1, 4096);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
@@ -255,13 +264,13 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(10, 1000);
         for (int i = 0; i < initialNumberOfDocs; i++) {
-            final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true)));
+            final Engine.Index index = iof.createIndexOp(i);
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, SequenceNumbers.UNASSIGNED_SEQ_NO, true, index.id())));
         }
         final int numberOfDocsWithValidSequenceNumbers = randomIntBetween(10, 1000);
         for (int i = initialNumberOfDocs; i < initialNumberOfDocs + numberOfDocsWithValidSequenceNumbers; i++) {
-            final Engine.Index index = getIndex(Integer.toString(i));
-            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true)));
+            final Engine.Index index = iof.createIndexOp(i);
+            operations.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i - initialNumberOfDocs, true, index.id())));
         }
         final long startingSeqNo = randomIntBetween(0, numberOfDocsWithValidSequenceNumbers - 1);
         final long endingSeqNo = randomLongBetween(startingSeqNo, numberOfDocsWithValidSequenceNumbers - 1);
@@ -311,26 +320,25 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         );
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
-        assertThat(result.sentOperations, equalTo(expectedOps));
-        List<Translog.Operation> sortedShippedOps = shippedOps.stream()
-            .sorted(Comparator.comparing(Translog.Operation::seqNo))
-            .collect(Collectors.toList());
+        assertThat(result.sentOperations(), equalTo(expectedOps));
+        List<Translog.Operation> sortedShippedOps = shippedOps.stream().sorted(Comparator.comparing(Translog.Operation::seqNo)).toList();
         assertThat(shippedOps.size(), equalTo(expectedOps));
         for (int i = 0; i < shippedOps.size(); i++) {
             assertThat(sortedShippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
         }
-        assertThat(result.targetLocalCheckpoint, equalTo(checkpointOnTarget.get()));
+        assertThat(result.targetLocalCheckpoint(), equalTo(checkpointOnTarget.get()));
     }
 
     public void testSendSnapshotStopOnError() throws Exception {
+        IndexOpFactory iof = randomBoolean() ? new StandardModeIndexOpFactory() : new TimeSeriesModeIndexOpFactory();
         final int fileChunkSizeInBytes = between(1, 10 * 1024);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         final List<Translog.Operation> ops = new ArrayList<>();
         for (int numOps = between(1, 256), i = 0; i < numOps; i++) {
-            final Engine.Index index = getIndex(Integer.toString(i));
-            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true)));
+            final Engine.Index index = iof.createIndexOp(i);
+            ops.add(new Translog.Index(index, new Engine.IndexResult(1, 1, i, true, index.id())));
         }
         final AtomicBoolean wasFailed = new AtomicBoolean();
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
@@ -453,8 +461,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         );
         RecoverySourceHandler.SendSnapshotResult sendSnapshotResult = sendFuture.actionGet();
         assertTrue(received.get());
-        assertThat(sendSnapshotResult.targetLocalCheckpoint, equalTo(localCheckpoint.get()));
-        assertThat(sendSnapshotResult.sentOperations, equalTo(receivedSeqNos.size()));
+        assertThat(sendSnapshotResult.targetLocalCheckpoint(), equalTo(localCheckpoint.get()));
+        assertThat(sendSnapshotResult.sentOperations(), equalTo(receivedSeqNos.size()));
         Set<Long> sentSeqNos = new HashSet<>();
         for (Translog.Operation op : operations) {
             if (startingSeqNo <= op.seqNo() && op.seqNo() <= endingSeqNo && skipOperations.contains(op) == false) {
@@ -464,29 +472,72 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertThat(receivedSeqNos, equalTo(sentSeqNos));
     }
 
-    private Engine.Index getIndex(final String id) {
-        final LuceneDocument document = new LuceneDocument();
-        document.add(new TextField("test", "test", Field.Store.YES));
-        final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
-        final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
-        final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(idField);
-        document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
-        final BytesReference source = new BytesArray(new byte[] { 1 });
-        final ParsedDocument doc = new ParsedDocument(
-            versionField,
-            seqID,
-            id,
-            null,
-            Arrays.asList(document),
-            source,
-            XContentType.JSON,
-            null
-        );
-        return new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
+    private interface IndexOpFactory {
+        Engine.Index createIndexOp(int docIdent);
+    }
+
+    private class StandardModeIndexOpFactory implements IndexOpFactory {
+        private final MapperService mapper;
+
+        private StandardModeIndexOpFactory() throws IOException {
+            mapper = createMapperService(mapping(b -> {}));
+        }
+
+        @Override
+        public Engine.Index createIndexOp(int docIdent) {
+            SourceToParse source = new SourceToParse(Integer.toString(docIdent), new BytesArray("{}"), XContentType.JSON);
+            return IndexShard.prepareIndex(
+                mapper,
+                source,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                randomNonNegativeLong(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0,
+                System.nanoTime()
+            );
+        }
+    }
+
+    private class TimeSeriesModeIndexOpFactory implements IndexOpFactory {
+        private final MapperService mapper;
+
+        private TimeSeriesModeIndexOpFactory() throws IOException {
+            mapper = createMapperService(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                    .build(),
+                mapping(b -> b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject())
+            );
+        }
+
+        @Override
+        public Engine.Index createIndexOp(int docIdent) {
+            SourceToParse source = new SourceToParse(null, new BytesArray(Strings.format("""
+                {
+                    "@timestamp": %s,
+                    "dim": "dim"
+                }""", docIdent)), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
+            return IndexShard.prepareIndex(
+                mapper,
+                source,
+                UNASSIGNED_SEQ_NO,
+                randomNonNegativeLong(),
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0,
+                System.nanoTime()
+            );
+        }
     }
 
     public void testHandleCorruptedIndexOnSendSendFiles() throws Throwable {
@@ -527,7 +578,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             )
         );
         Store targetStore = newStore(createTempDir(), false);
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger);
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -658,6 +709,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
         when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
         when(shard.isRelocatedPrimary()).thenReturn(true);
@@ -665,15 +717,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class));
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
-                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                indexSettings(IndexVersionUtils.randomVersion(), between(1, 5), between(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    UUIDs.randomBase64UUID(random())
+                )
             );
         if (randomBoolean()) {
             indexMetadata.state(IndexMetadata.State.CLOSE);
@@ -734,10 +785,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         };
         PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
-        expectThrows(IndexShardRelocatedException.class, () -> {
-            handler.recoverToTarget(future);
-            future.actionGet();
-        });
+        handler.recoverToTarget(future);
+        expectThrows(IndexShardRelocatedException.class, future);
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
@@ -749,19 +798,30 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
         when(shard.isRelocatedPrimary()).thenReturn(false);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         doAnswer(invocation -> {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class));
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
-        try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
-        } catch (CancellableThreads.ExecutionCancelledException e) {
-            // expected.
-        }
+        safeAwait(
+            runListener -> RecoverySourceHandler.runUnderPrimaryPermit(
+                permitListener -> permitListener.onResponse(null),
+                shard,
+                cancellableThreads,
+                runListener.delegateResponse((l, e) -> {
+                    if (e instanceof CancellableThreads.ExecutionCancelledException) {
+                        // expected.
+                        l.onResponse(null);
+                    } else {
+                        l.onFailure(e);
+                    }
+                })
+            )
+        );
         cancelingThread.join();
         // we have to use assert busy as we may be interrupted while acquiring the permit, if so we want to check
         // that the permit is released.
@@ -1006,7 +1066,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         cancelRecovery.set(() -> handler.cancel("test"));
-        final StepListener<RecoverySourceHandler.SendFileResult> phase1Listener = new StepListener<>();
+        final ListenableFuture<RecoverySourceHandler.SendFileResult> phase1Listener = new ListenableFuture<>();
         try {
             final CountDownLatch latch = new CountDownLatch(1);
             handler.phase1(DirectoryReader.listCommits(dir).get(0), 0, () -> 0, new LatchedActionListener<>(phase1Listener, latch));
@@ -1017,50 +1077,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             assertNotNull(ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class));
         }
         store.close();
-    }
-
-    public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
-        IndexShard shard = mock(IndexShard.class);
-        when(shard.state()).thenReturn(IndexShardState.STARTED);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard,
-            new TestRecoveryTargetHandler(),
-            threadPool,
-            getStartRecoveryRequest(),
-            between(1, 16),
-            between(1, 4),
-            between(1, 4),
-            between(1, 4),
-            false,
-            recoveryPlannerService
-        );
-
-        String syncId = UUIDs.randomBase64UUID();
-        int numDocs = between(0, 1000);
-        long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        assertTrue(
-            handler.canSkipPhase1(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)
-            )
-        );
-
-        AssertionError error = expectThrows(AssertionError.class, () -> {
-            long localCheckpointOnTarget = randomValueOtherThan(
-                localCheckpoint,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            long maxSeqNoOnTarget = randomValueOtherThan(
-                maxSeqNo,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            handler.canSkipPhase1(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs)
-            );
-        });
-        assertThat(error.getMessage(), containsString("try to recover [index][1] with sync id but seq_no stats are mismatched:"));
     }
 
     public void testRecoveryPlannerServiceIsUsed() throws Exception {
@@ -1079,6 +1095,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             writer.commit();
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
+            final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
+                .build();
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+            when(shard.indexSettings()).thenReturn(indexSettings);
 
             TestRecoveryTargetHandler recoveryTarget = new Phase1RecoveryTargetHandler();
             AtomicReference<ShardRecoveryPlan> computedRecoveryPlanRef = new AtomicReference<>();
@@ -1110,7 +1131,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     super.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, stopWatch, listener);
                 }
             };
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> phase1Listener = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> phase1Listener = new PlainActionFuture<>();
             IndexCommit indexCommit = DirectoryReader.listCommits(dir).get(0);
             handler.phase1(indexCommit, 0, () -> 0, phase1Listener);
             phase1Listener.get();
@@ -1135,15 +1156,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final ShardRecoveryPlan shardRecoveryPlan = createShardRecoveryPlan(store, randomIntBetween(10, 20), randomIntBetween(10, 20));
 
             final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
-            final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.getSnapshotFiles()
+            final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.snapshotFiles()
                 .stream()
                 .map(fileInfo -> fileInfo.metadata().name())
-                .collect(Collectors.toList());
+                .toList();
 
             final List<String> sourceFilesToRecover = shardRecoveryPlan.getSourceFilesToRecover()
                 .stream()
                 .map(StoreFileMetadata::name)
-                .collect(Collectors.toList());
+                .toList();
 
             Set<String> filesFailedToDownload = Collections.synchronizedSet(new HashSet<>());
             Set<String> filesRecoveredFromSource = Collections.synchronizedSet(new HashSet<>());
@@ -1156,8 +1177,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
                     ActionListener<Void> listener
                 ) {
-                    assertThat(repository, is(equalTo(snapshotFilesToRecover.getRepository())));
-                    assertThat(indexId, is(equalTo(snapshotFilesToRecover.getIndexId())));
+                    assertThat(repository, is(equalTo(snapshotFilesToRecover.repository())));
+                    assertThat(indexId, is(equalTo(snapshotFilesToRecover.indexId())));
                     assertThat(containsSnapshotFile(snapshotFilesToRecover, snapshotFile), is(equalTo(true)));
                     String fileName = snapshotFile.metadata().name();
 
@@ -1206,7 +1227,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
             future.actionGet();
 
@@ -1274,7 +1295,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             assertBusy(() -> {
@@ -1366,7 +1387,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1437,7 +1458,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1478,10 +1499,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
             List<StoreFileMetadata> sourceFilesToRecover = fallbackPlan.getSourceFilesToRecover();
             List<StoreFileMetadata> snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
-                .getSnapshotFiles()
+                .snapshotFiles()
                 .stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                .collect(Collectors.toList());
+                .toList();
 
             int maxConcurrentSnapshotFileDownloads = randomIntBetween(2, 4);
             CountDownLatch downloadSnapshotFileReceived = new CountDownLatch(maxConcurrentSnapshotFileDownloads);
@@ -1513,10 +1534,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                         assertThat(receiveFileInfoFromSourceCalls.incrementAndGet(), is(equalTo(1)));
                     } else {
                         filesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
-                            .getSnapshotFiles()
+                            .snapshotFiles()
                             .stream()
                             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
-                            .collect(Collectors.toList());
+                            .toList();
                         assertThat(receiveFileInfoFromSnapshotCalls.incrementAndGet(), is(equalTo(1)));
                         assertThat(receiveFileInfoFromSourceCalls.get(), is(equalTo(0)));
                     }
@@ -1592,7 +1613,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1646,7 +1667,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover,
         BlobStoreIndexShardSnapshot.FileInfo snapshotFile
     ) {
-        return snapshotFilesToRecover.getSnapshotFiles().stream().anyMatch(f -> f.metadata().isSame(snapshotFile.metadata()));
+        return snapshotFilesToRecover.snapshotFiles().stream().anyMatch(f -> f.metadata().isSame(snapshotFile.metadata()));
     }
 
     private boolean containsFile(List<StoreFileMetadata> filesMetadata, StoreFileMetadata storeFileMetadata) {
@@ -1665,7 +1686,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             0
         );
 
-        ByteSizeValue partSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        ByteSizeValue partSize = ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES);
 
         List<StoreFileMetadata> filesToRecoverFromSource = sourceFiles.subList(0, sourceFileCount);
         List<StoreFileMetadata> filesToRecoverFromSnapshot = sourceFiles.subList(sourceFileCount, sourceFiles.size());
@@ -1707,7 +1728,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         );
 
         Map<String, StoreFileMetadata> snapshotFiles = shardRecoveryPlan.getSnapshotFilesToRecover()
-            .getSnapshotFiles()
+            .snapshotFiles()
             .stream()
             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
             .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity()));
@@ -1719,7 +1740,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     private Store.MetadataSnapshot newMetadataSnapshot(String syncId, String localCheckpoint, String maxSeqNo, int numDocs) {
         Map<String, String> userData = new HashMap<>();
-        userData.put(Engine.SYNC_COMMIT_ID, syncId);
         if (localCheckpoint != null) {
             userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
         }
@@ -1904,21 +1924,33 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         };
     }
 
+    public static Translog.Operation generateOperation(long seqNo) {
+        final Translog.Operation op;
+        if (randomBoolean()) {
+            op = new Translog.Index(
+                "id",
+                seqNo,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                TRANSLOG_OPERATION_SOURCE,
+                randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
+                randomNonNegativeLong()
+            );
+        } else if (randomBoolean()) {
+            op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+        } else {
+            op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
+        }
+        return op;
+    }
+
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
-        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final BytesArray source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
-            final Translog.Operation op;
-            if (randomBoolean()) {
-                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
-            } else if (randomBoolean()) {
-                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
-            } else {
-                op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
-            }
-            operations.add(op);
+            operations.add(generateOperation(seqNo));
         }
         return operations;
     }

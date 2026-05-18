@@ -28,8 +28,7 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
     }
 
     public GetPipelineResponse(StreamInput in) throws IOException {
-        super(in);
-        this.pipelines = in.readMap(StreamInput::readString, StreamInput::readBytesReference);
+        this.pipelines = in.readMap(StreamInput::readBytesReference);
     }
 
     public Map<String, BytesReference> pipelines() {
@@ -38,7 +37,7 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(pipelines, StreamOutput::writeString, StreamOutput::writeBytesReference);
+        out.writeMap(pipelines, StreamOutput::writeBytesReference);
     }
 
     @Override

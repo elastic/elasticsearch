@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -11,7 +12,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.shard.IndexLongFieldRangeTestUtils.randomSpecificRange;
@@ -47,7 +47,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
 
         assertThat(
             range.extendWithShardRange(
-                range.isComplete() ? between(1, 10) : randomFrom(IntStream.of(range.getShards()).boxed().collect(Collectors.toList())),
+                range.isComplete() ? between(1, 10) : randomFrom(IntStream.of(range.getShards()).boxed().toList()),
                 between(1, 10),
                 shardRange
             ),

@@ -6,7 +6,7 @@
  - do:
       index:
           index:  test-weird-index-中文
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
  - match:   { _index:   test-weird-index-中文 }
@@ -16,7 +16,7 @@
  - do:
       get:
           index:  test-weird-index-中文
-          id:     1
+          id:     "1"
 
  - match:   { _index:   test-weird-index-中文 }
  - match:   { _id:      "1"}

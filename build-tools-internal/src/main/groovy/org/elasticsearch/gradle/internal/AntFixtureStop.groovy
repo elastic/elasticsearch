@@ -1,56 +1,54 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
 
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.gradle.api.file.FileSystemOperations
-import org.gradle.api.tasks.Internal
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.provider.ProviderFactory
+import org.gradle.process.ExecOperations
 
 import javax.inject.Inject
 
-class AntFixtureStop extends LoggedExec implements FixtureStop {
-
-    @Internal
-    AntFixture fixture
-
-    @Internal
-    FileSystemOperations fileSystemOperations
+abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
 
     @Inject
-    AntFixtureStop(FileSystemOperations fileSystemOperations) {
-        super(fileSystemOperations)
-        this.fileSystemOperations = fileSystemOperations
+    AntFixtureStop(ProjectLayout projectLayout,
+                   ExecOperations execOperations,
+                   FileSystemOperations fileSystemOperations,
+                   ProviderFactory providerFactory) {
+        super(projectLayout, execOperations, fileSystemOperations, providerFactory)
     }
 
     void setFixture(AntFixture fixture) {
-        assert this.fixture == null
-        this.fixture = fixture;
-        final Object pid = "${ -> this.fixture.pid }"
-        onlyIf { fixture.pidFile.exists() }
+        def pidFile = fixture.pidFile
+        def fixtureName = fixture.name
+        final Object pid = "${-> Integer.parseInt(pidFile.getText('UTF-8').trim())}"
+        onlyIf("pidFile exists") { pidFile.exists() }
         doFirst {
-            logger.info("Shutting down ${fixture.name} with pid ${pid}")
+            logger.info("Shutting down ${fixtureName} with pid ${pid}")
         }
 
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable = 'Taskkill'
+        if (OS.current() == OS.WINDOWS) {
+            getExecutable().set('Taskkill')
             args('/PID', pid, '/F')
         } else {
-            executable = 'kill'
+            getExecutable().set('kill')
             args('-9', pid)
         }
         doLast {
             fileSystemOperations.delete {
-                it.delete(fixture.pidFile)
+                it.delete(pidFile)
             }
         }
-        this.fixture = fixture
     }
 }

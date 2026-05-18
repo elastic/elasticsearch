@@ -24,7 +24,6 @@ package org.elasticsearch.xpack.idp.privileges;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
@@ -46,6 +44,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class ApplicationActionsResolver extends AbstractLifecycleComponent {
 
@@ -63,7 +63,7 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(ApplicationActionsResolver.class);
 
     private final ServiceProviderDefaults defaults;
     private final Client client;
@@ -82,7 +82,8 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
         // Preload the cache at 2/3 of its expiry time (TTL). This means that we should never have an empty cache, but if for some reason
         // the preload thread stops running, we will still automatically refresh the cache on access.
         final TimeValue preloadInterval = TimeValue.timeValueMillis(cacheTtl.millis() * 2 / 3);
-        client.threadPool().scheduleWithFixedDelay(this::loadPrivilegesForDefaultApplication, preloadInterval, ThreadPool.Names.GENERIC);
+        client.threadPool()
+            .scheduleWithFixedDelay(this::loadPrivilegesForDefaultApplication, preloadInterval, client.threadPool().generic());
     }
 
     public static Collection<? extends Setting<?>> getSettings() {
@@ -104,10 +105,7 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
                     defaults.applicationName
                 ),
                 ex -> logger.warn(
-                    new ParameterizedMessage(
-                        "Failed to load application privileges actions for application [{}]",
-                        defaults.applicationName
-                    ),
+                    () -> format("Failed to load application privileges actions for application [%s]", defaults.applicationName),
                     ex
                 )
             )
@@ -136,14 +134,14 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
     private void loadActions(String applicationName, ActionListener<Set<String>> listener) {
         final GetPrivilegesRequest request = new GetPrivilegesRequest();
         request.application(applicationName);
-        this.client.execute(GetPrivilegesAction.INSTANCE, request, ActionListener.wrap(response -> {
+        this.client.execute(GetPrivilegesAction.INSTANCE, request, listener.delegateFailureAndWrap((delegate, response) -> {
             final Set<String> fixedActions = Stream.of(response.privileges())
                 .map(p -> p.getActions())
                 .flatMap(Collection::stream)
                 .filter(s -> s.indexOf('*') == -1)
                 .collect(Collectors.toUnmodifiableSet());
             cache.put(applicationName, fixedActions);
-            listener.onResponse(fixedActions);
-        }, listener::onFailure));
+            delegate.onResponse(fixedActions);
+        }));
     }
 }

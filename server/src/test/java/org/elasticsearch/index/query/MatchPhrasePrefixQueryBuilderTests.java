@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -14,6 +15,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -68,12 +71,12 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "match_phrase_prefix" : {
                     "%s" : "%s"
                 }
-            }""".formatted(matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
+            }""", matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
         alternateVersions.put(contentString, matchPhrasePrefixQuery);
         return alternateVersions;
     }
@@ -116,17 +119,17 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     public void testPhraseOnFieldWithNoTerms() {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
-        expectThrows(IllegalArgumentException.class, () -> matchQuery.doToQuery(createSearchExecutionContext()));
+        expectThrows(IllegalArgumentException.class, () -> matchQuery.toQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixZeroTermsQuery() throws IOException {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQueryOption.NONE);
-        assertEquals(new MatchNoDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, matchQuery.toQuery(createSearchExecutionContext()));
 
         matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);
-        assertEquals(new MatchAllDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, matchQuery.toQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {
@@ -141,11 +144,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             {
               "match_phrase_prefix" : {
                 "message" : {
-                  "query" : "this is a test",
-                  "slop" : 0,
-                  "max_expansions" : 50,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "query" : "this is a test"
                 }
               }
             }""";
@@ -166,10 +165,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
               "match_phrase_prefix" : {
                 "message" : {
                   "query" : "this is a test",
-                  "slop" : 0,
-                  "max_expansions" : 10,
-                  "zero_terms_query" : "NONE",
-                  "boost" : 1.0
+                  "max_expansions" : 10
                 }
               }
             }""";

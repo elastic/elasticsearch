@@ -13,13 +13,16 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -31,6 +34,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncResultRequest, AsyncSearchResponse> {
     private final AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> resultsService;
     private final TransportService transportService;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportGetAsyncSearchAction(
@@ -42,8 +46,9 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
-        super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new);
+        super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
+        this.threadContext = threadPool.getThreadContext();
         this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool, bigArrays);
     }
 
@@ -77,15 +82,23 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
 
     @Override
     protected void doExecute(Task task, GetAsyncResultRequest request, ActionListener<AsyncSearchResponse> listener) {
+        ActionListener<AsyncSearchResponse> listenerWithHeaders = listener.map(response -> {
+            threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
+            if (response.getId() != null) {
+                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+            }
+            return response;
+        });
+
         DiscoveryNode node = resultsService.getNode(request.getId());
         if (node == null || resultsService.isLocalNode(node)) {
-            resultsService.retrieveResult(request, listener);
+            resultsService.retrieveResult(request, listenerWithHeaders);
         } else {
             transportService.sendRequest(
                 node,
                 GetAsyncSearchAction.NAME,
                 request,
-                new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME)
+                new ActionListenerResponseHandler<>(listenerWithHeaders, AsyncSearchResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

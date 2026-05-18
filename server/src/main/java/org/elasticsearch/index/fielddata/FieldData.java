@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -11,10 +12,14 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,49 +39,10 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link NumericDoubleValues} that doesn't contain any value.
-     */
-    public static NumericDoubleValues emptyNumericDouble() {
-        return new NumericDoubleValues() {
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return false;
-            }
-
-            @Override
-            public double doubleValue() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-        };
-    }
-
-    /**
      * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
      */
     public static SortedNumericDoubleValues emptySortedNumericDoubles() {
-        return singleton(emptyNumericDouble());
-    }
-
-    public static GeoPointValues emptyGeoPoint() {
-        return new GeoPointValues() {
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return false;
-            }
-
-            @Override
-            public GeoPoint geoPointValue() {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
-     */
-    public static MultiGeoPointValues emptyMultiGeoPoints() {
-        return singleton(emptyGeoPoint());
+        return singleton(DoubleValues.EMPTY);
     }
 
     /**
@@ -108,7 +74,7 @@ public enum FieldData {
      * Returns a {@link DocValueBits} representing all documents from <code>pointValues</code> that have
      * a value.
      */
-    public static DocValueBits docsWithValue(final MultiGeoPointValues pointValues) {
+    public static DocValueBits docsWithValue(final MultiPointValues<? extends SpatialPoint> pointValues) {
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -133,7 +99,7 @@ public enum FieldData {
      * Returns a {@link DocValueBits} representing all documents from <code>docValues</code> that have
      * a value.
      */
-    public static DocValueBits docsWithValue(final SortedNumericDocValues docValues) {
+    public static DocValueBits docsWithValue(final SortedNumericLongValues docValues) {
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -148,16 +114,16 @@ public enum FieldData {
      * to sortable long bits using
      * {@link org.apache.lucene.util.NumericUtils#doubleToSortableLong(double)}.
      */
-    public static SortedNumericDocValues toSortableLongBits(SortedNumericDoubleValues values) {
-        final NumericDoubleValues singleton = unwrapSingleton(values);
+    public static SortedNumericLongValues toSortableLongBits(SortedNumericDoubleValues values) {
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
-            final NumericDocValues longBits;
+            final LongValues longBits;
             if (singleton instanceof SortableLongBitsToNumericDoubleValues) {
                 longBits = ((SortableLongBitsToNumericDoubleValues) singleton).getLongValues();
             } else {
                 longBits = new SortableLongBitsNumericDocValues(singleton);
             }
-            return DocValues.singleton(longBits);
+            return SortedNumericLongValues.singleton(longBits);
         } else {
             if (values instanceof SortableLongBitsToSortedNumericDoubleValues) {
                 return ((SortableLongBitsToSortedNumericDoubleValues) values).getLongValues();
@@ -168,14 +134,14 @@ public enum FieldData {
     }
 
     /**
-     * Given a {@link SortedNumericDocValues}, return a {@link SortedNumericDoubleValues}
+     * Given a {@link SortedNumericLongValues}, return a {@link SortedNumericDoubleValues}
      * instance that will translate long values to doubles using
      * {@link org.apache.lucene.util.NumericUtils#sortableLongToDouble(long)}.
      */
-    public static SortedNumericDoubleValues sortableLongBitsToDoubles(SortedNumericDocValues values) {
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+    public static SortedNumericDoubleValues sortableLongBitsToDoubles(SortedNumericLongValues values) {
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         if (singleton != null) {
-            final NumericDoubleValues doubles;
+            final DoubleValues doubles;
             if (singleton instanceof SortableLongBitsNumericDocValues) {
                 doubles = ((SortableLongBitsNumericDocValues) singleton).getDoubleValues();
             } else {
@@ -194,63 +160,40 @@ public enum FieldData {
     /**
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
-    public static SortedNumericDoubleValues castToDouble(final SortedNumericDocValues values) {
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        if (singleton != null) {
-            return singleton(new DoubleCastedValues(singleton));
-        } else {
-            return new SortedDoubleCastedValues(values);
-        }
+    public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
+        return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
+            @Override
+            public double nextValue() throws IOException {
+                return values.nextValue();
+            }
+        };
     }
 
     /**
      * Wrap the provided {@link SortedNumericDoubleValues} instance to cast all values to longs.
      */
-    public static SortedNumericDocValues castToLong(final SortedNumericDoubleValues values) {
-        final NumericDoubleValues singleton = unwrapSingleton(values);
-        if (singleton != null) {
-            return DocValues.singleton(new LongCastedValues(singleton));
-        } else {
-            return new SortedLongCastedValues(values);
-        }
+    public static SortedNumericLongValues castToLong(final SortedNumericDoubleValues values) {
+        return new SortedNumericLongValues.SortedNumericDoubleWrapper(values) {
+            @Override
+            public long nextValue() throws IOException {
+                return (long) values.nextValue();
+            }
+        };
     }
 
     /**
-     * Returns a multi-valued view over the provided {@link NumericDoubleValues}.
+     * Returns a multi-valued view over the provided {@link DoubleValues}.
      */
-    public static SortedNumericDoubleValues singleton(NumericDoubleValues values) {
-        return new SingletonSortedNumericDoubleValues(values);
-    }
-
-    /**
-     * Returns a single-valued view of the {@link SortedNumericDoubleValues},
-     * if it was previously wrapped with {@link DocValues#singleton(NumericDocValues)},
-     * or null.
-     */
-    public static NumericDoubleValues unwrapSingleton(SortedNumericDoubleValues values) {
-        if (values instanceof SingletonSortedNumericDoubleValues) {
-            return ((SingletonSortedNumericDoubleValues) values).getNumericDoubleValues();
-        }
-        return null;
-    }
-
-    /**
-     * Returns a multi-valued view over the provided {@link GeoPointValues}.
-     */
-    public static MultiGeoPointValues singleton(GeoPointValues values) {
-        return new SingletonMultiGeoPointValues(values);
+    public static SortedNumericDoubleValues singleton(DoubleValues values) {
+        return SortedNumericDoubleValues.singleton(values);
     }
 
     /**
      * Returns a single-valued view of the {@link MultiGeoPointValues},
-     * if it was previously wrapped with {@link #singleton(GeoPointValues)},
-     * or null.
+     * if the wrapped {@link SortedNumericDocValues} is a singleton.
      */
     public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
-        if (values instanceof SingletonMultiGeoPointValues) {
-            return ((SingletonMultiGeoPointValues) values).getGeoPointValues();
-        }
-        return null;
+        return values.getPointValues();
     }
 
     /**
@@ -273,19 +216,17 @@ public enum FieldData {
     }
 
     /**
-     * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return {@code false} in the single-valued case.
-     */
-    public static boolean isMultiValued(SortedSetDocValues values) {
-        return DocValues.unwrapSingleton(values) == null;
-    }
-
-    /**
      * Return a {@link String} representation of the provided values. That is
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
-    public static SortedBinaryDocValues toString(final SortedNumericDocValues values) {
+    public static SortedBinaryDocValues toString(final SortedNumericLongValues values) {
+        {
+            final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -306,7 +247,32 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
+    public static BinaryDocValues toString(final LongValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return Long.toString(values.longValue());
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
     public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
+        {
+            final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -325,39 +291,70 @@ public enum FieldData {
     /**
      * Return a {@link String} representation of the provided values. That is
      * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static BinaryDocValues toString(final DoubleValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return Double.toString(values.doubleValue());
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is slow!
      */
     public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
+        {
+            final SortedDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return new SortedBinaryDocValues() {
-            private int count = 0;
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc) == false) {
-                    return false;
-                }
-                for (int i = 0;; ++i) {
-                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
-                        count = i;
-                        break;
-                    }
-                }
-                // reset the iterator on the current doc
-                boolean advanced = values.advanceExact(doc);
-                assert advanced;
-                return true;
+                return values.advanceExact(doc);
             }
 
             @Override
             public int docValueCount() {
-                return count;
+                return values.docValueCount();
             }
 
             @Override
             public BytesRef nextValue() throws IOException {
                 return values.lookupOrd(values.nextOrd());
             }
+        };
+    }
 
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is slow!
+     */
+    public static BinaryDocValues toString(final SortedDocValues values) {
+        return new AbstractBinaryDocValues() {
+
+            @Override
+            public BytesRef binaryValue() throws IOException {
+                return values.lookupOrd(values.ordValue());
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
         };
     }
 
@@ -367,6 +364,12 @@ public enum FieldData {
      * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final MultiGeoPointValues values) {
+        {
+            final GeoPointValues singleton = FieldData.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -378,6 +381,25 @@ public enum FieldData {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
                     list.add(values.nextValue().toString());
                 }
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static BinaryDocValues toString(final GeoPointValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return values.pointValue().toString();
             }
         });
     }
@@ -407,6 +429,27 @@ public enum FieldData {
         };
     }
 
+    private static BinaryDocValues toString(final ToStringValue toStringValue) {
+        return new AbstractBinaryDocValues() {
+            private final BytesRefBuilder builder = new BytesRefBuilder();
+
+            @Override
+            public BytesRef binaryValue() {
+                return builder.toBytesRef();
+            }
+
+            @Override
+            public boolean advanceExact(int docID) throws IOException {
+                if (toStringValue.advanceExact(docID)) {
+                    builder.clear();
+                    builder.copyChars(toStringValue.get());
+                    return true;
+                }
+                return false;
+            }
+        };
+    }
+
     private interface ToStringValues {
 
         /**
@@ -415,161 +458,86 @@ public enum FieldData {
          */
         boolean advanceExact(int doc) throws IOException;
 
-        /** Fill the list of charsquences with the list of values for the current document. */
+        /** Fill the list of {@link CharSequence} with the list of values for the current document. */
         void get(List<CharSequence> values) throws IOException;
 
     }
 
-    private static class DoubleCastedValues extends NumericDoubleValues {
+    private interface ToStringValue {
 
-        private final NumericDocValues values;
+        /**
+         * Advance this instance to the given document id
+         * @return true if there is a value for this document
+         */
+        boolean advanceExact(int doc) throws IOException;
 
-        DoubleCastedValues(NumericDocValues values) {
-            this.values = values;
-        }
+        /** return the {@link CharSequence} for the current document. */
+        CharSequence get() throws IOException;
 
+    }
+
+    /**
+     * A {@link LongValues} instance that does not have a value for any document
+     */
+    public static LongValues EMPTY = new LongValues() {
         @Override
-        public double doubleValue() throws IOException {
-            return values.longValue();
+        public long longValue() throws IOException {
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
-            return values.advanceExact(doc);
+            return false;
         }
-
-    }
-
-    private static class SortedDoubleCastedValues extends SortedNumericDoubleValues {
-
-        private final SortedNumericDocValues values;
-
-        SortedDoubleCastedValues(SortedNumericDocValues in) {
-            this.values = in;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public double nextValue() throws IOException {
-            return values.nextValue();
-        }
-
-        @Override
-        public int docValueCount() {
-            return values.docValueCount();
-        }
-
-    }
-
-    private static class LongCastedValues extends AbstractNumericDocValues {
-
-        private final NumericDoubleValues values;
-        private int docID = -1;
-
-        LongCastedValues(NumericDoubleValues values) {
-            this.values = values;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            docID = target;
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public long longValue() throws IOException {
-            return (long) values.doubleValue();
-        }
-
-        @Override
-        public int docID() {
-            return docID;
-        }
-    }
-
-    private static class SortedLongCastedValues extends AbstractSortedNumericDocValues {
-
-        private final SortedNumericDoubleValues values;
-
-        SortedLongCastedValues(SortedNumericDoubleValues in) {
-            this.values = in;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public int docValueCount() {
-            return values.docValueCount();
-        }
-
-        @Override
-        public long nextValue() throws IOException {
-            return (long) values.nextValue();
-        }
-
-    }
+    };
 
     /**
      * Return a {@link NumericDocValues} instance that has a value for every
      * document, returns the same value as {@code values} if there is a value
      * for the current document and {@code missing} otherwise.
      */
-    public static NumericDocValues replaceMissing(NumericDocValues values, long missing) {
-        return new AbstractNumericDocValues() {
+    public static DenseLongValues replaceMissing(LongValues values, long missing) {
+        return new DenseLongValues() {
 
             private long value;
 
             @Override
-            public int docID() {
-                return values.docID();
-            }
-
-            @Override
-            public boolean advanceExact(int target) throws IOException {
+            public void doAdvanceExact(int target) throws IOException {
                 if (values.advanceExact(target)) {
                     value = values.longValue();
                 } else {
                     value = missing;
                 }
-                return true;
             }
 
             @Override
-            public long longValue() throws IOException {
+            public long longValue() {
                 return value;
             }
         };
     }
 
     /**
-     * Return a {@link NumericDoubleValues} instance that has a value for every
+     * Return a {@link DoubleValues} instance that has a value for every
      * document, returns the same value as {@code values} if there is a value
      * for the current document and {@code missing} otherwise.
      */
-    public static NumericDoubleValues replaceMissing(NumericDoubleValues values, double missing) {
-        return new NumericDoubleValues() {
+    public static DenseDoubleValues replaceMissing(DoubleValues values, double missing) {
+        return new DenseDoubleValues() {
 
             private double value;
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public void doAdvanceExact(int target) throws IOException {
                 if (values.advanceExact(target)) {
                     value = values.doubleValue();
                 } else {
                     value = missing;
                 }
-                return true;
             }
 
             @Override
-            public double doubleValue() throws IOException {
+            public double doubleValue() {
                 return value;
             }
         };

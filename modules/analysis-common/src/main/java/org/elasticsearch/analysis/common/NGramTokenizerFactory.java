@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -85,14 +86,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
                     throw new IllegalArgumentException("Token type: 'custom' requires setting `custom_token_chars`");
                 }
                 final Set<Integer> customCharSet = customCharacters.chars().boxed().collect(Collectors.toSet());
-                matcher = new CharMatcher() {
-
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        return customCharSet.contains(c);
-                    }
-
-                };
+                matcher = customCharSet::contains;
             }
             builder.or(matcher);
         }
@@ -100,7 +94,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

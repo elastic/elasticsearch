@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -40,7 +41,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set_security_user";
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(SetSecurityUserProcessor.class);
 
     private final SecurityContext securityContext;
     private final Settings settings;
@@ -80,7 +81,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         if (this.securityContext != null) {
             authentication = securityContext.getAuthentication();
             if (authentication != null) {
-                user = authentication.getUser();
+                user = authentication.getEffectiveSubject().getUser();
             }
         }
 
@@ -140,18 +141,24 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case API_KEY:
-                    if (authentication.isAuthenticatedWithApiKey()) {
+                    if (authentication.isApiKey()) {
                         final String apiKey = "api_key";
                         final Object existingApiKeyField = userObject.get(apiKey);
                         @SuppressWarnings("unchecked")
                         final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
                             ? (Map<String, Object>) existingApiKeyField
                             : new HashMap<>();
-                        if (authentication.getMetadata().containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
-                            apiKeyField.put("name", authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY));
+                        if (authentication.getAuthenticatingSubject().getMetadata().containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
+                            apiKeyField.put(
+                                "name",
+                                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY)
+                            );
                         }
-                        if (authentication.getMetadata().containsKey(AuthenticationField.API_KEY_ID_KEY)) {
-                            apiKeyField.put("id", authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+                        if (authentication.getAuthenticatingSubject().getMetadata().containsKey(AuthenticationField.API_KEY_ID_KEY)) {
+                            apiKeyField.put(
+                                "id",
+                                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                            );
                         }
                         final Map<String, Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
                         if (false == apiKeyMetadata.isEmpty()) {
@@ -223,7 +230,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<String> propertyNames = readOptionalList(TYPE, tag, config, "properties");

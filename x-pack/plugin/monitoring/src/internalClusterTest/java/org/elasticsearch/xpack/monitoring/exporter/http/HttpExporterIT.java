@@ -14,9 +14,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -32,18 +30,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
@@ -129,11 +122,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         }
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     private Settings.Builder secureSettings(String password) {
         mockSecureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", password);
         return baseSettings().setSecureSettings(mockSecureSettings);
@@ -145,7 +133,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._http.type", "http")
             .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar") // ensure that ssl can be used by settings
             .put("xpack.monitoring.exporters._http.headers.ignored", "value") // ensure that headers can be used by settings
-            .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .put("xpack.monitoring.exporters._http.host", webServer.getHttpAddress())
             .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
             .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", clusterAlertBlacklist)
             .put("xpack.monitoring.exporters._http.auth.username", userName);
@@ -173,7 +161,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         Settings settings = secureSettings(securePassword1).build();
         PluginsService pluginsService = internalCluster().getInstances(PluginsService.class).iterator().next();
-        LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).iterator().next();
+        LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).findFirst().get();
         localStateMonitoring.getMonitoring().reload(settings);
 
         enqueueGetClusterVersionResponse(Version.CURRENT);
@@ -303,7 +291,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             final Settings newSettings = Settings.builder()
                 .put(settings)
-                .putList("xpack.monitoring.exporters._http.host", getFormattedAddress(secondWebServer))
+                .putList("xpack.monitoring.exporters._http.host", secondWebServer.getHttpAddress())
                 .build();
 
             enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);
@@ -321,7 +309,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     public void testUnsupportedClusterVersion() throws Exception {
         final Settings settings = Settings.builder()
             .put("xpack.monitoring.exporters._http.type", "http")
-            .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .put("xpack.monitoring.exporters._http.host", webServer.getHttpAddress())
             .build();
 
         // returning an unsupported cluster version
@@ -340,11 +328,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (HttpExporter exporter = createHttpExporter(settings)) {
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
 
-            final ActionListener<ExportBulk> listener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> listener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertNull(bulk);
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(listener);
 
@@ -360,7 +347,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     public void testRemoteTemplatesNotPresent() throws Exception {
         final Settings settings = Settings.builder()
             .put("xpack.monitoring.exporters._http.type", "http")
-            .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .put("xpack.monitoring.exporters._http.host", webServer.getHttpAddress())
             .build();
 
         // returning an unsupported cluster version
@@ -371,11 +358,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (HttpExporter exporter = createHttpExporter(settings)) {
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
 
-            final ActionListener<ExportBulk> listener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> listener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertNull(bulk);
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(listener);
 
@@ -527,47 +513,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         }
     }
 
-    private void assertMonitorVersionResource(
-        final MockWebServer webServer,
-        final boolean alreadyExists,
-        final String resourcePrefix,
-        final List<Tuple<String, String>> resources,
-        @Nullable final Map<String, String[]> customHeaders,
-        @Nullable final String basePath
-    ) throws Exception {
-        final String pathPrefix = basePathToAssertablePrefix(basePath);
-
-        for (Tuple<String, String> resource : resources) {
-            final MockRequest getRequest = webServer.takeRequest();
-
-            assertThat(getRequest.getMethod(), equalTo("GET"));
-            assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertMonitorVersionQueryString(getRequest.getUri().getQuery(), Collections.emptyMap());
-            assertHeaders(getRequest, customHeaders);
-
-            if (alreadyExists == false) {
-                final MockRequest putRequest = webServer.takeRequest();
-
-                assertThat(putRequest.getMethod(), equalTo("PUT"));
-                assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                Map<String, String> parameters = Collections.emptyMap();
-                assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
-                if (resourcePrefix.startsWith("/_template")) {
-                    assertThat(putRequest.getBody(), equalTo(getExternalTemplateRepresentation(resource.v2())));
-                } else {
-                    assertThat(putRequest.getBody(), equalTo(resource.v2()));
-                }
-                assertHeaders(putRequest, customHeaders);
-            }
-        }
-    }
-
     private void assertMonitorVersionQueryString(String query, final Map<String, String> parameters) {
-        Map<String, String> expectedQueryStringMap = new HashMap<>();
-        RestUtils.decodeQueryString(query, 0, expectedQueryStringMap);
+        var expectedQueryStringMap = RequestParams.fromQueryString(query);
 
-        Map<String, String> resourceVersionQueryStringMap = new HashMap<>();
-        RestUtils.decodeQueryString(resourceVersionQueryString(), 0, resourceVersionQueryStringMap);
+        var resourceVersionQueryStringMap = RequestParams.fromQueryString(resourceVersionQueryString());
 
         Map<String, String> actualQueryStringMap = new HashMap<>();
         actualQueryStringMap.putAll(resourceVersionQueryStringMap);
@@ -687,19 +636,16 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (HttpExporter exporter = createHttpExporter(settings)) {
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
 
-            exporter.openBulk(ActionListener.wrap(exportBulk -> {
+            exporter.openBulk(ActionTestUtils.assertNoFailureListener(exportBulk -> {
                 final HttpExportBulk bulk = (HttpExportBulk) exportBulk;
 
                 assertThat("Bulk should never be null after the exporter is ready", bulk, notNullValue());
 
-                final ActionListener<Void> listener = ActionListener.wrap(
-                    ignored -> awaitResponseAndClose.countDown(),
-                    e -> fail(e.getMessage())
-                );
+                final ActionListener<Void> listener = ActionTestUtils.assertNoFailureListener(ignored -> awaitResponseAndClose.countDown());
 
                 bulk.add(docs);
                 bulk.flush(listener);
-            }, e -> fail("Failed to create HttpExportBulk")));
+            }));
 
             // block until the bulk responds
             assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
@@ -931,16 +877,15 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private void assertBulkRequest(String requestBody, int numberOfActions) throws Exception {
-        BulkRequest bulkRequest = Requests.bulkRequest()
-            .add(new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)), null, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)),
+            null,
+            XContentType.JSON
+        );
         assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));
         }
-    }
-
-    private String getFormattedAddress(MockWebServer server) {
-        return server.getHostName() + ":" + server.getPort();
     }
 
     private MockWebServer createMockWebServer() throws IOException {
@@ -949,14 +894,4 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         return server;
     }
 
-    private String getExternalTemplateRepresentation(String internalRepresentation) throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, internalRepresentation)
-        ) {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            IndexTemplateMetadata.Builder.removeType(IndexTemplateMetadata.Builder.fromXContent(parser, ""), builder);
-            return BytesReference.bytes(builder).utf8ToString();
-        }
-    }
 }

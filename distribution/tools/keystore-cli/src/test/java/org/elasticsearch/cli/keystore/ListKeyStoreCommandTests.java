@@ -1,22 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
-import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
@@ -24,7 +29,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new ListKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };
@@ -41,7 +46,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password);
         terminal.addSecretInput(password);
         execute();
-        assertEquals("keystore.seed\n", terminal.getOutput());
+        assertThat(terminal.getOutput(), containsString("keystore.seed"));
     }
 
     public void testOne() throws Exception {
@@ -49,7 +54,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password, "foo", "bar");
         terminal.addSecretInput(password);
         execute();
-        assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("foo", "keystore.seed")));
     }
 
     public void testMultiple() throws Exception {
@@ -57,7 +62,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
         terminal.addSecretInput(password);
         execute();
-        assertEquals("bar\nbaz\nfoo\nkeystore.seed\n", terminal.getOutput()); // sorted
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("bar", "baz", "foo", "keystore.seed"))); // sorted
     }
 
     public void testListWithIncorrectPassword() throws Exception {
@@ -84,6 +89,6 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore("", "foo", "bar");
         execute();
         // Not prompted for a password
-        assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), equalTo(List.of("foo", "keystore.seed")));
     }
 }

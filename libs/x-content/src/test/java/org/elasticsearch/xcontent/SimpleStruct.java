@@ -1,17 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.common.Strings;
-
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -19,7 +17,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * Simple structure with 3 fields: int, double and String.
  * Used for testing parsers.
  */
-class SimpleStruct implements ToXContentObject {
+record SimpleStruct(int i, double d, String s) implements ToXContentObject {
 
     static SimpleStruct fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -42,16 +40,6 @@ class SimpleStruct implements ToXContentObject {
         PARSER.declareString(constructorArg(), S);
     }
 
-    private final int i;
-    private final double d;
-    private final String s;
-
-    SimpleStruct(int i, double d, String s) {
-        this.i = i;
-        this.d = d;
-        this.s = s;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
@@ -59,23 +47,5 @@ class SimpleStruct implements ToXContentObject {
             .field(D.getPreferredName(), d)
             .field(S.getPreferredName(), s)
             .endObject();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SimpleStruct other = (SimpleStruct) o;
-        return i == other.i && d == other.d && Objects.equals(s, other.s);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(i, d, s);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 }

@@ -9,17 +9,15 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Copies the lifecycle reference date to a new index created by rolling over an alias.
@@ -42,20 +40,20 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState currentState) {
-        IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+    public ProjectState performAction(Index index, ProjectState projectState) {
+        IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
 
         long newIndexTime;
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
-            logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + UpdateRolloverLifecycleDateStep.NAME);
+            logger.trace("{} has lifecycle complete set, skipping {}", indexMetadata.getIndex(), UpdateRolloverLifecycleDateStep.NAME);
 
             // The index won't have RolloverInfo if this is a Following index and indexing_complete was set by CCR,
             // so just use the current time.
             newIndexTime = fallbackTimeSupplier.getAsLong();
         } else {
-            final String rolloverTarget = getRolloverTarget(index, currentState);
+            final String rolloverTarget = getRolloverTarget(index, projectState.metadata());
             RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(rolloverTarget);
             if (rolloverInfo == null) {
                 throw new IllegalStateException(
@@ -71,22 +69,17 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
 
         LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(indexMetadata.getLifecycleExecutionState());
         newLifecycleState.setIndexCreationDate(newIndexTime);
-
-        IndexMetadata.Builder newIndexMetadata = IndexMetadata.builder(indexMetadata);
-        newIndexMetadata.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap());
-        return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.metadata()).put(newIndexMetadata).build(false))
-            .build();
+        return projectState.updateProject(projectState.metadata().withLifecycleState(indexMetadata.getIndex(), newLifecycleState.build()));
     }
 
-    private static String getRolloverTarget(Index index, ClusterState currentState) {
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(index.getName());
+    private static String getRolloverTarget(Index index, ProjectMetadata project) {
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
             rolloverTarget = indexAbstraction.getParentDataStream().getName();
         } else {
             // find the newly created index from the rollover and fetch its index.creation_date
-            IndexMetadata indexMetadata = currentState.metadata().index(index);
+            IndexMetadata indexMetadata = project.index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 throw new IllegalStateException(

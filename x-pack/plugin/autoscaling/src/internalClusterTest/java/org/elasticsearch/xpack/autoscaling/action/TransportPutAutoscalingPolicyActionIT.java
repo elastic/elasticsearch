@@ -32,7 +32,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     public void testAddPolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
@@ -47,7 +47,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
             mutateAutoscalingDeciders(policy.deciders())
         );
         putAutoscalingPolicy(updatedPolicy);
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
@@ -98,6 +98,8 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     private void putAutoscalingPolicy(final AutoscalingPolicy policy) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             policy.roles(),
             policy.deciders()

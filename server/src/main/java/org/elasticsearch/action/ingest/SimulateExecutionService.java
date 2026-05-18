@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -32,7 +33,7 @@ class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    void executeDocument(
+    static void executeDocument(
         Pipeline pipeline,
         IngestDocument ingestDocument,
         boolean verbose,
@@ -46,12 +47,15 @@ class SimulateExecutionService {
                 pipeline.getDescription(),
                 pipeline.getVersion(),
                 pipeline.getMetadata(),
-                verbosePipelineProcessor
+                verbosePipelineProcessor,
+                pipeline.getFieldAccessPattern(),
+                pipeline.getDeprecated(),
+                pipeline.getCreatedDateMillis().orElse(null),
+                pipeline.getModifiedDateMillis().orElse(null)
             );
-            ingestDocument.executePipeline(
-                verbosePipeline,
-                (result, e) -> { handler.accept(new SimulateDocumentVerboseResult(processorResultList), e); }
-            );
+            ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
+                handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);
+            });
         } else {
             ingestDocument.executePipeline(pipeline, (result, e) -> {
                 if (e == null) {
@@ -67,23 +71,23 @@ class SimulateExecutionService {
         threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
             final AtomicInteger counter = new AtomicInteger();
             final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>(
-                new SimulateDocumentBaseResult[request.getDocuments().size()]
+                new SimulateDocumentBaseResult[request.documents().size()]
             );
 
-            if (request.getDocuments().isEmpty()) {
-                l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
+            if (request.documents().isEmpty()) {
+                l.onResponse(new SimulatePipelineResponse(request.pipeline().getId(), request.verbose(), responses));
                 return;
             }
 
             int iter = 0;
-            for (IngestDocument ingestDocument : request.getDocuments()) {
+            for (IngestDocument ingestDocument : request.documents()) {
                 final int index = iter;
-                executeDocument(request.getPipeline(), ingestDocument, request.isVerbose(), (response, e) -> {
+                executeDocument(request.pipeline(), ingestDocument, request.verbose(), (response, e) -> {
                     if (response != null) {
                         responses.set(index, response);
                     }
-                    if (counter.incrementAndGet() == request.getDocuments().size()) {
-                        l.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
+                    if (counter.incrementAndGet() == request.documents().size()) {
+                        l.onResponse(new SimulatePipelineResponse(request.pipeline().getId(), request.verbose(), responses));
                     }
                 });
                 iter++;

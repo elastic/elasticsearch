@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,6 +33,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -40,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -59,16 +63,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("setting1"), equalTo(value));
     }
 
-    public void testReplacePropertiesPlaceholderSystemPropertyList() {
-        final String hostname = randomAlphaOfLength(16);
-        final String hostip = randomAlphaOfLength(16);
-        final Settings settings = Settings.builder()
-            .putList("setting1", "${HOSTNAME}", "${HOSTIP}")
-            .replacePropertyPlaceholders(name -> name.equals("HOSTNAME") ? hostname : name.equals("HOSTIP") ? hostip : null)
-            .build();
-        assertThat(settings.getAsList("setting1"), contains(hostname, hostip));
-    }
-
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {
         final String value = System.getProperty("java.home");
         assertNotNull(value);
@@ -77,15 +71,6 @@ public class SettingsTests extends ESTestCase {
             () -> Settings.builder().put("setting1", "${java.home}").replacePropertyPlaceholders().build()
         );
         assertThat(e, hasToString(containsString("Could not resolve placeholder 'java.home'")));
-    }
-
-    public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
-        final String hostname = randomAlphaOfLength(16);
-        final Settings implicitEnvSettings = Settings.builder()
-            .put("setting1", "${HOSTNAME}")
-            .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
-            .build();
-        assertThat(implicitEnvSettings.get("setting1"), equalTo(hostname));
     }
 
     public void testGetAsSettings() {
@@ -450,7 +435,7 @@ public class SettingsTests extends ESTestCase {
         builder.putList("test.key4.foo", "1", "2");
         builder.setSecureSettings(secureSettings);
         assertEquals(7, builder.build().size());
-        Settings.writeSettingsToStream(builder.build(), out);
+        builder.build().writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         Settings settings = Settings.readSettingsFromStream(in);
         assertEquals(3, settings.size());
@@ -460,11 +445,32 @@ public class SettingsTests extends ESTestCase {
         assertEquals(Arrays.asList("1", "2"), settings.getAsList("test.key4.foo"));
     }
 
-    public void testSecureSettingConflict() {
-        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
-        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
+    public void testDiff() throws IOException {
+        final Settings before = Settings.builder().put("foo", "bar").put("setting", "value").build();
+        {
+            final Settings after = Settings.builder()
+                .put("foo", "bar")
+                .putNull("null_setting")
+                .putList("list_setting", List.of("a", "bbb", "ccc"))
+                .put("added_setting", "added")
+                .build();
+            final Diff<Settings> diff = after.diff(before);
+            BytesStreamOutput out = new BytesStreamOutput();
+            diff.writeTo(out);
+            final Diff<Settings> diffRead = Settings.readSettingsDiffFromStream(out.bytes().streamInput());
+            final Settings afterFromDiff = diffRead.apply(before);
+            assertEquals(after, afterFromDiff);
+        }
+
+        {
+            final Settings afterSameAsBefore = Settings.builder().put(before).build();
+            final Diff<Settings> diff = afterSameAsBefore.diff(before);
+            BytesStreamOutput out = new BytesStreamOutput();
+            diff.writeTo(out);
+            final Diff<Settings> diffRead = Settings.readSettingsDiffFromStream(out.bytes().streamInput());
+            assertSame(before, diff.apply(before));
+            assertSame(before, diffRead.apply(before));
+        }
     }
 
     public void testSecureSettingIllegalName() {
@@ -493,10 +499,12 @@ public class SettingsTests extends ESTestCase {
         final boolean flatSettings = randomBoolean();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "" + flatSettings)));
+        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(Settings.FLAT_SETTINGS_PARAM, "" + flatSettings)));
         builder.endObject();
-        XContentParser parser = createParser(builder);
-        Settings build = Settings.fromXContent(parser);
+        Settings build;
+        try (XContentParser parser = createParser(builder)) {
+            build = Settings.fromXContent(parser);
+        }
         assertEquals(5, build.size());
         assertEquals(Arrays.asList("1", "2", "3"), build.getAsList("foo.bar.baz"));
         assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());
@@ -541,7 +549,7 @@ public class SettingsTests extends ESTestCase {
 
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        test.toXContent(builder, Settings.FLAT_SETTINGS_TRUE);
         builder.endObject();
         assertEquals("""
             {"foo.bar":["1","2","3"]}""", Strings.toString(builder));
@@ -585,19 +593,17 @@ public class SettingsTests extends ESTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
@@ -613,9 +619,9 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(randomFrom(Version.CURRENT, Version.V_7_0_0));
+        output.setTransportVersion(TransportVersion.current());
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
-        Settings.writeSettingsToStream(settings, output);
+        settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
         Settings build = Settings.readSettingsFromStream(in);
         assertEquals(2, build.size());
@@ -634,11 +640,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testFractionalTimeValue() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
@@ -657,7 +659,7 @@ public class SettingsTests extends ESTestCase {
             "key",
             ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key")
         );
-        final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        final ByteSizeValue expected = ByteSizeValue.of(randomNonNegativeLong(), ByteSizeUnit.BYTES);
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
          * Previously we would internally convert the byte size value to a string using a method that tries to be smart about the units
@@ -671,11 +673,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testSetByTimeUnit() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
         final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
         /*
@@ -703,6 +701,79 @@ public class SettingsTests extends ESTestCase {
         builder.endObject();
         assertEquals("""
             {"ant.bee":{"cat.dog":{"ewe":"value3"},"cat":"value2"},"ant":"value1"}""", Strings.toString(builder));
+    }
+
+    public void testGlobValues() throws IOException {
+        Settings test = Settings.builder().put("foo.x.bar", "1").build();
+
+        // no values
+        assertThat(test.getValues("foo.*.baz").toList(), empty());
+        assertThat(test.getValues("fuz.*.bar").toList(), empty());
+
+        var values = test.getValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1"));
+
+        test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
+        values = test.getValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1", "2"));
+
+        values = test.getValues("foo.x.bar").toList();
+        assertThat(values, contains("1"));
+    }
+
+    public void testMergeNullOrEmptySettingsIntoEmptySettings() {
+        expectThrows(NullPointerException.class, () -> Settings.EMPTY.merge(null));
+        assertThat(Settings.EMPTY.merge(Settings.EMPTY), equalTo(Settings.EMPTY));
+    }
+
+    public void testMergeEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings settings = builder.build();
+        assertThat(settings.merge(Settings.EMPTY), equalTo(settings));
+    }
+
+    public void testMergeNonEmptySettingsIntoEmptySettings() {
+        Settings.Builder builder = Settings.builder();
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        Settings newSettings = builder.build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(newSettings));
+    }
+
+    public void testMergeNonEmptySettingsIntoNonEmptySettings() {
+        Settings settings = Settings.builder()
+            .put("index.setting1", "templateValue")
+            .put("index.setting3", "templateValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        assertThat(settings.merge(newSettings), equalTo(mergedSettings));
+    }
+
+    public void testMergeNonEmptySettingsWithNullIntoEmptySettings() {
+        Settings newSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .build();
+        assertThat(Settings.EMPTY.merge(newSettings), equalTo(mergedSettings));
     }
 
 }

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -22,9 +24,9 @@ public class TransportSearchHelperTests extends ESTestCase {
 
     public static AtomicArray<SearchPhaseResult> generateQueryResults() {
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
             new ShardSearchContextId("a", 1),
             node1
@@ -48,8 +50,12 @@ public class TransportSearchHelperTests extends ESTestCase {
 
     public void testParseScrollId() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
-        String scrollId = TransportSearchHelper.buildScrollId(queryResults);
+        final String scrollId;
+        try (var recycler = new MockBytesRefRecycler()) {
+            scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler, true);
+        }
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
+        assertEquals(ParsedScrollId.QUERY_THEN_FETCH_TYPE, parseScrollId.getType());
         assertEquals(3, parseScrollId.getContext().length);
         assertEquals("node_1", parseScrollId.getContext()[0].getNode());
         assertEquals("cluster_x", parseScrollId.getContext()[0].getClusterAlias());
@@ -65,5 +71,27 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
+    }
+
+    /**
+     * One shard executed the query phase while other shards were skipped (e.g. can_match); scroll type must still be
+     * query-then-fetch when the logical search is multi-shard.
+     */
+    public void testParseScrollIdSingleQueryShardButMultiLogicalShard() {
+        AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(1);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        SearchAsyncActionTests.TestSearchPhaseResult single = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("only", 1),
+            node1
+        );
+        single.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 0), null));
+        queryResults.setOnce(0, single);
+        final String scrollId;
+        try (var recycler = new MockBytesRefRecycler()) {
+            scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler, true);
+        }
+        ParsedScrollId parsed = TransportSearchHelper.parseScrollId(scrollId);
+        assertEquals(ParsedScrollId.QUERY_THEN_FETCH_TYPE, parsed.getType());
+        assertEquals(1, parsed.getContext().length);
     }
 }

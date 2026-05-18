@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +26,8 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class SearchProfileResultsBuilderTests extends ESTestCase {
     public void testFetchWithoutQuery() {
@@ -30,24 +36,32 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
             randomValueOtherThanMany(searchPhase::containsKey, SearchProfileResultsBuilderTests::randomTarget),
             null
         );
-        Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase)));
-        assertThat(
-            e.getMessage(),
-            matchesPattern(
-                "Profile returned fetch phase information for .+ but didn't return query phase information\\. Query phase keys were .+"
-            )
-        );
+        try {
+            Exception e = expectThrows(IllegalStateException.class, () -> builder(searchPhase).build(List.of(fetchPhase)));
+            assertThat(
+                e.getMessage(),
+                matchesPattern(
+                    "Profile returned fetch phase information for .+ but didn't return query phase information\\. Query phase keys were .+"
+                )
+            );
+        } finally {
+            fetchPhase.decRef();
+        }
     }
 
     public void testQueryWithoutAnyFetch() {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(between(1, 2));
         FetchSearchResult fetchPhase = fetchResult(searchPhase.keySet().iterator().next(), null);
-        SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase));
-        assertThat(
-            result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
-            equalTo((long) searchPhase.size())
-        );
-        assertThat(result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(), equalTo(0L));
+        try {
+            SearchProfileResults result = builder(searchPhase).build(List.of(fetchPhase));
+            assertThat(
+                result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
+                equalTo((long) searchPhase.size())
+            );
+            assertThat(result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(), equalTo(0L));
+        } finally {
+            fetchPhase.decRef();
+        }
     }
 
     public void testQueryAndFetch() {
@@ -56,19 +70,44 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
             .stream()
             .map(e -> fetchResult(e.getKey(), new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
             .collect(toList());
-        SearchProfileResults result = builder(searchPhase).build(fetchPhase);
-        assertThat(
-            result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
-            equalTo((long) searchPhase.size())
-        );
-        assertThat(
-            result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(),
-            equalTo((long) searchPhase.size())
-        );
+        try {
+            SearchProfileResults result = builder(searchPhase).build(fetchPhase);
+            assertThat(
+                result.getShardResults().values().stream().filter(r -> r.getQueryPhase() != null).count(),
+                equalTo((long) searchPhase.size())
+            );
+            assertThat(
+                result.getShardResults().values().stream().filter(r -> r.getFetchPhase() != null).count(),
+                equalTo((long) searchPhase.size())
+            );
+        } finally {
+            fetchPhase.forEach(RefCounted::decRef);
+        }
+    }
+
+    public void testRequestMetadataPropagatesToBuiltSearchProfileResults() {
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(1);
+        SearchSourceBuilder originalSource = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(3);
+        String[] requestIndices = new String[] { "coord-*" };
+        SearchProfileResultsBuilder profileBuilder = builder(searchPhase);
+        FetchSearchResult fetchPhase = searchPhase.keySet()
+            .stream()
+            .map(k -> fetchResult(k, new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
+            .findFirst()
+            .orElseThrow();
+        try {
+            SearchProfileResults built = profileBuilder.build(List.of(fetchPhase));
+            built.setOriginalSource(originalSource);
+            built.setRequestIndices(requestIndices);
+            assertEquals(originalSource, built.getOriginalSource());
+            assertArrayEquals(requestIndices, built.getRequestIndices());
+        } finally {
+            fetchPhase.decRef();
+        }
     }
 
     private static Map<SearchShardTarget, SearchProfileQueryPhaseResult> randomSearchPhaseResults(int size) {
-        Map<SearchShardTarget, SearchProfileQueryPhaseResult> results = new HashMap<>(size);
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> results = Maps.newMapWithExpectedSize(size);
         while (results.size() < size) {
             results.put(randomTarget(), SearchProfileQueryPhaseResultTests.createTestItem());
         }

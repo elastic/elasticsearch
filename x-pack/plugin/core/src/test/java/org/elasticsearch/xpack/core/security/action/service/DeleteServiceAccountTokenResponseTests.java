@@ -33,7 +33,7 @@ public class DeleteServiceAccountTokenResponseTests extends AbstractWireSerializ
     }
 
     @Override
-    protected DeleteServiceAccountTokenResponse mutateInstance(DeleteServiceAccountTokenResponse instance) throws IOException {
+    protected DeleteServiceAccountTokenResponse mutateInstance(DeleteServiceAccountTokenResponse instance) {
         return new DeleteServiceAccountTokenResponse(false == instance.found());
     }
 

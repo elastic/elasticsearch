@@ -1,53 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
+import java.util.Map;
 
-public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> implements AliasesRequest {
+public class GetAliasesRequest extends LocalClusterStateRequest implements AliasesRequest {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHidden();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHiddenNoSelectors();
 
+    private String[] aliases;
+    private String[] originalAliases;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] aliases = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
-    private String[] originalAliases = Strings.EMPTY_ARRAY;
 
-    public GetAliasesRequest(String... aliases) {
+    public GetAliasesRequest(TimeValue masterTimeout, String... aliases) {
+        super(masterTimeout);
         this.aliases = aliases;
         this.originalAliases = aliases;
-    }
-
-    public GetAliasesRequest() {}
-
-    public GetAliasesRequest(StreamInput in) throws IOException {
-        super(in);
-        indices = in.readStringArray();
-        aliases = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        originalAliases = in.readStringArray();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(aliases);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(originalAliases);
     }
 
     @Override
@@ -107,5 +92,10 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     @Override
     public boolean includeDataStreams() {
         return true;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 }

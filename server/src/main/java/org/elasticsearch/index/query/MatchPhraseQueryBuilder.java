@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -126,6 +129,11 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return this;
     }
 
+    public MatchPhraseQueryBuilder zeroTermsQuery(String zeroTermsQueryString) {
+        ZeroTermsQueryOption zeroTermsQueryOption = ZeroTermsQueryOption.readFromString(zeroTermsQueryString);
+        return zeroTermsQuery(zeroTermsQueryOption);
+    }
+
     public ZeroTermsQueryOption zeroTermsQuery() {
         return this.zeroTermsQuery;
     }
@@ -144,50 +152,51 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         if (analyzer != null) {
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(SLOP_FIELD.getPreferredName(), slop);
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        printBoostAndQueryName(builder);
+        if (slop != MatchQueryParser.DEFAULT_PHRASE_SLOP) {
+            builder.field(SLOP_FIELD.getPreferredName(), slop);
+        }
+        if (zeroTermsQuery != MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
-        if (sec == null) {
-            return this;
-        }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         // If we're using the default keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
         // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
-        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(context);
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
-            return termQueryBuilder.rewrite(sec);
+            return termQueryBuilder.rewrite(context);
+        } else {
+            return this;
         }
-        return this;
     }
 
-    private NamedAnalyzer configuredAnalyzer(SearchExecutionContext context) {
+    private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);
         }
         MappedFieldType mft = context.getFieldType(fieldName);
         if (mft != null) {
-            return mft.getTextSearchInfo().getSearchAnalyzer();
+            return mft.getTextSearchInfo().searchAnalyzer();
         }
         return null;
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         // validate context specific fields
         if (analyzer != null && context.getIndexAnalyzers().get(analyzer) == null) {
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        MatchQueryParser queryParser = new MatchQueryParser(context);
+        MatchQueryParser queryParser = new MatchQueryParser(context, queryVisitor);
         if (analyzer != null) {
             queryParser.setAnalyzer(analyzer);
         }
@@ -280,5 +289,10 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
         return matchQuery;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

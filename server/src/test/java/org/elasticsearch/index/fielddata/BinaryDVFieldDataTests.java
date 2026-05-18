@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.ScriptFieldFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -118,7 +120,8 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
 
         // Test whether BinaryDocValuesField makes a deepcopy
         fieldData = indexFieldData.load(reader);
-        BinaryDocValuesField binaryDocValuesField = (BinaryDocValuesField) fieldData.getScriptField("test");
+        ScriptFieldFactory factory = fieldData.getScriptFieldFactory("test");
+        BinaryDocValuesField binaryDocValuesField = (BinaryDocValuesField) factory.toScriptField();
         ByteBuffer[][] retValues = new ByteBuffer[4][];
         for (int i = 0; i < 4; i++) {
             binaryDocValuesField.setNextDocId(i);

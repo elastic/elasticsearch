@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * The result of analyzing disk usage of each field in a shard/index
@@ -40,6 +41,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String NORMS_IN_BYTES = "norms_in_bytes";
     public static final String TERM_VECTORS = "term_vectors";
     public static final String TERM_VECTORS_IN_BYTES = "term_vectors_in_bytes";
+    public static final String KNN_VECTORS = "knn_vectors";
+    public static final String KNN_VECTORS_IN_BYTES = "knn_vectors_in_bytes";
+    public static final String BLOOM_FILTER = "bloom_filter";
+    public static final String BLOOM_FILTER_IN_BYTES = "bloom_filter_in_bytes";
 
     public static final String STORE_SIZE = "store_size";
     public static final String STORE_SIZE_IN_BYTES = "store_size_in_bytes";
@@ -53,13 +58,13 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     }
 
     public IndexDiskUsageStats(StreamInput in) throws IOException {
-        this.fields = new HashMap<>(in.readMap(StreamInput::readString, PerFieldDiskUsage::new));
+        this.fields = new HashMap<>(in.readMap(PerFieldDiskUsage::new));
         this.indexSizeInBytes = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(fields, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(fields, StreamOutput::writeWriteable);
         out.writeVLong(indexSizeInBytes);
     }
 
@@ -79,7 +84,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         return indexSizeInBytes;
     }
 
-    private void checkByteSize(long bytes) {
+    private static void checkByteSize(long bytes) {
         if (bytes < 0) {
             throw new IllegalArgumentException("Bytes must be non-negative; got " + bytes);
         }
@@ -120,6 +125,16 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         getOrAdd(fieldName).termVectorsBytes += bytes;
     }
 
+    public void addKnnVectors(String fieldName, long bytes) {
+        checkByteSize(bytes);
+        getOrAdd(fieldName).knnVectorsBytes += bytes;
+    }
+
+    public void addBloomFilter(String fieldName, long bytes) {
+        checkByteSize(bytes);
+        getOrAdd(fieldName).bloomFilterBytes += bytes;
+    }
+
     public IndexDiskUsageStats add(IndexDiskUsageStats other) {
         other.fields.forEach((k, v) -> getOrAdd(k).add(v));
         this.indexSizeInBytes += other.indexSizeInBytes;
@@ -129,7 +144,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final PerFieldDiskUsage total = total();
-        builder.field(STORE_SIZE, new ByteSizeValue(indexSizeInBytes));
+        builder.field(STORE_SIZE, ByteSizeValue.ofBytes(indexSizeInBytes));
         builder.field(STORE_SIZE_IN_BYTES, indexSizeInBytes);
 
         // all fields
@@ -143,7 +158,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             final List<Map.Entry<String, PerFieldDiskUsage>> entries = fields.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.toList());
+                .toList();
             for (Map.Entry<String, PerFieldDiskUsage> entry : entries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -163,12 +178,16 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
      * Disk usage stats for a single field
      */
     public static final class PerFieldDiskUsage implements ToXContentFragment, Writeable {
+        private static final TransportVersion BLOOM_FILTER_STATS_VERSION = TransportVersion.fromName("disk_usage_stats_bloom_filter");
+
         private long invertedIndexBytes;
         private long storedFieldBytes;
         private long docValuesBytes;
         private long pointsBytes;
         private long normsBytes;
         private long termVectorsBytes;
+        private long knnVectorsBytes;
+        private long bloomFilterBytes;
 
         private PerFieldDiskUsage() {
 
@@ -181,6 +200,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes = in.readVLong();
             normsBytes = in.readVLong();
             termVectorsBytes = in.readVLong();
+            knnVectorsBytes = in.readVLong();
+            if (in.getTransportVersion().supports(BLOOM_FILTER_STATS_VERSION)) {
+                bloomFilterBytes = in.readVLong();
+            }
         }
 
         @Override
@@ -191,6 +214,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(pointsBytes);
             out.writeVLong(normsBytes);
             out.writeVLong(termVectorsBytes);
+            out.writeVLong(knnVectorsBytes);
+            if (out.getTransportVersion().supports(BLOOM_FILTER_STATS_VERSION)) {
+                out.writeVLong(bloomFilterBytes);
+            }
         }
 
         private void add(PerFieldDiskUsage other) {
@@ -200,6 +227,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes += other.pointsBytes;
             normsBytes += other.normsBytes;
             termVectorsBytes += other.termVectorsBytes;
+            knnVectorsBytes += other.knnVectorsBytes;
+            bloomFilterBytes += other.bloomFilterBytes;
         }
 
         public long getInvertedIndexBytes() {
@@ -226,35 +255,50 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             return termVectorsBytes;
         }
 
+        public long getKnnVectorsBytes() {
+            return knnVectorsBytes;
+        }
+
+        public long getBloomFilterBytes() {
+            return bloomFilterBytes;
+        }
+
         long totalBytes() {
-            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;
+            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes + knnVectorsBytes
+                + bloomFilterBytes;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             final long totalBytes = totalBytes();
-            builder.field(TOTAL, new ByteSizeValue(totalBytes));
+            builder.field(TOTAL, ByteSizeValue.ofBytes(totalBytes));
             builder.field(TOTAL_IN_BYTES, totalBytes);
 
             builder.startObject(INVERTED_INDEX);
-            builder.field(TOTAL, new ByteSizeValue(invertedIndexBytes));
+            builder.field(TOTAL, ByteSizeValue.ofBytes(invertedIndexBytes));
             builder.field(TOTAL_IN_BYTES, invertedIndexBytes);
             builder.endObject();
 
-            builder.field(STORED_FIELDS, new ByteSizeValue(storedFieldBytes));
+            builder.field(STORED_FIELDS, ByteSizeValue.ofBytes(storedFieldBytes));
             builder.field(STORED_FIELDS_IN_BYTES, storedFieldBytes);
 
-            builder.field(DOC_VALUES, new ByteSizeValue(docValuesBytes));
+            builder.field(DOC_VALUES, ByteSizeValue.ofBytes(docValuesBytes));
             builder.field(DOC_VALUES_IN_BYTES, docValuesBytes);
 
-            builder.field(POINTS, new ByteSizeValue(pointsBytes));
+            builder.field(POINTS, ByteSizeValue.ofBytes(pointsBytes));
             builder.field(POINTS_IN_BYTES, pointsBytes);
 
-            builder.field(NORMS, new ByteSizeValue(normsBytes));
+            builder.field(NORMS, ByteSizeValue.ofBytes(normsBytes));
             builder.field(NORMS_IN_BYTES, normsBytes);
 
-            builder.field(TERM_VECTORS, new ByteSizeValue(termVectorsBytes));
+            builder.field(TERM_VECTORS, ByteSizeValue.ofBytes(termVectorsBytes));
             builder.field(TERM_VECTORS_IN_BYTES, termVectorsBytes);
+
+            builder.field(KNN_VECTORS, ByteSizeValue.ofBytes(knnVectorsBytes));
+            builder.field(KNN_VECTORS_IN_BYTES, knnVectorsBytes);
+
+            builder.field(BLOOM_FILTER, ByteSizeValue.ofBytes(bloomFilterBytes));
+            builder.field(BLOOM_FILTER_IN_BYTES, bloomFilterBytes);
             return builder;
         }
 

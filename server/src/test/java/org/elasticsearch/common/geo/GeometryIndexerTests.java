@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -198,6 +199,11 @@ public class GeometryIndexerTests extends ESTestCase {
             expected("POLYGON ((180 29, 180 38, 180 56, 180 53, 178 47, 177 23, 180 29))"),
             actual("POLYGON ((180 38,  180.0 56, 180.0 53, 178 47, 177 23, 180 29, 180 36, 180 37, 180 38))", randomBoolean())
         );
+
+        assertEquals(
+            expected("POLYGON ((-135 85, 135 85, 45 85, -45 85, -135 85))"),
+            actual("POLYGON ((-45 85, -135 85, 135 85, 45 85, -45 85))", randomBoolean())
+        );
     }
 
     public void testInvalidSelfCrossingPolygon() {
@@ -216,6 +222,12 @@ public class GeometryIndexerTests extends ESTestCase {
         polygon = new Polygon(new LinearRing(new double[] { 180, -170, -170, 170, 180 }, new double[] { -10, -5, 15, -15, -10 }));
         geometry = GeometryNormalizer.apply(Orientation.CCW, polygon);
         assertTrue(geometry instanceof MultiPolygon);
+    }
+
+    public void testPolygonAllCollinearPoints() {
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, -1, 0 }, new double[] { 0, 1, -1, 0 }));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexer.indexShape(polygon));
+        assertEquals("at least three non-collinear points required", e.getMessage());
     }
 
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {

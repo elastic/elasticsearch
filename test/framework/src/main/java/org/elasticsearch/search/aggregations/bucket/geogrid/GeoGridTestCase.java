@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -52,18 +54,29 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final int precision = randomPrecision();
-        int size = randomNumberOfBuckets();
-        List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        final int size = randomNumberOfBuckets();
+        final List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        final List<Long> seen = new ArrayList<>(size);
+        int finalSize = 0;
         for (int i = 0; i < size; i++) {
             double latitude = randomDoubleBetween(-90.0, 90.0, false);
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
 
             long hashAsLong = longEncode(longitude, latitude, precision);
-            buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+            if (seen.contains(hashAsLong) == false) { // make sure we don't add twice the same bucket
+                buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+                seen.add(hashAsLong);
+                finalSize++;
+            }
         }
-        return createInternalGeoGrid(name, size, buckets, metadata);
+        return createInternalGeoGrid(name, finalSize, buckets, metadata);
     }
 
     @Override
@@ -95,7 +108,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             }
             return cmp;
         });
-        int requestedSize = inputs.get(0).getRequiredSize();
+        int requestedSize = reduced.getRequiredSize();
         expectedBuckets = expectedBuckets.subList(0, Math.min(requestedSize, expectedBuckets.size()));
         assertEquals(expectedBuckets.size(), reduced.getBuckets().size());
         for (int i = 0; i < reduced.getBuckets().size(); i++) {
@@ -104,11 +117,6 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             assertEquals(expected.getDocCount(), actual.getDocCount());
             assertEquals(expected.getKey(), actual.getKey());
         }
-    }
-
-    @Override
-    protected Class<ParsedGeoGrid> implementationClass() {
-        return ParsedGeoGrid.class;
     }
 
     @Override
@@ -128,7 +136,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             case 2 -> size = size + between(1, 10);
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

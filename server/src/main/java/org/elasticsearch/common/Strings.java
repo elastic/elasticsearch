@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -12,101 +13,39 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringReader;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
-
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class Strings {
 
+    public static final Base64.Encoder BASE_64_NO_PADDING_URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
+
     public static final String[] EMPTY_ARRAY = new String[0];
-
-    public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                for (int i = 0; i < spaces; i++) {
-                    to.append(' ');
-                }
-                to.append(line).append('\n');
-            }
-        }
-    }
-
-    /**
-     * Splits a backslash escaped string on the separator.
-     * <p>
-     * Current backslash escaping supported:
-     * <br> \n \t \r \b \f are escaped the same as a Java String
-     * <br> Other characters following a backslash are produced verbatim (\c =&gt; c)
-     *
-     * @param s         the string to split
-     * @param separator the separator to split on
-     * @param decode    decode backslash escaping
-     */
-    public static List<String> splitSmart(String s, String separator, boolean decode) {
-        ArrayList<String> lst = new ArrayList<>(2);
-        StringBuilder sb = new StringBuilder();
-        int pos = 0, end = s.length();
-        while (pos < end) {
-            if (s.startsWith(separator, pos)) {
-                if (sb.length() > 0) {
-                    lst.add(sb.toString());
-                    sb = new StringBuilder();
-                }
-                pos += separator.length();
-                continue;
-            }
-
-            char ch = s.charAt(pos++);
-            if (ch == '\\') {
-                if (decode == false) {
-                    sb.append(ch);
-                }
-                if (pos >= end) {
-                    break;  // ERROR, or let it go?
-                }
-                ch = s.charAt(pos++);
-                if (decode) {
-                    ch = switch (ch) {
-                        case 'n' -> '\n';
-                        case 't' -> '\t';
-                        case 'r' -> '\r';
-                        case 'b' -> '\b';
-                        case 'f' -> '\f';
-                        default -> ch;
-                    };
-                }
-            }
-
-            sb.append(ch);
-        }
-
-        if (sb.length() > 0) {
-            lst.add(sb.toString());
-        }
-
-        return lst;
-    }
 
     // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
@@ -127,7 +66,7 @@ public class Strings {
      * @see #hasText(String)
      */
     public static boolean hasLength(CharSequence str) {
-        return (str != null && str.length() > 0);
+        return (str != null && str.isEmpty() == false);
     }
 
     /**
@@ -212,7 +151,7 @@ public class Strings {
      * @see #hasText(CharSequence)
      */
     public static boolean hasText(String str) {
-        return hasText((CharSequence) str);
+        return isNullOrBlank(str) == false;
     }
 
     /**
@@ -226,11 +165,11 @@ public class Strings {
         if (hasLength(str) == false) {
             return str;
         }
-        StringBuilder sb = new StringBuilder(str);
-        while (sb.length() > 0 && sb.charAt(0) == leadingCharacter) {
-            sb.deleteCharAt(0);
+        int i = 0;
+        while (i < str.length() && str.charAt(i) == leadingCharacter) {
+            i++;
         }
-        return sb.toString();
+        return str.substring(i);
     }
 
     /**
@@ -270,7 +209,7 @@ public class Strings {
         // the index of an occurrence we've found, or -1
         int patLen = oldPattern.length();
         while (index >= 0) {
-            sb.append(inString.substring(pos, index));
+            sb.append(inString, pos, index);
             sb.append(newPattern);
             pos = index + patLen;
             index = inString.indexOf(oldPattern, pos);
@@ -278,17 +217,6 @@ public class Strings {
         sb.append(inString.substring(pos));
         // remember to append any characters to the right of a match
         return sb.toString();
-    }
-
-    /**
-     * Delete all occurrences of the given substring.
-     *
-     * @param inString the original String
-     * @param pattern  the pattern to delete all occurrences of
-     * @return the resulting String
-     */
-    public static String delete(String inString, String pattern) {
-        return replace(inString, pattern, "");
     }
 
     /**
@@ -300,33 +228,34 @@ public class Strings {
      * @return the resulting String
      */
     public static String deleteAny(String inString, String charsToDelete) {
+        return inString != null ? deleteAny((CharSequence) inString, charsToDelete).toString() : null;
+    }
+
+    /**
+     * Delete any character in a given CharSequence.
+     *
+     * @param inString      the original CharSequence
+     * @param charsToDelete a set of characters to delete.
+     *                      E.g. "az\n" will delete 'a's, 'z's and new lines.
+     * @return the resulting CharSequence
+     */
+    public static CharSequence deleteAny(CharSequence inString, String charsToDelete) {
         if (hasLength(inString) == false || hasLength(charsToDelete) == false) {
             return inString;
         }
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(inString.length());
         for (int i = 0; i < inString.length(); i++) {
             char c = inString.charAt(i);
             if (charsToDelete.indexOf(c) == -1) {
                 sb.append(c);
             }
         }
-        return sb.toString();
+        return sb;
     }
 
     // ---------------------------------------------------------------------
     // Convenience methods for working with formatted Strings
     // ---------------------------------------------------------------------
-
-    /**
-     * Quote the given String with single quotes.
-     *
-     * @param str the input String (e.g. "myString")
-     * @return the quoted String (e.g. "'myString'"),
-     *         or <code>null</code> if the input was <code>null</code>
-     */
-    public static String quote(String str) {
-        return (str != null ? "'" + str + "'" : null);
-    }
 
     /**
      * Capitalize a <code>String</code>, changing the first letter to
@@ -344,24 +273,29 @@ public class Strings {
         if (str == null || str.length() == 0) {
             return str;
         }
-        StringBuilder sb = new StringBuilder(str.length());
-        if (capitalize) {
-            sb.append(Character.toUpperCase(str.charAt(0)));
-        } else {
-            sb.append(Character.toLowerCase(str.charAt(0)));
+        char newChar = capitalize ? Character.toUpperCase(str.charAt(0)) : Character.toLowerCase(str.charAt(0));
+        if (newChar == str.charAt(0)) {
+            return str; // nothing changed
         }
-        sb.append(str.substring(1));
-        return sb.toString();
+
+        return newChar + str.substring(1);
     }
 
-    public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
-        newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+    // Visible for testing
+    static final Set<Character> INVALID_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+
+    public static final String INVALID_FILENAME_CHARS = INVALID_CHARS.stream()
+        .sorted()
+        .map(c -> "'" + c + "'")
+        .collect(Collectors.joining(",", "[", "]"));
+
+    public static final Pattern INVALID_FILENAME_CHARS_REGEX = Pattern.compile(
+        "[" + INVALID_CHARS.stream().map(Objects::toString).map(Pattern::quote).collect(Collectors.joining()) + "]+"
     );
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (INVALID_FILENAME_CHARS.contains(c)) {
+            if (isInvalidFileNameCharacter(fileName.charAt(i))) {
                 return false;
             }
         }
@@ -371,11 +305,18 @@ public class Strings {
     public static boolean validFileNameExcludingAstrix(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
-            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+            if (c != '*' && isInvalidFileNameCharacter(c)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isInvalidFileNameCharacter(char c) {
+        return switch (c) {
+            case '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',' -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -390,7 +331,7 @@ public class Strings {
         if (collection == null) {
             return null;
         }
-        return collection.toArray(new String[collection.size()]);
+        return collection.toArray(String[]::new);
     }
 
     /**
@@ -548,21 +489,31 @@ public class Strings {
         if (delimiter == null) {
             return new String[] { str };
         }
-        List<String> result = new ArrayList<>();
-        if ("".equals(delimiter)) {
+        List<String> result;
+        if (delimiter.isEmpty()) {
+            // split on every character
+            result = new ArrayList<>(str.length());
+            if (charsToDelete == null) {
+                charsToDelete = "";
+            }
             for (int i = 0; i < str.length(); i++) {
-                result.add(deleteAny(str.substring(i, i + 1), charsToDelete));
+                if (charsToDelete.indexOf(str.charAt(i)) == -1) {
+                    result.add(Character.toString(str.charAt(i)));
+                } else {
+                    result.add("");
+                }
             }
         } else {
+            result = new ArrayList<>();
             int pos = 0;
             int delPos;
             while ((delPos = str.indexOf(delimiter, pos)) != -1) {
-                result.add(deleteAny(str.substring(pos, delPos), charsToDelete));
+                result.add(deleteAny(str.subSequence(pos, delPos), charsToDelete).toString());
                 pos = delPos + delimiter.length();
             }
             if (str.length() > 0 && pos <= str.length()) {
                 // Add rest of String, but not in case of empty input.
-                result.add(deleteAny(str.substring(pos), charsToDelete));
+                result.add(deleteAny(str.subSequence(pos, str.length()), charsToDelete).toString());
             }
         }
         return toStringArray(result);
@@ -586,10 +537,8 @@ public class Strings {
      * @return a Set of String entries in the list
      */
     public static Set<String> commaDelimitedListToSet(String str) {
-        Set<String> set = new TreeSet<>();
         String[] tokens = commaDelimitedListToStringArray(str);
-        set.addAll(Arrays.asList(tokens));
-        return set;
+        return new TreeSet<>(Arrays.asList(tokens));
     }
 
     /**
@@ -597,76 +546,86 @@ public class Strings {
      * String. E.g. useful for <code>toString()</code> implementations.
      *
      * @param coll   the Collection to display
-     * @param delim  the delimiter to use (probably a ",")
-     * @param prefix the String to start each element with
-     * @param suffix the String to end each element with
+     * @param delimiter  the delimiter to use (probably a ",")
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delimiter) {
         StringBuilder sb = new StringBuilder();
-        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
+        collectionToDelimitedString(coll, delimiter, sb);
         return sb.toString();
     }
 
-    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
+    public static void collectionToDelimitedString(Iterable<?> coll, String delimiter, StringBuilder sb) {
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
+            sb.append(it.next());
             if (it.hasNext()) {
-                sb.append(delim);
+                sb.append(delimiter);
             }
         }
     }
 
     /**
-     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, String, String, StringBuilder)}
+     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, StringBuilder)}
      * except that it stops if the string gets too long and just indicates how many items were omitted.
      *
      * @param coll        the collection of items to display
-     * @param delim       the delimiter to write between the items (usually {@code ","})
-     * @param prefix      a string to write before each item (usually {@code ""} or {@code "["})
-     * @param suffix      a string to write after each item (usually {@code ""} or {@code "]"})
+     * @param delimiter   the delimiter to write between the items (e.g. {@code ","})
      * @param appendLimit if this many characters have been appended to the string and there are still items to display then the remaining
      *                    items are omitted
      */
-    public static void collectionToDelimitedStringWithLimit(
-        Iterable<?> coll,
-        String delim,
-        String prefix,
-        String suffix,
-        int appendLimit,
-        StringBuilder sb
-    ) {
-        final Iterator<?> it = coll.iterator();
-        final long lengthLimit = sb.length() + appendLimit; // long to avoid overflow
-        int count = 0;
-        while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
-            count += 1;
-            if (it.hasNext()) {
-                sb.append(delim);
-                if (sb.length() > lengthLimit) {
-                    int omitted = 0;
-                    while (it.hasNext()) {
-                        it.next();
-                        omitted += 1;
-                    }
-                    sb.append("... (").append(count + omitted).append(" in total, ").append(omitted).append(" omitted)");
-                }
-            }
-        }
+    public static void collectionToDelimitedStringWithLimit(Iterable<?> coll, String delimiter, int appendLimit, StringBuilder sb) {
+        final var boundedDelimitedStringCollector = new BoundedDelimitedStringCollector(sb, delimiter, appendLimit);
+        coll.forEach(boundedDelimitedStringCollector::appendItem);
+        boundedDelimitedStringCollector.finish();
     }
 
     /**
-     * Convenience method to return a Collection as a delimited (e.g. CSV)
-     * String. E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param coll  the Collection to display
-     * @param delim the delimiter to use (probably a ",")
-     * @return the delimited String
+     * Collects a sequence of objects into a delimited string, dropping objects once the string reaches a certain maximum length. Similar to
+     * {@link #collectionToDelimitedStringWithLimit} except that this doesn't need the collection of items to be provided up front.
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
-        return collectionToDelimitedString(coll, delim, "", "");
+    public static final class BoundedDelimitedStringCollector {
+        private final StringBuilder stringBuilder;
+        private final String delimiter;
+        private final long lengthLimit;
+        private int count = 0;
+        private int omitted = 0;
+
+        public BoundedDelimitedStringCollector(StringBuilder stringBuilder, String delimiter, int appendLimit) {
+            this.stringBuilder = stringBuilder;
+            this.delimiter = delimiter;
+            this.lengthLimit = (long) stringBuilder.length() + appendLimit; // long to avoid overflow
+        }
+
+        /**
+         * Add the given item's string representation to the string, with a delimiter if necessary and surrounded by the given prefix and
+         * suffix, as long as the string is not already too long.
+         */
+        public void appendItem(Object item) {
+            count += 1;
+            if (omitted > 0) {
+                omitted += 1;
+                return;
+            }
+            if (count > 1) {
+                stringBuilder.append(delimiter);
+            }
+            if (stringBuilder.length() > lengthLimit) {
+                omitted += 1;
+                stringBuilder.append("..."); // indicate there are some omissions, just in case the caller forgets to call finish()
+                return;
+            }
+            stringBuilder.append(item);
+        }
+
+        /**
+         * Complete the collection, adding to the string a summary of omitted objects, if any.
+         */
+        public void finish() {
+            if (omitted > 0) {
+                stringBuilder.append(" (").append(count).append(" in total, ").append(omitted).append(" omitted)");
+            }
+        }
     }
 
     /**
@@ -794,6 +753,110 @@ public class Strings {
     }
 
     /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
+     * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
+     * human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     */
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */).appendIfTruncated("[...]");
+    }
+
+    /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */, pretty, human).appendIfTruncated("[...]");
+    }
+
+    /**
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values
+     * printed in a human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     */
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
+        return toTruncatedString(chunkedToXContent, maxBytes, false, false);
+    }
+
+    /**
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead.
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
+        try {
+            final var truncatedStream = new TruncatedByteArrayOutputStream(maxBytes);
+            final var builder = createBuilder(pretty, human, truncatedStream);
+
+            if (chunkedToXContent.isFragment()) {
+                builder.startObject();
+            }
+            final var chunks = chunkedToXContent.toXContentChunked(ToXContent.EMPTY_PARAMS);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.flush();
+                if (truncatedStream.isTruncated()) {
+                    break;
+                }
+            }
+            if (chunkedToXContent.isFragment()) {
+                builder.endObject();
+            }
+
+            return new TruncatedString(toString(builder), truncatedStream.isTruncated());
+        } catch (IOException e) {
+            return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
+        }
+    }
+
+    /**
+     * A small value class that represents a {@link String} that might be truncated.
+     *
+     * @param string The string value.
+     * @param truncated {@code true} if the string was truncated, {@code false} otherwise.
+     */
+    public record TruncatedString(String string, boolean truncated) {
+
+        /**
+         * Appends a given {@code suffix} and returns the result if the value if {@link #string} was truncated; or the unchanged
+         * {@link #string} otherwise.
+         *
+         * @param suffix Suffix to append.
+         */
+        public String appendIfTruncated(String suffix) {
+            return truncated ? string + suffix : string;
+        }
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed
      * nor human readable.
@@ -817,7 +880,13 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        return BytesReference.bytes(xContentBuilder).utf8ToString();
+        xContentBuilder.close();
+        OutputStream stream = xContentBuilder.getOutputStream();
+        if (stream instanceof ByteArrayOutputStream baos) {
+            return baos.toString(StandardCharsets.UTF_8);
+        } else {
+            return ((BytesStream) stream).bytes().utf8ToString();
+        }
     }
 
     /**
@@ -836,9 +905,9 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = createBuilder(pretty, human);
+            XContentBuilder builder = createBuilder(pretty, human, null);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
@@ -848,21 +917,25 @@ public class Strings {
             }
             return toString(builder);
         } catch (IOException e) {
-            try {
-                XContentBuilder builder = createBuilder(pretty, human);
-                builder.startObject();
-                builder.field("error", "error building toString out of XContent: " + e.getMessage());
-                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
-                builder.endObject();
-                return toString(builder);
-            } catch (IOException e2) {
-                throw new ElasticsearchException("cannot generate error message for deserialization", e);
-            }
+            return exceptionToJsonString(e, pretty, human);
         }
     }
 
-    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder();
+    private static String exceptionToJsonString(Exception exception, boolean pretty, boolean human) {
+        try {
+            XContentBuilder builder = createBuilder(pretty, human, null);
+            builder.startObject();
+            builder.field("error", "error building toString out of XContent: " + exception.getMessage());
+            builder.field("stack_trace", ExceptionsHelper.stackTrace(exception));
+            builder.endObject();
+            return toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException("cannot generate error message for deserialization", exception);
+        }
+    }
+
+    private static XContentBuilder createBuilder(boolean pretty, boolean human, @Nullable OutputStream out) throws IOException {
+        XContentBuilder builder = out == null ? JsonXContent.contentBuilder() : new XContentBuilder(JsonXContent.jsonXContent, out);
         if (pretty) {
             builder.prettyPrint();
         }
@@ -934,38 +1007,30 @@ public class Strings {
         return s == null || s.isBlank();
     }
 
-    public static String coalesceToEmpty(@Nullable String s) {
-        return s == null ? "" : s;
-    }
-
     public static String padStart(String s, int minimumLength, char c) {
-        if (s == null) {
-            throw new NullPointerException("s");
-        }
+        Objects.requireNonNull(s, "s");
         if (s.length() >= minimumLength) {
             return s;
         } else {
-            StringBuilder sb = new StringBuilder(minimumLength);
-            for (int i = s.length(); i < minimumLength; i++) {
-                sb.append(c);
-            }
-
-            sb.append(s);
-            return sb.toString();
+            return Character.toString(c).repeat(minimumLength - s.length()) + s;
         }
     }
 
     public static String toLowercaseAscii(String in) {
-        StringBuilder out = new StringBuilder();
-        Iterator<Integer> iter = in.codePoints().iterator();
-        while (iter.hasNext()) {
-            int codepoint = iter.next();
-            if (codepoint > 128) {
-                out.appendCodePoint(codepoint);
-            } else {
-                out.appendCodePoint(Character.toLowerCase(codepoint));
-            }
-        }
-        return out.toString();
+        return in.codePoints()
+            .map(cp -> cp <= 128 ? Character.toLowerCase(cp) : cp)
+            .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+            .toString();
+    }
+
+    /**
+     * Alias for {@link org.elasticsearch.core.Strings#format}
+     */
+    public static String format(String format, Object... args) {
+        return org.elasticsearch.core.Strings.format(format, args);
+    }
+
+    public static String stripDisallowedChars(String string) {
+        return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
 }

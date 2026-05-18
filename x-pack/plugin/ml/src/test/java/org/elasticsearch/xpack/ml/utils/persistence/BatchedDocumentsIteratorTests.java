@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -142,7 +143,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             wasScrollCleared = true;
             listener.onResponse(mock(ClearScrollResponse.class));
             return null;
-        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportClearScrollAction.TYPE), any(), any());
     }
 
     abstract static class ResponsesMocker {
@@ -173,6 +174,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             SearchResponse searchResponse = mock(SearchResponse.class);
             when(searchResponse.getScrollId()).thenReturn(SCROLL_ID);
             when(searchResponse.getHits()).thenReturn(searchHits);
+            SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
             return searchResponse;
         }
 
@@ -189,7 +191,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             assertThat(searchRequests.size(), equalTo(1));
             SearchRequest searchRequest = searchRequests.get(0);
             assertThat(searchRequest.indices(), equalTo(new String[] { indexName }));
-            assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+            assertThat(searchRequest.scroll(), equalTo(TimeValue.timeValueMinutes(5)));
             assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
             assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
         }
@@ -199,7 +201,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             assertThat(searchScrollRequests.size(), equalTo(expectedCount));
             for (SearchScrollRequest request : searchScrollRequests) {
                 assertThat(request.scrollId(), equalTo(scrollId));
-                assertThat(request.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+                assertThat(request.scroll(), equalTo(TimeValue.timeValueMinutes(5)));
             }
         }
     }
@@ -227,7 +229,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
                 listener.onResponse(responses.get(responseIndex.getAndIncrement()));
                 return null;
-            }).when(client).execute(eq(SearchScrollAction.INSTANCE), searchScrollRequestCaptor.capture(), any());
+            }).when(client).execute(eq(TransportSearchScrollAction.TYPE), searchScrollRequestCaptor.capture(), any());
 
             return this;
         }
@@ -240,7 +242,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
                 listener.onResponse(searchResponse);
                 return null;
-            }).when(client).execute(eq(SearchAction.INSTANCE), searchRequestCaptor.capture(), any());
+            }).when(client).execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
         }
     }
 
@@ -258,7 +260,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
                     ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
                     listener.onResponse(createSearchResponseWithHits());
                     return null;
-                }).when(client).execute(eq(SearchAction.INSTANCE), searchRequestCaptor.capture(), any());
+                }).when(client).execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
 
                 return this;
             }
@@ -271,7 +273,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
                 listener.onResponse(responses.get(responseIndex.getAndIncrement()));
                 return null;
-            }).when(client).execute(eq(SearchAction.INSTANCE), searchRequestCaptor.capture(), any());
+            }).when(client).execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
 
             return this;
         }

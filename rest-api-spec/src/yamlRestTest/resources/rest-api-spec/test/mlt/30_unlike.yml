@@ -3,33 +3,27 @@
   - do:
       indices.create:
         index: test_1
-        body:
-          settings:
-            number_of_replicas: 0
+
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar baz selected }
 
   - do:
       index:
           index:  test_1
-          id:     2
+          id:     "2"
           body:   { foo: bar }
 
   - do:
       index:
           index:  test_1
-          id:     3
+          id:     "3"
           body:   { foo: bar baz }
 
   - do:
       indices.refresh: {}
-
-  - do:
-      cluster.health:
-           wait_for_status: green
 
   - do:
       search:
@@ -40,10 +34,10 @@
               more_like_this:
                 like:
                     _index: test_1
-                    _id: 1
+                    _id: "1"
                 unlike:
                     _index: test_1
-                    _id: 3
+                    _id: "3"
                 include: true
                 min_doc_freq: 0
                 min_term_freq: 0

@@ -6,29 +6,31 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
@@ -41,9 +43,9 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -54,7 +56,6 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -66,7 +67,10 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
@@ -89,10 +93,16 @@ public class JobDataDeleter {
 
     private final Client client;
     private final String jobId;
+    private final boolean deleteUserAnnotations;
 
     public JobDataDeleter(Client client, String jobId) {
+        this(client, jobId, false);
+    }
+
+    public JobDataDeleter(Client client, String jobId, boolean deleteUserAnnotations) {
         this.client = Objects.requireNonNull(client);
         this.jobId = Objects.requireNonNull(jobId);
+        this.deleteUserAnnotations = deleteUserAnnotations;
     }
 
     /**
@@ -102,15 +112,7 @@ public class JobDataDeleter {
      */
     public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByScrollResponse> listener) {
         if (modelSnapshots.isEmpty()) {
-            listener.onResponse(
-                new BulkByScrollResponse(
-                    TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    false
-                )
-            );
+            listener.onResponse(emptyBulkByScrollResponse());
             return;
         }
 
@@ -127,7 +129,15 @@ public class JobDataDeleter {
             indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
         }
 
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0])).setRefresh(true)
+        String[] indicesToQuery = removeReadOnlyIndices(
+            new ArrayList<>(indices),
+            listener,
+            "model snapshots",
+            () -> listener.onResponse(emptyBulkByScrollResponse())
+        );
+        if (indicesToQuery.length == 0) return;
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery).setRefresh(true)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(idsToDelete.toArray(new String[0])));
 
@@ -137,9 +147,22 @@ public class JobDataDeleter {
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
     }
 
+    private static BulkByScrollResponse emptyBulkByScrollResponse() {
+        return new BulkByScrollResponse(
+            TimeValue.ZERO,
+            new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            false
+        );
+    }
+
     /**
-     * Asynchronously delete all the auto-generated (i.e. created by the _xpack user) annotations
-     *
+     * Asynchronously delete the annotations
+     * If the deleteUserAnnotations field is set to true then all
+     * annotations - both auto-generated and user-added - are removed, else
+     * only the auto-generated ones, (i.e. created by the _xpack user) are
+     * removed.
      * @param listener Response listener
      */
     public void deleteAllAnnotations(ActionListener<Boolean> listener) {
@@ -161,9 +184,10 @@ public class JobDataDeleter {
         @Nullable Set<String> eventsToDelete,
         ActionListener<Boolean> listener
     ) {
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-            .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId));
+        if (deleteUserAnnotations == false) {
+            boolQuery.filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), InternalUsers.XPACK_USER.principal()));
+        }
         if (fromEpochMs != null || toEpochMs != null) {
             boolQuery.filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).gte(fromEpochMs).lt(toEpochMs));
         }
@@ -171,11 +195,20 @@ public class JobDataDeleter {
             boolQuery.filter(QueryBuilders.termsQuery(Annotation.EVENT.getPreferredName(), eventsToDelete));
         }
         QueryBuilder query = QueryBuilders.constantScoreQuery(boolQuery);
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME).setQuery(query)
+
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnnotationIndex.READ_ALIAS_NAME),
+            listener,
+            "annotations",
+            () -> listener.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -189,6 +222,28 @@ public class JobDataDeleter {
         );
     }
 
+    private <T> String[] removeReadOnlyIndices(
+        List<String> indicesToQuery,
+        ActionListener<T> listener,
+        String entityType,
+        Runnable onEmpty
+    ) {
+        try {
+            indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(indicesToQuery);
+        } catch (Exception e) {
+            logger.error("Failed to get writable indices for [" + jobId + "]", e);
+            listener.onFailure(e);
+            return new String[0];
+        }
+        if (indicesToQuery.isEmpty()) {
+            logger.info("No writable {} indices found for [{}] job. No {} to remove.", entityType, jobId, entityType);
+            if (onEmpty != null) {
+                onEmpty.run();
+            }
+        }
+        return indicesToQuery.toArray(String[]::new);
+    }
+
     /**
      * Asynchronously delete all result types (Buckets, Records, Influencers) from {@code cutOffTime}.
      * Forecasts are <em>not</em> deleted, as they will not be automatically regenerated after
@@ -199,6 +254,7 @@ public class JobDataDeleter {
      */
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
         QueryBuilder query = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
             .filter(
                 QueryBuilders.termsQuery(
                     Result.RESULT_TYPE.getPreferredName(),
@@ -210,11 +266,19 @@ public class JobDataDeleter {
                 )
             )
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(query)
+
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
+            listener,
+            "results",
+            () -> listener.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -237,7 +301,7 @@ public class JobDataDeleter {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -250,21 +314,32 @@ public class JobDataDeleter {
     }
 
     /**
-     * Delete the datafeed timing stats document from all the job results indices
+     * Delete the datafeed timing stats document from the job results index.
+     * Uses a direct delete-by-ID rather than delete-by-query to avoid the two-phase
+     * search-then-delete race where an un-refreshed document can be missed by the
+     * search phase.
      *
      * @param listener Response listener
      */
     public void deleteDatafeedTimingStats(ActionListener<BulkByScrollResponse> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setRefresh(
-            true
-        )
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
+            listener,
+            "datafeed timing stats",
+            () -> listener.onResponse(emptyBulkByScrollResponse())
+        );
+        if (indicesToQuery.length == 0) return;
 
-        // _doc is the most efficient sort order and will also disable scoring
-        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        DeleteRequest deleteRequest = new DeleteRequest(indicesToQuery[0], DatafeedTimingStats.documentId(jobId));
+        deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportDeleteAction.TYPE,
+            deleteRequest,
+            listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(emptyBulkByScrollResponse()))
+        );
     }
 
     /**
@@ -280,7 +355,7 @@ public class JobDataDeleter {
 
         AtomicReference<String[]> indexNames = new AtomicReference<>();
 
-        final ActionListener<AcknowledgedResponse> completionHandler = ActionListener.wrap(
+        final ActionListener<IndicesAliasesResponse> completionHandler = ActionListener.wrap(
             response -> finishedHandler.accept(response.isAcknowledged()),
             failureHandler
         );
@@ -288,7 +363,7 @@ public class JobDataDeleter {
         // Step 9. If we did not drop the indices and after DBQ state done, we delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(bulkByScrollResponse -> {
             if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
-                completionHandler.onResponse(AcknowledgedResponse.TRUE);
+                completionHandler.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             } else {
                 if (bulkByScrollResponse.isTimedOut()) {
                     logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
@@ -326,8 +401,6 @@ public class JobDataDeleter {
                 deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
                 return;
             }
-            String defaultSharedIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
-                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
             List<String> indicesToDelete = new ArrayList<>();
             boolean needToRunDBQTemp = false;
             assert multiSearchResponse.getResponses().length == indexNames.get().length;
@@ -344,7 +417,7 @@ public class JobDataDeleter {
                     }
                 }
                 SearchResponse searchResponse = item.getResponse();
-                if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
+                if (searchResponse.getHits().getTotalHits().value() > 0 || MlIndexAndAlias.isAnomaliesSharedIndex(indexNames.get()[i])) {
                     needToRunDBQTemp = true;
                 } else {
                     indicesToDelete.add(indexNames.get()[i]);
@@ -406,12 +479,12 @@ public class JobDataDeleter {
                     );
                 multiSearchRequest.add(new SearchRequest(indexName).source(source));
             }
-            executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, customIndexSearchHandler);
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportMultiSearchAction.TYPE, multiSearchRequest, customIndexSearchHandler);
         }, failureHandler);
 
         // Step 5. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteAnnotationsHandler = ActionListener.wrap(
-            response -> jobConfigProvider.getJob(jobId, getJobHandler),
+            response -> jobConfigProvider.getJob(jobId, null, getJobHandler),
             failureHandler
         );
 
@@ -444,12 +517,19 @@ public class JobDataDeleter {
     ) {
         assert indices.length > 0;
 
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
+        ActionListener<BroadcastResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
             logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indices));
             ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-            DeleteByQueryRequest request = new DeleteByQueryRequest(indices).setQuery(query)
+            String[] indicesToQuery = removeReadOnlyIndices(
+                List.of(indices),
+                listener,
+                "results",
+                () -> listener.onResponse(emptyBulkByScrollResponse())
+            );
+            if (indicesToQuery.length == 0) return;
+            DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
                 .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
-                .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
                 .setAbortOnVersionConflict(false)
                 .setRefresh(true);
 
@@ -462,13 +542,15 @@ public class JobDataDeleter {
         executeAsyncWithOrigin(client, ML_ORIGIN, RefreshAction.INSTANCE, refreshRequest, refreshListener);
     }
 
-    private void deleteAliases(@SuppressWarnings("HiddenField") String jobId, ActionListener<AcknowledgedResponse> finishedHandler) {
+    private void deleteAliases(@SuppressWarnings("HiddenField") String jobId, ActionListener<IndicesAliasesResponse> finishedHandler) {
         final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
 
         // first find the concrete indices associated with the aliases
-        GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
-            .indicesOptions(IndicesOptions.lenientExpandOpenHidden());
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).aliases(
+            readAliasName,
+            writeAliasName
+        ).indicesOptions(IndicesOptions.lenientExpandOpenHidden());
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
@@ -479,7 +561,7 @@ public class JobDataDeleter {
                 if (removeRequest == null) {
                     // don't error if the job's aliases have already been deleted - carry on and delete the
                     // rest of the job's data
-                    finishedHandler.onResponse(AcknowledgedResponse.TRUE);
+                    finishedHandler.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
                     return;
                 }
                 executeAsyncWithOrigin(
@@ -494,30 +576,40 @@ public class JobDataDeleter {
         );
     }
 
-    private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
+    private static IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
         Set<String> aliases = new HashSet<>();
         List<String> indices = new ArrayList<>();
-        for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
+        for (var entry : getAliasesResponse.getAliases().entrySet()) {
             // The response includes _all_ indices, but only those associated with
             // the aliases we asked about will have associated AliasMetadata
-            if (entry.value.isEmpty() == false) {
-                indices.add(entry.key);
-                entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
+            if (entry.getValue().isEmpty() == false) {
+                indices.add(entry.getKey());
+                entry.getValue().forEach(metadata -> aliases.add(metadata.getAlias()));
             }
         }
         return aliases.isEmpty()
             ? null
-            : new IndicesAliasesRequest().addAliasAction(
-                IndicesAliasesRequest.AliasActions.remove()
-                    .aliases(aliases.toArray(new String[aliases.size()]))
-                    .indices(indices.toArray(new String[indices.size()]))
+            : new IndicesAliasesRequest(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            ).addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove().aliases(aliases.toArray(new String[0])).indices(indices.toArray(new String[0]))
             );
     }
 
     private void deleteQuantiles(@SuppressWarnings("HiddenField") String jobId, ActionListener<Boolean> finishedHandler) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)
+
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            finishedHandler,
+            "quantiles",
+            () -> finishedHandler.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
@@ -547,7 +639,14 @@ public class JobDataDeleter {
     ) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)
+        String[] indicesToQuery = removeReadOnlyIndices(
+            List.of(AnomalyDetectorsIndex.jobStateIndexPattern()),
+            finishedHandler,
+            "categorizer state",
+            () -> finishedHandler.onResponse(true)
+        );
+        if (indicesToQuery.length == 0) return;
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -16,8 +18,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.core.Strings.format;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
@@ -47,24 +54,33 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
     public static final String DUMMY_DEST_INDEX_FOR_PREVIEW = "unused-transform-preview-index";
 
     private PreviewTransformAction() {
-        super(NAME, PreviewTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        static final TransportVersion PREVIEW_AS_INDEX_REQUEST = TransportVersion.fromName("transform_preview_as_index_request");
         private final TransformConfig config;
+        private final boolean previewAsIndexRequest;
 
-        public Request(TransformConfig config, TimeValue timeout) {
-            super(timeout);
+        public Request(TransformConfig config, TimeValue timeout, boolean previewAsIndexRequest) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
+            this.previewAsIndexRequest = previewAsIndexRequest;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
+            this.previewAsIndexRequest = in.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST) ? in.readBoolean() : false;
         }
 
-        public static Request fromXContent(final XContentParser parser, TimeValue timeout) throws IOException {
+        public static Request fromXContent(
+            final XContentParser parser,
+            TimeValue timeout,
+            boolean previewAsIndexRequest,
+            TransformParsingContext transformParsingContext
+        ) throws IOException {
             Map<String, Object> content = parser.map();
             // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
@@ -80,14 +96,17 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             content.putIfAbsent(TransformField.ID.getPreferredName(), "transform-preview");
             try (
                 XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
-                XContentParser newParser = XContentType.JSON.xContent()
-                    .createParser(
-                        parser.getXContentRegistry(),
-                        LoggingDeprecationHandler.INSTANCE,
-                        BytesReference.bytes(xContentBuilder).streamInput()
-                    )
+                XContentParser newParser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(parser.getXContentRegistry()),
+                    BytesReference.bytes(xContentBuilder),
+                    XContentType.JSON
+                )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, null, false), timeout);
+                return new Request(
+                    TransformConfig.fromXContent(newParser, null, false, transformParsingContext),
+                    timeout,
+                    previewAsIndexRequest
+                );
             }
         }
 
@@ -113,15 +132,29 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             return config;
         }
 
+        public boolean previewAsIndexRequest() {
+            return previewAsIndexRequest;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
+            if (out.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST)) {
+                out.writeBoolean(previewAsIndexRequest);
+            } else if (previewAsIndexRequest) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a _preview request with "
+                        + TransformField.PREVIEW_AS_INDEX_REQUEST.getPreferredName()
+                        + " to an outdated node. Please upgrade the node to 9.3.0+ and try again.",
+                    RestStatus.BAD_REQUEST
+                );
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config);
+            return Objects.hash(config, previewAsIndexRequest);
         }
 
         @Override
@@ -133,7 +166,12 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config);
+            return Objects.equals(config, other.config) && (previewAsIndexRequest == other.previewAsIndexRequest);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("preview_transform[%s]", config.getId()), parentTaskId, headers);
         }
     }
 
@@ -145,26 +183,6 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         private final List<Map<String, Object>> docs;
         private final TransformDestIndexSettings generatedDestIndexSettings;
 
-        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-            "data_frame_transform_preview",
-            true,
-            args -> {
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> docs = (List<Map<String, Object>>) args[0];
-                TransformDestIndexSettings generatedDestIndex = (TransformDestIndexSettings) args[1];
-
-                return new Response(docs, generatedDestIndex);
-            }
-        );
-        static {
-            PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.mapOrdered(), PREVIEW);
-            PARSER.declareObject(
-                optionalConstructorArg(),
-                (p, c) -> TransformDestIndexSettings.fromXContent(p),
-                GENERATED_DEST_INDEX_SETTINGS
-            );
-        }
-
         public Response(List<Map<String, Object>> docs, TransformDestIndexSettings generatedDestIndexSettings) {
             this.docs = docs;
             this.generatedDestIndexSettings = generatedDestIndexSettings;
@@ -174,7 +192,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             int size = in.readInt();
             this.docs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                this.docs.add(in.readMap());
+                this.docs.add(in.readGenericMap());
             }
             this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
         }
@@ -183,15 +201,11 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             return docs;
         }
 
-        public TransformDestIndexSettings getGeneratedDestIndexSettings() {
-            return generatedDestIndexSettings;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(docs.size());
             for (Map<String, Object> doc : docs) {
-                out.writeMapWithConsistentOrder(doc);
+                out.writeGenericMap(doc);
             }
             generatedDestIndexSettings.writeTo(out);
         }
@@ -227,10 +241,6 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
-        }
-
-        public static Response fromXContent(final XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
     }
 }

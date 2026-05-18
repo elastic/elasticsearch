@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action;
 
-import com.fasterxml.jackson.core.io.JsonEOFException;
-
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -18,14 +18,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
@@ -33,9 +38,13 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class RestActionsTests extends ESTestCase {
 
@@ -83,7 +92,7 @@ public class RestActionsTests extends ESTestCase {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
                 ParsingException exception = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
                 assertEquals("Failed to parse", exception.getMessage());
-                assertEquals(JsonEOFException.class, exception.getRootCause().getClass());
+                assertEquals(XContentEOFException.class, exception.getCause().getClass());
             }
         }
     }
@@ -175,6 +184,101 @@ public class RestActionsTests extends ESTestCase {
                 ]
               }
             }"""));
+    }
+
+    public void testUrlParamsToQueryBuilder() {
+        // without any parameters, result should be null
+        assertNull(RestActions.urlParamsToQueryBuilder(new FakeRestRequest()));
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry).withParams(Map.of("q", "foo:bar")).build();
+        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) RestActions.urlParamsToQueryBuilder(request);
+        assertNotNull(queryBuilder);
+        assertNull(queryBuilder.analyzer());
+        assertNull(queryBuilder.defaultField());
+        assertEquals(DEFAULT_OPERATOR, queryBuilder.defaultOperator());
+        assertNull(queryBuilder.lenient());
+        assertFalse(queryBuilder.analyzeWildcard());
+
+        request = new FakeRestRequest.Builder(xContentRegistry).withParams(
+            Map.of(
+                "q",
+                "foo:bar",
+                "analyzer",
+                "german",
+                "analyze_wildcard",
+                "true",
+                "df",
+                "message",
+                "lenient",
+                "true",
+                "default_operator",
+                "and"
+            )
+        ).build();
+        queryBuilder = (QueryStringQueryBuilder) RestActions.urlParamsToQueryBuilder(request);
+        assertNotNull(queryBuilder);
+        assertEquals("german", queryBuilder.analyzer());
+        assertEquals("message", queryBuilder.defaultField());
+        assertEquals(Operator.AND, queryBuilder.defaultOperator());
+        assertTrue(queryBuilder.lenient());
+        assertTrue(queryBuilder.analyzeWildcard());
+    }
+
+    public void testUrlParamsToQueryBuilderError() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry).withParams(
+            Map.of("analyzer", "german", "analyze_wildcard", "true", "df", "message", "lenient", "true", "default_operator", "and")
+        ).build();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> RestActions.urlParamsToQueryBuilder(request));
+        assertEquals(
+            "request [/] contains parameters [df, analyzer, analyze_wildcard, lenient, default_operator] "
+                + "but missing query string parameter 'q'.",
+            iae.getMessage()
+        );
+    }
+
+    public void testParseWithProjectRouting() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("foo", "bar");
+        String requestBody1 = """
+            {
+              "query": _QUERY_,
+              "project_routing": "_alias:_origin"
+            }
+            """;
+        String requestBody2 = """
+            {
+              "project_routing": "_csp:aws AND (_region:us* OR _region:eu-west-1)",
+              "query": _QUERY_
+            }
+            """;
+
+        {
+            String requestBody = randomFrom(requestBody1, requestBody2).replaceFirst("_QUERY_", query.toString());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                // if no SearchRequest passed in, an error should be thrown that project_routing is not supported for that endpoint
+                ParsingException e = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
+                assertEquals(e.getMessage(), "request does not support [project_routing]");
+            }
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("index");
+            String requestBody = requestBody1.replaceFirst("_QUERY_", query.toString());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                assertNull(searchRequest.getProjectRouting());
+                QueryBuilder actual = RestActions.getQueryContent(parser, searchRequest);
+                assertEquals(query, actual);
+                assertEquals(searchRequest.getProjectRouting(), "_alias:_origin");
+            }
+        }
+        {
+            String requestBody = requestBody2.replaceFirst("_QUERY_", query.toString());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                SearchRequest searchRequest = new SearchRequest("index");
+                assertNull(searchRequest.getProjectRouting());
+                QueryBuilder actual = RestActions.getQueryContent(parser, searchRequest);
+                assertEquals(query, actual);
+                assertEquals(searchRequest.getProjectRouting(), "_csp:aws AND (_region:us* OR _region:eu-west-1)");
+            }
+        }
     }
 
     private static ShardSearchFailure createShardFailureParsingException(String nodeId, int shardId, String clusterAlias) {

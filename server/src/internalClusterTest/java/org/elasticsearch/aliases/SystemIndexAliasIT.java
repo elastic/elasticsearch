@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aliases;
@@ -37,12 +38,14 @@ public class SystemIndexAliasIT extends ESIntegTestCase {
     public void testCreateAliasForSystemIndex() throws Exception {
         createIndex(PRIMARY_INDEX_NAME);
         ensureGreen();
-        assertAcked(admin().indices().prepareAliases().addAlias(PRIMARY_INDEX_NAME, INDEX_NAME + "-system-alias"));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(PRIMARY_INDEX_NAME, INDEX_NAME + "-system-alias")
+        );
 
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .get();
+        final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
+        ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
@@ -52,6 +55,6 @@ public class SystemIndexAliasIT extends ESIntegTestCase {
         );
         getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).forEach(alias -> assertThat(alias.isHidden(), is(true)));
 
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+        assertAcked(indicesAdmin().prepareDeleteTemplate("*").get());
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -13,6 +14,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -48,6 +50,24 @@ class InternalTestEngine extends InternalEngine {
             });
         }
         return super.index(index);
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+        for (Index index : operations) {
+            if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                idToMaxSeqNo.compute(index.id(), (id, existing) -> {
+                    if (existing == null) {
+                        return index.seqNo();
+                    } else {
+                        long maxSeqNo = Math.max(index.seqNo(), existing);
+                        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
+                        return maxSeqNo;
+                    }
+                });
+            }
+        }
+        return super.indexBatch(operations);
     }
 
     @Override

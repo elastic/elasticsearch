@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -27,7 +29,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     public static PhraseSuggestionBuilder randomPhraseSuggestionBuilder() {
         PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
-        maybeSet(testBuilder::maxErrors, randomFloat());
+        maybeSet(testBuilder::maxErrors, Math.max(randomFloat(), Float.MIN_NORMAL));
         maybeSet(testBuilder::separator, randomAlphaOfLengthBetween(1, 10));
         maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());
         maybeSet(testBuilder::confidence, randomFloat());
@@ -102,7 +104,9 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             }
             case 9 -> builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : builder.forceUnigrams() == false);
             case 10 -> {
-                Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();
+                Map<String, Object> collateParams = builder.collateParams() == null
+                    ? Maps.newMapWithExpectedSize(1)
+                    : builder.collateParams();
                 collateParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
                 builder.collateParams(collateParams);
             }

@@ -35,7 +35,7 @@ import java.util.Objects;
  * so the field is visible.
  */
 
-public class DataCounts implements ToXContentObject, Writeable {
+public final class DataCounts implements ToXContentObject, Writeable {
 
     private static final String DOCUMENT_SUFFIX = "_data_counts";
 
@@ -136,10 +136,6 @@ public class DataCounts implements ToXContentObject, Writeable {
 
     public static String documentId(String jobId) {
         return jobId + DOCUMENT_SUFFIX;
-    }
-
-    public static String v54DocumentId(String jobId) {
-        return jobId + "-data-counts";
     }
 
     private final String jobId;
@@ -583,35 +579,35 @@ public class DataCounts implements ToXContentObject, Writeable {
         builder.field(SPARSE_BUCKET_COUNT.getPreferredName(), sparseBucketCount);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
         if (earliestRecordTimeStamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 EARLIEST_RECORD_TIME.getPreferredName(),
                 EARLIEST_RECORD_TIME.getPreferredName() + "_string",
                 earliestRecordTimeStamp.getTime()
             );
         }
         if (latestRecordTimeStamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LATEST_RECORD_TIME.getPreferredName(),
                 LATEST_RECORD_TIME.getPreferredName() + "_string",
                 latestRecordTimeStamp.getTime()
             );
         }
         if (lastDataTimeStamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LAST_DATA_TIME.getPreferredName(),
                 LAST_DATA_TIME.getPreferredName() + "_string",
                 lastDataTimeStamp.getTime()
             );
         }
         if (latestEmptyBucketTimeStamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LATEST_EMPTY_BUCKET_TIME.getPreferredName(),
                 LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "_string",
                 latestEmptyBucketTimeStamp.getTime()
             );
         }
         if (latestSparseBucketTimeStamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LATEST_SPARSE_BUCKET_TIME.getPreferredName(),
                 LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "_string",
                 latestSparseBucketTimeStamp.getTime()
@@ -619,7 +615,11 @@ public class DataCounts implements ToXContentObject, Writeable {
         }
         builder.field(INPUT_RECORD_COUNT.getPreferredName(), getInputRecordCount());
         if (logTime != null) {
-            builder.timeField(LOG_TIME.getPreferredName(), LOG_TIME.getPreferredName() + "_string", logTime.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(
+                LOG_TIME.getPreferredName(),
+                LOG_TIME.getPreferredName() + "_string",
+                logTime.toEpochMilli()
+            );
         }
 
         return builder;

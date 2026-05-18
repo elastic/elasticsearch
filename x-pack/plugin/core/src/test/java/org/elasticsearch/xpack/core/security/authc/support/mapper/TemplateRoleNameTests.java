@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,9 +30,8 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName.Format;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
@@ -73,9 +75,9 @@ public class TemplateRoleNameTests extends ESTestCase {
     }
 
     public void testToXContent() throws Exception {
-        final String json = """
+        final String json = Strings.format("""
             {"template":"{\\"source\\":\\"%s\\"}","format":"%s"}\
-            """.formatted(randomAlphaOfLengthBetween(8, 24), randomFrom(Format.values()).formatName());
+            """, randomAlphaOfLengthBetween(8, 24), randomFrom(Format.values()).formatName());
         assertThat(Strings.toString(parse(json)), equalTo(json));
     }
 
@@ -90,9 +92,10 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testEvaluateRoles() throws Exception {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ExpressionModel model = new ExpressionModel();
         model.defineField("username", "hulk");
@@ -112,8 +115,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     }
 
     private TemplateRoleName parse(String json) throws IOException {
-        final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        final XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json);
         final TemplateRoleName role = TemplateRoleName.parse(parser);
         assertThat(role, notNullValue());
         return role;
@@ -147,9 +149,10 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidate() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("""
@@ -175,9 +178,10 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillPassWithEmptyContext() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final BytesReference template = new BytesArray("""
@@ -206,9 +210,10 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailForSyntaxError() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         final BytesReference template = new BytesArray("""
@@ -243,10 +248,11 @@ public class TemplateRoleNameTests extends ESTestCase {
             Settings.EMPTY,
             Map.of("painless", scriptEngine),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         ) {
             @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 if ("valid".equals(id)) {
                     return new StoredScriptSource("painless", "params.metedata.group", Map.of());
                 } else {
@@ -270,9 +276,10 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final BytesReference inlineScript = new BytesArray("""
             { "source":"" }""");
@@ -287,18 +294,21 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
         final StoredScriptSource storedScriptSource = mock(StoredScriptSource.class);
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).storeScript("foo", storedScriptSource).build();
+        final ProjectMetadata project = mock(ProjectMetadata.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.getProject(any())).thenReturn(project);
         when(storedScriptSource.getLang()).thenReturn("mustache");
         when(storedScriptSource.getSource()).thenReturn("");
         when(storedScriptSource.getOptions()).thenReturn(Collections.emptyMap());
@@ -316,17 +326,20 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailWhenStoredScriptIsNotFound() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).build();
+        final ProjectMetadata project = mock(ProjectMetadata.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.getProject(any())).thenReturn(project);
         scriptService.applyClusterState(clusterChangedEvent);
 
         final BytesReference storedScript = new BytesArray("""

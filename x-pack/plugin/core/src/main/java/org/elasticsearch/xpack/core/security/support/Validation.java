@@ -6,128 +6,123 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
-
-import static java.util.Collections.unmodifiableSet;
 
 public final class Validation {
 
     static final int MIN_NAME_LENGTH = 1;
     static final int MAX_NAME_LENGTH = 1024;
 
-    static final Set<Character> VALID_NAME_CHARS = unmodifiableSet(
-        Sets.newHashSet(
-            ' ',
-            '!',
-            '"',
-            '#',
-            '$',
-            '%',
-            '&',
-            '\'',
-            '(',
-            ')',
-            '*',
-            '+',
-            ',',
-            '-',
-            '.',
-            '/',
-            '0',
-            '1',
-            '2',
-            '3',
-            '4',
-            '5',
-            '6',
-            '7',
-            '8',
-            '9',
-            ':',
-            ';',
-            '<',
-            '=',
-            '>',
-            '?',
-            '@',
-            'A',
-            'B',
-            'C',
-            'D',
-            'E',
-            'F',
-            'G',
-            'H',
-            'I',
-            'J',
-            'K',
-            'L',
-            'M',
-            'N',
-            'O',
-            'P',
-            'Q',
-            'R',
-            'S',
-            'T',
-            'U',
-            'V',
-            'W',
-            'X',
-            'Y',
-            'Z',
-            '[',
-            '\\',
-            ']',
-            '^',
-            '_',
-            '`',
-            'a',
-            'b',
-            'c',
-            'd',
-            'e',
-            'f',
-            'g',
-            'h',
-            'i',
-            'j',
-            'k',
-            'l',
-            'm',
-            'n',
-            'o',
-            'p',
-            'q',
-            'r',
-            's',
-            't',
-            'u',
-            'v',
-            'w',
-            'x',
-            'y',
-            'z',
-            '{',
-            '|',
-            '}',
-            '~'
-        )
+    public static final Set<Character> VALID_NAME_CHARS = Set.of(
+        ' ',
+        '!',
+        '"',
+        '#',
+        '$',
+        '%',
+        '&',
+        '\'',
+        '(',
+        ')',
+        '*',
+        '+',
+        ',',
+        '-',
+        '.',
+        '/',
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        ':',
+        ';',
+        '<',
+        '=',
+        '>',
+        '?',
+        '@',
+        'A',
+        'B',
+        'C',
+        'D',
+        'E',
+        'F',
+        'G',
+        'H',
+        'I',
+        'J',
+        'K',
+        'L',
+        'M',
+        'N',
+        'O',
+        'P',
+        'Q',
+        'R',
+        'S',
+        'T',
+        'U',
+        'V',
+        'W',
+        'X',
+        'Y',
+        'Z',
+        '[',
+        '\\',
+        ']',
+        '^',
+        '_',
+        '`',
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+        'h',
+        'i',
+        'j',
+        'k',
+        'l',
+        'm',
+        'n',
+        'o',
+        'p',
+        'q',
+        'r',
+        's',
+        't',
+        'u',
+        'v',
+        'w',
+        'x',
+        'y',
+        'z',
+        '{',
+        '|',
+        '}',
+        '~'
     );
 
     private static final String INVALID_NAME_MESSAGE = "%1s names must be at least "
         + MIN_NAME_LENGTH
-        + " and no more than "
-        + MAX_NAME_LENGTH
-        + " characters. "
+        + " and no more than %s characters. "
         + "They can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, and printable symbols in the "
         + "Basic Latin (ASCII) block. Leading or trailing whitespace is not allowed.";
 
@@ -137,8 +132,10 @@ public final class Validation {
         + "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). "
         + "It must not begin with an underscore (_).";
 
-    private static boolean isValidUserOrRoleName(String name) {
-        if (name.length() < MIN_NAME_LENGTH || name.length() > MAX_NAME_LENGTH) {
+    private static boolean isValidUserOrRoleName(String name, int maxLength) {
+        assert maxLength >= MIN_NAME_LENGTH : "maxLength cannot be less than " + MIN_NAME_LENGTH;
+
+        if (name.length() < MIN_NAME_LENGTH || name.length() > maxLength) {
             return false;
         }
 
@@ -183,8 +180,15 @@ public final class Validation {
          * @return {@code null} if valid
          */
         public static Error validateUsername(String username, boolean allowReserved, Settings settings) {
-            if (isValidUserOrRoleName(username) == false) {
-                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User"));
+            return validateUsername(username, allowReserved, settings, MAX_NAME_LENGTH);
+        }
+
+        static Error validateUsername(String username, boolean allowReserved, Settings settings, int maxLength) {
+            if (username == null) {
+                return new Error("username is missing");
+            }
+            if (isValidUserOrRoleName(username, maxLength) == false) {
+                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User", maxLength));
             }
             if (allowReserved == false && ClientReservedRealm.isReserved(username, settings)) {
                 return new Error("Username [" + username + "] is reserved and may not be used.");
@@ -202,16 +206,67 @@ public final class Validation {
 
     public static final class Roles {
 
-        public static Error validateRoleName(String roleName) {
-            return validateRoleName(roleName, false);
-        }
+        public static final int MAX_DESCRIPTION_LENGTH = 1000;
 
         public static Error validateRoleName(String roleName, boolean allowReserved) {
-            if (isValidUserOrRoleName(roleName) == false) {
-                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role"));
+            return validateRoleName(roleName, allowReserved, MAX_NAME_LENGTH);
+        }
+
+        public static Error validateRoleDescription(String description) {
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                return new Error(Strings.format("Role description must be less than %s characters.", MAX_DESCRIPTION_LENGTH));
+            }
+            return null;
+        }
+
+        static Error validateRoleName(String roleName, boolean allowReserved, int maxLength) {
+            if (roleName == null) {
+                return new Error("role name is missing");
+            }
+            if (isValidUserOrRoleName(roleName, maxLength) == false) {
+                return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role", maxLength));
             }
             if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {
                 return new Error("Role [" + roleName + "] is reserved and may not be used.");
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Validation helpers for API key create and clone requests.
+     */
+    public static final class ApiKey {
+
+        public static final int MAX_NAME_LENGTH = 256;
+
+        private ApiKey() {}
+
+        /**
+         * Validates API key name. Returns an error if invalid, null if valid.
+         */
+        public static Error validateName(String name) {
+            if (Strings.isNullOrEmpty(name)) {
+                return new Error("api key name is required");
+            }
+            if (name.length() > MAX_NAME_LENGTH) {
+                return new Error("api key name may not be more than 256 characters long");
+            }
+            if (name.equals(name.trim()) == false) {
+                return new Error("api key name may not begin or end with whitespace");
+            }
+            if (name.startsWith("_")) {
+                return new Error("api key name may not begin with an underscore");
+            }
+            return null;
+        }
+
+        /**
+         * Validates API key metadata. Returns an error if metadata contains reserved keys, null if valid or metadata is null.
+         */
+        public static Error validateMetadata(Map<String, Object> metadata) {
+            if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
+                return new Error("API key metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]");
             }
             return null;
         }

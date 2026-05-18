@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
@@ -24,19 +25,20 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -47,7 +49,6 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -142,7 +143,7 @@ public class QueryStringQueryParser extends QueryParser {
         super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
-        this.queryBuilder = new MultiMatchQueryParser(context);
+        this.queryBuilder = new MultiMatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
         queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
@@ -254,7 +255,7 @@ public class QueryStringQueryParser extends QueryParser {
         this.fuzzyTranspositions = fuzzyTranspositions;
     }
 
-    private Query applyBoost(Query q, Float boost) {
+    private static Query applyBoost(Query q, Float boost) {
         if (boost != null && boost != 1f) {
             return new BoostQuery(q, boost);
         }
@@ -268,18 +269,19 @@ public class QueryStringQueryParser extends QueryParser {
             if (allFields && this.field != null && this.field.equals(field)) {
                 // "*" is the default field
                 extractedFields = fieldsAndWeights;
+            } else {
+                boolean multiFields = Regex.isSimpleMatchPattern(field);
+                // Filters unsupported fields if a pattern is requested
+                // Filters metadata fields if all fields are requested
+                extractedFields = resolveMappingField(
+                    context,
+                    field,
+                    1.0f,
+                    allFields == false,
+                    multiFields == false,
+                    quoted ? quoteFieldSuffix : null
+                );
             }
-            boolean multiFields = Regex.isSimpleMatchPattern(field);
-            // Filters unsupported fields if a pattern is requested
-            // Filters metadata fields if all fields are requested
-            extractedFields = resolveMappingField(
-                context,
-                field,
-                1.0f,
-                allFields == false,
-                multiFields == false,
-                quoted ? quoteFieldSuffix : null
-            );
         } else if (quoted && quoteFieldSuffix != null) {
             extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
@@ -291,7 +293,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     @Override
     protected Query newMatchAllDocsQuery() {
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override
@@ -425,7 +427,7 @@ public class QueryStringQueryParser extends QueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer;
             BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
             BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
             Query rangeQuery = currentFieldType.rangeQuery(
@@ -482,7 +484,7 @@ public class QueryStringQueryParser extends QueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
             return currentFieldType.fuzzyQuery(
                 term,
@@ -490,7 +492,8 @@ public class QueryStringQueryParser extends QueryParser {
                 getFuzzyPrefixLength(),
                 fuzzyMaxExpansions,
                 fuzzyTranspositions,
-                context
+                context,
+                null
             );
         } catch (RuntimeException e) {
             if (lenient) {
@@ -503,9 +506,9 @@ public class QueryStringQueryParser extends QueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
-        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
-        QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-        return query;
+        return fuzzyRewriteMethod == null
+            ? new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions)
+            : new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
     }
 
     @Override
@@ -538,7 +541,7 @@ public class QueryStringQueryParser extends QueryParser {
             if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer);
+            setAnalyzer(forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer);
             Query query = null;
             if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
@@ -646,7 +649,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     private Query existsQuery(String fieldName) {
         if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
-            return new MatchNoDocsQuery("No mappings yet");
+            return Queries.NO_MAPPINGS;
         }
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
             .getFieldType(FieldNamesFieldMapper.NAME);
@@ -730,6 +733,7 @@ public class QueryStringQueryParser extends QueryParser {
                     + "] index level setting."
             );
         }
+        termStr = AutomatonQueries.collapseConsecutiveQuantifiers(termStr);
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(termStr);
@@ -759,7 +763,14 @@ public class QueryStringQueryParser extends QueryParser {
                 setAnalyzer(forceAnalyzer);
                 return super.getRegexpQuery(field, termStr);
             }
-            return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
+            return currentFieldType.regexpQuery(
+                termStr,
+                RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT,
+                0,
+                getDeterminizeWorkLimit(),
+                getMultiTermRewriteMethod(),
+                context
+            );
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -776,10 +787,10 @@ public class QueryStringQueryParser extends QueryParser {
         if (q == null) {
             return null;
         }
-        return fixNegativeQueryIfNeeded(q);
+        return fixNegativeQueryIfNeeded(q, QueryVisitor.EMPTY_VISITOR);
     }
 
-    private Query applySlop(Query q, int slop) {
+    private static Query applySlop(Query q, int slop) {
         if (q instanceof PhraseQuery) {
             // make sure that the boost hasn't been set beforehand, otherwise we'd lose it
             assert q instanceof BoostQuery == false;
@@ -795,7 +806,7 @@ public class QueryStringQueryParser extends QueryParser {
         }
     }
 
-    private Query addSlopToSpan(SpanQuery query, int slop) {
+    private static Query addSlopToSpan(SpanQuery query, int slop) {
         if (query instanceof SpanNearQuery) {
             return new SpanNearQuery(((SpanNearQuery) query).getClauses(), slop, ((SpanNearQuery) query).isInOrder());
         } else if (query instanceof SpanOrQuery) {
@@ -813,7 +824,7 @@ public class QueryStringQueryParser extends QueryParser {
     /**
      * Rebuild a phrase query with a slop value
      */
-    private PhraseQuery addSlopToPhrase(PhraseQuery query, int slop) {
+    private static PhraseQuery addSlopToPhrase(PhraseQuery query, int slop) {
         PhraseQuery.Builder builder = new PhraseQuery.Builder();
         builder.setSlop(slop);
         final Term[] terms = query.getTerms();

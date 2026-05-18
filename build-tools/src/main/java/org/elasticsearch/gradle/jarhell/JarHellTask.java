@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.jarhell;
@@ -16,6 +17,7 @@ import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
@@ -66,8 +68,9 @@ public class JarHellTask extends DefaultTask {
     // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jar hell.
     // We only care about the runtime classpath ABI here.
     @CompileClasspath
+    @SkipWhenEmpty
     public FileCollection getClasspath() {
-        return classpath.filter(File::exists);
+        return classpath == null ? null : classpath.filter(File::exists);
     }
 
     public void setClasspath(FileCollection classpath) {

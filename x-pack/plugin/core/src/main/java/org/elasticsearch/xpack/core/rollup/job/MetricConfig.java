@@ -89,7 +89,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
 
     public MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
-        metrics = in.readStringList();
+        metrics = in.readStringCollectionAsList();
     }
 
     /**

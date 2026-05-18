@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -35,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -49,10 +49,12 @@ public class JavadocExtractor {
         + " modify it under the terms of the GNU General Public License version 2 only, as published"
         + " by the Free Software Foundation.";
 
-    private static final String ESv2 = "Copyright Elasticsearch B.V. and/or licensed to Elasticsearch"
-        + " B.V. under one or more contributor license agreements. Licensed under the Elastic License 2.0"
-        + " and the Server Side Public License, v 1; you may not use this file except in compliance with,"
-        + " at your election, the Elastic License 2.0 or the Server Side Public License, v 1.";
+    private static final String ESv2 = "Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one"
+        + " or more contributor license agreements. Licensed under the \"Elastic License"
+        + " 2.0\", the \"GNU Affero General Public License v3.0 only\", and the \"Server Side"
+        + " Public License v 1\"; you may not use this file except in compliance with, at"
+        + " your election, the \"Elastic License 2.0\", the \"GNU Affero General Public"
+        + " License v3.0 only\", or the \"Server Side Public License, v 1\".";
 
     private static final String[] LICENSES = new String[] { GPLv2, ESv2 };
 
@@ -193,14 +195,7 @@ public class JavadocExtractor {
         return type;
     }
 
-    public static class MethodSignature {
-        public final String name;
-        public final List<String> parameterTypes;
-
-        public MethodSignature(String name, List<String> parameterTypes) {
-            this.name = name;
-            this.parameterTypes = parameterTypes;
-        }
+    public record MethodSignature(String name, List<String> parameterTypes) {
 
         public static MethodSignature fromDeclaration(MethodDeclaration declaration) {
             return new MethodSignature(
@@ -208,29 +203,9 @@ public class JavadocExtractor {
                 declaration.getParameters().stream().map(p -> stripTypeParameters(p.getType().asString())).collect(Collectors.toList())
             );
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof MethodSignature) == false) return false;
-            MethodSignature that = (MethodSignature) o;
-            return Objects.equals(name, that.name) && Objects.equals(parameterTypes, that.parameterTypes);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, parameterTypes);
-        }
     }
 
-    public static class ParsedMethod {
-        public final ParsedJavadoc javadoc;
-        public final List<String> parameterNames;
-
-        public ParsedMethod(ParsedJavadoc javadoc, List<String> parameterNames) {
-            this.javadoc = javadoc;
-            this.parameterNames = parameterNames;
-        }
+    public record ParsedMethod(ParsedJavadoc javadoc, List<String> parameterNames) {
 
         public ParsedMethod asAugmented() {
             if (parameterNames.size() == 0) {
@@ -297,11 +272,6 @@ public class JavadocExtractor {
             }
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public boolean isFragment() {
-            return true;
         }
     }
 

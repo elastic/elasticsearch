@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -89,7 +91,7 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));
 
-        actionListener.onFailure(null);
+        actionListener.onFailure(new IOException("test"));
 
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));
@@ -101,6 +103,7 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
         if (nonEmptyContext) {
             threadContext.putHeader("not empty", "value");
         }
+        final AtomicReference<String> methodCalled = new AtomicReference<>();
         final ContextPreservingActionListener<Void> actionListener;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
@@ -109,14 +112,14 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
                 public void onResponse(Void aVoid) {
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertNull(threadContext.getHeader("not empty"));
-                    throw new RuntimeException("onResponse called");
+                    assertTrue(methodCalled.compareAndSet(null, "onResponse"));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertNull(threadContext.getHeader("not empty"));
-                    throw new RuntimeException("onFailure called");
+                    assertTrue(methodCalled.compareAndSet(null, "onFailure"));
                 }
             };
 
@@ -130,14 +133,14 @@ public class ContextPreservingActionListenerTests extends ESTestCase {
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));
 
-        RuntimeException e = expectThrows(RuntimeException.class, () -> actionListener.onResponse(null));
-        assertEquals("onResponse called", e.getMessage());
+        actionListener.onResponse(null);
+        assertEquals("onResponse", methodCalled.getAndSet(null));
 
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));
 
-        e = expectThrows(RuntimeException.class, () -> actionListener.onFailure(null));
-        assertEquals("onFailure called", e.getMessage());
+        actionListener.onFailure(new Exception("simulated"));
+        assertEquals("onFailure", methodCalled.getAndSet(null));
 
         assertNull(threadContext.getHeader("foo"));
         assertEquals(nonEmptyContext ? "value" : null, threadContext.getHeader("not empty"));

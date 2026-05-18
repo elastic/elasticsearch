@@ -12,16 +12,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.eql.analysis.Verifier;
-import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
+import org.elasticsearch.xpack.eql.plan.logical.AbstractJoin;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
@@ -67,6 +67,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.eql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
@@ -90,7 +91,7 @@ public class OptimizerTests extends ESTestCase {
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         PostAnalyzer postAnalyzer = new PostAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer();
         return optimizer.optimize(
             postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution)), TEST_CFG)
         );
@@ -291,6 +292,61 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(LocalRelation.class, optimized.getClass());
     }
 
+    /**
+     * A LocalRelation inside a missing event filter means no event can ever satisfy the negated condition,
+     * so the absence is always guaranteed — the sequence must NOT be skipped.
+     * <p>
+     * sequence
+     * ![ LocalRelation ]   -- always absent, absence always satisfied
+     * [ filter X ]
+     * ==
+     * sequence (unchanged, not replaced with LocalRelation)
+     */
+    public void testSkipEmptyJoinDoesNotSkipWhenMissingEventFilterIsEmpty() {
+        KeyedFilter negatedRule = missingEventKeyedFilter(new LocalRelation(EMPTY, emptyList()));
+        KeyedFilter positiveRule = keyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
+        KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
+        Sequence s = new Sequence(
+            EMPTY,
+            asList(negatedRule, positiveRule),
+            until,
+            TimeValue.MINUS_ONE,
+            timestamp(),
+            tiebreaker(),
+            OrderDirection.ASC
+        );
+
+        LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
+        assertEquals(Sequence.class, result.getClass());
+    }
+
+    /**
+     * A LocalRelation inside a positive rule still causes the whole sequence to be skipped.
+     * <p>
+     * sequence
+     * [ LocalRelation ]    -- no events can ever match
+     * ![ filter X ]
+     * ==
+     * LocalRelation
+     */
+    public void testSkipEmptyJoinSkipsWhenPositiveRuleIsEmpty() {
+        KeyedFilter positiveRule = keyedFilter(new LocalRelation(EMPTY, emptyList()));
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
+        KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
+        Sequence s = new Sequence(
+            EMPTY,
+            asList(positiveRule, negatedRule),
+            until,
+            TimeValue.MINUS_ONE,
+            timestamp(),
+            tiebreaker(),
+            OrderDirection.ASC
+        );
+
+        LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
+        assertEquals(LocalRelation.class, result.getClass());
+    }
+
     public void testSortByLimit() {
         Filter f = new Filter(EMPTY, rel(), TRUE);
         OrderBy o = new OrderBy(EMPTY, f, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.ASC, NullsPosition.FIRST)));
@@ -380,14 +436,16 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(new LocalRelation(EMPTY, emptyList()));
         KeyedFilter rule2 = keyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
 
-        Sequence s = sequence(rule1, rule2);
-        Filter filter = new Filter(EMPTY, s, left);
+        Sequence seq = sequence(rule1, rule2);
+        Sample sample = sample(rule1, rule2);
+        AbstractJoin random = randomFrom(seq, sample);
+        Filter filter = new Filter(EMPTY, random, left);
 
         LogicalPlan result = new PushDownAndCombineFilters().apply(filter);
 
         assertEquals(Filter.class, result.getClass());
         Filter f = (Filter) result;
-        assertEquals(s, f.child());
+        assertEquals(random, f.child());
     }
 
     //
@@ -413,14 +471,17 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(filter), a);
         KeyedFilter rule2 = keyedFilter(basicFilter(filter), b);
 
-        Sequence s = sequence(rule1, rule2);
+        Sequence seq = sequence(rule1, rule2);
+        Sample sample = sample(rule1, rule2);
+        AbstractJoin random = randomFrom(seq, sample);
+        boolean isSequence = random instanceof Sequence;
 
-        LogicalPlan result = new Optimizer.AddMandatoryJoinKeyFilter().apply(s);
+        LogicalPlan result = new Optimizer.AddMandatoryJoinKeyFilter().apply(random);
 
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
+        assertEquals(isSequence ? Sequence.class : Sample.class, result.getClass());
+        AbstractJoin j = (AbstractJoin) result;
 
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         KeyedFilter query1 = queries.get(0);
         assertEquals(new IsNotNull(EMPTY, a), filterCondition(query1.child()));
         assertEquals(filter, filterCondition(query1.child().children().get(0)));
@@ -449,14 +510,9 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(keyCondition), a);
         KeyedFilter rule2 = keyedFilter(basicFilter(filter), a);
 
-        Sequence s = sequence(rule1, rule2);
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
 
-        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
-
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
-
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         assertEquals(rule1, queries.get(0));
         KeyedFilter query2 = queries.get(1);
         assertEquals(keyCondition, filterCondition(query2.child()));
@@ -484,14 +540,9 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(keyACondition), a, b);
         KeyedFilter rule2 = keyedFilter(basicFilter(keyBCondition), a, b);
 
-        Sequence s = sequence(rule1, rule2);
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
 
-        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
-
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
-
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         KeyedFilter query1 = queries.get(0);
         assertEquals(keyBCondition, filterCondition(query1.child()));
         assertEquals(keyACondition, filterCondition(query1.child().children().get(0)));
@@ -525,14 +576,9 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(keyARuleACondition), a);
         KeyedFilter rule2 = keyedFilter(basicFilter(keyBRuleBCondition), b);
 
-        Sequence s = sequence(rule1, rule2);
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
 
-        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
-
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
-
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         KeyedFilter query1 = queries.get(0);
 
         assertEquals(keyARuleBCondition, filterCondition(query1.child()));
@@ -570,14 +616,9 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(ruleACondition), a1, a2);
         KeyedFilter rule2 = keyedFilter(basicFilter(ruleBCondition), b1, b2);
 
-        Sequence s = sequence(rule1, rule2);
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
 
-        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
-
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
-
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         KeyedFilter query1 = queries.get(0);
 
         assertEquals(rule1, query1);
@@ -589,6 +630,199 @@ public class OptimizerTests extends ESTestCase {
 
         assertEquals(new And(EMPTY, keyB1RuleACondition, keyB2RuleACondition), filterCondition(query2.child()));
         assertEquals(ruleBCondition, filterCondition(query2.child().children().get(0)));
+    }
+
+    /**
+     * sequence
+     * 1. filter startsWith(a, "foo") by a
+     * 2. filter X by a
+     * ==
+     * 1. filter startsWith(a, "foo") by a
+     * 2. filter startsWith(a, "foo") by a
+     *    \filter X
+     */
+    public void testKeyConstraintWithFunction() {
+        Attribute a = key("a");
+
+        Expression keyCondition = startsWithExp(a, new Literal(EMPTY, "foo", DataTypes.KEYWORD));
+        Expression filter = equalsExpression();
+
+        KeyedFilter rule1 = keyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter rule2 = keyedFilter(basicFilter(filter), a);
+
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
+
+        List<KeyedFilter> queries = j.queries();
+        assertEquals(rule1, queries.get(0));
+        assertEquals(keyCondition, filterCondition(queries.get(1).child()));
+        assertEquals(filterCondition(rule2.child()), filterCondition(queries.get(1).child().children().get(0)));
+    }
+
+    /**
+     * sequence
+     * 1. filter startsWith(a, b) by a
+     * 2. filter X by a
+     * ==
+     * same
+     */
+    public void testKeyConstraintWithNonKey() {
+        Attribute a = key("a");
+
+        Expression keyCondition = startsWithExp(a, key("b"));
+        Expression filter = equalsExpression();
+
+        KeyedFilter rule1 = keyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter rule2 = keyedFilter(basicFilter(filter), a);
+
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
+
+        List<KeyedFilter> queries = j.queries();
+        assertEquals(rule1, queries.get(0));
+        assertEquals(rule2, queries.get(1));
+    }
+
+    /**
+     * Key conditions in a negated (missing event) rule must NOT be propagated to positive rules.
+     * <p>
+     * sequence by a
+     * ![ filter a gt 1 by a ]
+     * [ filter X by a ]
+     * ==
+     * same (no propagation)
+     */
+    public void testKeyConstraintNotPropagatedFromMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter positiveRule = keyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(negatedRule, positiveRule);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        assertEquals(negatedRule, queries.get(0));
+        assertEquals(positiveRule, queries.get(1));
+    }
+
+    /**
+     * Key conditions in a positive rule must NOT be propagated into a negated (missing event) rule.
+     * <p>
+     * sequence by a
+     * [ filter a gt 1 by a ]
+     * ![ filter X by a ]
+     * ==
+     * same (missing event filter unchanged)
+     */
+    public void testKeyConstraintNotPropagatedToMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter positiveRule = keyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(positiveRule, negatedRule);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        // positive rule is unchanged (no other positive rules to propagate to)
+        assertEquals(positiveRule, queries.get(0));
+        // negated rule must not receive the key constraint
+        assertEquals(negatedRule, queries.get(1));
+    }
+
+    /**
+     * Key conditions in the negated (middle) rule must NOT appear on the second positive rule.
+     * <p>
+     * sequence by a
+     * [ filter X by a ]
+     * ![ filter a gt 1 by a ]
+     * [ filter X by a ]
+     * ==
+     * same (key condition from negated rule not propagated to positive2)
+     */
+    public void testKeyConstraintNotPropagatedAcrossMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter positive1 = keyedFilter(basicFilter(filter), a);
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter positive2 = keyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(positive1, negatedRule, positive2);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        assertEquals(positive1, queries.get(0));
+        assertEquals(negatedRule, queries.get(1));
+        assertEquals(positive2, queries.get(2));
+    }
+
+    /**
+     * sequence
+     * 1. filter startsWith(a, b) and c > 10 by a, c
+     * 2. filter X by a, c
+     * ==
+     * 1. filter startsWith(a, b) and c > 10 by a, c
+     * 2. filter c > 10 by a, c
+     *    \filter X
+     */
+    public void testKeyConstraintWithNonKeyPartialPropagation() {
+        Attribute a = key("a");
+        Attribute b = key("b");
+        Attribute c = key("c");
+
+        GreaterThan gtExp = gtExpression(c);
+        Expression keyCondition = new And(EMPTY, startsWithExp(a, b), gtExp);
+        Expression filter = equalsExpression();
+
+        KeyedFilter rule1 = keyedFilter(basicFilter(keyCondition), a, c);
+        KeyedFilter rule2 = keyedFilter(basicFilter(filter), a, c);
+
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
+
+        List<KeyedFilter> queries = j.queries();
+        assertEquals(rule1, queries.get(0));
+        assertEquals(gtExp, filterCondition(queries.get(1).child()));
+        assertEquals(filterCondition(rule2.child()), filterCondition(queries.get(1).child().children().get(0)));
+    }
+
+    /**
+     * sequence
+     * 1. filter startsWith(a, b)  by a, c
+     * 2. filter X and c > 10 by a, c
+     * ==
+     * 1. filter c > 10 by a, c
+     *    \filter startsWith(a, b)
+     * 2. filter X and c > 10 by a, c
+     */
+    public void testKeyConstraintWithNonKeyPartialReversePropagation() {
+        Attribute a = key("a");
+        Attribute b = key("b");
+        Attribute c = key("c");
+
+        GreaterThan gtExp = gtExpression(c);
+        Expression keyCondition = startsWithExp(a, b);
+        Expression filter = new And(EMPTY, equalsExpression(), gtExp);
+
+        KeyedFilter rule1 = keyedFilter(basicFilter(keyCondition), a, c);
+        KeyedFilter rule2 = keyedFilter(basicFilter(filter), a, c);
+
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
+
+        List<KeyedFilter> queries = j.queries();
+        assertEquals(gtExp, filterCondition(queries.get(0).child()));
+        assertEquals(filterCondition(rule1.child()), filterCondition(queries.get(0).child().children().get(0)));
+        assertEquals(rule2, queries.get(1));
     }
 
     /**
@@ -610,14 +844,9 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(cond), a);
         KeyedFilter rule2 = keyedFilter(basicFilter(filter), a);
 
-        Sequence s = sequence(rule1, rule2);
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
 
-        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
-
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
-
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         assertEquals(rule1, queries.get(0));
         assertEquals(rule2, queries.get(1));
     }
@@ -645,14 +874,9 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(cond), a);
         KeyedFilter rule2 = keyedFilter(basicFilter(filter), a);
 
-        Sequence s = sequence(rule1, rule2);
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
 
-        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
-
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
-
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         assertEquals(rule1, queries.get(0));
 
         KeyedFilter query2 = queries.get(1);
@@ -688,14 +912,9 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter rule1 = keyedFilter(basicFilter(cond), a);
         KeyedFilter rule2 = keyedFilter(basicFilter(filter), b);
 
-        Sequence s = sequence(rule1, rule2);
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
 
-        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(s);
-
-        assertEquals(Sequence.class, result.getClass());
-        Sequence seq = (Sequence) result;
-
-        List<KeyedFilter> queries = seq.queries();
+        List<KeyedFilter> queries = j.queries();
         assertEquals(rule1, queries.get(0));
 
         KeyedFilter query2 = queries.get(1);
@@ -729,6 +948,39 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(6, ((Literal) gte.right()).value());
     }
 
+    public void testSampleOptimizations() {
+        String q = "sample by user_name [any where true] by bool [any where true] by bool";
+        LogicalPlan plan = sample(accept(q));
+        assertTrue(plan instanceof Sample);
+        List<LogicalPlan> projects = plan.collectFirstChildren(x -> x instanceof Project);
+        assertEquals(2, projects.size());
+        for (LogicalPlan sub : projects) {
+            Project proj = (Project) sub;
+            // ensure that only join keys are explicitly projected (ie. all the other fields are excluded)
+            assertEquals(2, proj.projections().size());
+            List<String> projections = proj.projections()
+                .stream()
+                .map(FieldAttribute.class::cast)
+                .map(FieldAttribute::name)
+                .collect(toList());
+            assertTrue(projections.contains("user_name"));
+            assertTrue(projections.contains("bool"));
+        }
+    }
+
+    private AbstractJoin randomSequenceOrSample(KeyedFilter rule1, KeyedFilter rule2) {
+        Sequence seq = sequence(rule1, rule2);
+        Sample sample = sample(rule1, rule2);
+        AbstractJoin random = randomFrom(seq, sample);
+        boolean isSequence = random instanceof Sequence;
+
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(random);
+
+        assertEquals(isSequence ? Sequence.class : Sample.class, result.getClass());
+        AbstractJoin j = (AbstractJoin) result;
+        return j;
+    }
+
     public void testReplaceCastOnField() {
         Attribute a = TestUtils.fieldAttribute("string", DataTypes.KEYWORD);
         ToString ts = new ToString(EMPTY, a);
@@ -754,11 +1006,15 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static KeyedFilter keyedFilter(LogicalPlan child) {
-        return new KeyedFilter(EMPTY, child, emptyList(), timestamp(), tiebreaker());
+        return new KeyedFilter(EMPTY, child, emptyList(), timestamp(), tiebreaker(), false);
     }
 
     private static KeyedFilter keyedFilter(LogicalPlan child, NamedExpression... keys) {
-        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker());
+        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker(), false);
+    }
+
+    private static KeyedFilter missingEventKeyedFilter(LogicalPlan child, NamedExpression... keys) {
+        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker(), true);
     }
 
     private static Attribute key(String name) {
@@ -789,6 +1045,14 @@ public class OptimizerTests extends ESTestCase {
         return new Sequence(EMPTY, collect, keyedFilter(rel()), TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
     }
 
+    private static Sample sample(LogicalPlan... rules) {
+        List<KeyedFilter> collect = Stream.of(rules)
+            .map(r -> r instanceof KeyedFilter ? (KeyedFilter) r : keyedFilter(r))
+            .collect(toList());
+
+        return new Sample(EMPTY, collect);
+    }
+
     private static Expression filterCondition(LogicalPlan plan) {
         assertEquals(Filter.class, plan.getClass());
         Filter f = (Filter) plan;
@@ -805,5 +1069,9 @@ public class OptimizerTests extends ESTestCase {
 
     private static GreaterThan gtExpression(Attribute b) {
         return new GreaterThan(EMPTY, b, new Literal(EMPTY, 1, INTEGER), UTC);
+    }
+
+    private static StartsWith startsWithExp(Expression a, Expression b) {
+        return new StartsWith(EMPTY, a, b, randomBoolean());
     }
 }

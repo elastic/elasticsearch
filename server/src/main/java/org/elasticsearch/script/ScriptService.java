@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -20,8 +21,10 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -30,8 +33,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,7 +53,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -138,7 +143,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     public static final Setting.AffixSetting<ScriptCache.CompilationRate> SCRIPT_MAX_COMPILATIONS_RATE_SETTING = Setting.affixKeySetting(
         CONTEXT_PREFIX,
         "max_compilations_rate",
-        key -> new Setting<ScriptCache.CompilationRate>(
+        key -> new Setting<>(
             key,
             "75/5m",
             (String value) -> value.equals(UNLIMITED_COMPILATION_RATE_KEY)
@@ -160,16 +165,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     public static final String ALLOW_NONE = "none";
 
-    public static final Setting<List<String>> TYPES_ALLOWED_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> TYPES_ALLOWED_SETTING = Setting.stringListSetting(
         "script.allowed_types",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING = Setting.stringListSetting(
         "script.allowed_contexts",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.NodeScope
     );
 
@@ -178,6 +179,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
+    private final ProjectResolver projectResolver;
     private final LongSupplier timeProvider;
 
     private ClusterState clusterState;
@@ -187,14 +189,17 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     // package private for tests
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
+    @SuppressWarnings("this-escape")
     public ScriptService(
         Settings settings,
         Map<String, ScriptEngine> engines,
         Map<String, ScriptContext<?>> contexts,
-        LongSupplier timeProvider
+        LongSupplier timeProvider,
+        ProjectResolver projectResolver
     ) {
         this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
         this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
+        this.projectResolver = projectResolver;
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(
@@ -464,7 +469,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         /** the full keys for the contexts in the context affix setting */
         protected static List<String> fullKeys(Setting.AffixSetting<?> affix, List<String> contexts) {
-            return contexts.stream().map(ctx -> affix.getConcreteSettingForNamespace(ctx).getKey()).collect(Collectors.toList());
+            return contexts.stream().map(ctx -> affix.getConcreteSettingForNamespace(ctx).getKey()).toList();
         }
 
         /**
@@ -496,7 +501,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
          * All context specific settings
          */
         public List<String> contextSettings() {
-            List<String> contextSettings = fullKeys(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, compilationContexts);
+            List<String> contextSettings = new ArrayList<>(fullKeys(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, compilationContexts));
             contextSettings.addAll(fullKeys(SCRIPT_CACHE_SIZE_SETTING, sizeContexts));
             contextSettings.addAll(fullKeys(SCRIPT_CACHE_EXPIRE_SETTING, expireContexts));
             return contextSettings;
@@ -550,23 +555,36 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
      * @param newMaxSizeInBytes The new maximum number of bytes.
      */
     void setMaxSizeInBytes(int newMaxSizeInBytes) {
-        for (Map.Entry<String, StoredScriptSource> source : getScriptsFromClusterState().entrySet()) {
-            if (source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length > newMaxSizeInBytes) {
-                throw new IllegalArgumentException(
-                    "script.max_size_in_bytes cannot be set to ["
-                        + newMaxSizeInBytes
-                        + "], "
-                        + "stored script ["
-                        + source.getKey()
-                        + "] exceeds the new value with a size of "
-                        + "["
-                        + source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length
-                        + "]"
-                );
-            }
-        }
+        validateNewMaxSizeInBytes(newMaxSizeInBytes);
 
         maxSizeInBytes = newMaxSizeInBytes;
+    }
+
+    private void validateNewMaxSizeInBytes(int newMaxSizeInBytes) {
+        if (clusterState == null) {
+            return;
+        }
+        for (var project : clusterState.metadata().projects().values()) {
+            ScriptMetadata scriptMetadata = project.custom(ScriptMetadata.TYPE);
+            if (scriptMetadata == null) {
+                continue;
+            }
+            for (Map.Entry<String, StoredScriptSource> source : scriptMetadata.getStoredScripts().entrySet()) {
+                if (source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length > newMaxSizeInBytes) {
+                    throw new IllegalArgumentException(
+                        "script.max_size_in_bytes cannot be set to ["
+                            + newMaxSizeInBytes
+                            + "], "
+                            + "stored script ["
+                            + source.getKey()
+                            + "] exceeds the new value with a size of "
+                            + "["
+                            + source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length
+                            + "]"
+                    );
+                }
+            }
+        }
     }
 
     /**
@@ -575,6 +593,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+        ProjectId projectId = projectResolver.getProjectId();
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 
@@ -591,7 +610,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             // context is supported
             // * a stored script must be pulled from the cluster state every time in case
             // the script has been updated since the last compilation
-            StoredScriptSource source = getScriptFromClusterState(id);
+            StoredScriptSource source = getScriptFromClusterState(projectId, id);
             lang = source.getLang();
             idOrCode = source.getSource();
             options = source.getOptions();
@@ -632,7 +651,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         ScriptCache scriptCache = cacheHolder.get().get(context.name);
         assert scriptCache != null : "script context [" + context.name + "] has no script cache";
-        return scriptCache.compile(context, scriptEngine, id, idOrCode, type, options);
+        return scriptCache.compile(context, scriptEngine, projectId, id, idOrCode, type, options);
     }
 
     public boolean isLangSupported(String lang) {
@@ -652,22 +671,8 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         return contextsAllowed == null || contextsAllowed.isEmpty() == false;
     }
 
-    Map<String, StoredScriptSource> getScriptsFromClusterState() {
-        if (clusterState == null) {
-            return Collections.emptyMap();
-        }
-
-        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
-
-        if (scriptMetadata == null) {
-            return Collections.emptyMap();
-        }
-
-        return scriptMetadata.getStoredScripts();
-    }
-
-    protected StoredScriptSource getScriptFromClusterState(String id) {
-        ScriptMetadata scriptMetadata = clusterState.metadata().custom(ScriptMetadata.TYPE);
+    protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
+        ScriptMetadata scriptMetadata = clusterState.metadata().getProject(projectId).custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
             throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
@@ -684,15 +689,16 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     public void putStoredScript(
         ClusterService clusterService,
+        final ProjectId projectId,
         PutStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        if (request.content().length() > maxSizeInBytes) {
+        if (request.contentLength() > maxSizeInBytes) {
             throw new IllegalArgumentException(
                 "exceeded max allowed stored script size in bytes ["
                     + maxSizeInBytes
                     + "] with size ["
-                    + request.content().length()
+                    + request.contentLength()
                     + "] for script ["
                     + request.id()
                     + "]"
@@ -730,37 +736,47 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
         }
 
-        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask(clusterService, "put-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
-                smd = ScriptMetadata.putStoredScript(smd, request.id(), source);
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
+                final var project = currentState.metadata().getProject(projectId);
+                final ScriptMetadata originalSmd = project.custom(ScriptMetadata.TYPE);
+                final ScriptMetadata updatedSmd = ScriptMetadata.putStoredScript(originalSmd, request.id(), source);
 
-                return ClusterState.builder(currentState).metadata(mdb).build();
+                return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(ScriptMetadata.TYPE, updatedSmd));
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
     }
 
-    public void deleteStoredScript(
+    public static void deleteStoredScript(
         ClusterService clusterService,
+        ProjectId projectId,
         DeleteStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("delete-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask(clusterService, "delete-script-" + request.id(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ScriptMetadata smd = currentState.metadata().custom(ScriptMetadata.TYPE);
-                smd = ScriptMetadata.deleteStoredScript(smd, request.id());
-                Metadata.Builder mdb = Metadata.builder(currentState.getMetadata()).putCustom(ScriptMetadata.TYPE, smd);
+                final var project = currentState.metadata().getProject(projectId);
+                final ScriptMetadata originalSmd = project.custom(ScriptMetadata.TYPE);
+                final ScriptMetadata updatedSmd = ScriptMetadata.deleteStoredScript(originalSmd, request.id());
 
-                return ClusterState.builder(currentState).metadata(mdb).build();
+                return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(ScriptMetadata.TYPE, updatedSmd));
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
     }
 
-    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
+    public static StoredScriptSource getStoredScript(ProjectMetadata project, GetStoredScriptRequest request) {
+        ScriptMetadata scriptMetadata = project.custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {
             return scriptMetadata.getStoredScript(request.id());
@@ -770,7 +786,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     public Set<ScriptContextInfo> getContextInfos() {
-        Set<ScriptContextInfo> infos = new HashSet<ScriptContextInfo>(contexts.size());
+        Set<ScriptContextInfo> infos = Sets.newHashSetWithExpectedSize(contexts.size());
         for (ScriptContext<?> context : contexts.values()) {
             infos.add(new ScriptContextInfo(context.name, context.instanceClazz));
         }
@@ -855,7 +871,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     }
 
     CacheHolder contextCacheHolder(Settings settings) {
-        Map<String, ScriptCache> contextCache = new HashMap<>(contexts.size());
+        Map<String, ScriptCache> contextCache = Maps.newMapWithExpectedSize(contexts.size());
         contexts.forEach((k, v) -> contextCache.put(k, contextCache(settings, v)));
         return new CacheHolder(contextCache);
     }
@@ -907,7 +923,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }
 
         CacheHolder(Map<String, ScriptCache> context) {
-            Map<String, AtomicReference<ScriptCache>> refs = new HashMap<>(context.size());
+            Map<String, AtomicReference<ScriptCache>> refs = Maps.newMapWithExpectedSize(context.size());
             context.forEach((k, v) -> refs.put(k, new AtomicReference<>(v)));
             contextCache = Collections.unmodifiableMap(refs);
             general = null;
@@ -937,14 +953,14 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                 ScriptCache cache = entry.getValue().get();
                 contextStats.add(cache.stats(entry.getKey()));
             }
-            return new ScriptStats(contextStats);
+            return ScriptStats.read(contextStats);
         }
 
         ScriptCacheStats cacheStats() {
             if (general != null) {
                 return new ScriptCacheStats(general.stats());
             }
-            Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
+            Map<String, ScriptStats> context = Maps.newMapWithExpectedSize(contextCache.size());
             for (String name : contextCache.keySet()) {
                 context.put(name, contextCache.get(name).get().stats());
             }

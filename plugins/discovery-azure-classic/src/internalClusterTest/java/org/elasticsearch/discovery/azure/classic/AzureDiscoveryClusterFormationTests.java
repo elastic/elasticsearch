@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.azure.classic;
@@ -14,15 +15,15 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
@@ -43,9 +44,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -87,6 +86,17 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         @Override
         protected void before() {
             assumeFalse("Can't run in a FIPS JVM because none of the supported Keystore types can be used", inFipsJvm());
+        }
+    };
+
+    @ClassRule
+    public static final ExternalResource MUTE_IN_IPV6 = new ExternalResource() {
+        @Override
+        protected void before() {
+            assumeFalse(
+                "Tests not currently working correctly with IPv6",
+                Booleans.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"))
+            );
         }
     };
 
@@ -258,27 +268,9 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
         kmf.init(ks, passphrase);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
         tmf.init(ks);
-        SSLContext ssl = SSLContext.getInstance(getProtocol());
+        SSLContext ssl = SSLContext.getInstance("TLS");
         ssl.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
         return ssl;
-    }
-
-    /**
-     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
-     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
-     */
-    private static String getProtocol() {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
-            return "TLSv1.2";
-        } else {
-            JavaVersion full = AccessController.doPrivileged(
-                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
-            );
-            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
-                return "TLSv1.2";
-            }
-        }
-        return "TLS";
     }
 
     @AfterClass

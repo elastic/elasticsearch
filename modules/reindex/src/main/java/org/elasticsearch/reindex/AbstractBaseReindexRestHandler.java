@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -11,16 +12,15 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends BaseRestHandler {
 
     private final A action;
@@ -41,13 +41,17 @@ public abstract class AbstractBaseReindexRestHandler<
     protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client, boolean includeCreated, boolean includeUpdated)
         throws IOException {
         // Build the internal request
-        Request internal = setCommonOptions(request, buildRequest(request, client.getNamedWriteableRegistry()));
+        Request internal = setCommonOptions(request, buildRequest(request));
+
+        // Only requests supporting remote indices can have IndicesOptions allowing cross-project index expressions
+        assert internal.supportsRemoteIndicesSearch()
+            || internal.getSearchRequest().indicesOptions().resolveCrossProjectIndexExpression() == false;
 
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
             Map<String, String> params = new HashMap<>();
-            params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
-            params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
+            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
+            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
             return channel -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
         } else {
@@ -63,16 +67,19 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        return sendTask(client.getLocalNodeId(), client.executeLocally(action, internal, LoggingTaskListener.instance()));
+        final var responseListener = new SubscribableListener<BulkByScrollResponse>();
+        final var task = client.executeLocally(action, internal, responseListener);
+        responseListener.addListener(new LoggingReindexTaskListener(task));
+        return sendTask(client.getLocalNodeId(), task);
     }
 
     /**
      * Build the Request based on the RestRequest.
      */
-    protected abstract Request buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException;
+    protected abstract Request buildRequest(RestRequest request) throws IOException;
 
     /**
-     * Sets common options of {@link AbstractBulkByScrollRequest} requests.
+     * Sets common options of {@link AbstractBulkByPaginatedSearchRequest} requests.
      */
     protected Request setCommonOptions(RestRequest restRequest, Request request) {
         assert restRequest != null : "RestRequest should not be null";
@@ -103,13 +110,13 @@ public abstract class AbstractBaseReindexRestHandler<
         return request;
     }
 
-    private RestChannelConsumer sendTask(String localNodeId, Task task) {
+    private static RestChannelConsumer sendTask(String localNodeId, Task task) {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();
                 builder.field("task", localNodeId + ":" + task.getId());
                 builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }
         };
     }
@@ -120,8 +127,8 @@ public abstract class AbstractBaseReindexRestHandler<
             return null;
         }
 
-        if (slicesString.equals(AbstractBulkByScrollRequest.AUTO_SLICES_VALUE)) {
-            return AbstractBulkByScrollRequest.AUTO_SLICES;
+        if (slicesString.equals(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES_VALUE)) {
+            return AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
         }
 
         int slices;
@@ -167,8 +174,8 @@ public abstract class AbstractBaseReindexRestHandler<
         return requestsPerSecond;
     }
 
-    static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
-        if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
+    static void setMaxDocsValidateIdentical(AbstractBulkByPaginatedSearchRequest<?> request, int maxDocs) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
             throw new IllegalArgumentException(
                 "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
             );

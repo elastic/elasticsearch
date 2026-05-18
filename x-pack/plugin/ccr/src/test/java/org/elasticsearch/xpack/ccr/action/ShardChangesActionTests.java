@@ -47,12 +47,11 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
     }
 
     public void testGetOperations() throws Exception {
-        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
-        final IndexService indexService = createIndex("index", settings);
+        final IndexService indexService = createIndex("index", indexSettings(1, 0).build());
 
         final int numWrites = randomIntBetween(10, 4096);
         for (int i = 0; i < numWrites; i++) {
-            client().prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         // A number of times, get operations within a range that exists:
@@ -68,7 +67,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 min,
                 size,
                 indexShard.getHistoryUUID(),
-                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
             );
             final List<Long> seenSeqNos = Arrays.stream(operations).map(Translog.Operation::seqNo).collect(Collectors.toList());
             final List<Long> expectedSeqNos = LongStream.rangeClosed(min, max).boxed().collect(Collectors.toList());
@@ -85,7 +84,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                     numWrites,
                     numWrites + 1,
                     indexShard.getHistoryUUID(),
-                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                    ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
                 )
             );
             final String message = String.format(
@@ -104,7 +103,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             numWrites - 10,
             numWrites + 10,
             indexShard.getHistoryUUID(),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+            ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
         );
         assertThat(operations.length, equalTo(10));
 
@@ -117,7 +116,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 0,
                 10,
                 "different-history-uuid",
-                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
             )
         );
         assertThat(
@@ -137,7 +136,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                     fromSeqNo,
                     batchSize,
                     indexShard.getHistoryUUID(),
-                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                    ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
                 )
             );
             assertThat(
@@ -160,18 +159,17 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 0,
                 1,
                 indexShard.getHistoryUUID(),
-                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
             )
         );
     }
 
     public void testGetOperationsExceedByteLimit() throws Exception {
-        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
-        final IndexService indexService = createIndex("index", settings);
+        final IndexService indexService = createIndex("index", indexSettings(1, 0).build());
 
         final long numWrites = 32;
         for (int i = 0; i < numWrites; i++) {
-            client().prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final IndexShard indexShard = indexService.getShard(0);
@@ -181,7 +179,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             0,
             randomIntBetween(100, 500),
             indexShard.getHistoryUUID(),
-            new ByteSizeValue(256, ByteSizeUnit.BYTES)
+            ByteSizeValue.of(256, ByteSizeUnit.BYTES)
         );
         assertThat(operations.length, equalTo(8));
         assertThat(operations[0].seqNo(), equalTo(0L));
@@ -195,10 +193,9 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
     }
 
     public void testGetOperationsAlwaysReturnAtLeastOneOp() throws Exception {
-        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
-        final IndexService indexService = createIndex("index", settings);
+        final IndexService indexService = createIndex("index", indexSettings(1, 0).build());
 
-        client().prepareIndex("index").setId("0").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("0").setSource("{}", XContentType.JSON).get();
 
         final IndexShard indexShard = indexService.getShard(0);
         final Translog.Operation[] operations = ShardChangesAction.getOperations(

@@ -1,19 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,7 +35,48 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class EvalQueryQualityTests extends ESTestCase {
 
-    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
+    private static final NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(
+        new RankEvalPlugin().getNamedWriteables()
+    );
+
+    private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>(
+        "eval_query_quality",
+        true,
+        ParsedEvalQueryQuality::new
+    );
+
+    private static final class ParsedEvalQueryQuality {
+        double evaluationResult;
+        MetricDetail optionalMetricDetails;
+        List<RatedSearchHit> ratedHits = new ArrayList<>();
+    }
+
+    static {
+        PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, EvalQueryQuality.METRIC_SCORE_FIELD);
+        PARSER.declareObject(
+            (obj, value) -> obj.optionalMetricDetails = value,
+            (p, c) -> parseMetricDetail(p),
+            EvalQueryQuality.METRIC_DETAILS_FIELD
+        );
+        PARSER.declareObjectArray(
+            (obj, list) -> obj.ratedHits = list,
+            (p, c) -> RatedSearchHitTests.parseInstance(p),
+            EvalQueryQuality.HITS_FIELD
+        );
+    }
+
+    public static EvalQueryQuality parseInstance(XContentParser parser, String queryId) {
+        var evalQuality = PARSER.apply(parser, null);
+        return new EvalQueryQuality(queryId, evalQuality.evaluationResult, evalQuality.ratedHits, evalQuality.optionalMetricDetails);
+    }
+
+    private static MetricDetail parseMetricDetail(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        MetricDetail metricDetail = parser.namedObject(MetricDetail.class, parser.currentName(), null);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        return metricDetail;
+    }
 
     @SuppressWarnings("resource")
     @Override
@@ -70,14 +115,26 @@ public class EvalQueryQualityTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         EvalQueryQuality original = randomEvalQueryQuality();
-        EvalQueryQuality deserialized = copy(original);
-        assertEquals(deserialized, original);
-        assertEquals(deserialized.hashCode(), original.hashCode());
-        assertNotSame(deserialized, original);
+        try {
+            EvalQueryQuality deserialized = copy(original);
+            assertEquals(deserialized, original);
+            assertEquals(deserialized.hashCode(), original.hashCode());
+            assertNotSame(deserialized, original);
+        } finally {
+            disposeOriginalEvalQueryQualityHits(original);
+        }
     }
 
     public void testXContentParsing() throws IOException {
         EvalQueryQuality testItem = randomEvalQueryQuality();
+        try {
+            doTestXContentParsing(testItem);
+        } finally {
+            disposeOriginalEvalQueryQualityHits(testItem);
+        }
+    }
+
+    private void doTestXContentParsing(EvalQueryQuality testItem) throws IOException {
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -87,22 +144,55 @@ public class EvalQueryQualityTests extends ESTestCase {
         // - everything under `hits` (we test lenient SearchHit parsing elsewhere)
         Predicate<String> pathsToExclude = path -> path.isEmpty() || path.endsWith("metric_details") || path.contains("hits");
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
-        EvalQueryQuality parsedItem;
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-            String queryId = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsedItem = EvalQueryQuality.fromXContent(parser, queryId);
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-            assertNull(parser.nextToken());
+        EvalQueryQuality parsedItem = null;
+        try {
+            try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                String queryId = parser.currentName();
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                parsedItem = parseInstance(parser, queryId);
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+                assertNull(parser.nextToken());
+            }
+            assertNotSame(testItem, parsedItem);
+            // we cannot check equality of object here because some information (e.g. SearchHit#shard) cannot fully be
+            // parsed back after going through the rest layer. That's why we only check that the original and the parsed item
+            // have the same xContent representation
+            assertToXContentEquivalent(originalBytes, toXContent(parsedItem, xContentType, humanReadable), xContentType);
+        } finally {
+            if (parsedItem != null) {
+                parsedItem.getHitsAndRatings().forEach(rsh -> rsh.getSearchHit().decRef());
+            }
         }
-        assertNotSame(testItem, parsedItem);
-        // we cannot check equality of object here because some information (e.g. SearchHit#shard) cannot fully be
-        // parsed back after going through the rest layer. That's why we only check that the original and the parsed item
-        // have the same xContent representation
-        assertToXContentEquivalent(originalBytes, toXContent(parsedItem, xContentType, humanReadable), xContentType);
+    }
+
+    /**
+     * Releases pooled {@link SearchHit} instances created by {@link #randomEvalQueryQuality()}: one ref from
+     * {@code new SearchHit} and one from {@link RatedSearchHit}'s public constructor ({@link SearchHit#mustIncRef()}).
+     */
+    static void disposeOriginalEvalQueryQualityHits(EvalQueryQuality quality) {
+        for (RatedSearchHit ratedSearchHit : quality.getHitsAndRatings()) {
+            SearchHit hit = ratedSearchHit.getSearchHit();
+            hit.decRef();
+            hit.decRef();
+        }
+    }
+
+    /**
+     * Disposes objects passed to {@link org.elasticsearch.test.EqualsHashCodeTestUtils#checkEqualsAndHashCode}:
+     * wire-copied instances own one ref per hit; mutations that wrap the same underlying hits add one
+     * {@code mustIncRef} per {@link RatedSearchHit} via {@code new RatedSearchHit(...)}; mutations that add hits
+     * beyond {@code baseline} still hold the scratch ref from {@link RatedSearchHitTests#randomRatedSearchHit()}.
+     */
+    private static void disposeEvalQueryQualityAfterEqualsChecks(EvalQueryQuality disposed, EvalQueryQuality baseline) {
+        RankEvalMetricTestHelper.releaseRatedSearchHitsOnly(disposed);
+        int baselineSize = baseline.getHitsAndRatings().size();
+        var hits = disposed.getHitsAndRatings();
+        for (int i = baselineSize; i < hits.size(); i++) {
+            hits.get(i).getSearchHit().decRef();
+        }
     }
 
     private static EvalQueryQuality copy(EvalQueryQuality original) throws IOException {
@@ -110,13 +200,26 @@ public class EvalQueryQualityTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(randomEvalQueryQuality(), EvalQueryQualityTests::copy, EvalQueryQualityTests::mutateTestItem);
+        EvalQueryQuality original = randomEvalQueryQuality();
+        try {
+            checkEqualsAndHashCode(
+                original,
+                EvalQueryQualityTests::copy,
+                EvalQueryQualityTests::mutateTestItem,
+                mutated -> disposeEvalQueryQualityAfterEqualsChecks(mutated, original)
+            );
+        } finally {
+            disposeOriginalEvalQueryQualityHits(original);
+        }
     }
 
     private static EvalQueryQuality mutateTestItem(EvalQueryQuality original) {
         String id = original.getId();
         double metricScore = original.metricScore();
-        List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
+        List<RatedSearchHit> ratedHits = new ArrayList<>();
+        for (RatedSearchHit r : original.getHitsAndRatings()) {
+            ratedHits.add(new RatedSearchHit(r.getSearchHit(), r.getRating()));
+        }
         MetricDetail metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
             case 0:

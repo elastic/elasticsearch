@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.ordinals;
@@ -17,12 +18,7 @@ import org.apache.lucene.util.BytesRef;
  */
 public abstract class Ordinals implements Accountable {
 
-    public static final ValuesHolder NO_VALUES = new ValuesHolder() {
-        @Override
-        public BytesRef lookupOrd(long ord) {
-            throw new UnsupportedOperationException();
-        }
-    };
+    public static final ValuesHolder NO_VALUES = ord -> { throw new UnsupportedOperationException(); };
 
     /**
      * The memory size this ordinals take.

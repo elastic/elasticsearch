@@ -6,32 +6,32 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
 
-public class MlMetadata implements Metadata.Custom {
+public class MlMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ml";
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
@@ -63,8 +63,8 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -78,33 +78,17 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new MlMetadataDiff((MlMetadata) previousState, this);
     }
 
     public MlMetadata(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                in.readString();
-                new Job(in);
-            }
-            size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                in.readString();
-                new DatafeedConfig(in);
-            }
-        }
         this.upgradeMode = in.readBoolean();
         this.resetMode = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            writeMap(Collections.emptySortedMap(), out);
-            writeMap(Collections.emptySortedMap(), out);
-        }
         out.writeBoolean(upgradeMode);
         out.writeBoolean(resetMode);
     }
@@ -118,13 +102,14 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode);
-        builder.field(RESET_MODE.getPreferredName(), resetMode);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single(
+            ((builder, params) -> builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode)
+                .field(RESET_MODE.getPreferredName(), resetMode))
+        );
     }
 
-    public static class MlMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class MlMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final boolean upgradeMode;
         final boolean resetMode;
@@ -135,15 +120,6 @@ public class MlMetadata implements Metadata.Custom {
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new, MlMetadataDiff::readJobDiffFrom);
-                DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    DatafeedConfig::new,
-                    MlMetadataDiff::readDatafeedDiffFrom
-                );
-            }
             upgradeMode = in.readBoolean();
             resetMode = in.readBoolean();
         }
@@ -154,18 +130,12 @@ public class MlMetadata implements Metadata.Custom {
          * @return The new ML metadata.
          */
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new MlMetadata(upgradeMode, resetMode);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                SortedMap<String, Job> jobs = Collections.emptySortedMap();
-                DiffableUtils.diff(jobs, jobs, DiffableUtils.getStringKeySerializer()).writeTo(out);
-                SortedMap<String, DatafeedConfig> datafeeds = Collections.emptySortedMap();
-                DiffableUtils.diff(datafeeds, datafeeds, DiffableUtils.getStringKeySerializer()).writeTo(out);
-            }
             out.writeBoolean(upgradeMode);
             out.writeBoolean(resetMode);
         }
@@ -176,16 +146,16 @@ public class MlMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(Job::new, in);
+            return SimpleDiffable.readDiffFrom(Job::new, in);
         }
 
         static Diff<DatafeedConfig> readDatafeedDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(DatafeedConfig::new, in);
+            return SimpleDiffable.readDiffFrom(DatafeedConfig::new, in);
         }
     }
 
@@ -199,7 +169,7 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public final String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override
@@ -240,8 +210,17 @@ public class MlMetadata implements Metadata.Custom {
         }
     }
 
+    @Deprecated(forRemoval = true)
     public static MlMetadata getMlMetadata(ClusterState state) {
-        MlMetadata mlMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        MlMetadata mlMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
+        if (mlMetadata == null) {
+            return EMPTY_METADATA;
+        }
+        return mlMetadata;
+    }
+
+    public static MlMetadata getMlMetadata(ProjectMetadata project) {
+        MlMetadata mlMetadata = project == null ? null : project.custom(TYPE);
         if (mlMetadata == null) {
             return EMPTY_METADATA;
         }

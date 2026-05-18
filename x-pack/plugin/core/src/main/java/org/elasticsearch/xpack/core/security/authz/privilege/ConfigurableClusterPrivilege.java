@@ -40,7 +40,9 @@ public interface ConfigurableClusterPrivilege extends NamedWriteable, ToXContent
      * from the categories.
      */
     enum Category {
-        APPLICATION(new ParseField("application"));
+        APPLICATION(new ParseField("application")),
+        PROFILE(new ParseField("profile")),
+        ROLE(new ParseField("role"));
 
         public final ParseField field;
 

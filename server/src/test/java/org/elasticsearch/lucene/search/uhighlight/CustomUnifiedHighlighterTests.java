@@ -1,17 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
+import org.apache.lucene.analysis.synonym.SolrSynonymParser;
+import org.apache.lucene.analysis.synonym.SynonymFilterFactory;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -19,13 +25,11 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -34,12 +38,20 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.text.BreakIterator;
+import java.text.ParseException;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -83,6 +95,34 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         int maxAnalyzedOffset,
         Integer queryMaxAnalyzedOffset
     ) throws Exception {
+        assertHighlightOneDoc(
+            fieldName,
+            inputs,
+            analyzer,
+            query,
+            locale,
+            breakIterator,
+            noMatchSize,
+            expectedPassages,
+            maxAnalyzedOffset,
+            queryMaxAnalyzedOffset,
+            UnifiedHighlighter.OffsetSource.ANALYSIS
+        );
+    }
+
+    private void assertHighlightOneDoc(
+        String fieldName,
+        String[] inputs,
+        Analyzer analyzer,
+        Query query,
+        Locale locale,
+        BreakIterator breakIterator,
+        int noMatchSize,
+        String[] expectedPassages,
+        int maxAnalyzedOffset,
+        Integer queryMaxAnalyzedOffset,
+        UnifiedHighlighter.OffsetSource offsetSource
+    ) throws Exception {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
             iwc.setMergePolicy(newTieredMergePolicy(random()));
@@ -100,29 +140,31 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 iw.close();
-                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-                assertThat(topDocs.totalHits.value, equalTo(1L));
+                TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 1, Sort.INDEXORDER);
+                assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
+                UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+                builder.withBreakIterator(() -> breakIterator);
+                builder.withFieldMatcher(name -> "text".equals(name));
+                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder(), 3));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    analyzer,
-                    UnifiedHighlighter.OffsetSource.ANALYSIS,
-                    new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
+                    builder,
+                    offsetSource,
                     locale,
-                    breakIterator,
                     "index",
                     "text",
                     query,
                     noMatchSize,
                     expectedPassages.length,
-                    name -> "text".equals(name),
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset
+                    QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffset, maxAnalyzedOffset),
+                    true,
+                    true
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-                assertEquals(snippets.length, expectedPassages.length);
+                assertEquals(expectedPassages.length, snippets.length);
                 for (int i = 0; i < snippets.length; i++) {
-                    assertEquals(snippets[i].getText(), expectedPassages[i]);
+                    assertEquals(expectedPassages[i], snippets[i].getText());
                 }
             }
         }
@@ -187,7 +229,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
 
     public void testMultiPhrasePrefixQuery() throws Exception {
         final String[] inputs = { "The quick brown fox." };
-        final String[] outputs = { "The <b>quick</b> <b>brown</b> <b>fox</b>." };
+        final String[] outputs = { "The <b>quick brown fox</b>." };
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
@@ -210,7 +252,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         final String[] outputs = {
             "The <b>quick</b> <b>brown</b>",
             "<b>fox</b> in a long",
-            "with another <b>quick</b>",
+            "another <b>quick</b>",
             "<b>brown</b> <b>fox</b>.",
             "sentence with <b>brown</b>",
             "<b>fox</b>.", };
@@ -246,7 +288,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         );
     }
 
-    public void testRepeat() throws Exception {
+    public void testRepeatTerm() throws Exception {
         final String[] inputs = { "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun" };
         final String[] outputs = {
             "<b>Fun</b>  <b>fun</b> <b>fun</b>",
@@ -264,8 +306,12 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             0,
             outputs
         );
+    }
 
-        query = new PhraseQuery.Builder().add(new Term("text", "fun")).add(new Term("text", "fun")).build();
+    public void testRepeatPhrase() throws Exception {
+        final String[] inputs = { "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun" };
+        final String[] outputs = { "<b>Fun  fun fun</b>", "<b>fun  fun  </b>", "<b>fun  fun  fun</b>", "<b>fun  fun</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "fun")).add(new Term("text", "fun")).build();
         assertHighlightOneDoc(
             "text",
             inputs,
@@ -317,6 +363,63 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
             .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public static class NYCFilterFactory extends SynonymFilterFactory {
+        public NYCFilterFactory(Map<String, String> args) {
+            super(args);
+        }
+
+        @Override
+        protected SynonymMap loadSynonyms(ResourceLoader loader, String cname, boolean dedup, Analyzer analyzer) throws IOException,
+            ParseException {
+            SynonymMap.Parser parser = new SolrSynonymParser(false, false, analyzer);
+            parser.parse(new StringReader("new york city => nyc, new york city"));
+            return parser.build();
+        }
+    }
+
+    public void testOverlappingPositions() throws Exception {
+        final String[] inputs = { "new york city" };
+        final String[] outputs = { "<b>new york city</b>" };
+        BooleanQuery query = new BooleanQuery.Builder().add(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("text", "nyc")), BooleanClause.Occur.SHOULD)
+                .add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("text", "new")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "york")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "city")), BooleanClause.Occur.MUST)
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                )
+                .build(),
+            BooleanClause.Occur.MUST
+        ).build();
+        Analyzer analyzer = CustomAnalyzer.builder()
+            .withTokenizer(StandardTokenizerFactory.class)
+            .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
+            .build();
+        assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public void testPhraseSpanningMultipleValues() throws Exception {
+        final String[] inputs = { "If you say things to a person that turn out not to be true", "the person is not going to believe" };
+        final String[] outputs = { "If you say things to a person that turn out not <b>to be true the person</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "to"))
+            .add(new Term("text", "be"))
+            .add(new Term("text", "true"))
+            .add(new Term("text", "the"))
+            .add(new Term("text", "person"))
+            .build();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            new StandardAnalyzer(),
+            query,
+            Locale.ROOT,
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 256),
+            0,
+            outputs
+        );
     }
 
     public void testExceedMaxAnalyzedOffset() throws Exception {
@@ -392,6 +495,74 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             new String[] { "exceeds" },
             10,
             10
+        );
+    }
+
+    public void testExceedMaxAnalyzedOffsetWithRepeatedWords() throws Exception {
+
+        TermQuery query = new TermQuery(new Term("text", "Fun"));
+        Analyzer analyzer = new WhitespaceAnalyzer();
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "Testing Fun Testing Fun" },
+            analyzer,
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            new String[] { "Testing <b>Fun</b> Testing Fun" },
+            29,
+            10,
+            UnifiedHighlighter.OffsetSource.ANALYSIS
+        );
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "Testing Fun Testing Fun" },
+            analyzer,
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            new String[] { "Testing <b>Fun</b> Testing Fun" },
+            29,
+            10,
+            UnifiedHighlighter.OffsetSource.POSTINGS
+        );
+    }
+
+    public void testExceedMaxAnalyzedOffsetRandomOffset() throws Exception {
+        TermQuery query = new TermQuery(new Term("text", "fun"));
+        Analyzer analyzer = new WhitespaceAnalyzer();
+        UnifiedHighlighter.OffsetSource offsetSource = randomBoolean()
+            ? UnifiedHighlighter.OffsetSource.ANALYSIS
+            : UnifiedHighlighter.OffsetSource.POSTINGS;
+        final String[] inputs = { "Fun fun fun fun fun" };
+        TreeMap<Integer, String> outputs = new TreeMap<>(
+            Map.of(
+                7,
+                "Fun <b>fun</b> fun fun fun",
+                11,
+                "Fun <b>fun</b> <b>fun</b> fun fun",
+                15,
+                "Fun <b>fun</b> <b>fun</b> <b>fun</b> fun",
+                19,
+                "Fun <b>fun</b> <b>fun</b> <b>fun</b> <b>fun</b>"
+            )
+        );
+        Integer randomOffset = between(7, 19);
+        String output = outputs.ceilingEntry(randomOffset).getValue();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            analyzer,
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            0,
+            new String[] { output },
+            47,
+            randomOffset,
+            offsetSource
         );
     }
 }

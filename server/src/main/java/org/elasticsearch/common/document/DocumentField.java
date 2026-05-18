@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.document;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -38,16 +39,14 @@ public class DocumentField implements Writeable, Iterable<Object> {
 
     private final String name;
     private final List<Object> values;
-    private List<Object> ignoredValues;
+    private final List<Object> ignoredValues;
+    private final List<LookupField> lookupFields;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
-        values = in.readList(StreamInput::readGenericValue);
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            ignoredValues = in.readList(StreamInput::readGenericValue);
-        } else {
-            ignoredValues = Collections.emptyList();
-        }
+        values = in.readCollectionAsList(StreamInput::readGenericValue);
+        ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
+        lookupFields = in.readCollectionAsList(LookupField::new);
     }
 
     public DocumentField(String name, List<Object> values) {
@@ -55,9 +54,25 @@ public class DocumentField implements Writeable, Iterable<Object> {
     }
 
     public DocumentField(String name, List<Object> values, List<Object> ignoredValues) {
+        this(name, values, ignoredValues, Collections.emptyList());
+    }
+
+    public DocumentField(String name, List<Object> values, List<Object> ignoredValues, List<LookupField> lookupFields) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
+        this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
+        assert lookupFields.isEmpty() || (values.isEmpty() && ignoredValues.isEmpty())
+            : "DocumentField can't have both lookup fields and values";
+    }
+
+    /**
+     * Read map of document fields written via {@link StreamOutput#writeMapValues(Map)}.
+     * @param in stream input
+     * @return map of {@link DocumentField} keyed by {@link DocumentField#getName()}
+     */
+    public static Map<String, DocumentField> readFieldsFromMapValues(StreamInput in) throws IOException {
+        return in.readMapValues(DocumentField::new, DocumentField::getName);
     }
 
     /**
@@ -101,42 +116,38 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
-        }
+        out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
+        out.writeCollection(lookupFields);
+    }
 
+    public List<LookupField> getLookupFields() {
+        return lookupFields;
     }
 
     public ToXContentFragment getValidValuesWriter() {
-        return new ToXContentFragment() {
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startArray(name);
-                for (Object value : values) {
-                    // This call doesn't really need to support writing any kind of object, since the values
-                    // here are always serializable to xContent. Each value could be a leaf types like a string,
-                    // number, or boolean, a list of such values, or a map of such values with string keys.
+        return (builder, params) -> {
+            builder.startArray(name);
+            for (Object value : values) {
+                try {
                     builder.value(value);
+                } catch (RuntimeException e) {
+                    // if the value cannot be serialized, we catch here and return a placeholder value
+                    builder.value("<unserializable>");
                 }
-                builder.endArray();
-                return builder;
             }
+            builder.endArray();
+            return builder;
         };
     }
 
     public ToXContentFragment getIgnoredValuesWriter() {
-        return new ToXContentFragment() {
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startArray(name);
-                for (Object value : ignoredValues) {
-                    builder.value(value);
-                }
-                builder.endArray();
-                return builder;
+        return (builder, params) -> {
+            builder.startArray(name);
+            for (Object value : ignoredValues) {
+                builder.value(value);
             }
+            builder.endArray();
+            return builder;
         };
     }
 
@@ -163,17 +174,28 @@ public class DocumentField implements Writeable, Iterable<Object> {
         DocumentField objects = (DocumentField) o;
         return Objects.equals(name, objects.name)
             && Objects.equals(values, objects.values)
-            && Objects.equals(ignoredValues, objects.ignoredValues);
+            && Objects.equals(ignoredValues, objects.ignoredValues)
+            && Objects.equals(lookupFields, objects.lookupFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, values, ignoredValues);
+        return Objects.hash(name, values, ignoredValues, lookupFields);
     }
 
     @Override
     public String toString() {
-        return "DocumentField{" + "name='" + name + '\'' + ", values=" + values + ", ignoredValues=" + ignoredValues + '}';
+        return "DocumentField{"
+            + "name='"
+            + name
+            + '\''
+            + ", values="
+            + values
+            + ", ignoredValues="
+            + ignoredValues
+            + ", lookupFields="
+            + lookupFields
+            + '}';
     }
 
 }

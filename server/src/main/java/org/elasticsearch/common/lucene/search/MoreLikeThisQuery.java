@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -12,19 +13,18 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
@@ -32,7 +32,6 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -118,12 +117,12 @@ public class MoreLikeThisQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
-        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new ClassicSimilarity() : similarity);
+        XMoreLikeThis mlt = new XMoreLikeThis(searcher.getIndexReader(), similarity == null ? new ClassicSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);
@@ -213,10 +212,6 @@ public class MoreLikeThisQuery extends Query {
         return (likeText == null ? null : likeText[0]);
     }
 
-    public String[] getLikeTexts() {
-        return likeText;
-    }
-
     public void setLikeText(String... likeText) {
         this.likeText = likeText;
     }
@@ -227,10 +222,6 @@ public class MoreLikeThisQuery extends Query {
 
     public void setLikeFields(Fields... likeFields) {
         this.likeFields = likeFields;
-    }
-
-    public void setLikeText(List<String> likeText) {
-        setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
     public void setUnlikeFields(Fields... unlikeFields) {
@@ -249,10 +240,6 @@ public class MoreLikeThisQuery extends Query {
         this.moreLikeFields = moreLikeFields;
     }
 
-    public Similarity getSimilarity() {
-        return similarity;
-    }
-
     public void setSimilarity(Similarity similarity) {
         if (similarity == null || similarity instanceof TFIDFSimilarity) {
             // LUCENE 4 UPGRADE we need TFIDF similarity here so I only set it if it is an instance of it
@@ -267,16 +254,6 @@ public class MoreLikeThisQuery extends Query {
     public void setAnalyzer(String analyzerName, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.analyzerName = analyzerName;
-    }
-
-    /**
-     * Number of terms that must match the generated query expressed in the
-     * common syntax for minimum should match.
-     *
-     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
-     */
-    public String getMinimumShouldMatch() {
-        return minimumShouldMatch;
     }
 
     /**
@@ -308,56 +285,28 @@ public class MoreLikeThisQuery extends Query {
         this.maxQueryTerms = maxQueryTerms;
     }
 
-    public Set<?> getStopWords() {
-        return stopWords;
-    }
-
     public void setStopWords(Set<?> stopWords) {
         this.stopWords = stopWords;
-    }
-
-    public int getMinDocFreq() {
-        return minDocFreq;
     }
 
     public void setMinDocFreq(int minDocFreq) {
         this.minDocFreq = minDocFreq;
     }
 
-    public int getMaxDocFreq() {
-        return maxDocFreq;
-    }
-
     public void setMaxDocFreq(int maxDocFreq) {
         this.maxDocFreq = maxDocFreq;
-    }
-
-    public int getMinWordLen() {
-        return minWordLen;
     }
 
     public void setMinWordLen(int minWordLen) {
         this.minWordLen = minWordLen;
     }
 
-    public int getMaxWordLen() {
-        return maxWordLen;
-    }
-
     public void setMaxWordLen(int maxWordLen) {
         this.maxWordLen = maxWordLen;
     }
 
-    public boolean isBoostTerms() {
-        return boostTerms;
-    }
-
     public void setBoostTerms(boolean boostTerms) {
         this.boostTerms = boostTerms;
-    }
-
-    public float getBoostTermsFactor() {
-        return boostTermsFactor;
     }
 
     public void setBoostTermsFactor(float boostTermsFactor) {

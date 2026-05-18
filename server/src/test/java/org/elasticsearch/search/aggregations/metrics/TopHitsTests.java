@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -107,16 +107,16 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                 excludes[i] = randomAlphaOfLengthBetween(5, 20);
             }
             fetchSourceContext = switch (branch) {
-                case 0 -> new FetchSourceContext(randomBoolean());
-                case 1 -> new FetchSourceContext(true, includes, excludes);
-                case 2 -> new FetchSourceContext(
+                case 0 -> FetchSourceContext.of(randomBoolean());
+                case 1 -> FetchSourceContext.of(true, includes, excludes);
+                case 2 -> FetchSourceContext.of(
                     true,
                     new String[] { randomAlphaOfLengthBetween(5, 20) },
                     new String[] { randomAlphaOfLengthBetween(5, 20) }
                 );
-                case 3 -> new FetchSourceContext(true, includes, excludes);
-                case 4 -> new FetchSourceContext(true, includes, null);
-                case 5 -> new FetchSourceContext(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
+                case 3 -> FetchSourceContext.of(true, includes, excludes);
+                case 4 -> FetchSourceContext.of(true, includes, null);
+                case 5 -> FetchSourceContext.of(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
                 default -> throw new IllegalStateException();
             };
             factory.fetchSource(fetchSourceContext);
@@ -170,7 +170,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parser));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
     }
 

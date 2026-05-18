@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -26,7 +27,7 @@ import java.io.IOException;
  * representative set of subrequests. This is best-effort but better than {@linkplain ReindexRequest} because scripts can't change the
  * destination index and things.
  */
-public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest>
+public class UpdateByQueryRequest extends AbstractBulkIndexByPaginatedSearchRequest<UpdateByQueryRequest>
     implements
         IndicesRequest.Replaceable,
         ToXContentObject {
@@ -52,7 +53,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         pipeline = in.readOptionalString();
     }
 
-    private UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
+    UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
         super(search, setDefaults);
     }
 
@@ -127,8 +128,13 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     @Override
-    public UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask, totalSlices);
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
+    public UpdateByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        UpdateByQueryRequest request = doForSlice(new UpdateByQueryRequest(slice, false), slicingTask, totalSlices, activeSlices);
         request.setPipeline(pipeline);
         return request;
     }

@@ -30,13 +30,13 @@ import org.apache.http.util.VersionInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.net.ssl.SSLContext;
 
@@ -50,6 +50,9 @@ public final class RestClientBuilder {
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
+
+    static final String THREAD_NAME_PREFIX = "elasticsearch-rest-client-";
+    private static final String THREAD_NAME_FORMAT = THREAD_NAME_PREFIX + "%d-thread-%d";
 
     public static final String VERSION;
     static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
@@ -99,12 +102,7 @@ public final class RestClientBuilder {
 
         VersionInfo httpClientVersion = null;
         try {
-            httpClientVersion = AccessController.doPrivileged(
-                (PrivilegedAction<VersionInfo>) () -> VersionInfo.loadVersionInfo(
-                    "org.apache.http.nio.client",
-                    HttpAsyncClientBuilder.class.getClassLoader()
-                )
-            );
+            httpClientVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client", HttpAsyncClientBuilder.class.getClassLoader());
         } catch (Exception e) {
             // Keep unknown
         }
@@ -204,7 +202,7 @@ public final class RestClientBuilder {
      * it is not intended for other purposes and it should not be supplied in other scenarios.
      *
      * @throws NullPointerException if {@code pathPrefix} is {@code null}.
-     * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
+     * @throws IllegalArgumentException if {@code pathPrefix} is empty or contains consecutive slashes.
      */
     public RestClientBuilder setPathPrefix(String pathPrefix) {
         this.pathPrefix = cleanPathPrefix(pathPrefix);
@@ -218,6 +216,10 @@ public final class RestClientBuilder {
             throw new IllegalArgumentException("pathPrefix must not be empty");
         }
 
+        if (pathPrefix.contains("//")) {
+            throw new IllegalArgumentException("pathPrefix is malformed. consecutive slashes are not allowed: [" + pathPrefix + "]");
+        }
+
         String cleanPathPrefix = pathPrefix;
         if (cleanPathPrefix.startsWith("/") == false) {
             cleanPathPrefix = "/" + cleanPathPrefix;
@@ -226,10 +228,6 @@ public final class RestClientBuilder {
         // best effort to ensure that it looks like "/base/path" rather than "/base/path/"
         if (cleanPathPrefix.endsWith("/") && cleanPathPrefix.length() > 1) {
             cleanPathPrefix = cleanPathPrefix.substring(0, cleanPathPrefix.length() - 1);
-
-            if (cleanPathPrefix.endsWith("/")) {
-                throw new IllegalArgumentException("pathPrefix is malformed. too many trailing slashes: [" + pathPrefix + "]");
-            }
         }
         return cleanPathPrefix;
     }
@@ -280,9 +278,7 @@ public final class RestClientBuilder {
         if (failureListener == null) {
             failureListener = new RestClient.FailureListener();
         }
-        CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
-            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
-        );
+        CloseableHttpAsyncClient httpClient = createHttpClient();
         RestClient restClient = new RestClient(
             httpClient,
             defaultHeaders,
@@ -296,6 +292,24 @@ public final class RestClientBuilder {
         );
         httpClient.start();
         return restClient;
+    }
+
+    /**
+     * Similar to {@code org.apache.http.impl.nio.reactor.AbstractMultiworkerIOReactor.DefaultThreadFactory} but with better thread names.
+     */
+    private static class RestClientThreadFactory implements ThreadFactory {
+        private static final AtomicLong CLIENT_THREAD_POOL_ID_GENERATOR = new AtomicLong();
+
+        private final long clientThreadPoolId = CLIENT_THREAD_POOL_ID_GENERATOR.getAndIncrement(); // 0-based
+        private final AtomicLong clientThreadId = new AtomicLong();
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            return new Thread(
+                runnable,
+                String.format(Locale.ROOT, THREAD_NAME_FORMAT, clientThreadPoolId, clientThreadId.incrementAndGet()) // 1-based
+            );
+        }
     }
 
     private CloseableHttpAsyncClient createHttpClient() {
@@ -315,13 +329,13 @@ public final class RestClientBuilder {
                 .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
                 .setUserAgent(USER_AGENT_HEADER_VALUE)
-                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy())
+                .setThreadFactory(new RestClientThreadFactory());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
 
-            final HttpAsyncClientBuilder finalBuilder = httpClientBuilder;
-            return AccessController.doPrivileged((PrivilegedAction<CloseableHttpAsyncClient>) finalBuilder::build);
+            return httpClientBuilder.build();
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("could not create the default ssl context", e);
         }

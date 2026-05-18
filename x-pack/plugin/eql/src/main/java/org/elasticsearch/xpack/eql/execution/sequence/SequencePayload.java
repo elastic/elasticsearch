@@ -7,22 +7,28 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.execution.payload.AbstractPayload;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
-
 class SequencePayload extends AbstractPayload {
 
-    private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values;
+    private final List<EqlSearchResponse.Sequence> values;
 
-    SequencePayload(List<Sequence> sequences, List<List<SearchHit>> docs, boolean timedOut, TimeValue timeTook) {
-        super(timedOut, timeTook);
+    SequencePayload(
+        List<Sequence> sequences,
+        List<List<SearchHit>> docs,
+        boolean timedOut,
+        TimeValue timeTook,
+        ShardSearchFailure[] shardFailures
+    ) {
+        super(timedOut, timeTook, shardFailures);
         values = new ArrayList<>(sequences.size());
 
         for (int i = 0; i < sequences.size(); i++) {
@@ -30,9 +36,19 @@ class SequencePayload extends AbstractPayload {
             List<SearchHit> hits = docs.get(i);
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {
-                events.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields()));
+                if (hit == null) {
+                    events.add(Event.MISSING_EVENT);
+                } else {
+                    try {
+                        // Event(SearchHit) retains _source; decRef only releases the hit wrapper.
+                        events.add(new Event(hit));
+                    } finally {
+                        hit.decRef();
+                    }
+                }
+
             }
-            values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asList(), events));
+            values.add(new EqlSearchResponse.Sequence(s.key().asList(), events));
         }
     }
 
@@ -42,7 +58,7 @@ class SequencePayload extends AbstractPayload {
     }
 
     @Override
-    public List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values() {
+    public List<EqlSearchResponse.Sequence> values() {
         return values;
     }
 }

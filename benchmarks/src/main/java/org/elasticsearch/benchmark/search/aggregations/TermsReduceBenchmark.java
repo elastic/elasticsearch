@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.benchmark.search.aggregations;
 
@@ -18,10 +19,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -29,6 +32,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -46,6 +50,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -65,19 +70,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Fork(value = 1)
 public class TermsReduceBenchmark {
 
+    private final TermsAggregationBuilder builder = new TermsAggregationBuilder("terms");
+
     private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
-        public AggregationReduceContext forPartialReduction() {
-            return new AggregationReduceContext.ForPartial(null, null, task);
+        public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+            return new AggregationReduceContext.ForPartial(null, null, task, builder, b -> {}, topHitsToRelease);
         }
 
         @Override
-        public AggregationReduceContext forFinalReduction() {
+        public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
             final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                 Integer.MAX_VALUE,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
             );
-            return new AggregationReduceContext.ForFinal(null, null, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, task);
+            return new AggregationReduceContext.ForFinal(
+                null,
+                null,
+                task,
+                builder,
+                bucketConsumer,
+                PipelineAggregator.PipelineTree.EMPTY,
+                topHitsToRelease
+            );
         }
     });
 
@@ -107,7 +122,7 @@ public class TermsReduceBenchmark {
                 dict[i] = new BytesRef(Long.toString(rand.nextLong()));
             }
             for (int i = 0; i < numShards; i++) {
-                aggsList.add(InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, true))));
+                aggsList.add(InternalAggregations.from(newTerms(rand, dict, true)));
             }
         }
 
@@ -120,7 +135,7 @@ public class TermsReduceBenchmark {
             for (BytesRef term : randomTerms) {
                 InternalAggregations subAggs;
                 if (withNested) {
-                    subAggs = InternalAggregations.from(Collections.singletonList(newTerms(rand, dict, false)));
+                    subAggs = InternalAggregations.from(newTerms(rand, dict, false));
                 } else {
                     subAggs = InternalAggregations.EMPTY;
                 }

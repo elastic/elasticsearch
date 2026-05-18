@@ -7,20 +7,24 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import com.unboundid.util.Base64;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
@@ -54,6 +58,8 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
 public class CreateEnrollmentTokenToolTests extends CommandTestCase {
+    private static final String KIBANA_API_KEY = "DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg";
+    private static final String NODE_API_KEY = "DR6CzXkBDf8amV_48yYX:4BhUk-mkFm-AwvRFg90KJ";
 
     static FileSystem jimfs;
     String pathHomeParameter;
@@ -72,7 +78,7 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
             environment -> externalEnrollmentTokenGenerator
         ) {
             @Override
-            protected Environment createEnv(Map<String, String> settings) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return new Environment(CreateEnrollmentTokenToolTests.this.settings, confDir);
             }
         };
@@ -123,15 +129,13 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
 
         this.externalEnrollmentTokenGenerator = mock(ExternalEnrollmentTokenGenerator.class);
         EnrollmentToken kibanaToken = new EnrollmentToken(
-            "DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
+            KIBANA_API_KEY,
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d",
-            "8.0.0",
             Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
         );
         EnrollmentToken nodeToken = new EnrollmentToken(
-            "DR6CzXkBDf8amV_48yYX:4BhUk-mkFm-AwvRFg90KJ",
+            NODE_API_KEY,
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d",
-            "8.0.0",
             Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
         );
         when(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class), any(URL.class))).thenReturn(
@@ -150,14 +154,15 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         }
     }
 
-    public void testCreateToken() throws Exception {
-        String scope = randomBoolean() ? "node" : "kibana";
-        String output = execute("--scope", scope);
-        if (scope.equals("kibana")) {
-            assertThat(output, containsString("1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
-        } else {
-            assertThat(output, containsString("4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
-        }
+    public void testCreateKibanaToken() throws Exception {
+        String kibanaToken = Base64.decodeToString(execute("--scope", "kibana").trim());
+        assertThat(kibanaToken, containsString(KIBANA_API_KEY));
+
+    }
+
+    public void testCreateNodeToken() throws Exception {
+        String nodeToken = Base64.decodeToString(execute("--scope", "node").trim());
+        assertThat(nodeToken, containsString(NODE_API_KEY));
     }
 
     public void testInvalidScope() throws Exception {
@@ -186,7 +191,6 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         EnrollmentToken kibanaToken = new EnrollmentToken(
             "DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d",
-            "8.0.0",
             Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
         );
         when(
@@ -197,7 +201,7 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
             )
         ).thenReturn(kibanaToken);
         String output = execute("--scope", "kibana", "--url", "http://localhost:9204");
-        assertThat(output, containsString("1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
+        assertThat(Base64.decodeToString(output.trim()), containsString(KIBANA_API_KEY));
 
     }
 
@@ -224,9 +228,9 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         String scope = randomBoolean() ? "node" : "kibana";
         String output = execute("--scope", scope);
         if (scope.equals("kibana")) {
-            assertThat(output, containsString("1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
+            assertThat(Base64.decodeToString(output.trim()), containsString(KIBANA_API_KEY));
         } else {
-            assertThat(output, containsString("4YW1WXzQ4eVlYOjRCaFVrLW1rRm0tQXd2UkZnOTBLSiJ9"));
+            assertThat(Base64.decodeToString(output.trim()), containsString(NODE_API_KEY));
         }
     }
 
@@ -254,6 +258,6 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
     }
 
     private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("//+", "/") + "?pretty");
     }
 }

@@ -6,23 +6,35 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -35,33 +47,42 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -70,6 +91,41 @@ import static org.hamcrest.Matchers.nullValue;
  * Base class of ML integration tests that use a native data_frame_analytics process
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
+
+    /**
+     * Index settings that produce deterministic {@code _doc} sort order. Use these when creating a source index whose
+     * reindexing order must be reproducible (e.g. tests that compare train/test splits across two DFA jobs with the
+     * same randomize seed).
+     * <p>
+     * The DFA train/test split uses reservoir sampling that consumes a seeded {@link java.util.Random} in
+     * {@code ml__incremental_id} order. That id is assigned during reindex by a counter script over {@code _doc}-sorted
+     * source docs. For two jobs with the same seed to pick the same training rows, the {@code _doc} order must be
+     * identical across both reindex operations. A single shard with zero replicas eliminates cross-shard merge
+     * non-determinism and ensures the search always hits the same (sole) shard copy.
+     * <p>
+     * Pair with {@link #forceMergeSingleSegment} after indexing to collapse all docs into one Lucene segment.
+     */
+    protected static final Settings DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        .build();
+
+    /**
+     * Force-merges an index to a single Lucene segment per shard so that {@code _doc} sort reflects a stable,
+     * deterministic Lucene doc-id sequence. Intended for use with {@link #DETERMINISTIC_DOC_ORDER_INDEX_SETTINGS}.
+     */
+    protected static void forceMergeSingleSegment(String index) {
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).setFlush(true).get();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedXContents());
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(entries);
+    }
 
     protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
@@ -98,7 +154,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void waitUntilAnalyticsIsStopped(String id) throws Exception {
-        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(60));
+        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(180));
     }
 
     protected void waitUntilAnalyticsIsStopped(String id, TimeValue waitTime) throws Exception {
@@ -124,7 +180,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected ExplainDataFrameAnalyticsAction.Response explainDataFrame(DataFrameAnalyticsConfig config) {
-        PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
+        ExplainDataFrameAnalyticsAction.Request request = new ExplainDataFrameAnalyticsAction.Request(config);
         return client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
@@ -205,7 +261,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     abstract boolean supportsInference();
 
-    private List<PhaseProgress> getProgress(String id) {
+    protected List<PhaseProgress> getProgress(String id) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         List<PhaseProgress> progress = stats.getProgress();
@@ -222,9 +278,13 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return progress;
     }
 
-    protected SearchResponse searchStoredProgress(String jobId) {
-        String docId = StoredProgress.documentId(jobId);
-        return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
+    protected void assertStoredProgressHits(String jobId, int hitCount) {
+        assertHitCount(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+                QueryBuilders.idsQuery().addIds(StoredProgress.documentId(jobId))
+            ),
+            hitCount
+        );
     }
 
     protected void assertExactlyOneInferenceModelPersisted(String jobId) {
@@ -236,28 +296,32 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     private void assertInferenceModelPersisted(String jobId, Matcher<? super Integer> modelHitsArraySizeMatcher) {
-        SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
-            .get();
-        // If the job is stopped during writing_results phase and it is then restarted, there is a chance two trained models
-        // were persisted as there is no way currently for the process to be certain the model was persisted.
-        assertThat(
-            "Hits were: " + Strings.toString(searchResponse.getHits()),
-            searchResponse.getHits().getHits(),
-            is(arrayWithSize(modelHitsArraySizeMatcher))
+        assertResponse(
+            prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME).setQuery(
+                QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId))
+            ),
+            // If the job is stopped during writing_results phase and it is then restarted, there is a chance two trained models
+            // were persisted as there is no way currently for the process to be certain the model was persisted.
+            searchResponse -> assertThat(
+                "Hits were: " + Strings.toTruncatedString(searchResponse.getHits()),
+                searchResponse.getHits().getHits(),
+                is(arrayWithSize(modelHitsArraySizeMatcher))
+            )
         );
     }
 
     protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
-        ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
-        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        ClusterState masterClusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState();
+        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         return persistentTasks != null
             ? persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> true)
             : Collections.emptyList();
     }
 
     protected List<TaskInfo> analyticsAssignedTaskList() {
-        return client().admin().cluster().prepareListTasks().setActions(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME + "[c]").get().getTasks();
+        return clusterAdmin().prepareListTasks().setActions(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME + "[c]").get().getTasks();
     }
 
     protected void waitUntilSomeProgressHasBeenMadeForPhase(String jobId, String phase) throws Exception {
@@ -269,56 +333,131 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         }, 60, TimeUnit.SECONDS);
     }
 
+    protected String getModelId(String jobId) {
+        SetOnce<String> modelId = new SetOnce<>();
+        assertResponse(
+            prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME).setQuery(
+                QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId))
+            ),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                modelId.set(searchResponse.getHits().getHits()[0].getId());
+            }
+        );
+        return modelId.get();
+    }
+
+    protected TrainedModelMetadata getModelMetadata(String modelId) {
+        SetOnce<TrainedModelMetadata> trainedModelMetadataSetOnce = new SetOnce<>();
+        assertResponse(
+            prepareSearch(InferenceIndexConstants.INDEX_PATTERN).setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("model_id", modelId))
+                    .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelMetadata.NAME))
+            ).setSize(1),
+            response -> {
+                assertThat(response.getHits().getHits(), arrayWithSize(1));
+                try (
+                    XContentParser parser = XContentHelper.createParser(
+                        XContentParserConfiguration.EMPTY,
+                        response.getHits().getHits()[0].getSourceRef(),
+                        XContentType.JSON
+                    )
+                ) {
+                    trainedModelMetadataSetOnce.set(TrainedModelMetadata.LENIENT_PARSER.apply(parser, null));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        );
+        return trainedModelMetadataSetOnce.get();
+    }
+
+    protected TrainedModelDefinition getModelDefinition(String modelId) throws IOException {
+        GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(
+            modelId,
+            Collections.emptyList(),
+            Collections.singleton(GetTrainedModelsAction.Includes.DEFINITION)
+        );
+        GetTrainedModelsAction.Response response = client().execute(GetTrainedModelsAction.INSTANCE, request).actionGet();
+        assertThat(response.getResources().results().size(), equalTo(1));
+        TrainedModelConfig modelConfig = response.getResources().results().get(0);
+        modelConfig.ensureParsedDefinition(xContentRegistry());
+        return modelConfig.getModelDefinition();
+    }
+
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:
-     *  1. the number of fetched messages must equal the number of provided prefixes
+     * 1. ALL expected message prefixes must be found in the fetched messages
      * AND
-     *  2. each fetched message must start with the corresponding prefix
+     * 2. each fetched message that matches must start with the corresponding prefix
      */
     protected static void assertThatAuditMessagesMatch(String configId, String... expectedAuditMessagePrefixes) throws Exception {
         // Make sure we wrote to the audit
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
-        assertBusy(() -> assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX)));
+        awaitIndexExists(NotificationsIndex.NOTIFICATIONS_INDEX);
 
-        @SuppressWarnings("unchecked")
-        Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);
+        Set<String> expectedPrefixes = Set.of(expectedAuditMessagePrefixes);
         assertBusy(() -> {
+            // Refresh the notifications index to ensure latest writes are visible
+            RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
+            BroadcastResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
+            assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
+
             List<String> allAuditMessages = fetchAllAuditMessages(configId);
-            assertThat(allAuditMessages, hasItems(itemMatchers));
-            // TODO: Consider restoring this assertion when we are sure all the audit messages are available at this point.
-            // assertThat("Messages: " + allAuditMessages, allAuditMessages, hasSize(expectedAuditMessagePrefixes.length));
+
+            // Find which expected prefixes match any of the audit messages
+            Set<String> foundPrefixes = expectedPrefixes.stream()
+                .filter(prefix -> allAuditMessages.stream().anyMatch(msg -> msg.startsWith(prefix)))
+                .collect(Collectors.toSet());
+
+            // Only calculate missing prefixes if not all were found
+            if (foundPrefixes.size() != expectedPrefixes.size()) {
+                Set<String> missingPrefixes = new HashSet<>(expectedPrefixes);
+                missingPrefixes.removeAll(foundPrefixes);
+                fail(
+                    String.format(
+                        Locale.ROOT,
+                        "Expected audit messages not found for config [%s]. Missing prefixes: %s. Found messages: %s",
+                        configId,
+                        missingPrefixes,
+                        allAuditMessages
+                    )
+                );
+            }
         });
     }
 
     protected static Set<String> getTrainingRowsIds(String index) {
         Set<String> trainingRowsIds = new HashSet<>();
-        SearchResponse hits = client().prepareSearch(index).setSize(10000).get();
-        for (SearchHit hit : hits.getHits()) {
-            Map<String, Object> sourceAsMap = hit.getSourceAsMap();
-            assertThat(sourceAsMap.containsKey("ml"), is(true));
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultsObject = (Map<String, Object>) sourceAsMap.get("ml");
+        assertResponse(prepareSearch(index).setSize(10000), hits -> {
+            for (SearchHit hit : hits.getHits()) {
+                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                assertThat(sourceAsMap.containsKey("ml"), is(true));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> resultsObject = (Map<String, Object>) sourceAsMap.get("ml");
 
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
-                trainingRowsIds.add(hit.getId());
+                assertThat(resultsObject.containsKey("is_training"), is(true));
+                if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
+                    trainingRowsIds.add(hit.getId());
+                }
             }
-        }
+        });
         assertThat(trainingRowsIds.isEmpty(), is(false));
         return trainingRowsIds;
     }
 
     protected static void assertModelStatePersisted(String stateDocId) {
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
-            .get();
-        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), is(arrayWithSize(1)));
+        assertHitCount(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(QueryBuilders.idsQuery().addIds(stateDocId)),
+            1
+        );
     }
 
     protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {
-        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(index))
+        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
             .actionGet()
             .mappings()
             .get(index)

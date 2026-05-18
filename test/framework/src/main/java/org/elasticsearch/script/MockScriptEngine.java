@@ -1,21 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -68,7 +74,9 @@ public class MockScriptEngine implements ScriptEngine {
         Map<ScriptContext<?>, ContextCompiler> contexts
     ) {
 
-        Map<String, MockDeterministicScript> scriptMap = new HashMap<>(deterministicScripts.size() + nonDeterministicScripts.size());
+        Map<String, MockDeterministicScript> scriptMap = Maps.newMapWithExpectedSize(
+            deterministicScripts.size() + nonDeterministicScripts.size()
+        );
         deterministicScripts.forEach((key, value) -> scriptMap.put(key, MockDeterministicScript.asDeterministic(value)));
         nonDeterministicScripts.forEach((key, value) -> scriptMap.put(key, MockDeterministicScript.asNonDeterministic(value)));
 
@@ -129,6 +137,12 @@ public class MockScriptEngine implements ScriptEngine {
                             Map<String, Object> vars = new HashMap<>(parameters);
                             vars.put("params", parameters);
                             vars.put("doc", getDoc());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested e.g. top_hits.
+                            }
                             return ((Number) script.apply(vars)).doubleValue();
                         }
                     };
@@ -136,16 +150,18 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public boolean needs_score() {
-                    return false;
+                    return true;
                 }
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(StringSortScript.class)) {
             return context.factoryClazz.cast(new MockStringSortScriptFactory(script));
+        } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
+            return context.factoryClazz.cast(new MockBytesRefSortScriptFactory(script));
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = vars -> new IngestScript(vars) {
+            IngestScript.Factory factory = (parameters, ctx) -> new IngestScript(parameters, ctx) {
                 @Override
-                public void execute(Map<String, Object> ctx) {
+                public void execute() {
                     script.apply(ctx);
                 }
             };
@@ -153,15 +169,39 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(AggregationScript.class)) {
             return context.factoryClazz.cast(new MockAggregationScript(script));
         } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {
-            IngestConditionalScript.Factory factory = parameters -> new IngestConditionalScript(parameters) {
+            IngestConditionalScript.Factory factory = (parameters, ctxMap) -> new IngestConditionalScript(parameters, ctxMap) {
                 @Override
-                public boolean execute(Map<String, Object> ctx) {
-                    return (boolean) script.apply(ctx);
+                public boolean execute() {
+                    return (boolean) script.apply(ctxMap);
                 }
             };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(UpdateScript.class)) {
             UpdateScript.Factory factory = (parameters, ctx) -> new UpdateScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ReindexScript.class)) {
+            ReindexScript.Factory factory = (parameters, ctx) -> new ReindexScript(parameters, ctx) {
+                @Override
+                public void execute() {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("ctx", ctx);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(UpdateByQueryScript.class)) {
+            UpdateByQueryScript.Factory factory = (parameters, ctx) -> new UpdateByQueryScript(parameters, ctx) {
                 @Override
                 public void execute() {
                     final Map<String, Object> vars = new HashMap<>();
@@ -218,15 +258,6 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
-            MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
-                @Override
-                public double execute(Map<String, Object> params1, double[] values) {
-                    params1.put("_values", values);
-                    return (double) script.apply(params1);
-                }
-            };
-            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(ScoreScript.class)) {
             ScoreScript.Factory factory = new MockScoreScript(script);
             return context.factoryClazz.cast(factory);
@@ -246,7 +277,13 @@ public class MockScriptEngine implements ScriptEngine {
             IntervalFilterScript.Factory factory = mockCompiled::createIntervalFilterScript;
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(BooleanFieldScript.class)) {
-            BooleanFieldScript.Factory booleanFieldScript = (f, p, s) -> ctx -> new BooleanFieldScript(f, p, s, ctx) {
+            BooleanFieldScript.Factory booleanFieldScript = (f, p, s, onScriptError) -> ctx -> new BooleanFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(true);
@@ -254,7 +291,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(booleanFieldScript);
         } else if (context.instanceClazz.equals(StringFieldScript.class)) {
-            StringFieldScript.Factory stringFieldScript = (f, p, s) -> ctx -> new StringFieldScript(f, p, s, ctx) {
+            StringFieldScript.Factory stringFieldScript = (f, p, s, onScriptError) -> ctx -> new StringFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit("test");
@@ -262,7 +305,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(stringFieldScript);
         } else if (context.instanceClazz.equals(LongFieldScript.class)) {
-            LongFieldScript.Factory longFieldScript = (f, p, s) -> ctx -> new LongFieldScript(f, p, s, ctx) {
+            LongFieldScript.Factory longFieldScript = (f, p, s, onScriptError) -> ctx -> new LongFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(1L);
@@ -270,7 +319,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(longFieldScript);
         } else if (context.instanceClazz.equals(DoubleFieldScript.class)) {
-            DoubleFieldScript.Factory doubleFieldScript = (f, p, s) -> ctx -> new DoubleFieldScript(f, p, s, ctx) {
+            DoubleFieldScript.Factory doubleFieldScript = (f, p, s, onScriptError) -> ctx -> new DoubleFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(1.2D);
@@ -278,7 +333,14 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(doubleFieldScript);
         } else if (context.instanceClazz.equals(DateFieldScript.class)) {
-            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter) -> ctx -> new DateFieldScript(f, p, s, formatter, ctx) {
+            DateFieldScript.Factory dateFieldScript = (f, p, s, formatter, onScriptError) -> ctx -> new DateFieldScript(
+                f,
+                p,
+                s,
+                formatter,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(123L);
@@ -286,7 +348,7 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(dateFieldScript);
         } else if (context.instanceClazz.equals(IpFieldScript.class)) {
-            IpFieldScript.Factory ipFieldScript = (f, p, s) -> ctx -> new IpFieldScript(f, p, s, ctx) {
+            IpFieldScript.Factory ipFieldScript = (f, p, s, onScriptError) -> ctx -> new IpFieldScript(f, p, s, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emit("127.0.0.1");
@@ -294,7 +356,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(ipFieldScript);
         } else if (context.instanceClazz.equals(GeoPointFieldScript.class)) {
-            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s) -> ctx -> new GeoPointFieldScript(f, p, s, ctx) {
+            GeoPointFieldScript.Factory geoPointFieldScript = (f, p, s, onScriptError) -> ctx -> new GeoPointFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit(1.2D, 1.2D);
@@ -302,7 +370,13 @@ public class MockScriptEngine implements ScriptEngine {
             };
             return context.factoryClazz.cast(geoPointFieldScript);
         } else if (context.instanceClazz.equals(CompositeFieldScript.class)) {
-            CompositeFieldScript.Factory objectFieldScript = (f, p, s) -> ctx -> new CompositeFieldScript(f, p, s, ctx) {
+            CompositeFieldScript.Factory objectFieldScript = (f, p, s, onScriptError) -> ctx -> new CompositeFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
                 @Override
                 public void execute() {
                     emit("field1", "value1");
@@ -310,10 +384,27 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(objectFieldScript);
+        } else if (context.instanceClazz.equals(GeometryFieldScript.class)) {
+            GeometryFieldScript.Factory geometryFieldScript = (f, p, s, onScriptError) -> ctx -> new GeometryFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    emitFromObject("POINT(1.2 1.2)");
+                }
+            };
+            return context.factoryClazz.cast(geometryFieldScript);
+        } else if (context.instanceClazz.equals(DoubleValuesScript.class)) {
+            DoubleValuesScript.Factory doubleValuesScript = () -> new MockDoubleValuesScript();
+            return context.factoryClazz.cast(doubleValuesScript);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {
-            return context.factoryClazz.cast(compiler.compile(script::apply, params));
+            return context.factoryClazz.cast(compiler.compile(script, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -336,7 +427,6 @@ public class MockScriptEngine implements ScriptEngine {
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
-            MovingFunctionScript.CONTEXT,
             ScoreScript.CONTEXT,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,
@@ -346,7 +436,7 @@ public class MockScriptEngine implements ScriptEngine {
         );
     }
 
-    private Map<String, Object> createVars(Map<String, Object> params) {
+    private static Map<String, Object> createVars(Map<String, Object> params) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("params", params);
         return vars;
@@ -415,10 +505,6 @@ public class MockScriptEngine implements ScriptEngine {
                     return (boolean) script.apply(ctx);
                 }
 
-                @Override
-                public void setDocument(int doc) {
-                    docReader.setDocument(doc);
-                }
             };
         }
     }
@@ -661,6 +747,11 @@ public class MockScriptEngine implements ScriptEngine {
                 }
 
                 @Override
+                public boolean needs_termStats() {
+                    return false;
+                }
+
+                @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, null, docReader) {
@@ -790,15 +881,110 @@ public class MockScriptEngine implements ScriptEngine {
 
         @Override
         public StringSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
-            return docReader -> new StringSortScript(parameters, docReader) {
+            return new StringSortScript.LeafFactory() {
                 @Override
-                public String execute() {
-                    Map<String, Object> vars = new HashMap<>(parameters);
-                    vars.put("params", parameters);
-                    vars.put("doc", getDoc());
-                    return String.valueOf(script.apply(vars));
+                public StringSortScript newInstance(DocReader reader) throws IOException {
+                    return new StringSortScript(parameters, reader) {
+                        @Override
+                        public String execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested e.g. top_hits.
+                            }
+                            return String.valueOf(script.apply(vars));
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return true;
                 }
             };
+        }
+    }
+
+    class MockBytesRefSortScriptFactory implements BytesRefSortScript.Factory {
+        private final MockDeterministicScript script;
+
+        MockBytesRefSortScriptFactory(MockDeterministicScript script) {
+            this.script = script;
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return script.isResultDeterministic();
+        }
+
+        @Override
+        public BytesRefSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
+            return new BytesRefSortScript.LeafFactory() {
+                @Override
+                public BytesRefSortScript newInstance(DocReader reader) throws IOException {
+                    return new BytesRefSortScript(parameters, reader) {
+                        @Override
+                        public BytesRefProducer execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested e.g. top_hits.
+                            }
+                            return (BytesRefProducer) script.apply(vars);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return true;
+                }
+            };
+        }
+    }
+
+    class MockDoubleValuesScript extends DoubleValuesScript {
+        @Override
+        public double execute() {
+            return 1.0;
+        }
+
+        @Override
+        public double evaluate(DoubleValues[] functionValues) {
+            return 1.0;
+        }
+
+        @Override
+        public DoubleValuesSource getDoubleValuesSource(Function<String, DoubleValuesSource> sourceProvider) {
+            return null;
+        }
+
+        @Override
+        public SortField getSortField(Function<String, DoubleValuesSource> sourceProvider, boolean reverse) {
+            return null;
+        }
+
+        @Override
+        public Rescorer getRescorer(Function<String, DoubleValuesSource> sourceProvider) {
+            return null;
+        }
+
+        @Override
+        public String sourceText() {
+            return null;
+        }
+
+        @Override
+        public String[] variables() {
+            return new String[0];
         }
     }
 }

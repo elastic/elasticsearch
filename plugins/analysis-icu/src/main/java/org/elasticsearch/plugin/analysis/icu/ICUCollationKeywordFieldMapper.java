@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -24,14 +25,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -41,52 +47,61 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
+    private static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        true,
+        DocValuesParameter.Values.Cardinality.LOW,
+        true
+    );
+
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
         private final String nullValue;
         private final int ignoreAbove;
+        private final boolean usesBinaryDocValues;
 
         public CollationFieldType(
             String name,
-            boolean isSearchable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Collator collator,
             String nullValue,
             int ignoreAbove,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean usesBinaryDocValues
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.collator = collator;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
+            this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
         public CollationFieldType(String name, boolean searchable, Collator collator) {
-            this(name, searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+            this(name, IndexType.terms(searchable, true), false, collator, null, Integer.MAX_VALUE, Collections.emptyMap(), false);
         }
 
         public CollationFieldType(String name, Collator collator) {
-            this(name, true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+            this(name, IndexType.terms(true, true), false, collator, null, Integer.MAX_VALUE, Collections.emptyMap(), false);
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public boolean usesBinaryDocValues() {
+            return usesBinaryDocValues;
         }
 
         @Override
@@ -108,16 +123,26 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
-            );
+
+            if (usesBinaryDocValues) {
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(dv)), n),
+                    fieldDataContext.indexSettings().getIndexVersionCreated()
+                );
+            } else {
+                return new SortedSetOrdinalsIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new DelegateDocValuesField(
+                        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                        n
+                    )
+                );
+            }
         }
 
         @Override
@@ -144,7 +169,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
@@ -199,8 +225,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BytesRef parseBytesRef(String value) {
-                char[] encoded = value.toCharArray();
+            public BytesRef parseBytesRef(Object value) {
+                char[] encoded = value.toString().toCharArray();
                 int decodedLength = IndexableBinaryStringTools.getDecodedLength(encoded, 0, encoded.length);
                 byte[] decoded = new byte[decodedLength];
                 IndexableBinaryStringTools.decode(encoded, 0, encoded.length, decoded, 0, decodedLength);
@@ -220,18 +246,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
-        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        final Parameter<Boolean> indexed;
+        final DocValuesParameter docValuesPameters = DocValuesParameter.ofWithCardinality(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParams()
+        );
         final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
-        final Parameter<String> indexOptions = Parameter.restrictedStringParam(
-            "index_options",
-            false,
-            m -> toType(m).indexOptions,
-            "docs",
-            "freqs"
-        );
-        final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
+        final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
+        final Parameter<Boolean> hasNorms = Parameter.normsParam(m -> toType(m).fieldType.omitNorms() == false, false);
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -255,16 +278,18 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             false
         ).acceptsNull();
 
-        final Parameter<Integer> ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE)
-            .addValidator(v -> {
-                if (v < 0) {
-                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
-                }
-            });
+        final Parameter<Integer> ignoreAbove = Parameter.ignoreAboveParam(
+            m -> toType(m).ignoreAbove,
+            IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE
+        );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
-        public Builder(String name) {
+        private final boolean indexDisabledByDefault;
+
+        public Builder(String name, boolean indexDisabledByDefault) {
             super(name);
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         Builder nullValue(String nullValue) {
@@ -278,10 +303,10 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
-                hasDocValues,
+                docValuesPameters,
                 stored,
                 indexOptions,
                 hasNorms,
@@ -299,8 +324,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 hiraganaQuaternaryMode,
                 ignoreAbove,
                 nullValue,
-                meta
-            );
+                meta };
         }
 
         private CollatorParams collatorParams() {
@@ -330,32 +354,34 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        private static boolean usesBinaryDocValues(DocValuesParameter.Values docValuesParams) {
+            return docValuesParams.enabled() && docValuesParams.cardinality() == DocValuesParameter.Values.Cardinality.HIGH;
+        }
+
+        @Override
         public ICUCollationKeywordFieldMapper build(MapperBuilderContext context) {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
+            final DocValuesParameter.Values docValuesParams = docValuesPameters.getValue();
             CollationFieldType ft = new CollationFieldType(
-                context.buildFullName(name),
-                indexed.getValue(),
+                context.buildFullName(leafName()),
+                IndexType.terms(indexed.get(), docValuesParams.enabled()),
                 stored.getValue(),
-                hasDocValues.getValue(),
                 collator,
                 nullValue.getValue(),
                 ignoreAbove.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                usesBinaryDocValues(docValuesParams)
             );
-            return new ICUCollationKeywordFieldMapper(
-                name,
-                buildFieldType(),
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                collator,
-                this
-            );
+            return new ICUCollationKeywordFieldMapper(leafName(), buildFieldType(), ft, builderParams(this, context), collator, this);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings().isIndexDisabledByDefault()));
 
     private static class CollatorParams {
         private String rules;
@@ -474,28 +500,38 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final String nullValue;
     private final FieldType fieldType;
     private final boolean indexed;
-    private final boolean hasDocValues;
     private final String indexOptions;
+    private final DocValuesParameter.Values docValuesParams;
+    private final boolean indexDisabledByDefault;
 
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Collator collator,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.params = builder.collatorParams();
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.collator = collator;
         this.nullValue = builder.nullValue.getValue();
         this.indexed = builder.indexed.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
         this.indexOptions = builder.indexOptions.getValue();
+        this.docValuesParams = builder.docValuesPameters.getValue();
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
+    }
+
+    public DocValuesParameter.Values docValuesParams() {
+        return docValuesParams;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -510,7 +546,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName(), indexDisabledByDefault).init(this);
     }
 
     @Override
@@ -528,7 +564,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > ignoreAbove) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(fullPath());
             return;
         }
 
@@ -540,8 +576,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             context.doc().add(field);
         }
 
-        if (hasDocValues) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        if (docValuesParams.enabled()) {
+            if (fieldType().usesBinaryDocValues()) {
+                MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
+            } else {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            }
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             context.addToFieldNames(fieldType().name());
         }

@@ -1,15 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,7 +23,22 @@ public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
 
-    int headerLength();
+    /**
+     * Same as {@link #threadLocalInputStream(InputStream)} but wraps the returned stream as a {@link StreamInput}.
+     */
+    default StreamInput threadLocalStreamInput(InputStream in) throws IOException {
+        // wrap stream in buffer since InputStreamStreamInput doesn't do any buffering itself but does a lot of small reads
+        return new InputStreamStreamInput(new BufferedInputStream(threadLocalInputStream(in), DeflateCompressor.BUFFER_SIZE) {
+            @Override
+            public int read() throws IOException {
+                // override read to avoid synchronized single byte reads now that JEP374 removed biased locking
+                if (pos >= count) {
+                    return super.read();
+                }
+                return buf[pos++] & 0xFF;
+            }
+        });
+    }
 
     /**
      * Creates a new input stream that decompresses the contents read from the provided input stream.
@@ -29,12 +49,12 @@ public interface Compressor {
     InputStream threadLocalInputStream(InputStream in) throws IOException;
 
     /**
-     * Creates a new output stream that compresses the contents and writes to the provided output stream.
-     * Closing the returned {@link OutputStream} will close the provided output stream.
+     * Creates a new {@link StreamOutput} that compresses the contents and writes to the provided output stream.
+     * Closing the returned {@link StreamOutput} will close the delegate {@code out} stream.
      * Note: The returned stream may only be used on the thread that created it as it might use thread-local resources and must be safely
      * closed after use
      */
-    OutputStream threadLocalOutputStream(OutputStream out) throws IOException;
+    StreamOutput threadLocalStreamOutput(OutputStream out) throws IOException;
 
     /**
      * Decompress bytes into a newly allocated buffer.

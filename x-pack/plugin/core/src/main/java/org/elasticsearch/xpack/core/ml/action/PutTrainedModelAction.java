@@ -29,14 +29,21 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
     public static final String DEFER_DEFINITION_DECOMPRESSION = "defer_definition_decompression";
     public static final PutTrainedModelAction INSTANCE = new PutTrainedModelAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/put";
+    public static final String MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT =
+        "the model id is the same as the deployment id of a current model deployment";
 
     private PutTrainedModelAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        public static Request parseRequest(String modelId, boolean deferDefinitionValidation, XContentParser parser) {
+        public static Request parseRequest(
+            String modelId,
+            boolean deferDefinitionValidation,
+            boolean waitForCompletion,
+            XContentParser parser
+        ) {
             TrainedModelConfig.Builder builder = TrainedModelConfig.STRICT_PARSER.apply(parser, null);
 
             if (builder.getModelId() == null) {
@@ -54,21 +61,30 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             }
             // Validations are done against the builder so we can build the full config object.
             // This allows us to not worry about serializing a builder class between nodes.
-            return new Request(builder.validate(true).build(), deferDefinitionValidation);
+            return new Request(builder.validate(true).build(), deferDefinitionValidation, waitForCompletion);
         }
 
         private final TrainedModelConfig config;
         private final boolean deferDefinitionDecompression;
+        private final boolean waitForCompletion;
 
+        // TODO: remove this constructor after re-factoring ML parts
         public Request(TrainedModelConfig config, boolean deferDefinitionDecompression) {
+            this(config, deferDefinitionDecompression, false);
+        }
+
+        public Request(TrainedModelConfig config, boolean deferDefinitionDecompression, boolean waitForCompletion) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.config = config;
             this.deferDefinitionDecompression = deferDefinitionDecompression;
+            this.waitForCompletion = waitForCompletion;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TrainedModelConfig(in);
             this.deferDefinitionDecompression = in.readBoolean();
+            this.waitForCompletion = in.readBoolean();
         }
 
         public TrainedModelConfig getTrainedModelConfig() {
@@ -95,11 +111,16 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             return deferDefinitionDecompression;
         }
 
+        public boolean isWaitForCompletion() {
+            return waitForCompletion;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             config.writeTo(out);
             out.writeBoolean(deferDefinitionDecompression);
+            out.writeBoolean(waitForCompletion);
         }
 
         @Override
@@ -107,12 +128,14 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(config, request.config) && deferDefinitionDecompression == request.deferDefinitionDecompression;
+            return Objects.equals(config, request.config)
+                && deferDefinitionDecompression == request.deferDefinitionDecompression
+                && waitForCompletion == request.waitForCompletion;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config, deferDefinitionDecompression);
+            return Objects.hash(config, deferDefinitionDecompression, waitForCompletion);
         }
 
         @Override
@@ -130,7 +153,6 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             trainedModelConfig = new TrainedModelConfig(in);
         }
 

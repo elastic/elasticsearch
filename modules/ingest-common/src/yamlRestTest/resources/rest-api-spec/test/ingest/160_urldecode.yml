@@ -25,7 +25,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "1"
         body: {
           my_url: "https%3a%2f%2felastic.co%2f"
@@ -34,5 +34,5 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.my_url: "https://elastic.co/" }

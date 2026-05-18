@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.stream.Collectors;
 
 public class AutoscalingSyncTestDeciderService implements AutoscalingDeciderService {
 
@@ -62,7 +61,7 @@ public class AutoscalingSyncTestDeciderService implements AutoscalingDeciderServ
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return DiscoveryNodeRole.roles().stream().collect(Collectors.toUnmodifiableList());
+        return DiscoveryNodeRole.roles().stream().toList();
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -20,12 +21,34 @@ import java.io.IOException;
 public class RepositoryException extends ElasticsearchException {
     private final String repository;
 
-    public RepositoryException(String repository, String msg) {
-        this(repository, msg, null);
+    /**
+     * Construct a <code>RepositoryException</code> with the specified detail message.
+     *
+     * The message can be parameterized using <code>{}</code> as placeholders for the given
+     * arguments.
+     *
+     * @param repository the repository name
+     * @param msg        the detail message
+     * @param args       the arguments for the message
+     */
+    public RepositoryException(String repository, String msg, Object... args) {
+        this(repository, msg, (Throwable) null, args);
     }
 
-    public RepositoryException(String repository, String msg, Throwable cause) {
-        super("[" + (repository == null ? "_na" : repository) + "] " + msg, cause);
+    /**
+     * Construct a <code>RepositoryException</code> with the specified detail message
+     * and nested exception.
+     *
+     * The message can be parameterized using <code>{}</code> as placeholders for the given
+     * arguments.
+     *
+     * @param repository the repository name
+     * @param msg        the detail message
+     * @param cause      the nested exception
+     * @param args       the arguments for the message
+     */
+    public RepositoryException(String repository, String msg, Throwable cause, Object... args) {
+        super("[" + (repository == null ? "_na" : repository) + "] " + msg, cause, args);
         this.repository = repository;
     }
 
@@ -44,8 +67,8 @@ public class RepositoryException extends ElasticsearchException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeOptionalString(repository);
     }
 }

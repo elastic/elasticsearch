@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.util;
 
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
@@ -30,6 +29,7 @@ import java.util.Locale;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
+import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
 public final class DateUtils {
 
@@ -50,7 +50,6 @@ public final class DateUtils {
         ISO_LOCAL_DATE
     ).optionalStart().appendLiteral('T').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter(Locale.ROOT).withZone(UTC);
 
-    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
     private DateUtils() {}

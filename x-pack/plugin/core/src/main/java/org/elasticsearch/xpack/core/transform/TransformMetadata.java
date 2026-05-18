@@ -7,29 +7,35 @@
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Objects;
 
-public class TransformMetadata implements Metadata.Custom {
+public class TransformMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "transform";
     public static final ParseField RESET_MODE = new ParseField("reset_mode");
+    public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
 
-    public static final TransformMetadata EMPTY_METADATA = new TransformMetadata(false);
+    public static final TransformMetadata EMPTY_METADATA = new TransformMetadata(false, false);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
     public static final ObjectParser<TransformMetadata.Builder, Void> LENIENT_PARSER = new ObjectParser<>(
         "" + "transform_metadata",
@@ -38,22 +44,29 @@ public class TransformMetadata implements Metadata.Custom {
     );
 
     static {
-        LENIENT_PARSER.declareBoolean(TransformMetadata.Builder::isResetMode, RESET_MODE);
+        LENIENT_PARSER.declareBoolean(TransformMetadata.Builder::resetMode, RESET_MODE);
+        LENIENT_PARSER.declareBoolean(TransformMetadata.Builder::upgradeMode, UPGRADE_MODE);
     }
 
     private final boolean resetMode;
+    private final boolean upgradeMode;
 
-    private TransformMetadata(boolean resetMode) {
+    private TransformMetadata(boolean resetMode, boolean upgradeMode) {
         this.resetMode = resetMode;
+        this.upgradeMode = upgradeMode;
     }
 
-    public boolean isResetMode() {
+    public boolean resetMode() {
         return resetMode;
     }
 
+    public boolean isUpgradeMode() {
+        return upgradeMode;
+    }
+
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -67,35 +80,42 @@ public class TransformMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new TransformMetadata.TransformMetadataDiff((TransformMetadata) previousState, this);
     }
 
     public TransformMetadata(StreamInput in) throws IOException {
         this.resetMode = in.readBoolean();
+        this.upgradeMode = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(resetMode);
+        out.writeBoolean(upgradeMode);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(RESET_MODE.getPreferredName(), resetMode);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single(
+            ((builder, params) -> builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode)
+                .field(RESET_MODE.getPreferredName(), resetMode))
+        );
     }
 
-    public static class TransformMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class TransformMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final boolean resetMode;
+        final boolean upgradeMode;
 
         TransformMetadataDiff(TransformMetadata before, TransformMetadata after) {
             this.resetMode = after.resetMode;
+            this.upgradeMode = after.upgradeMode;
         }
 
         public TransformMetadataDiff(StreamInput in) throws IOException {
-            resetMode = in.readBoolean();
+            this.resetMode = in.readBoolean();
+            this.upgradeMode = in.readBoolean();
         }
 
         /**
@@ -104,13 +124,14 @@ public class TransformMetadata implements Metadata.Custom {
          * @return The new transform metadata.
          */
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
-            return new TransformMetadata(resetMode);
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
+            return new TransformMetadata(resetMode, upgradeMode);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(resetMode);
+            out.writeBoolean(upgradeMode);
         }
 
         @Override
@@ -119,8 +140,8 @@ public class TransformMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
         }
     }
 
@@ -129,22 +150,27 @@ public class TransformMetadata implements Metadata.Custom {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TransformMetadata that = (TransformMetadata) o;
-        return resetMode == that.resetMode;
+        return resetMode == that.resetMode && upgradeMode == that.upgradeMode;
     }
 
     @Override
     public final String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resetMode);
+        return Objects.hash(resetMode, upgradeMode);
+    }
+
+    public Builder builder() {
+        return new TransformMetadata.Builder(this);
     }
 
     public static class Builder {
 
         private boolean resetMode;
+        private boolean upgradeMode;
 
         public static TransformMetadata.Builder from(@Nullable TransformMetadata previous) {
             return new TransformMetadata.Builder(previous);
@@ -155,24 +181,76 @@ public class TransformMetadata implements Metadata.Custom {
         public Builder(@Nullable TransformMetadata previous) {
             if (previous != null) {
                 resetMode = previous.resetMode;
+                upgradeMode = previous.upgradeMode;
             }
         }
 
-        public TransformMetadata.Builder isResetMode(boolean isResetMode) {
+        public TransformMetadata.Builder resetMode(boolean isResetMode) {
             this.resetMode = isResetMode;
             return this;
         }
 
+        public TransformMetadata.Builder upgradeMode(boolean upgradeMode) {
+            this.upgradeMode = upgradeMode;
+            return this;
+        }
+
         public TransformMetadata build() {
-            return new TransformMetadata(resetMode);
+            return new TransformMetadata(resetMode, upgradeMode);
         }
     }
 
+    /**
+     * @deprecated use {@link #transformMetadata(ProjectMetadata)}
+     */
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
     public static TransformMetadata getTransformMetadata(ClusterState state) {
-        TransformMetadata TransformMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        TransformMetadata TransformMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
         if (TransformMetadata == null) {
             return EMPTY_METADATA;
         }
         return TransformMetadata;
+    }
+
+    /**
+     * @deprecated use {@link #transformMetadata(ProjectMetadata)}
+     */
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
+    public static TransformMetadata transformMetadata(@Nullable ClusterState state, @Nullable ProjectId projectId) {
+        if (state == null || projectId == null) {
+            return EMPTY_METADATA;
+        }
+        return transformMetadata(state.projectState(projectId));
+    }
+
+    /**
+     * @deprecated use {@link #transformMetadata(ProjectMetadata)}
+     */
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
+    public static TransformMetadata transformMetadata(@Nullable ProjectState projectState) {
+        if (projectState == null) {
+            return EMPTY_METADATA;
+        }
+        return transformMetadata(projectState.metadata());
+    }
+
+    public static TransformMetadata transformMetadata(ProjectMetadata project) {
+        TransformMetadata transformMetadata = project == null ? null : project.custom(TYPE);
+        if (transformMetadata == null) {
+            return EMPTY_METADATA;
+        }
+        return transformMetadata;
+    }
+
+    @Deprecated(forRemoval = true)
+    public static boolean isUpgradeMode(ClusterState state) {
+        return getTransformMetadata(state).isUpgradeMode();
+    }
+
+    public static boolean isUpgradeMode(ProjectMetadata project) {
+        return transformMetadata(project).isUpgradeMode();
     }
 }

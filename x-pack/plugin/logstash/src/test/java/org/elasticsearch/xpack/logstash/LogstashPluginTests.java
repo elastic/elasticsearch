@@ -11,18 +11,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.stream.Collectors;
-
 import static org.hamcrest.Matchers.contains;
 
 public class LogstashPluginTests extends ESTestCase {
 
     public void testSystemIndices() {
         assertThat(
-            new Logstash().getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getIndexPattern)
-                .collect(Collectors.toUnmodifiableList()),
+            new Logstash().getSystemIndexDescriptors(Settings.EMPTY).stream().map(SystemIndexDescriptor::getIndexPattern).toList(),
             contains(".logstash*")
         );
     }

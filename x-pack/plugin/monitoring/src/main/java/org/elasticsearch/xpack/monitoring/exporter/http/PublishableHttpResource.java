@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
@@ -26,10 +25,14 @@ import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 
 /**
  * {@code PublishableHttpResource} represents an {@link HttpResource} that is a single file or object that can be checked <em>and</em>
@@ -107,10 +110,10 @@ public abstract class PublishableHttpResource extends HttpResource {
         super(resourceOwnerName, dirty);
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
-            final Map<String, String> parameters = new HashMap<>(baseParameters.size() + 1);
+            final Map<String, String> parameters = Maps.newMapWithExpectedSize(baseParameters.size() + 1);
 
             parameters.putAll(baseParameters);
-            parameters.put("master_timeout", masterTimeout.toString());
+            parameters.put(REST_MASTER_TIMEOUT_PARAM, masterTimeout.toString());
 
             this.defaultParameters = Collections.unmodifiableMap(parameters);
         } else {
@@ -135,14 +138,14 @@ public abstract class PublishableHttpResource extends HttpResource {
      */
     @Override
     protected final void doCheckAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
-        doCheck(client, ActionListener.wrap(exists -> {
+        doCheck(client, listener.delegateFailureAndWrap((l, exists) -> {
             if (exists) {
                 // it already exists, so we can skip publishing it
-                listener.onResponse(ResourcePublishResult.ready());
+                l.onResponse(ResourcePublishResult.ready());
             } else {
-                doPublish(client, listener);
+                doPublish(client, l);
             }
-        }, listener::onFailure));
+        }));
     }
 
     /**
@@ -254,7 +257,7 @@ public abstract class PublishableHttpResource extends HttpResource {
 
         // avoid exists and DNE parameters from being an exception by default
         final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
-        request.addParameter("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
+        request.addParameter(IGNORE_RESPONSE_CODES_PARAM, expectedResponseCodes.stream().map(Object::toString).collect(joining(",")));
 
         client.performRequestAsync(request, new ResponseListener() {
 
@@ -285,15 +288,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                         onFailure(new ResponseException(response));
                     }
                 } catch (Exception e) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to parse [{}/{}] on the [{}]",
-                            resourceBasePath,
-                            resourceName,
-                            resourceOwnerName
-                        ),
-                        e
-                    );
+                    logger.error(() -> format("failed to parse [%s/%s] on the [%s]", resourceBasePath, resourceName, resourceOwnerName), e);
 
                     onFailure(e);
                 }
@@ -306,8 +301,8 @@ public abstract class PublishableHttpResource extends HttpResource {
                     final int statusCode = response.getStatusLine().getStatusCode();
 
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to verify {} [{}] on the [{}] {} with status code [{}]",
+                        () -> format(
+                            "failed to verify %s [%s] on the [%s] %s with status code [%s]",
                             resourceType,
                             resourceName,
                             resourceOwnerName,
@@ -318,8 +313,8 @@ public abstract class PublishableHttpResource extends HttpResource {
                     );
                 } else {
                     logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to verify {} [{}] on the [{}] {}",
+                        () -> format(
+                            "failed to verify %s [%s] on the [%s] %s",
                             resourceType,
                             resourceName,
                             resourceOwnerName,
@@ -397,8 +392,8 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(final Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to upload {} [{}] on the [{}] {}",
+                    () -> format(
+                        "failed to upload %s [%s] on the [%s] %s",
                         resourceType,
                         resourceName,
                         resourceOwnerName,
@@ -444,9 +439,9 @@ public abstract class PublishableHttpResource extends HttpResource {
         final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
         addDefaultParameters(request);
 
-        if (false == defaultParameters.containsKey("ignore")) {
+        if (false == defaultParameters.containsKey(IGNORE_RESPONSE_CODES_PARAM)) {
             // avoid 404 being an exception by default
-            request.addParameter("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
+            request.addParameter(IGNORE_RESPONSE_CODES_PARAM, Integer.toString(NOT_FOUND.getStatus()));
         }
 
         client.performRequestAsync(request, new ResponseListener() {
@@ -468,8 +463,8 @@ public abstract class PublishableHttpResource extends HttpResource {
             @Override
             public void onFailure(Exception exception) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failed to delete {} [{}] on the [{}] {}",
+                    () -> format(
+                        "failed to delete %s [%s] on the [%s] %s",
                         resourceType,
                         resourceName,
                         resourceOwnerName,
@@ -539,10 +534,10 @@ public abstract class PublishableHttpResource extends HttpResource {
     }
 
     private void addDefaultParameters(final Request request) {
-        this.addParameters(request, defaultParameters);
+        PublishableHttpResource.addParameters(request, defaultParameters);
     }
 
-    private void addParameters(final Request request, final Map<String, String> parameters) {
+    private static void addParameters(final Request request, final Map<String, String> parameters) {
         for (final Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }

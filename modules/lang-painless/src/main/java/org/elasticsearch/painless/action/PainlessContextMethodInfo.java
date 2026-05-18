@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.action;
@@ -53,10 +54,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     public PainlessContextMethodInfo(PainlessMethod painlessMethod) {
         this(
-            painlessMethod.javaMethod.getDeclaringClass().getName(),
-            painlessMethod.javaMethod.getName(),
-            PainlessContextTypeInfo.getType(painlessMethod.returnType.getName()),
-            painlessMethod.typeParameters.stream().map(c -> PainlessContextTypeInfo.getType(c.getName())).collect(Collectors.toList())
+            painlessMethod.javaMethod().getDeclaringClass().getName(),
+            painlessMethod.javaMethod().getName(),
+            PainlessContextTypeInfo.getType(painlessMethod.returnType().getName()),
+            painlessMethod.typeParameters().stream().map(c -> PainlessContextTypeInfo.getType(c.getName())).collect(Collectors.toList())
         );
     }
 
@@ -71,7 +72,7 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         declaring = in.readString();
         name = in.readString();
         rtn = in.readString();
-        parameters = Collections.unmodifiableList(in.readStringList());
+        parameters = in.readCollectionAsImmutableList(StreamInput::readString);
     }
 
     @Override

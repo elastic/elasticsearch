@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
@@ -20,7 +21,11 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BinaryDocValuesField implements DocValuesField<ByteBuffer>, ScriptDocValues.Supplier<BytesRef> {
+public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
+    implements
+        Field<ByteBuffer>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<BytesRef> {
 
     private final SortedBinaryDocValues input;
     private final String name;
@@ -66,7 +71,7 @@ public class BinaryDocValuesField implements DocValuesField<ByteBuffer>, ScriptD
     }
 
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<?> toScriptDocValues() {
         if (bytesRefs == null) {
             bytesRefs = new BytesRefs(this);
         }

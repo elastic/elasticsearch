@@ -13,9 +13,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -23,13 +22,15 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetLicenseAction extends TransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
 
+    private final LicenseService licenseService;
+
     @Inject
     public TransportGetLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        LicenseService licenseService
     ) {
         super(
             GetLicenseAction.NAME,
@@ -38,10 +39,10 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
             threadPool,
             actionFilters,
             GetLicenseRequest::new,
-            indexNameExpressionResolver,
             GetLicenseResponse::new,
-            ThreadPool.Names.SAME
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -56,6 +57,11 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
         ClusterState state,
         final ActionListener<GetLicenseResponse> listener
     ) throws ElasticsearchException {
-        listener.onResponse(new GetLicenseResponse(LicenseService.getLicense(state.metadata())));
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
+        if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+            listener.onResponse(new GetLicenseResponse(clusterStateLicenseService.getLicense(state.metadata())));
+        } else {
+            listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+        }
     }
 }

@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
-import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -38,10 +38,10 @@ public class BulkIndexByScrollResponseContentListener extends RestBuilderListene
         builder.startObject();
         response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
         builder.endObject();
-        return new BytesRestResponse(getStatus(response), builder);
+        return new RestResponse(getStatus(response), builder);
     }
 
-    private RestStatus getStatus(BulkByScrollResponse response) {
+    private static RestStatus getStatus(BulkByScrollResponse response) {
         /*
          * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error" and thus more
          * interesting to the user.
@@ -55,7 +55,7 @@ public class BulkIndexByScrollResponseContentListener extends RestBuilderListene
                 status = failure.getStatus();
             }
         }
-        for (SearchFailure failure : response.getSearchFailures()) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
             RestStatus failureStatus = failure.getStatus();
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;

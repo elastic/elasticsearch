@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
@@ -39,7 +40,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
      */
     public void registerPid(String serviceId, long pid) {
         String[] killPidCommand = OS.<String[]>conditional()
-            .onWindows(() -> new String[] { "Taskkill", "/F", "/PID", String.valueOf(pid) })
+            .onWindows(() -> new String[] { "Taskkill", "/F", "/T", "/PID", String.valueOf(pid) })
             .onUnix(() -> new String[] { "kill", "-9", String.valueOf(pid) })
             .supply();
         registerCommand(serviceId, killPidCommand);
@@ -78,7 +79,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
                 logger.info("Waiting for reaper to exit normally");
                 if (reaperProcess.waitFor() != 0) {
                     Path inputDir = getParameters().getInputDir().get().getAsFile().toPath();
-                    throw new GradleException("Reaper process failed. Check log at " + inputDir.resolve("error.log") + " for details");
+                    throw new GradleException("Reaper process failed. Check log at " + inputDir.resolve("reaper.log") + " for details");
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -109,7 +110,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
                 builder.redirectInput(ProcessBuilder.Redirect.PIPE);
                 File logFile = logFilePath().toFile();
                 builder.redirectOutput(logFile);
-                builder.redirectError(logFile);
+                builder.redirectErrorStream();
                 reaperProcess = builder.start();
             } catch (Exception e) {
                 throw new RuntimeException(e);

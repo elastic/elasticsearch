@@ -1,24 +1,18 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
-  javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation project(':x-pack:plugin:security')
 }
 
-testClusters.matching { it.name == 'javaRestTest' }.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-
-  rolesFile file('src/javaRestTest/resources/roles.yml')
-
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.api_key.enabled', 'true'
-
-  user username: "test_admin", password: 'x-pack-test-password'
-  user username: "rac_user", password: 'x-pack-test-password', role: "rac_role"
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("to be triaged")
+  systemProperty 'test.literalUsername', buildParams.random.map{r -> r.nextBoolean()}.get()
 }

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -18,12 +19,13 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -104,41 +106,52 @@ public class SuggestionTests extends ESTestCase {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         for (Class<Suggestion<? extends Entry<? extends Option>>> type : SUGGESTION_TYPES) {
             Suggestion suggestion = createTestItem(type);
-            XContentType xContentType = randomFrom(XContentType.values());
-            boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toShuffledXContent(suggestion, xContentType, params, humanReadable);
-            BytesReference mutated;
-            if (addRandomFields) {
-                // - "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
-                // - there can be inner search hits fields inside this option where we cannot add random stuff
-                // - the root object should be excluded since it contains the named suggestion arrays
-                // We also exclude options that contain SearchHits, as all unknown fields
-                // on a root level of SearchHit are interpreted as meta-fields and will be kept.
-                Predicate<String> excludeFilter = path -> path.isEmpty()
-                    || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight")
-                    || path.contains("fields")
-                    || path.contains("_source")
-                    || path.contains("inner_hits")
-                    || path.contains("options");
-                mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
-            } else {
-                mutated = originalBytes;
+            Suggestion parsed = null;
+            try {
+                XContentType xContentType = randomFrom(XContentType.values());
+                boolean humanReadable = randomBoolean();
+                BytesReference originalBytes = toShuffledXContent(suggestion, xContentType, params, humanReadable);
+                BytesReference mutated;
+                if (addRandomFields) {
+                    // - "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
+                    // - there can be inner search hits fields inside this option where we cannot add random stuff
+                    // - the root object should be excluded since it contains the named suggestion arrays
+                    // We also exclude options that contain SearchHits, as all unknown fields
+                    // on a root level of SearchHit are interpreted as meta-fields and will be kept.
+                    Predicate<String> excludeFilter = path -> path.isEmpty()
+                        || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                        || path.endsWith("highlight")
+                        || path.contains("fields")
+                        || path.contains("_source")
+                        || path.contains("inner_hits")
+                        || path.contains("options");
+                    mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+                } else {
+                    mutated = originalBytes;
+                }
+                try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+                    ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+                    parsed = SearchResponseUtils.parseSuggestion(parser);
+                    assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                    assertNull(parser.nextToken());
+                }
+                assertEquals(suggestion.getName(), parsed.getName());
+                assertEquals(suggestion.getEntries().size(), parsed.getEntries().size());
+                // We don't parse size via xContent, instead we set it to -1 on the client side
+                assertEquals(-1, parsed.getSize());
+                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
+            } finally {
+                for (Object e : suggestion.getEntries()) {
+                    SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
+                }
+                if (parsed != null) {
+                    for (Object e : parsed.getEntries()) {
+                        SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
+                    }
+                }
             }
-            Suggestion parsed;
-            try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-                parsed = Suggestion.fromXContent(parser);
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertNull(parser.nextToken());
-            }
-            assertEquals(suggestion.getName(), parsed.getName());
-            assertEquals(suggestion.getEntries().size(), parsed.getEntries().size());
-            // We don't parse size via xContent, instead we set it to -1 on the client side
-            assertEquals(-1, parsed.getSize());
-            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
         }
     }
 
@@ -147,14 +160,21 @@ public class SuggestionTests extends ESTestCase {
      * suggestion type information
      */
     public void testFromXContentWithoutTypeParam() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toXContent(createTestItem(), xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            assertNull(Suggestion.fromXContent(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        Suggestion<? extends Entry<? extends Option>> suggestion = createTestItem();
+        try {
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference originalBytes = toXContent(suggestion, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+                assertNull(SearchResponseUtils.parseSuggestion(parser));
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            }
+        } finally {
+            for (Object e : suggestion.getEntries()) {
+                SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
+            }
         }
     }
 
@@ -180,15 +200,17 @@ public class SuggestionTests extends ESTestCase {
             }""").replaceAll("\\s+", "");
         try (
             XContentParser parser = xContent.createParser(
-                xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
                 suggestionString
             )
         ) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class, () -> Suggestion.fromXContent(parser));
+            NamedObjectNotFoundException e = expectThrows(
+                NamedObjectNotFoundException.class,
+                () -> SearchResponseUtils.parseSuggestion(parser)
+            );
             assertEquals("[1:31] unknown field [unknownType]", e.getMessage());
         }
     }

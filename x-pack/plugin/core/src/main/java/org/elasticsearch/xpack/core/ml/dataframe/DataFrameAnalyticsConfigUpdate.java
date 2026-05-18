@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -41,6 +43,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         );
         PARSER.declareBoolean(Builder::setAllowLazyStart, DataFrameAnalyticsConfig.ALLOW_LAZY_START);
         PARSER.declareInt(Builder::setMaxNumThreads, DataFrameAnalyticsConfig.MAX_NUM_THREADS);
+        PARSER.declareObject(Builder::setMeta, (p, c) -> p.mapOrdered(), DataFrameAnalyticsConfig.META);
     }
 
     private final String id;
@@ -48,13 +51,15 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
     private final ByteSizeValue modelMemoryLimit;
     private final Boolean allowLazyStart;
     private final Integer maxNumThreads;
+    private final Map<String, Object> meta;
 
     private DataFrameAnalyticsConfigUpdate(
         String id,
         @Nullable String description,
         @Nullable ByteSizeValue modelMemoryLimit,
         @Nullable Boolean allowLazyStart,
-        @Nullable Integer maxNumThreads
+        @Nullable Integer maxNumThreads,
+        @Nullable Map<String, Object> meta
     ) {
         this.id = id;
         this.description = description;
@@ -68,14 +73,17 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
             );
         }
         this.maxNumThreads = maxNumThreads;
+        this.meta = meta == null ? null : Collections.unmodifiableMap(meta);
     }
 
     public DataFrameAnalyticsConfigUpdate(StreamInput in) throws IOException {
         this.id = in.readString();
         this.description = in.readOptionalString();
-        this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
+        this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::readFrom);
         this.allowLazyStart = in.readOptionalBoolean();
         this.maxNumThreads = in.readOptionalVInt();
+        Map<String, Object> readMeta = in.readGenericMap();
+        this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
     }
 
     @Override
@@ -85,6 +93,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         out.writeOptionalWriteable(modelMemoryLimit);
         out.writeOptionalBoolean(allowLazyStart);
         out.writeOptionalVInt(maxNumThreads);
+        out.writeGenericMap(meta);
     }
 
     public String getId() {
@@ -107,6 +116,10 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         return maxNumThreads;
     }
 
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -122,6 +135,9 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         }
         if (maxNumThreads != null) {
             builder.field(DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
+        }
+        if (meta != null) {
+            builder.field(DataFrameAnalyticsConfig.META.getPreferredName(), meta);
         }
         builder.endObject();
         return builder;
@@ -150,6 +166,9 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         }
         if (maxNumThreads != null) {
             builder.setMaxNumThreads(maxNumThreads);
+        }
+        if (meta != null) {
+            builder.setMeta(meta);
         }
         return builder;
     }
@@ -210,6 +229,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         private ByteSizeValue modelMemoryLimit;
         private Boolean allowLazyStart;
         private Integer maxNumThreads;
+        private Map<String, Object> meta;
 
         public Builder(String id) {
             this.id = id;
@@ -244,8 +264,13 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
             return this;
         }
 
+        public Builder setMeta(Map<String, Object> meta) {
+            this.meta = meta;
+            return this;
+        }
+
         public DataFrameAnalyticsConfigUpdate build() {
-            return new DataFrameAnalyticsConfigUpdate(id, description, modelMemoryLimit, allowLazyStart, maxNumThreads);
+            return new DataFrameAnalyticsConfigUpdate(id, description, modelMemoryLimit, allowLazyStart, maxNumThreads, meta);
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -29,10 +30,10 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final Normalizer2 normalizer;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name);
         String method = settings.get("name", "nfkc_cf");
         Normalizer2 normalizerInstance = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
-        this.normalizer = wrapWithUnicodeSetFilter(indexSettings, normalizerInstance, settings);
+        this.normalizer = wrapWithUnicodeSetFilter(normalizerInstance, settings);
     }
 
     @Override
@@ -40,7 +41,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
-    static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings, final Normalizer2 normalizer, final Settings settings) {
+    static Normalizer2 wrapWithUnicodeSetFilter(final Normalizer2 normalizer, final Settings settings) {
         String unicodeSetFilter = settings.get("unicode_set_filter");
         if (unicodeSetFilter != null) {
             UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);

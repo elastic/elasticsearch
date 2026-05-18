@@ -6,10 +6,14 @@
  */
 package org.elasticsearch.xpack.graph.action;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -17,11 +21,12 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.graph.Connection;
@@ -35,8 +40,8 @@ import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms.Bucket;
@@ -58,13 +63,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Performs a series of elasticsearch queries and aggregations to explore
  * connected terms in a single index.
  */
 public class TransportGraphExploreAction extends HandledTransportAction<GraphExploreRequest, GraphExploreResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportGraphExploreAction.class);
 
     private final ThreadPool threadPool;
     private final NodeClient client;
@@ -91,7 +98,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         ActionFilters actionFilters,
         XPackLicenseState licenseState
     ) {
-        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new);
+        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
@@ -112,7 +119,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         private final ActionListener<GraphExploreResponse> listener;
 
         private final long startTime;
-        private final AtomicBoolean timedOut;
         private volatile ShardOperationFailedException[] shardFailures;
         private Map<VertexId, Vertex> vertices = new HashMap<>();
         private Map<ConnectionId, Connection> connections = new HashMap<>();
@@ -125,7 +131,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             this.request = request;
             this.listener = listener;
             this.startTime = threadPool.relativeTimeInMillis();
-            this.timedOut = new AtomicBoolean(false);
             this.shardFailures = ShardSearchFailure.EMPTY_ARRAY;
         }
 
@@ -168,18 +173,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         /**
          * Step out from some existing vertex terms looking for useful
          * connections
+         *
+         * @param timedOut the value of timedOut field in the search response
          */
-        synchronized void expand() {
-            if (hasTimedOut()) {
-                timedOut.set(true);
-                listener.onResponse(buildResponse());
-                return;
-            }
+        synchronized void expand(boolean timedOut) {
             Map<String, Set<Vertex>> lastHopFindings = hopFindings.get(currentHopNumber);
             if ((currentHopNumber >= (request.getHopNumbers() - 1)) || (lastHopFindings == null) || (lastHopFindings.size() == 0)) {
                 // Either we gathered no leads from the last hop or we have
                 // reached the final hop
-                listener.onResponse(buildResponse());
+                listener.onResponse(buildResponse(timedOut));
                 return;
             }
             Hop lastHop = request.getHop(currentHopNumber);
@@ -233,13 +235,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 if (lastWaveVerticesForField == null) {
                     continue;
                 }
-                String[] terms = new String[lastWaveVerticesForField.size()];
-                int i = 0;
+                SortedSet<BytesRef> terms = new TreeSet<>();
                 for (Vertex v : lastWaveVerticesForField) {
-                    terms[i++] = v.getTerm();
+                    terms.add(new BytesRef(v.getTerm()));
                 }
                 TermsAggregationBuilder lastWaveTermsAgg = AggregationBuilders.terms("field" + fieldNum)
-                    .includeExclude(new IncludeExclude(terms, null))
+                    .includeExclude(new IncludeExclude(null, null, terms, null))
                     .shardMinDocCount(1)
                     .field(lastVr.fieldName())
                     .minDocCount(1)
@@ -247,7 +248,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     // focused on smaller sets of high quality docs and therefore
                     // examine smaller volumes of terms
                     .executionHint("map")
-                    .size(terms.length);
+                    .size(terms.size());
                 sampleAgg.subAggregation(lastWaveTermsAgg);
                 for (int f = 0; f < currentHop.getNumberVertexRequests(); f++) {
                     VertexRequest vr = currentHop.getVertexRequest(f);
@@ -275,8 +276,8 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // nextWaveSigTerms.significanceHeuristic(new ChiSquare.ChiSquareBuilder(false, true));
 
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            nextWaveSigTerms.includeExclude(new IncludeExclude(includes, null));
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            nextWaveSigTerms.includeExclude(new IncludeExclude(null, null, includes, null));
                             // Originally I thought users would always want the
                             // same number of results as listed in the include
                             // clause but it may be the only want the most
@@ -288,7 +289,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             // nextWaveSigTerms.size(includes.length);
 
                         } else if (vr.hasExcludeClauses()) {
-                            nextWaveSigTerms.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            nextWaveSigTerms.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         lastWaveTermsAgg.subAggregation(nextWaveSigTerms);
                     } else {
@@ -302,11 +303,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             .executionHint("map")
                             .size(size);
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            nextWavePopularTerms.includeExclude(new IncludeExclude(includes, null));
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            nextWavePopularTerms.includeExclude(new IncludeExclude(null, null, includes, null));
                             // nextWavePopularTerms.size(includes.length);
                         } else if (vr.hasExcludeClauses()) {
-                            nextWavePopularTerms.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            nextWavePopularTerms.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         lastWaveTermsAgg.subAggregation(nextWavePopularTerms);
                     }
@@ -316,21 +317,27 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             // Execute the search
             SearchSourceBuilder source = new SearchSourceBuilder().query(rootBool).aggregation(sampleAgg).size(0);
             if (request.timeout() != null) {
-                source.timeout(TimeValue.timeValueMillis(timeRemainingMillis()));
+                // Actual resolution of timer is granularity of the interval
+                // configured globally for updating estimated time.
+                long timeRemainingMillis = startTime + request.timeout().millis() - threadPool.relativeTimeInMillis();
+                if (timeRemainingMillis <= 0) {
+                    listener.onResponse(buildResponse(true));
+                    return;
+                }
+
+                source.timeout(TimeValue.timeValueMillis(timeRemainingMillis));
             }
             searchRequest.source(source);
 
-            // System.out.println(source);
             logger.trace("executing expansion graph search request");
-            client.search(searchRequest, new ActionListener.Delegating<>(listener) {
+            client.search(searchRequest, new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    // System.out.println(searchResponse);
                     addShardFailures(searchResponse.getShardFailures());
 
                     ArrayList<Connection> newConnections = new ArrayList<Connection>();
                     ArrayList<Vertex> newVertices = new ArrayList<Vertex>();
-                    Sampler sample = searchResponse.getAggregations().get("sample");
+                    SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
 
                     // We think of the total scores as the energy-level pouring
                     // out of all the last hop's connections.
@@ -349,7 +356,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
 
                     // Potentially run another round of queries to perform next"hop" - will terminate if no new additions
-                    expand();
+                    expand(searchResponse.isTimedOut());
 
                 }
 
@@ -358,7 +365,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 private void addAndScoreNewVertices(
                     Hop lastHop,
                     Hop currentHop,
-                    Sampler sample,
+                    SingleBucketAggregation sample,
                     double totalSignalOutput,
                     ArrayList<Connection> newConnections,
                     ArrayList<Vertex> newVertices
@@ -493,7 +500,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 // we can do something server-side here
 
                 // Helper method - compute the total signal of all scores in the search results
-                private double getExpandTotalSignalStrength(Hop lastHop, Hop currentHop, Sampler sample) {
+                private double getExpandTotalSignalStrength(Hop lastHop, Hop currentHop, SingleBucketAggregation sample) {
                     double totalSignalOutput = 0;
                     for (int j = 0; j < lastHop.getNumberVertexRequests(); j++) {
                         VertexRequest lastVr = lastHop.getVertexRequest(j);
@@ -543,7 +550,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             });
         }
 
-        private void addUserDefinedIncludesToQuery(Hop hop, BoolQueryBuilder sourceTermsOrClause) {
+        private static void addUserDefinedIncludesToQuery(Hop hop, BoolQueryBuilder sourceTermsOrClause) {
             for (int i = 0; i < hop.getNumberVertexRequests(); i++) {
                 VertexRequest vr = hop.getVertexRequest(i);
                 if (vr.hasIncludeClauses()) {
@@ -552,12 +559,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        private void addBigOrClause(Map<String, Set<Vertex>> lastHopFindings, BoolQueryBuilder sourceTermsOrClause) {
+        private static void addBigOrClause(Map<String, Set<Vertex>> lastHopFindings, BoolQueryBuilder sourceTermsOrClause) {
             int numClauses = sourceTermsOrClause.should().size();
             for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
                 numClauses += entry.getValue().size();
             }
-            if (numClauses < BooleanQuery.getMaxClauseCount()) {
+            if (numClauses < IndexSearcher.getMaxClauseCount()) {
                 // We can afford to build a Boolean OR query with individual
                 // boosts for interesting terms
                 for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
@@ -640,12 +647,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // PercentageScore.PercentageScoreBuilder());
 
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            sigBuilder.includeExclude(new IncludeExclude(includes, null));
-                            sigBuilder.size(includes.length);
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            sigBuilder.includeExclude(new IncludeExclude(null, null, includes, null));
+                            sigBuilder.size(includes.size());
                         }
                         if (vr.hasExcludeClauses()) {
-                            sigBuilder.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            sigBuilder.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         rootSampleAgg.subAggregation(sigBuilder);
                     } else {
@@ -657,12 +664,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // .minDocCount(minDocCount).executionHint("map").size(vr.size());
                         termsBuilder.field(vr.fieldName()).executionHint("map").size(vr.size());
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            termsBuilder.includeExclude(new IncludeExclude(includes, null));
-                            termsBuilder.size(includes.length);
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            termsBuilder.includeExclude(new IncludeExclude(null, null, includes, null));
+                            termsBuilder.size(includes.size());
                         }
                         if (vr.hasExcludeClauses()) {
-                            termsBuilder.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            termsBuilder.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         rootSampleAgg.subAggregation(termsBuilder);
                     }
@@ -674,13 +681,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     source.timeout(request.timeout());
                 }
                 searchRequest.source(source);
-                // System.out.println(source);
                 logger.trace("executing initial graph search request");
-                client.search(searchRequest, new ActionListener.Delegating<>(listener) {
+                client.search(searchRequest, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
-                        Sampler sample = searchResponse.getAggregations().get("sample");
+                        SingleBucketAggregation sample = searchResponse.getAggregations().get("sample");
 
                         // Determine the total scores for all interesting terms
                         double totalSignalStrength = getInitialTotalSignalStrength(rootHop, sample);
@@ -713,12 +719,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             }
                         }
                         // Expand out from these root vertices looking for connections with other terms
-                        expand();
+                        expand(searchResponse.isTimedOut());
 
                     }
 
                     // Helper method - Provides a total signal strength for all terms connected to the initial query
-                    private double getInitialTotalSignalStrength(Hop rootHop, Sampler sample) {
+                    private double getInitialTotalSignalStrength(Hop rootHop, SingleBucketAggregation sample) {
                         double totalSignalStrength = 0;
                         for (int i = 0; i < rootHop.getNumberVertexRequests(); i++) {
                             if (request.useSignificance()) {
@@ -746,10 +752,10 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        private void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
+        private static void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
             TermBoost[] termBoosts = vr.includeValues();
 
-            if ((includesContainer.should().size() + termBoosts.length) > BooleanQuery.getMaxClauseCount()) {
+            if ((includesContainer.should().size() + termBoosts.length) > IndexSearcher.getMaxClauseCount()) {
                 // Too many terms - we need a cheaper form of query to execute this
                 List<String> termValues = new ArrayList<>();
                 for (TermBoost tb : termBoosts) {
@@ -772,16 +778,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        boolean hasTimedOut() {
-            return request.timeout() != null && (timeRemainingMillis() <= 0);
-        }
-
-        long timeRemainingMillis() {
-            // Actual resolution of timer is granularity of the interval
-            // configured globally for updating estimated time.
-            return (startTime + request.timeout().millis()) - threadPool.relativeTimeInMillis();
-        }
-
         void addShardFailures(ShardOperationFailedException[] failures) {
             if (CollectionUtils.isEmpty(failures) == false) {
                 ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];
@@ -791,9 +787,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        protected GraphExploreResponse buildResponse() {
+        protected GraphExploreResponse buildResponse(boolean timedOut) {
             long took = threadPool.relativeTimeInMillis() - startTime;
-            return new GraphExploreResponse(took, timedOut.get(), shardFailures, vertices, connections, request.returnDetailedInfo());
+            return new GraphExploreResponse(took, timedOut, shardFailures, vertices, connections, request.returnDetailedInfo());
         }
 
     }

@@ -30,7 +30,7 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
     private static final ParseField TRAINED_MODEL_SIZE = new ParseField("trained_model_size");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ModelSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ModelSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "model_size",
         false,
         a -> new ModelSizeInfo((EnsembleSizeInfo) a[0], (List<PreprocessorSize>) a[1])

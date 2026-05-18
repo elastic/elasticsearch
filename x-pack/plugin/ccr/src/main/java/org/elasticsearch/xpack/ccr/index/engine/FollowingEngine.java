@@ -6,20 +6,19 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -29,6 +28,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -56,7 +57,7 @@ public class FollowingEngine extends InternalEngine {
         return engineConfig;
     }
 
-    private void preFlight(final Operation operation) {
+    private static void preFlight(final Operation operation) {
         assert FollowingEngineAssertions.preFlight(operation);
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new ElasticsearchStatusException(
@@ -83,7 +84,7 @@ public class FollowingEngine extends InternalEngine {
                 index.seqNo(),
                 lookupPrimaryTerm(index.seqNo())
             );
-            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.id());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -99,7 +100,7 @@ public class FollowingEngine extends InternalEngine {
                 delete.seqNo(),
                 lookupPrimaryTerm(delete.seqNo())
             );
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false, delete.id());
         } else {
             return planDeletionAsNonPrimary(delete);
         }
@@ -154,14 +155,14 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public int fillSeqNoGaps(long primaryTerm) throws IOException {
+    public int fillSeqNoGaps(long primaryTerm) {
         // a noop implementation, because follow shard does not own the history but the leader shard does.
         return 0;
     }
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(seqNo);
         return true;
     }
 
@@ -177,6 +178,17 @@ public class FollowingEngine extends InternalEngine {
         return true;
     }
 
+    @Override
+    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+        // CCR following engine has special versioning semantics that are not compatible with
+        // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
+        List<IndexResult> results = new ArrayList<>(operations.size());
+        for (Index op : operations) {
+            results.add(index(op));
+        }
+        return results;
+    }
+
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {
         // Don't need to look up term for operations before the global checkpoint for they were processed on every copies already.
         if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
@@ -188,11 +200,11 @@ public class FollowingEngine extends InternalEngine {
             final IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
             final Query query = new BooleanQuery.Builder().add(
-                LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo),
+                SeqNoFieldMapper.exactQueryForSeqNo(engineConfig.getIndexSettings().seqNoIndexOptions(), seqNo),
                 BooleanClause.Occur.FILTER
             )
                 // excludes the non-root nested documents which don't have primary_term.
-                .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                .add(new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
                 .build();
             final TopDocs topDocs = searcher.search(query, 1);
             if (topDocs.scoreDocs.length == 1) {
@@ -206,6 +218,8 @@ public class FollowingEngine extends InternalEngine {
             }
             if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
                 return OptionalLong.empty(); // we have merged away the looking up operation.
+            } else if (engineConfig.getIndexSettings().sequenceNumbersDisabled()) {
+                return OptionalLong.empty(); // seq_no data may have been pruned
             } else {
                 assert false : "seq_no[" + seqNo + "] does not have primary_term, total_hits=[" + topDocs.totalHits + "]";
                 throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term (total_hits=" + topDocs.totalHits + ")");

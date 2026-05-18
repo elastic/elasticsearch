@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
@@ -77,24 +78,25 @@ public class MultiGetRequestTests extends ESTestCase {
     }
 
     public void testAddWithValidSourceValueIsAccepted() throws Exception {
-        XContentParser parser = createParser(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startArray("docs")
-                .startObject()
-                .field("_source", randomFrom("false", "true"))
-                .endObject()
-                .startObject()
-                .field("_source", randomBoolean())
-                .endObject()
-                .endArray()
-                .endObject()
-        );
-
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add(randomAlphaOfLength(5), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
-
-        assertEquals(2, multiGetRequest.getItems().size());
+        try (
+            XContentParser parser = createParser(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startArray("docs")
+                    .startObject()
+                    .field("_source", randomFrom("false", "true"))
+                    .endObject()
+                    .startObject()
+                    .field("_source", randomBoolean())
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+        ) {
+            MultiGetRequest multiGetRequest = new MultiGetRequest();
+            multiGetRequest.add(randomAlphaOfLength(5), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
+            assertEquals(2, multiGetRequest.getItems().size());
+        }
     }
 
     public void testXContentSerialization() throws IOException {
@@ -131,13 +133,13 @@ public class MultiGetRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 FetchSourceContext fetchSourceContext;
                 if (randomBoolean()) {
-                    fetchSourceContext = new FetchSourceContext(
+                    fetchSourceContext = FetchSourceContext.of(
                         true,
                         generateRandomStringArray(16, 8, false),
                         generateRandomStringArray(5, 4, false)
                     );
                 } else {
-                    fetchSourceContext = new FetchSourceContext(false);
+                    fetchSourceContext = FetchSourceContext.DO_NOT_FETCH_SOURCE;
                 }
                 item.fetchSourceContext(fetchSourceContext);
             }
@@ -148,6 +150,9 @@ public class MultiGetRequestTests extends ESTestCase {
                 item.routing(randomAlphaOfLength(4));
             }
             request.add(item);
+        }
+        if (randomBoolean()) {
+            request.setForceSyntheticSource(true);
         }
         return request;
     }

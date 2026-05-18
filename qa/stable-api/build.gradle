@@ -1,0 +1,6 @@
+subprojects {
+  apply plugin: 'elasticsearch.java'
+  apply plugin: 'elasticsearch.bwc-test'
+
+  group = 'org.elasticsearch.qa.stable-api'
+}

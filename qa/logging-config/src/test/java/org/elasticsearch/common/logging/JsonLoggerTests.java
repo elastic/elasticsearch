@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -52,7 +53,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
  * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>.
- * When running from IDE set -Dtests.security.manager=false
  */
 public class JsonLoggerTests extends ESTestCase {
 
@@ -60,7 +60,6 @@ public class JsonLoggerTests extends ESTestCase {
 
     @BeforeClass
     public static void initNodeName() {
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         JsonLogsTestSetup.init();
     }
 
@@ -124,14 +123,14 @@ public class JsonLoggerTests extends ESTestCase {
                 jsonLogs,
                 contains(
                     allOf(
-                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "CRITICAL"),
                         hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                         hasEntry("elasticsearch.cluster.name", "elasticsearch"),
                         hasEntry("elasticsearch.node.name", "sample-name"),
                         hasEntry("message", "deprecated message1"),
                         hasEntry("data_stream.type", "logs"),
-                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                         hasEntry("data_stream.namespace", "default"),
                         hasKey("ecs.version"),
                         hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "a key"),
@@ -167,8 +166,8 @@ public class JsonLoggerTests extends ESTestCase {
                     contains(
                         allOf(
                             hasEntry("log.level", "CRITICAL"),
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
@@ -185,8 +184,8 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("log.level", "CRITICAL"),
                             // event.dataset and data_stream.dataset have to be the same across the data stream
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
@@ -239,8 +238,8 @@ public class JsonLoggerTests extends ESTestCase {
                         // deprecation log for field deprecated_name
                         allOf(
                             hasEntry("log.level", "WARN"),
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.xcontent.ParseField"),
@@ -257,8 +256,8 @@ public class JsonLoggerTests extends ESTestCase {
                         // deprecation log for field deprecated_name2 (note it is not being throttled)
                         allOf(
                             hasEntry("log.level", "WARN"),
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.xcontent.ParseField"),
@@ -275,8 +274,8 @@ public class JsonLoggerTests extends ESTestCase {
                         // compatible log line
                         allOf(
                             hasEntry("log.level", "CRITICAL"),
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.xcontent.ParseField"),
@@ -326,14 +325,14 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "WARN"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
                             hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasKey("ecs.version"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "someKey"),
@@ -578,7 +577,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "CRITICAL"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -611,7 +610,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "CRITICAL"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -621,7 +620,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("elasticsearch.event.category", "other")
                         ),
                         allOf(
-                            hasEntry("event.dataset", "deprecation.elasticsearch"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "CRITICAL"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -657,7 +656,7 @@ public class JsonLoggerTests extends ESTestCase {
             .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
     }
 
     private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message) {

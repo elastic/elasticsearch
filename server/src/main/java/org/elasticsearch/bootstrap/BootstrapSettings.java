@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -23,12 +24,6 @@ public final class BootstrapSettings {
     );
 
     public static final Setting<Boolean> MEMORY_LOCK_SETTING = Setting.boolSetting("bootstrap.memory_lock", false, Property.NodeScope);
-    public static final Setting<Boolean> SYSTEM_CALL_FILTER_SETTING = Setting.boolSetting(
-        "bootstrap.system_call_filter",
-        true,
-        Property.DeprecatedWarning,
-        Property.NodeScope
-    );
-    public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
 
+    public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
 }

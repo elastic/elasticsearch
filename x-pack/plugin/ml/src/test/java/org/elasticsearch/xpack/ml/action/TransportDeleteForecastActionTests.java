@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,12 +33,18 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
                 )
             ).limit(randomInt(10)).collect(Collectors.toList());
 
-            // This should not throw.
-            TransportDeleteForecastAction.extractForecastIds(
-                forecastRequestStatsHits.toArray(new SearchHit[0]),
-                randomFrom(JobState.values()),
-                randomAlphaOfLength(10)
-            );
+            try {
+                // This should not throw.
+                TransportDeleteForecastAction.extractForecastIds(
+                    forecastRequestStatsHits.toArray(SearchHits.EMPTY),
+                    randomFrom(JobState.values()),
+                    randomAlphaOfLength(10)
+                );
+            } finally {
+                for (SearchHit hit : forecastRequestStatsHits) {
+                    hit.decRef();
+                }
+            }
         }
     }
 
@@ -49,34 +56,40 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
 
             forecastRequestStatsHits.add(createForecastStatsHit(ForecastRequestStats.ForecastRequestStatus.STARTED));
 
-            {
-                JobState jobState = randomFrom(JobState.CLOSED, JobState.CLOSING, JobState.FAILED);
-                try {
-                    TransportDeleteForecastAction.extractForecastIds(
-                        forecastRequestStatsHits.toArray(new SearchHit[0]),
-                        jobState,
-                        randomAlphaOfLength(10)
-                    );
-                } catch (Exception ex) {
-                    fail("Should not have thrown: " + ex.getMessage());
+            try {
+                {
+                    JobState jobState = randomFrom(JobState.CLOSED, JobState.CLOSING, JobState.FAILED);
+                    try {
+                        TransportDeleteForecastAction.extractForecastIds(
+                            forecastRequestStatsHits.toArray(SearchHits.EMPTY),
+                            jobState,
+                            randomAlphaOfLength(10)
+                        );
+                    } catch (Exception ex) {
+                        fail("Should not have thrown: " + ex.getMessage());
+                    }
                 }
-            }
-            {
-                JobState jobState = JobState.OPENED;
-                expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> TransportDeleteForecastAction.extractForecastIds(
-                        forecastRequestStatsHits.toArray(new SearchHit[0]),
-                        jobState,
-                        randomAlphaOfLength(10)
-                    )
-                );
+                {
+                    JobState jobState = JobState.OPENED;
+                    expectThrows(
+                        ElasticsearchStatusException.class,
+                        () -> TransportDeleteForecastAction.extractForecastIds(
+                            forecastRequestStatsHits.toArray(SearchHits.EMPTY),
+                            jobState,
+                            randomAlphaOfLength(10)
+                        )
+                    );
+                }
+            } finally {
+                for (SearchHit hit : forecastRequestStatsHits) {
+                    hit.decRef();
+                }
             }
         }
     }
 
     private static SearchHit createForecastStatsHit(ForecastRequestStats.ForecastRequestStatus status) {
-        Map<String, DocumentField> documentFields = new HashMap<>(2);
+        Map<String, DocumentField> documentFields = Maps.newMapWithExpectedSize(2);
         documentFields.put(
             ForecastRequestStats.FORECAST_ID.getPreferredName(),
             new DocumentField(ForecastRequestStats.FORECAST_ID.getPreferredName(), Collections.singletonList(""))
@@ -85,6 +98,8 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
             ForecastRequestStats.STATUS.getPreferredName(),
             new DocumentField(ForecastRequestStats.STATUS.getPreferredName(), Collections.singletonList(status.toString()))
         );
-        return new SearchHit(0, "", documentFields, Collections.emptyMap());
+        SearchHit hit = new SearchHit(0, "");
+        hit.addDocumentFields(documentFields, Map.of());
+        return hit;
     }
 }

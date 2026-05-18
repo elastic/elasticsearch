@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.VersionProperties
@@ -14,9 +15,9 @@ import org.elasticsearch.gradle.testclusters.RunTask
 // apply plugin: 'elasticsearch.internal-testclusters'
 
 testClusters.register("runTask") {
-    testDistribution = providers.systemProperty('run.distribution').orElse('default').forUseAtConfigurationTime().get()
-    if (providers.systemProperty('run.distribution').forUseAtConfigurationTime().getOrElse('default') == 'default') {
-      String licenseType = providers.systemProperty("run.license_type").forUseAtConfigurationTime().getOrElse("basic")
+    testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+    if (providers.systemProperty('run.distribution').getOrElse('default') == 'default') {
+      String licenseType = providers.systemProperty("run.license_type").getOrElse("basic")
       if (licenseType == 'trial') {
         setting 'xpack.ml.enabled', 'true'
         setting 'xpack.graph.enabled', 'true'
@@ -30,6 +31,19 @@ testClusters.register("runTask") {
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+      numberOfNodes = 1
+      // Arrow memory allocator needs access to java.nio internals
+      jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+      // Forward RUST_LOG into the ES JVM so the parquet-rs native lib's
+      // `env_logger` picks it up. Set with: `-Drun.rust_log=esql_parquet_rs=debug`
+      // (or via the RUST_LOG env var of the gradle process). Defaults to empty,
+      // which leaves the native lib at its compiled default level (`warn`).
+      String rustLog = providers.systemProperty('run.rust_log')
+          .orElse(providers.environmentVariable('RUST_LOG'))
+          .getOrElse('')
+      if (rustLog) {
+        environment 'RUST_LOG', rustLog
+      }
     }
 }
 

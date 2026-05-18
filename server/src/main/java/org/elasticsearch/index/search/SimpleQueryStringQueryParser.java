@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.search;
 
@@ -21,6 +22,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -49,6 +51,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     private final Settings settings;
     private SearchExecutionContext context;
     private final MultiMatchQueryParser queryBuilder;
+    private MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.Type.MOST_FIELDS;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags, Settings settings, SearchExecutionContext context) {
@@ -66,7 +69,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
-        this.queryBuilder = new MultiMatchQueryParser(context);
+        this.queryBuilder = new MultiMatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
         this.queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
@@ -79,7 +82,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         if (getAnalyzer() != null) {
             return analyzer;
         }
-        return ft.getTextSearchInfo().getSearchAnalyzer();
+        return ft.getTextSearchInfo().searchAnalyzer();
     }
 
     /**
@@ -110,10 +113,14 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     @Override
     public Query newDefaultQuery(String text) {
         try {
-            return queryBuilder.parse(MultiMatchQueryBuilder.Type.MOST_FIELDS, weights, text, null);
+            return queryBuilder.parse(type, weights, text, null);
         } catch (IOException e) {
             return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         }
+    }
+
+    public void setType(MultiMatchQueryBuilder.Type type) {
+        this.type = type;
     }
 
     @Override
@@ -192,6 +199,9 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         }
         if (disjuncts.size() == 1) {
             return disjuncts.get(0);
+        }
+        if (disjuncts.size() == 0) {
+            return null;
         }
         return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }

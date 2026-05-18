@@ -23,6 +23,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -337,10 +338,12 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     private TransportCloseJobAction createAction() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         return new TransportCloseJobAction(
-            mock(TransportService.class),
+            transportService,
             client,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             clusterService,
             mock(AnomalyDetectionAuditor.class),
@@ -363,11 +366,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void mockJobConfigProviderExpandIds(Set<String> expandedIds) {
         doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[5];
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[6];
             listener.onResponse(expandedIds);
 
             return null;
-        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(ActionListener.class));
+        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(), any(ActionListener.class));
     }
 
     @SuppressWarnings("unchecked")

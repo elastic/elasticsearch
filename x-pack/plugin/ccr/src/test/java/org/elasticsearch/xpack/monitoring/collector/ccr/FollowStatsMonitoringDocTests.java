@@ -154,64 +154,65 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             xContent.utf8ToString(),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    """
-                        {
-                          "cluster_uuid": "_cluster",
-                          "timestamp": "%s",
-                          "interval_ms": %s,
-                          "type": "ccr_stats",
-                          "source_node": {
-                            "uuid": "_uuid",
-                            "host": "_host",
-                            "transport_address": "_addr",
-                            "ip": "_ip",
-                            "name": "_name",
-                            "timestamp": "%s"
-                          },
-                          "ccr_stats": {
-                            "remote_cluster": "leader_cluster",
-                            "leader_index": "leader_index",
-                            "follower_index": "follower_index",
-                            "shard_id": %s,
-                            "leader_global_checkpoint": %s,
-                            "leader_max_seq_no": %s,
-                            "follower_global_checkpoint": %s,
-                            "follower_max_seq_no": %s,
-                            "last_requested_seq_no": %s,
-                            "outstanding_read_requests": %s,
-                            "outstanding_write_requests": %s,
-                            "write_buffer_operation_count": %s,
-                            "write_buffer_size_in_bytes": %s,
-                            "follower_mapping_version": %s,
-                            "follower_settings_version": %s,
-                            "follower_aliases_version": %s,
-                            "total_read_time_millis": %s,
-                            "total_read_remote_exec_time_millis": %s,
-                            "successful_read_requests": %s,
-                            "failed_read_requests": %s,
-                            "operations_read": %s,
-                            "bytes_read": %s,
-                            "total_write_time_millis": %s,
-                            "successful_write_requests": %s,
-                            "failed_write_requests": %s,
-                            "operations_written": %s,
-                            "read_exceptions": [
-                              {
-                                "from_seq_no": %s,
-                                "retries": %s,
-                                "exception": {
+                    Strings.format(
+                        """
+                            {
+                              "cluster_uuid": "_cluster",
+                              "timestamp": "%s",
+                              "interval_ms": %s,
+                              "type": "ccr_stats",
+                              "source_node": {
+                                "uuid": "_uuid",
+                                "host": "_host",
+                                "transport_address": "_addr",
+                                "ip": "_ip",
+                                "name": "_name",
+                                "timestamp": "%s"
+                              },
+                              "ccr_stats": {
+                                "remote_cluster": "leader_cluster",
+                                "leader_index": "leader_index",
+                                "follower_index": "follower_index",
+                                "shard_id": %s,
+                                "leader_global_checkpoint": %s,
+                                "leader_max_seq_no": %s,
+                                "follower_global_checkpoint": %s,
+                                "follower_max_seq_no": %s,
+                                "last_requested_seq_no": %s,
+                                "outstanding_read_requests": %s,
+                                "outstanding_write_requests": %s,
+                                "write_buffer_operation_count": %s,
+                                "write_buffer_size_in_bytes": %s,
+                                "follower_mapping_version": %s,
+                                "follower_settings_version": %s,
+                                "follower_aliases_version": %s,
+                                "total_read_time_millis": %s,
+                                "total_read_remote_exec_time_millis": %s,
+                                "successful_read_requests": %s,
+                                "failed_read_requests": %s,
+                                "operations_read": %s,
+                                "bytes_read": %s,
+                                "total_write_time_millis": %s,
+                                "successful_write_requests": %s,
+                                "failed_write_requests": %s,
+                                "operations_written": %s,
+                                "read_exceptions": [
+                                  {
+                                    "from_seq_no": %s,
+                                    "retries": %s,
+                                    "exception": {
+                                      "type": "exception",
+                                      "reason": "shard is sad"
+                                    }
+                                  }
+                                ],
+                                "time_since_last_read_millis": %s,
+                                "fatal_exception": {
                                   "type": "exception",
-                                  "reason": "shard is sad"
+                                  "reason": "fatal error"
                                 }
                               }
-                            ],
-                            "time_since_last_read_millis": %s,
-                            "fatal_exception": {
-                              "type": "exception",
-                              "reason": "fatal error"
-                            }
-                          }
-                        }""".formatted(
+                            }""",
                         DATE_TIME_FORMATTER.formatMillis(timestamp),
                         intervalMillis,
                         DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),

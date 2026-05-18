@@ -20,6 +20,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.EntitledTestPackages;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -49,11 +51,7 @@ import org.junit.Rule;
 import org.junit.rules.TestRule;
 
 import java.net.InetAddress;
-import java.security.AccessController;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -73,6 +71,7 @@ import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFa
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.is;
 
+@EntitledTestPackages(value = { "com.unboundid.ldap.listener" }) // tests start LDAP server that listens for incoming connections
 public abstract class LdapTestCase extends ESTestCase {
 
     protected static final RealmConfig.RealmIdentifier REALM_IDENTIFIER = new RealmConfig.RealmIdentifier("ldap", "ldap1");
@@ -95,6 +94,9 @@ public abstract class LdapTestCase extends ESTestCase {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            // Avoid generating operational attributes (like createTimestamp or modifyTimestamp) whose format is dependent
+            // on the locale and can cause invalid format failures since it violates the default schema.
+            serverConfig.setGenerateOperationalAttributes(false);
             debugLogging.configure(serverConfig);
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
             listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));
@@ -127,11 +129,7 @@ public abstract class LdapTestCase extends ESTestCase {
                 false,
                 getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/seven-seas.ldif").toString()
             );
-            // Must have privileged access because underlying server will accept socket connections
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                ldapServer.startListening();
-                return null;
-            });
+            ldapServer.startListening();
             String listenerConfig = listeners.stream()
                 .map(
                     l -> String.format(
@@ -152,17 +150,10 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     void tryConnect(InMemoryDirectoryServer ds) {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                try (var c = ds.getConnection()) {
-                    assertThat("Failed to connect to " + ds + " - ", c.isConnected(), is(true));
-                    logger.info("Test connection to [{}](port {}) was successful ({})", ds, ds.getListenPort(), c);
-                } catch (LDAPException e) {
-                    throw new AssertionError("Failed to connect to " + ds, e);
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
+        try (var c = ds.getConnection()) {
+            assertThat("Failed to connect to " + ds + " - ", c.isConnected(), is(true));
+            logger.info("Test connection to [{}](port {}) was successful ({})", ds, ds.getListenPort(), c);
+        } catch (LDAPException e) {
             throw new AssertionError("Failed to connect to " + ds, e);
         }
     }
@@ -183,7 +174,8 @@ public abstract class LdapTestCase extends ESTestCase {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
             InetAddress listenAddress = resolveListenAddress(ldapServers[i].getListenAddress());
-            LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
+            String hostName = InetAddresses.toUriString(listenAddress);
+            LDAPURL url = new LDAPURL("ldap", hostName, ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);
@@ -304,33 +296,24 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     protected static void assertConnectionValid(LDAPInterface conn, SimpleBindRequest bindRequest) {
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    if (conn instanceof LDAPConnection) {
-                        assertTrue(((LDAPConnection) conn).isConnected());
-                        assertEquals(
-                            bindRequest.getBindDN(),
-                            ((SimpleBindRequest) ((LDAPConnection) conn).getLastBindRequest()).getBindDN()
-                        );
-                        ((LDAPConnection) conn).reconnect();
-                    } else if (conn instanceof LDAPConnectionPool) {
-                        try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
-                            assertTrue(c.isConnected());
-                            assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) c.getLastBindRequest()).getBindDN());
-                            c.reconnect();
-                        }
-                    }
-                } catch (LDAPException e) {
-                    fail(
-                        "Connection is not valid. It will not work on follow referral flow."
-                            + System.lineSeparator()
-                            + ExceptionsHelper.stackTrace(e)
-                    );
+        try {
+            if (conn instanceof LDAPConnection) {
+                assertTrue(((LDAPConnection) conn).isConnected());
+                assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) ((LDAPConnection) conn).getLastBindRequest()).getBindDN());
+                ((LDAPConnection) conn).reconnect();
+            } else if (conn instanceof LDAPConnectionPool) {
+                try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
+                    assertTrue(c.isConnected());
+                    assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) c.getLastBindRequest()).getBindDN());
+                    c.reconnect();
                 }
-                return null;
             }
-        });
+        } catch (LDAPException e) {
+            fail(
+                "Connection is not valid. It will not work on follow referral flow."
+                    + System.lineSeparator()
+                    + ExceptionsHelper.stackTrace(e)
+            );
+        }
     }
 }

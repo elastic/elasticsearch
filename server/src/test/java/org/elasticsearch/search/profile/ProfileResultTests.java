@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -18,13 +21,12 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResult> {
+public class ProfileResultTests extends AbstractXContentSerializingTestCase<ProfileResult> {
     public static final Predicate<String> RANDOM_FIELDS_EXCLUDE_FILTER = s -> s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
         || s.endsWith(ProfileResult.DEBUG.getPreferredName());
 
@@ -32,7 +34,7 @@ public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResul
         String type = randomAlphaOfLengthBetween(5, 10);
         String description = randomAlphaOfLengthBetween(5, 10);
         int breakdownsSize = randomIntBetween(0, 5);
-        Map<String, Long> breakdown = new HashMap<>(breakdownsSize);
+        Map<String, Long> breakdown = Maps.newMapWithExpectedSize(breakdownsSize);
         while (breakdown.size() < breakdownsSize) {
             long value = randomNonNegativeLong();
             if (randomBoolean()) {
@@ -42,7 +44,7 @@ public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResul
             breakdown.put(randomAlphaOfLengthBetween(5, 10), value);
         }
         int debugSize = randomIntBetween(0, 5);
-        Map<String, Object> debug = new HashMap<>(debugSize);
+        Map<String, Object> debug = Maps.newMapWithExpectedSize(debugSize);
         while (debug.size() < debugSize) {
             debug.put(randomAlphaOfLength(5), randomAlphaOfLength(4));
         }
@@ -60,13 +62,18 @@ public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResul
     }
 
     @Override
+    protected ProfileResult mutateInstance(ProfileResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<ProfileResult> instanceReader() {
         return ProfileResult::new;
     }
 
     @Override
     protected ProfileResult doParseInstance(XContentParser parser) throws IOException {
-        return ProfileResult.fromXContent(parser);
+        return SearchResponseUtils.parseProfileResult(parser);
     }
 
     @Override

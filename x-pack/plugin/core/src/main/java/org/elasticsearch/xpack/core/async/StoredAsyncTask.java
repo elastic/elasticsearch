@@ -17,14 +17,18 @@ import org.elasticsearch.tasks.TaskManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class StoredAsyncTask<Response extends ActionResponse> extends CancellableTask implements AsyncTask {
 
     private final AsyncExecutionId asyncExecutionId;
     private final Map<String, String> originHeaders;
     private volatile long expirationTimeMillis;
-    private final List<ActionListener<Response>> completionListeners;
+    private volatile TimeValue keepAlive;
+    protected final List<ActionListener<Response>> completionListeners;
+    private boolean hasCompleted = false;
 
+    @SuppressWarnings("this-escape")
     public StoredAsyncTask(
         long id,
         String type,
@@ -40,6 +44,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         this.asyncExecutionId = asyncExecutionId;
         this.originHeaders = originHeaders;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
+        this.keepAlive = keepAlive;
         this.completionListeners = new ArrayList<>();
     }
 
@@ -57,16 +62,26 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void setExpirationTime(long expirationTime) {
+    public void setExpirationTime(long expirationTime, TimeValue keepAlive) {
         this.expirationTimeMillis = expirationTime;
+        this.keepAlive = keepAlive;
     }
 
     public long getExpirationTimeMillis() {
         return expirationTimeMillis;
     }
 
-    public synchronized void addCompletionListener(ActionListener<Response> listener) {
-        completionListeners.add(listener);
+    @Override
+    public TimeValue getKeepAlive() {
+        return keepAlive;
+    }
+
+    public synchronized boolean addCompletionListener(Supplier<ActionListener<Response>> listenerSupplier) {
+        if (hasCompleted) {
+            return false;
+        }
+        completionListeners.add(listenerSupplier.get());
+        return true;
     }
 
     public synchronized void removeCompletionListener(ActionListener<Response> listener) {
@@ -76,17 +91,32 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     /**
      * This method is called when the task is finished successfully before unregistering the task and storing the results
      */
-    public synchronized void onResponse(Response response) {
-        for (ActionListener<Response> listener : completionListeners) {
-            listener.onResponse(response);
+    public void onResponse(Response response) {
+        List<ActionListener<Response>> completionListenersCopy;
+        synchronized (this) {
+            assert hasCompleted == false;
+            hasCompleted = true;
+            completionListenersCopy = new ArrayList<>(completionListeners);
+            completionListeners.clear();
+        }
+        for (ActionListener<Response> listener : completionListenersCopy) {
+            response.incRef();
+            ActionListener.respondAndRelease(listener, response);
         }
     }
 
     /**
      * This method is called when the task failed before unregistering the task and storing the results
      */
-    public synchronized void onFailure(Exception e) {
-        for (ActionListener<Response> listener : completionListeners) {
+    public void onFailure(Exception e) {
+        List<ActionListener<Response>> completionListenersCopy;
+        synchronized (this) {
+            assert hasCompleted == false;
+            hasCompleted = true;
+            completionListenersCopy = new ArrayList<>(completionListeners);
+            completionListeners.clear();
+        }
+        for (ActionListener<Response> listener : completionListenersCopy) {
             listener.onFailure(e);
         }
     }
@@ -98,6 +128,6 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
 
     @Override
     public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
-        taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
+        taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.running(runnable));
     }
 }

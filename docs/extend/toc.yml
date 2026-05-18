@@ -1,0 +1,9 @@
+toc:
+  - file: index.md
+  - file: creating-stable-plugins.md
+    children:
+      - file: plugin-descriptor-file-stable.md
+      - file: example-text-analysis-plugin.md
+  - file: creating-classic-plugins.md
+    children:
+      - file: plugin-descriptor-file-classic.md

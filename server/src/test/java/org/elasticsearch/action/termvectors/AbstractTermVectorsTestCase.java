@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -54,18 +55,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
-    protected static class TestFieldSetting {
-        public final String name;
-        public final boolean storedOffset;
-        public final boolean storedPayloads;
-        public final boolean storedPositions;
-
-        public TestFieldSetting(String name, boolean storedOffset, boolean storedPayloads, boolean storedPositions) {
-            this.name = name;
-            this.storedOffset = storedOffset;
-            this.storedPayloads = storedPayloads;
-            this.storedPositions = storedPositions;
-        }
+    protected record TestFieldSetting(String name, boolean storedOffset, boolean storedPayloads, boolean storedPositions) {
 
         public void addToMappings(XContentBuilder mappingsBuilder) throws IOException {
             mappingsBuilder.startObject(name);
@@ -92,21 +82,6 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             }
 
             mappingsBuilder.endObject();
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder("name: ").append(name).append(" tv_with:");
-            if (storedPayloads) {
-                sb.append("payloads,");
-            }
-            if (storedOffset) {
-                sb.append("offsets,");
-            }
-            if (storedPositions) {
-                sb.append("positions,");
-            }
-            return sb.toString();
         }
     }
 
@@ -250,10 +225,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 if (randomBoolean()) {
                     selectedFields.add("Doesnt_exist"); // this will be ignored.
                 }
-                for (TestFieldSetting field : fieldSettings)
+                for (TestFieldSetting field : fieldSettings) {
                     if (randomBoolean()) {
                         selectedFields.add(field.name);
                     }
+                }
 
                 if (selectedFields.size() == 0) {
                     selectedFields = null; // 0 length set is not supported.
@@ -419,11 +395,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected Fields getTermVectorsFromLucene(DirectoryReader directoryReader, TestDoc doc) throws IOException {
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader);
         TopDocs search = searcher.search(new TermQuery(new Term("id", doc.id)), 1);
 
         ScoreDoc[] scoreDocs = search.scoreDocs;
         assertEquals(1, scoreDocs.length);
-        return directoryReader.getTermVectors(scoreDocs[0].doc);
+        return directoryReader.termVectors().get(scoreDocs[0].doc);
     }
 }

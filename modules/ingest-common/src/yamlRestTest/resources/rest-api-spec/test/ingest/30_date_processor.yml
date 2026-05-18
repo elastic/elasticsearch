@@ -29,14 +29,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {date_source_field: "12/06/2010"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.date_source_field: "12/06/2010" }
   - match: { _source.date_target_field: "2010-06-12T00:00:00.000+02:00" }
 
@@ -66,14 +66,14 @@ teardown:
   - do:
       index:
         index: test2
-        id: 1
+        id: "1"
         pipeline: "my_pipeline_2"
         body: {date_source_field: "2010-06-01T00:00:00.000"}
 
   - do:
       get:
         index: test2
-        id: 1
+        id: "1"
   - match: { _source.date_source_field: "2010-06-01T00:00:00.000" }
   # date field without a timezone gets timezone from a pipeline
   - match: { _source.date_target_field: "2010-06-01T00:00:00.000+01:00" }
@@ -81,14 +81,14 @@ teardown:
   - do:
       index:
         index: test2
-        id: 2
+        id: "2"
         pipeline: "my_pipeline_2"
         body: {date_source_field: "2010-06-01T00:00:00.000Z"}
 
   - do:
       get:
         index: test2
-        id: 2
+        id: "2"
   - match: { _source.date_source_field: "2010-06-01T00:00:00.000Z" }
    # date field with a timezone has its time recalculated to a target timezone from a pipeline
   - match: { _source.date_target_field: "2010-06-01T01:00:00.000+01:00" }
@@ -152,6 +152,13 @@ teardown:
                   "target_field" : "date_target_7",
                   "formats" : [ "ISO8601" ]
                 }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_8",
+                  "target_field" : "date_target_8",
+                  "formats" : [ "epoch_second" ]
+                }
               }
             ]
           }
@@ -160,14 +167,23 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
-        body: { date_source_1: "2018-02-05T13:44:56.657+0100", date_source_2: "2017-04-04 13:43:09 +0200", date_source_3: "10/Aug/2018:09:45:56 +0200", date_source_4: "1", date_source_5: "1", date_source_6: "4000000050d506482dbdf024", date_source_7: "2018-02-05T13:44:56.657+0100" }
+        body: {
+          date_source_1: "2018-02-05T13:44:56.657+0100",
+          date_source_2: "2017-04-04 13:43:09 +0200",
+          date_source_3: "10/Aug/2018:09:45:56 +0200",
+          date_source_4: "1",
+          date_source_5: "1",
+          date_source_6: "4000000050d506482dbdf024",
+          date_source_7: "2018-02-05T13:44:56.657+0100",
+          date_source_8: "1688548995.987654321"
+      }
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.date_source_1: "2018-02-05T13:44:56.657+0100" }
   - match: { _source.date_target_1: "2018-02-05T12:44:56.657Z" }
   - match: { _source.date_source_2: "2017-04-04 13:43:09 +0200" }
@@ -182,6 +198,7 @@ teardown:
   - match: { _source.date_target_6: "2012-12-22T01:00:46.767Z" }
   - match: { _source.date_source_7: "2018-02-05T13:44:56.657+0100" }
   - match: { _source.date_target_7: "2018-02-05T12:44:56.657Z" }
+  - match: { _source.date_target_8: "2023-07-05T09:23:15.987Z" }
 
 
 ---
@@ -229,23 +246,23 @@ teardown:
           }
   - length: { docs: 1 }
   - match: { docs.0.doc._source.date_source_field: "2020-33" }
-  - match: { docs.0.doc._source.date_target_field: "2020-08-10T00:00:00.000Z" }
+  - match: { docs.0.doc._source.date_target_field: "2020-08-09T00:00:00.000Z" }
   - length: { docs.0.doc._ingest: 1 }
   - is_true: docs.0.doc._ingest.timestamp
 
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {date_source_field: "2020-33"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.date_source_field: "2020-33" }
-  - match: { _source.date_target_field: "2020-08-10T00:00:00.000Z" }
+  - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }
 
 ---
 "Test week based date parsing with locale":
@@ -302,13 +319,13 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {date_source_field: "2020-33"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.date_source_field: "2020-33" }
   - match: { _source.date_target_field: "2020-08-09T00:00:00.000Z" }

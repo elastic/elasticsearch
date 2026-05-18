@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "source": {
+      "properties": {
+        "IP": {
+          "type": "ip"
+        }
+      }
+    },
+    "threat_level": {
+      "type": "keyword"
+    }
+  }
+}

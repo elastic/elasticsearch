@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.OutputDirectory;
@@ -26,6 +28,8 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.function.Consumer;
 
+import javax.inject.Inject;
+
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 
@@ -38,9 +42,10 @@ public class JavaClassPublicifier extends DefaultTask {
     private DirectoryProperty inputDir;
     private DirectoryProperty outputDir;
 
-    public JavaClassPublicifier() {
-        this.inputDir = getProject().getObjects().directoryProperty();
-        this.outputDir = getProject().getObjects().directoryProperty();
+    @Inject
+    public JavaClassPublicifier(ObjectFactory objects) {
+        this.inputDir = objects.directoryProperty();
+        this.outputDir = objects.directoryProperty();
     }
 
     @Input

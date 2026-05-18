@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -20,9 +23,10 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
+
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
-    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
-        .minimumIndexCompatibilityVersion().luceneVersion;
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");
@@ -32,8 +36,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             indexShard.store(),
             indexShard.recoveryState().getIndex(),
             "recovery.test.",
-            logger,
-            () -> {}
+            logger
         );
         try (
             IndexOutput indexOutput = multiFileWriter.openAndPutIndexOutput(
@@ -70,7 +73,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             }
         }
         assertNotNull(expectedFile);
-        indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
+        closeShardNoCheck(indexShard); // we have to close it here otherwise rename fails since the write.lock is held by the engine
         multiFileWriter.renameAllTempFiles();
         strings = Sets.newHashSet(indexShard.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));

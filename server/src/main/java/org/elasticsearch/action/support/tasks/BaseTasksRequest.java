@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.tasks;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -26,7 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends LegacyActionRequest {
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 
@@ -34,6 +36,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     private String[] nodes = ALL_NODES;
 
+    @Nullable
     private TimeValue timeout;
 
     private String[] actions = ALL_ACTIONS;
@@ -41,6 +44,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     private TaskId targetParentTaskId = TaskId.EMPTY_TASK_ID;
 
     private TaskId targetTaskId = TaskId.EMPTY_TASK_ID;
+    // if you're adding new fields, also update the copyFieldsFrom method
 
     // NOTE: This constructor is only needed, because the setters in this class,
     // otherwise it can be removed and above fields can be made final.
@@ -102,7 +106,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     /**
      * Returns the id of the task that should be processed.
-     *
+     * <p>
      * By default tasks with any ids are returned.
      */
     public TaskId getTargetTaskId() {
@@ -160,6 +164,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return setTargetParentTaskId(parentTaskId);
     }
 
+    @Nullable
     public TimeValue getTimeout() {
         return this.timeout;
     }
@@ -170,14 +175,8 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return (Request) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public final Request setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (Request) this;
-    }
-
     public boolean match(Task task) {
-        if (CollectionUtils.isEmpty(getActions()) == false && Regex.simpleMatch(getActions(), task.getAction()) == false) {
+        if (matchesActionAndParent(task) == false) {
             return false;
         }
         if (getTargetTaskId().isSet()) {
@@ -185,11 +184,27 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
                 return false;
             }
         }
-        if (targetParentTaskId.isSet()) {
-            if (targetParentTaskId.equals(task.getParentTaskId()) == false) {
-                return false;
-            }
-        }
         return true;
+    }
+
+    protected final boolean matchesActionAndParent(Task task) {
+        if (canMatchAction(task.getAction()) == false) {
+            return false;
+        }
+        return targetParentTaskId.isSet() == false || targetParentTaskId.equals(task.getParentTaskId());
+    }
+
+    public boolean canMatchAction(final String action) {
+        return CollectionUtils.isEmpty(getActions()) || Regex.simpleMatch(getActions(), action);
+    }
+
+    public BaseTasksRequest<Request> copyFieldsFrom(final BaseTasksRequest<Request> request) {
+        super.copyFieldsFrom(request);
+        this.targetTaskId = request.targetTaskId;
+        this.targetParentTaskId = request.targetParentTaskId;
+        this.timeout = request.timeout;
+        this.actions = request.actions;
+        this.nodes = request.nodes;
+        return this;
     }
 }

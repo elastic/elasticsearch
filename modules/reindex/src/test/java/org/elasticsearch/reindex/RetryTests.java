@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -11,20 +12,21 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -70,7 +73,7 @@ public class RetryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class, MainRestPlugin.class);
     }
 
     /**
@@ -89,20 +92,20 @@ public class RetryTests extends ESIntegTestCase {
     final Settings nodeSettings() {
         return Settings.builder()
             // whitelist reindexing from the HTTP host we're going to use
-            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
+            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*,[::1]:*")
             .build();
     }
 
     public void testReindex() throws Exception {
         testCase(
             ReindexAction.NAME,
-            client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest"),
+            client -> new ReindexRequestBuilder(client).source("source").destination("dest"),
             matcher().created(DOC_COUNT)
         );
     }
 
     public void testReindexFromRemote() throws Exception {
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> function = client -> {
             /*
              * Use the master node for the reindex from remote because that node
              * doesn't have a copy of the data on it.
@@ -116,9 +119,10 @@ public class RetryTests extends ESIntegTestCase {
             assertNotNull(masterNode);
 
             TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
+            String host = InetAddresses.toUriString(address.address().getAddress());
             RemoteInfo remote = new RemoteInfo(
                 "http",
-                address.getAddress(),
+                host,
                 address.getPort(),
                 null,
                 new BytesArray("{\"match_all\":{}}"),
@@ -128,9 +132,7 @@ public class RetryTests extends ESIntegTestCase {
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
                 RemoteInfo.DEFAULT_CONNECT_TIMEOUT
             );
-            ReindexRequestBuilder request = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source")
-                .destination("dest")
-                .setRemoteInfo(remote);
+            ReindexRequestBuilder request = new ReindexRequestBuilder(client).source("source").destination("dest").setRemoteInfo(remote);
             return request;
         };
         testCase(ReindexAction.NAME, function, matcher().created(DOC_COUNT));
@@ -139,7 +141,7 @@ public class RetryTests extends ESIntegTestCase {
     public void testUpdateByQuery() throws Exception {
         testCase(
             UpdateByQueryAction.NAME,
-            client -> new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE).source("source"),
+            client -> new UpdateByQueryRequestBuilder(client).source("source"),
             matcher().updated(DOC_COUNT)
         );
     }
@@ -147,15 +149,14 @@ public class RetryTests extends ESIntegTestCase {
     public void testDeleteByQuery() throws Exception {
         testCase(
             DeleteByQueryAction.NAME,
-            client -> new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE).source("source")
-                .filter(QueryBuilders.matchAllQuery()),
+            client -> new DeleteByQueryRequestBuilder(client).source("source").filter(QueryBuilders.matchAllQuery()),
             matcher().deleted(DOC_COUNT)
         );
     }
 
     private void testCase(
         String action,
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> request,
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> request,
         BulkIndexByScrollResponseMatcher matcher
     ) throws Exception {
         /*
@@ -171,28 +172,24 @@ public class RetryTests extends ESIntegTestCase {
             .put("node.attr.color", "blue")
             .build();
         final String node = internalCluster().startDataOnlyNode(nodeSettings);
-        final Settings indexSettings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.routing.allocation.include.color", "blue")
-            .build();
+        final Settings indexSettings = indexSettings(1, 0).put("index.routing.allocation.include.color", "blue").build();
 
         // Create the source index on the node with small thread pools so we can block them.
-        client().admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
+        indicesAdmin().prepareCreate("source").setSettings(indexSettings).get();
         // Not all test cases use the dest index but those that do require that it be on the node will small thread pools
-        client().admin().indices().prepareCreate("dest").setSettings(indexSettings).execute().actionGet();
+        indicesAdmin().prepareCreate("dest").setSettings(indexSettings).get();
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < DOC_COUNT; i++) {
-            bulk.add(client().prepareIndex("source").setSource("foo", "bar " + i));
+            bulk.add(prepareIndex("source").setSource("foo", "bar " + i));
         }
 
         Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
         BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
-        client().admin().indices().prepareRefresh("source").get();
+        indicesAdmin().prepareRefresh("source").get();
 
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
+        AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
@@ -202,18 +199,21 @@ public class RetryTests extends ESIntegTestCase {
         logger.info("Starting request");
         ActionFuture<BulkByScrollResponse> responseListener = builder.execute();
 
+        BulkByScrollResponse response = null;
         try {
             logger.info("Waiting for bulk rejections");
             assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));
             bulkBlock.await();
 
             logger.info("Waiting for the request to finish");
-            BulkByScrollResponse response = responseListener.get();
+            response = responseListener.get();
             assertThat(response, matcher);
             assertThat(response.getBulkRetries(), greaterThan(0L));
         } finally {
             // Fetch the response just in case we blew up half way through. This will make sure the failure is thrown up to the top level.
-            BulkByScrollResponse response = responseListener.get();
+            if (response == null) {
+                response = responseListener.get();
+            }
             assertThat(response.getSearchFailures(), empty());
             assertThat(response.getBulkFailures(), empty());
         }
@@ -246,15 +246,15 @@ public class RetryTests extends ESIntegTestCase {
     /**
      * Fetch the status for a task of type "action". Fails if there aren't exactly one of that type of task running.
      */
-    private BulkByScrollTask.Status taskStatus(String action) {
+    private BulkByPaginatedSearchTask.Status taskStatus(String action) {
         /*
          * We always use the master client because we always start the test requests on the
          * master. We do this simply to make sure that the test request is not started on the
          * node who's queue we're manipulating.
          */
-        ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();
+        ListTasksResponse response = clusterAdmin().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
-        return (BulkByScrollTask.Status) response.getTasks().get(0).getStatus();
+        return (BulkByPaginatedSearchTask.Status) response.getTasks().get(0).status();
     }
 
 }

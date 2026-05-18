@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -44,7 +44,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
     }
 
     private void submitTask(ClusterService clusterService) {
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
+        clusterService.getMasterService().submitUnbatchedStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(priority) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (active.get()) {
@@ -57,7 +57,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
             public void onFailure(Exception e) {
                 logger.error("unexpected error during disruption", e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
     }
 
     @Override

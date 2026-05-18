@@ -2,6 +2,7 @@
  * This project contains transport-level requests and responses that are shared between x-pack plugin and qa tests
  */
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.transport-version-references'
 
 description = 'Request and response objects shared by the Elasticsearch plugin and qa tests'
 
@@ -11,15 +12,15 @@ dependencies {
   api(project(':server')) {
     transitive = false
   }
-  api(project(':libs:elasticsearch-core')) {
+  api(project(':libs:core')) {
     transitive = false
   }
-  api(project(':libs:elasticsearch-x-content')) {
+  api(project(':libs:x-content')) {
     transitive = false
   }
-  api xpackProject('plugin:core')
-  api xpackProject('plugin:ql')
-  api xpackProject('plugin:sql:sql-proto')
+  api project(':x-pack:plugin:core')
+  api project(':x-pack:plugin:ql')
+  api project(':x-pack:plugin:sql:sql-proto')
 
   testImplementation project(":test:framework")
   testImplementation(project(xpackModule('ql:test-fixtures')))

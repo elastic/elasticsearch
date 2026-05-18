@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -68,7 +70,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         return true;
     }
 
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
+    protected void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
 
         final Tuple<Long, ClusterState> state = loadTermAndClusterState(persistedClusterStateService, env);
@@ -103,8 +105,10 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
             .clusterUUIDCommitted(true)
             .persistentSettings(persistentSettings)
             .coordinationMetadata(newCoordinationMetadata);
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
-            newMetadata.put(
+
+        final ProjectMetadata.Builder newProject = ProjectMetadata.builder(metadata.getProject());
+        for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
+            newProject.put(
                 IndexMetadata.builder(indexMetadata)
                     .settings(
                         Settings.builder()
@@ -113,13 +117,16 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
                     )
             );
         }
+        newMetadata.put(newProject);
 
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(newMetadata).build();
 
-        terminal.println(
-            Terminal.Verbosity.VERBOSE,
-            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
-        );
+        if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
+            );
+        }
 
         confirm(terminal, CONFIRMATION_MSG);
 

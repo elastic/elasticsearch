@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -12,12 +13,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.FilterXContentParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedReader;
@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -41,7 +42,8 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     @FunctionalInterface
     protected interface Builder extends CheckedFunction<XContentBuilder, XContentBuilder, IOException> {}
 
-    protected abstract void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException;
+    protected abstract void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException;
 
     /** Sample test case */
     protected static final Builder SAMPLE = builderFor("sample.json");
@@ -50,13 +52,9 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         return builder -> {
             try (InputStream stream = AbstractFilteringTestCase.class.getResourceAsStream(file)) {
                 assertThat("Couldn't find [" + file + "]", stream, notNullValue());
-                try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
-                ) {
+                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, stream)) {
                     // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
-                    return builder.copyCurrentStructure(new FilterXContentParser(parser) {
-                    });
+                    return builder.copyCurrentStructure(new FilterXContentParserWrapper(parser) {});
                 }
             }
         };
@@ -457,7 +455,6 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testExcludeWildCardFields() throws IOException {
         Builder sample = builder -> builder.startObject()
             .startObject("include")

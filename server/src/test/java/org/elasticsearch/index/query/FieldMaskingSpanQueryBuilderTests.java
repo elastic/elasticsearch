@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -37,6 +38,14 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     @Override
+    protected FieldMaskingSpanQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof FieldMaskingSpanQueryBuilder) {
+            return new FieldMaskingSpanQueryBuilder((FieldMaskingSpanQueryBuilder) queryBuilder, "field");
+        }
+        return new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "value"), "field");
+    }
+
+    @Override
     protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
         String fieldInQuery = expectedFieldName(queryBuilder.fieldName());
@@ -55,7 +64,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json = """
+        String json = Strings.format("""
             {
               "%s" : {
                 "query" : {
@@ -70,7 +79,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
                 "boost" : 42.0,
                 "_name" : "KPI"
               }
-            }""".formatted(NAME.getPreferredName());
+            }""", NAME.getPreferredName());
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(
             exception.getMessage(),
@@ -79,7 +88,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testJsonWithTopLevelBoost() throws IOException {
-        String json = """
+        String json = Strings.format("""
             {
               "%s" : {
                 "query" : {
@@ -93,9 +102,9 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
                 "boost" : 42.0,
                 "_name" : "KPI"
               }
-            }""".formatted(NAME.getPreferredName());
+            }""", NAME.getPreferredName());
         Query q = parseQuery(json).toQuery(createSearchExecutionContext());
-        assertEquals(new BoostQuery(new FieldMaskingSpanQuery(new SpanTermQuery(new Term("value", "foo")), "mapped_geo_shape"), 42.0f), q);
+        assertEquals(new BoostQuery(new FieldMaskingSpanQuery(new SpanMatchNoDocsQuery("value", null), "mapped_geo_shape"), 42.0f), q);
     }
 
     public void testJsonWithDeprecatedName() throws IOException {

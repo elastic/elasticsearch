@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.http.HttpPreRequest;
+import org.elasticsearch.transport.TransportRequest;
 
 /**
  * A AuthenticationFailureHandler is responsible for the handling of a request that has failed authentication. This must
@@ -39,7 +39,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException failedAuthentication(RestRequest request, AuthenticationToken token, ThreadContext context);
+    ElasticsearchSecurityException failedAuthentication(HttpPreRequest request, AuthenticationToken token, ThreadContext context);
 
     /**
      * This method is called when there has been an authentication failure for the given message and token
@@ -51,7 +51,7 @@ public interface AuthenticationFailureHandler {
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
     ElasticsearchSecurityException failedAuthentication(
-        TransportMessage message,
+        TransportRequest message,
         AuthenticationToken token,
         String action,
         ThreadContext context
@@ -66,7 +66,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context);
+    ElasticsearchSecurityException exceptionProcessingRequest(HttpPreRequest request, Exception e, ThreadContext context);
 
     /**
      * The method is called when an exception has occurred while processing the transport message. This could be an error that
@@ -78,7 +78,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException exceptionProcessingRequest(TransportMessage message, String action, Exception e, ThreadContext context);
+    ElasticsearchSecurityException exceptionProcessingRequest(TransportRequest message, String action, Exception e, ThreadContext context);
 
     /**
      * This method is called when a REST request is received and no authentication token could be extracted AND anonymous
@@ -88,7 +88,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException missingToken(RestRequest request, ThreadContext context);
+    ElasticsearchSecurityException missingToken(HttpPreRequest request, ThreadContext context);
 
     /**
      * This method is called when a transport message is received and no authentication token could be extracted AND
@@ -99,7 +99,7 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context);
+    ElasticsearchSecurityException missingToken(TransportRequest message, String action, ThreadContext context);
 
     /**
      * This method is called when anonymous access is enabled, a request does not pass authorization with the anonymous

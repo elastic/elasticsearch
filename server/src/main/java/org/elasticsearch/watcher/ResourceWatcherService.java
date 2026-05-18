@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.watcher;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -94,9 +94,10 @@ public class ResourceWatcherService implements Closeable {
         interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
         if (enabled) {
-            lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);
-            mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);
-            highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);
+            final var executor = threadPool.generic();
+            lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, executor);
+            mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, executor);
+            highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, executor);
         } else {
             lowFuture = null;
             mediumFuture = null;

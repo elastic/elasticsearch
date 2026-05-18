@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
@@ -14,17 +16,23 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Objects;
 
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
@@ -87,7 +95,55 @@ public class GoogleCloudStorageClientSettings {
     static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(
         PREFIX,
         "application_name",
-        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+        key -> Setting.simpleString(key, "repository-gcs", Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+    );
+
+    /** The type of the proxy to connect to the GCS through. Can be DIRECT (aka no proxy), HTTP or SOCKS */
+    public static final Setting.AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.type",
+        (key) -> new Setting<>(key, "DIRECT", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope)
+    );
+
+    /** The host name of a proxy to connect to the GCS through. */
+    static final Setting.AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.host",
+        (key) -> Setting.simpleString(key, Setting.Property.NodeScope),
+        () -> PROXY_TYPE_SETTING
+    );
+
+    /** The port of a proxy to connect to the GCS through. */
+    static final Setting.AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.port",
+        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope),
+        () -> PROXY_HOST_SETTING
+    );
+
+    /**
+     * The maximum number of retries to use when a GCS request fails.
+     * <p>
+     * Default to 5 to match {@link com.google.cloud.ServiceOptions#getDefaultRetrySettings()}
+     */
+    static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "max_retries",
+        (key) -> Setting.intSetting(key, 5, 0, Setting.Property.NodeScope)
+    );
+
+    /** The maximum number of megabytes to copy for each copy RPC call. */
+    static final Setting.AffixSetting<Long> MEGABYTES_COPIED_PER_CHUNK_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "megabytes_copied_per_chunk",
+        (key) -> Setting.longSetting(key, ByteSizeValue.ofGb(5).getMb(), 1L, Setting.Property.NodeScope)
+    );
+
+    /** Tenacious retries for transient blob store errors. */
+    static final Setting.AffixSetting<Boolean> GCS_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "tenacious_retries.enabled",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
     );
 
     /** The credentials used by the client to connect to the Storage endpoint. */
@@ -111,6 +167,17 @@ public class GoogleCloudStorageClientSettings {
     /** The token server URI. This leases access tokens in the oauth flow. */
     private final URI tokenUri;
 
+    @Nullable
+    private final Proxy proxy;
+
+    private final int maxRetries;
+
+    /** The maximum number of megabytes to copy for each copy RPC call. */
+    private final long megabytesCopiedPerChunk;
+
+    /** Tenacious retries for transient blob store errors. */
+    private final boolean tenaciousRetriesEnabled;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -118,7 +185,11 @@ public class GoogleCloudStorageClientSettings {
         final TimeValue connectTimeout,
         final TimeValue readTimeout,
         final String applicationName,
-        final URI tokenUri
+        final URI tokenUri,
+        final Proxy proxy,
+        final int maxRetries,
+        final long megabytesCopiedPerChunk,
+        final boolean tenaciousRetriesEnabled
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -127,6 +198,10 @@ public class GoogleCloudStorageClientSettings {
         this.readTimeout = readTimeout;
         this.applicationName = applicationName;
         this.tokenUri = tokenUri;
+        this.proxy = proxy;
+        this.maxRetries = maxRetries;
+        this.megabytesCopiedPerChunk = megabytesCopiedPerChunk;
+        this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -157,6 +232,57 @@ public class GoogleCloudStorageClientSettings {
         return tokenUri;
     }
 
+    @Nullable
+    public Proxy getProxy() {
+        return proxy;
+    }
+
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
+    public long getMegabytesCopiedPerChunk() {
+        return megabytesCopiedPerChunk;
+    }
+
+    public boolean getTenaciousRetriesEnabled() {
+        return tenaciousRetriesEnabled;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        GoogleCloudStorageClientSettings that = (GoogleCloudStorageClientSettings) o;
+        return Objects.equals(credential, that.credential)
+            && Objects.equals(endpoint, that.endpoint)
+            && Objects.equals(projectId, that.projectId)
+            && Objects.equals(connectTimeout, that.connectTimeout)
+            && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(applicationName, that.applicationName)
+            && Objects.equals(tokenUri, that.tokenUri)
+            && Objects.equals(proxy, that.proxy)
+            && maxRetries == that.maxRetries
+            && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk
+            && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            credential,
+            endpoint,
+            projectId,
+            connectTimeout,
+            readTimeout,
+            applicationName,
+            tokenUri,
+            proxy,
+            maxRetries,
+            megabytesCopiedPerChunk,
+            tenaciousRetriesEnabled
+        );
+    }
+
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
         for (final String clientName : settings.getGroups(PREFIX).keySet()) {
@@ -171,14 +297,29 @@ public class GoogleCloudStorageClientSettings {
     }
 
     static GoogleCloudStorageClientSettings getClientSettings(final Settings settings, final String clientName) {
+        Proxy.Type proxyType = getConfigValue(settings, clientName, PROXY_TYPE_SETTING);
+        String proxyHost = getConfigValue(settings, clientName, PROXY_HOST_SETTING);
+        Integer proxyPort = getConfigValue(settings, clientName, PROXY_PORT_SETTING);
+        Proxy proxy;
+        try {
+            proxy = proxyType.equals(Proxy.Type.DIRECT)
+                ? null
+                : new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
+        } catch (UnknownHostException e) {
+            throw new SettingsException("GCS proxy host is unknown.", e);
+        }
         return new GoogleCloudStorageClientSettings(
-            loadCredential(settings, clientName),
+            loadCredential(settings, clientName, proxy),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             getConfigValue(settings, clientName, PROJECT_ID_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
-            getConfigValue(settings, clientName, TOKEN_URI_SETTING)
+            getConfigValue(settings, clientName, TOKEN_URI_SETTING),
+            proxy,
+            getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
+            getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING),
+            getConfigValue(settings, clientName, GCS_TENACIOUS_RETRIES_ENABLED_SETTING)
         );
     }
 
@@ -194,25 +335,25 @@ public class GoogleCloudStorageClientSettings {
      * @return the {@link ServiceAccountCredentials} to use for the given client,
      *         {@code null} if no service account is defined.
      */
-    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
+    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName, @Nullable Proxy proxy) {
+        final var credentialsFileSetting = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName);
         try {
-            if (CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).exists(settings) == false) {
+            if (credentialsFileSetting.exists(settings) == false) {
                 // explicitly returning null here so that the default credential
                 // can be loaded later when creating the Storage client
                 return null;
             }
-            try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
+            try (InputStream credStream = credentialsFileSetting.get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
-                return SocketAccess.doPrivilegedIOException(() -> {
-                    final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
-                    if (credentials.createScopedRequired()) {
-                        return (ServiceAccountCredentials) credentials.createScoped(scopes);
-                    }
-                    return credentials;
-                });
+                NetHttpTransport netHttpTransport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream, () -> netHttpTransport);
+                if (credentials.createScopedRequired()) {
+                    return (ServiceAccountCredentials) credentials.createScoped(scopes);
+                }
+                return credentials;
             }
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (final Exception e) {
+            throw new IllegalArgumentException("failed to load GCS client credentials from [" + credentialsFileSetting.getKey() + "]", e);
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support.values;
 
@@ -11,7 +12,7 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -81,9 +82,9 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             // that scripts return the same internal representation as regular fields, so boolean
             // values in scripts need to be converted to a number, and the value formatter will
             // make sure of using true/false in the key_as_string field
-            return ((Boolean) o).booleanValue() ? 1.0 : 0.0;
+            return (Boolean) o ? 1.0 : 0.0;
         } else {
-            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
+            throw AggregationErrors.unsupportedScriptValue(o == null ? "null" : o.toString());
         }
     }
 

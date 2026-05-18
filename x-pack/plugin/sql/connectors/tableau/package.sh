@@ -12,7 +12,7 @@ set -e
 TSA_URL=http://timestamp.digicert.com
 
 TAB_SDK_REPO=https://github.com/tableau/connector-plugin-sdk
-TAB_SDK_TAG="tdvt-2.1.9"
+TAB_SDK_TAG="tdvt-2.6.1"
 
 MY_NAME="Packager for Elastic's Tableau connector to Elasticsearch"
 MY_FILE=$(basename $0)
@@ -77,6 +77,8 @@ function package() {
 
     # install environment
     cd $SDK_DIR/connector-packager
+    # apply pip-installed modules version pinning
+    patch setup.py $MY_TOP_DIR/setup.py.diff
     python3 -m venv .venv
     source .venv/bin/activate
     python3 setup.py install

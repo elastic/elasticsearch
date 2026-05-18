@@ -15,9 +15,9 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.net.InetSocketAddress;
@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManager;
@@ -100,7 +99,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         );
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
-            try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
+            try (CloseableHttpResponse response = client.execute(put)) {
                 String body = EntityUtils.toString(response.getEntity());
                 assertThat(body, containsString("\"acknowledged\":true"));
             }
@@ -120,7 +119,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         );
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
-            try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
+            try (CloseableHttpResponse response = client.execute(put)) {
                 assertThat(response.getStatusLine().getStatusCode(), is(401));
                 String body = EntityUtils.toString(response.getEntity());
                 assertThat(body, containsString("unable to authenticate user [Elasticsearch Test Client]"));
@@ -142,6 +141,6 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             node().injector().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()
         );
         final InetSocketAddress inetSocketAddress = transportAddress.address();
-        return String.format(Locale.ROOT, "https://%s/", NetworkAddress.format(inetSocketAddress));
+        return Strings.format("https://%s/", NetworkAddress.format(inetSocketAddress));
     }
 }

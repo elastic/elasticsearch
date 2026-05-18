@@ -9,16 +9,17 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -28,11 +29,13 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore.ProjectScoped;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -41,7 +44,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class RoleDescriptorStore implements RoleReferenceResolver {
@@ -52,16 +56,18 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     private final RoleProviders roleProviders;
     private final ApiKeyService apiKeyService;
     private final ServiceAccountService serviceAccountService;
+    private final ProjectResolver projectResolver;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
-    private final Cache<String, Boolean> negativeLookupCache;
+    private final Cache<ProjectScoped<String>, Boolean> negativeLookupCache;
 
     public RoleDescriptorStore(
         RoleProviders roleProviders,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
-        Cache<String, Boolean> negativeLookupCache,
+        ProjectResolver projectResolver,
+        Cache<ProjectScoped<String>, Boolean> negativeLookupCache,
         XPackLicenseState licenseState,
         ThreadContext threadContext,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
@@ -69,6 +75,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         this.roleProviders = roleProviders;
         this.apiKeyService = Objects.requireNonNull(apiKeyService);
         this.serviceAccountService = Objects.requireNonNull(serviceAccountService);
+        this.projectResolver = projectResolver;
         this.licenseState = Objects.requireNonNull(licenseState);
         this.threadContext = threadContext;
         this.effectiveRoleDescriptorsConsumer = Objects.requireNonNull(effectiveRoleDescriptorsConsumer);
@@ -80,15 +87,14 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.NamedRoleReference namedRoleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
+        final var projectId = projectResolver.getProjectId();
         final Set<String> roleNames = Set.copyOf(new HashSet<>(List.of(namedRoleReference.getRoleNames())));
         if (roleNames.isEmpty()) {
-            assert false : "empty role names should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.EMPTY);
         } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
-            assert false : "superuser role should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
-            resolveRoleNames(roleNames, listener);
+            resolveRoleNames(roleNames, projectId, listener);
         }
     }
 
@@ -104,6 +110,11 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        assert (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.ASSIGNED
+            && rolesRetrievalResult.getRoleDescriptors().stream().filter(RoleDescriptor::hasRestriction).count() <= 1)
+            || (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.LIMITED_BY
+                && rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction))
+            : "there should be zero limited-by role descriptors with restriction and no more than one assigned";
         listener.onResponse(rolesRetrievalResult);
     }
 
@@ -127,37 +138,81 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.ServiceAccountRoleReference roleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        serviceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
+        ServiceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
             final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
             rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
             return rolesRetrievalResult;
         }));
     }
 
-    private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
-        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
+    @Override
+    public void resolveCrossClusterAccessRoleReference(
+        RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            if (roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster()) {
+                final String message = "Role descriptor for cross cluster access can only contain index and cluster privileges "
+                    + "but other privileges found for subject ["
+                    + crossClusterAccessRoleReference.getUserPrincipal()
+                    + "]";
+                logger.warn("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
+                listener.onFailure(new IllegalArgumentException(message));
+                return;
+            }
+        }
+        if (roleDescriptors.isEmpty()) {
+            logger.debug(
+                () -> "Cross cluster access role reference ["
+                    + crossClusterAccessRoleReference.id()
+                    + "] resolved to an empty role descriptor set"
+            );
+            listener.onResponse(RolesRetrievalResult.EMPTY);
+            return;
+        }
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        listener.onResponse(rolesRetrievalResult);
+    }
+
+    @Override
+    public void resolveCrossClusterApiKeyRoleReference(
+        RoleReference.CrossClusterApiKeyRoleReference crossClusterApiKeyRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptorsBytes(
+            crossClusterApiKeyRoleReference.getApiKeyId(),
+            crossClusterApiKeyRoleReference.getRoleDescriptorsBytes(),
+            crossClusterApiKeyRoleReference.getRoleType()
+        );
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        assert rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction)
+            : "there should be no role descriptors with restriction";
+        try {
+            CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
+                crossClusterApiKeyRoleReference.getApiKeyId(),
+                roleDescriptors
+            );
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
+        listener.onResponse(rolesRetrievalResult);
+    }
+
+    private void resolveRoleNames(Set<String> roleNames, ProjectId projectId, ActionListener<RolesRetrievalResult> listener) {
+        roleDescriptors(roleNames, projectId, ActionListener.wrap(rolesRetrievalResult -> {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());
             final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
             if (missingRoles) {
-                logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles()));
+                logger.debug(() -> format("Could not find roles with names %s", rolesRetrievalResult.getMissingRoles()));
             }
-            final Set<RoleDescriptor> effectiveDescriptors;
-            Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
-            if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                effectiveDescriptors = roleDescriptors.stream()
-                    .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
-                    .collect(Collectors.toSet());
-            } else {
-                effectiveDescriptors = roleDescriptors;
-            }
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "Exposing effective role descriptors [{}] for role names [{}]",
-                    effectiveDescriptors,
-                    roleNames
-                )
+            final Set<RoleDescriptor> effectiveDescriptors = maybeSkipRolesUsingDocumentOrFieldLevelSecurity(
+                rolesRetrievalResult.getRoleDescriptors()
             );
+            logger.trace(() -> format("Exposing effective role descriptors [%s] for role names [%s]", effectiveDescriptors, roleNames));
             effectiveRoleDescriptorsConsumer.accept(Collections.unmodifiableCollection(effectiveDescriptors));
             // TODO: why not populate negativeLookupCache here with missing roles?
 
@@ -172,20 +227,33 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, listener::onFailure));
     }
 
-    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
-        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
-            if (rolesRetrievalResult.isSuccess()) {
-                listener.onResponse(rolesRetrievalResult.getRoleDescriptors());
-            } else {
-                listener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
-            }
-        }, listener::onFailure));
+    private Set<RoleDescriptor> maybeSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
+        if (shouldSkipRolesUsingDocumentOrFieldLevelSecurity(roleDescriptors) == false) {
+            return roleDescriptors;
+        }
+
+        final Map<Boolean, Set<RoleDescriptor>> partitionedRoleDescriptors = roleDescriptors.stream()
+            .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
+
+        final Set<RoleDescriptor> roleDescriptorsToSkip = partitionedRoleDescriptors.get(true);
+        logger.warn(
+            "User roles [{}] are disabled because they require field or document level security. "
+                + "The current license is non-compliant for [field and document level security].",
+            roleDescriptorsToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","))
+        );
+
+        return partitionedRoleDescriptors.get(false);
     }
 
-    private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
+    private boolean shouldSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
+            && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false;
+    }
+
+    private void roleDescriptors(Set<String> roleNames, ProjectId projectId, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
-            if (negativeLookupCache.get(s) != null) {
-                logger.debug(() -> new ParameterizedMessage("Requested role [{}] does not exist (cached)", s));
+            if (negativeLookupCache.get(new ProjectScoped<>(projectId, s)) != null) {
+                logger.debug(() -> "Requested role [" + s + "] does not exist in [" + projectId + "] (cached)");
                 return false;
             } else {
                 return true;
@@ -228,9 +296,9 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
                 if (result.isSuccess()) {
                     logger.debug(
-                        () -> new ParameterizedMessage(
-                            "Roles [{}] were resolved by [{}]",
-                            result.getDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
+                        () -> format(
+                            "Roles [%s] were resolved by [%s]",
+                            result.getDescriptors().stream().map(RoleDescriptor::getName).collect(joining(",")),
                             rolesProvider
                         )
                     );
@@ -241,10 +309,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleNames.remove(descriptor.getName());
                     }
                 } else {
-                    logger.warn(
-                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
-                        result.getFailure()
-                    );
+                    logger.warn(() -> format("role [%s] retrieval failed from [%s]", roleNames, rolesProvider), result.getFailure());
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);

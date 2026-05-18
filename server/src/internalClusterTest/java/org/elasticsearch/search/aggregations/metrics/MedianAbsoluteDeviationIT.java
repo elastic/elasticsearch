@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -34,8 +32,6 @@ import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -47,7 +43,8 @@ import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviat
 import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -69,10 +66,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        final Settings settings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();
-
-        createIndex("idx", settings);
-        createIndex("idx_unmapped", settings);
+        createIndex("idx", 1, 0);
+        createIndex("idx_unmapped", 1, 0);
 
         minValue = MIN_SAMPLE_VALUE;
         minValues = MIN_SAMPLE_VALUE;
@@ -93,8 +88,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
             multiValueSample[i * 2] = firstMultiValueDatapoint;
             multiValueSample[(i * 2) + 1] = secondMultiValueDatapoint;
 
-            IndexRequestBuilder builder = client().prepareIndex("idx")
-                .setId(String.valueOf(i))
+            IndexRequestBuilder builder = prepareIndex("idx").setId(String.valueOf(i))
                 .setSource(
                     jsonBuilder().startObject()
                         .field("value", singleValueDatapoint)
@@ -118,8 +112,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId(String.valueOf(i))
+                prepareIndex("empty_bucket_idx").setId(String.valueOf(i))
                     .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
             );
         }
@@ -135,28 +128,31 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
     private static MedianAbsoluteDeviationAggregationBuilder randomBuilder() {
         final MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder("mad");
         if (randomBoolean()) {
-            builder.compression(randomDoubleBetween(20, 1000, false));
+            builder.compression(randomDoubleBetween(30, 1000, false));
         }
         return builder;
     }
 
     @Override
     public void testEmptyAggregation() throws Exception {
-        final SearchResponse response = client().prepareSearch("empty_bucket_idx")
-            .addAggregation(histogram("histogram").field("value").interval(1).minDocCount(0).subAggregation(randomBuilder().field("value")))
-            .get();
+        assertResponse(
+            prepareSearch("empty_bucket_idx").addAggregation(
+                histogram("histogram").field("value").interval(1).minDocCount(0).subAggregation(randomBuilder().field("value"))
+            ),
+            response -> {
+                assertHitCount(response, 2);
 
-        assertHitCount(response, 2);
+                final Histogram histogram = response.getAggregations().get("histogram");
+                assertThat(histogram, notNullValue());
+                final Histogram.Bucket bucket = histogram.getBuckets().get(1);
+                assertThat(bucket, notNullValue());
 
-        final Histogram histogram = response.getAggregations().get("histogram");
-        assertThat(histogram, notNullValue());
-        final Histogram.Bucket bucket = histogram.getBuckets().get(1);
-        assertThat(bucket, notNullValue());
-
-        final MedianAbsoluteDeviation mad = bucket.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), is(Double.NaN));
+                final MedianAbsoluteDeviation mad = bucket.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
+                assertThat(mad.getMedianAbsoluteDeviation(), is(Double.NaN));
+            }
+        );
     }
 
     @Override
@@ -166,74 +162,72 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedField() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(randomBuilder().field("value"))
-            .get();
+        assertResponse(prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(randomBuilder().field("value")), response -> {
+            assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
-
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+            final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+            assertThat(mad, notNullValue());
+            assertThat(mad.getName(), is("mad"));
+            assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+        });
     }
 
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(global("global").subAggregation(randomBuilder().field("value")))
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(global("global").subAggregation(randomBuilder().field("value"))),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final SingleBucketAggregation global = response.getAggregations().get("global");
+                assertThat(global, notNullValue());
+                assertThat(global.getName(), is("global"));
+                assertThat(global.getDocCount(), is((long) NUMBER_OF_DOCS));
+                assertThat(global.getAggregations(), notNullValue());
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
-        final Global global = response.getAggregations().get("global");
-        assertThat(global, notNullValue());
-        assertThat(global.getName(), is("global"));
-        assertThat(global.getDocCount(), is((long) NUMBER_OF_DOCS));
-        assertThat(global.getAggregations(), notNullValue());
-        assertThat(global.getAggregations().asMap().entrySet(), hasSize(1));
-
-        final MedianAbsoluteDeviation mad = global.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(((InternalAggregation) global).getProperty("mad"), sameInstance(mad));
+                final MedianAbsoluteDeviation mad = global.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
+                assertThat(((InternalAggregation) global).getProperty("mad"), sameInstance(mad));
+            }
+        );
     }
 
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
-            .addAggregation(randomBuilder().field("value"))
-            .get();
+        assertResponse(
+            prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery()).addAggregation(randomBuilder().field("value")),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
-
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+            }
+        );
     }
 
     @Override
     public void testSingleValuedFieldWithValueScript() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().field("value")
-                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().field("value")
+                        .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-
-        final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+                final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+            }
+        );
     }
 
     @Override
@@ -241,56 +235,55 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().field("value")
-                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().field("value")
+                        .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-
-        final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+                final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+            }
+        );
     }
 
     @Override
     public void testMultiValuedField() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(randomBuilder().field("values"))
-            .get();
+        assertResponse(prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(randomBuilder().field("values")), response -> {
+            assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
-
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(multiValueExactMAD));
+            final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+            assertThat(mad, notNullValue());
+            assertThat(mad.getName(), is("mad"));
+            assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(multiValueExactMAD));
+        });
     }
 
     @Override
     public void testMultiValuedFieldWithValueScript() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().field("values")
-                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().field("values")
+                        .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-
-        final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(multiValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+                final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(multiValueSample).map(point -> point + 1).toArray());
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+            }
+        );
     }
 
     @Override
@@ -298,40 +291,42 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().field("values")
-                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().field("values")
+                        .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-
-        final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(multiValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+                final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(multiValueSample).map(point -> point + 1).toArray());
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+            }
+        );
     }
 
     @Override
     public void testScriptSingleValued() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().script(
-                    new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap())
-                )
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().script(
+                        new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap())
+                    )
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
-
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+            }
+        );
     }
 
     @Override
@@ -339,40 +334,44 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params))
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().script(
+                        new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params)
+                    )
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-
-        final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+                final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+            }
+        );
     }
 
     @Override
     public void testScriptMultiValued() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().script(
-                    new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap())
-                )
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().script(
+                        new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap())
+                    )
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
-
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(multiValueExactMAD));
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(multiValueExactMAD));
+            }
+        );
     }
 
     @Override
@@ -380,110 +379,112 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                randomBuilder().script(
-                    new Script(
-                        ScriptType.INLINE,
-                        AggregationTestScriptsPlugin.NAME,
-                        "[ doc['value'].value, doc['value'].value + inc ]",
-                        params
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    randomBuilder().script(
+                        new Script(
+                            ScriptType.INLINE,
+                            AggregationTestScriptsPlugin.NAME,
+                            "[ doc['value'].value, doc['value'].value + inc ]",
+                            params
+                        )
                     )
-                )
-            )
-            .get();
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
+                assertThat(mad, notNullValue());
+                assertThat(mad.getName(), is("mad"));
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-
-        final double fromIncrementedSampleMAD = calculateMAD(
-            Arrays.stream(singleValueSample).flatMap(point -> LongStream.of(point, point + 1)).toArray()
+                final double fromIncrementedSampleMAD = calculateMAD(
+                    Arrays.stream(singleValueSample).flatMap(point -> LongStream.of(point, point + 1)).toArray()
+                );
+                assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+            }
         );
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
     }
 
     public void testAsSubAggregation() throws Exception {
         final int rangeBoundary = (MAX_SAMPLE_VALUE + MIN_SAMPLE_VALUE) / 2;
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                range("range").field("value")
-                    .addRange(MIN_SAMPLE_VALUE, rangeBoundary)
-                    .addRange(rangeBoundary, MAX_SAMPLE_VALUE)
-                    .subAggregation(randomBuilder().field("value"))
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    range("range").field("value")
+                        .addRange(MIN_SAMPLE_VALUE, rangeBoundary)
+                        .addRange(rangeBoundary, MAX_SAMPLE_VALUE)
+                        .subAggregation(randomBuilder().field("value"))
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final long[] lowerBucketSample = Arrays.stream(singleValueSample)
+                    .filter(point -> point >= MIN_SAMPLE_VALUE && point < rangeBoundary)
+                    .toArray();
+                final long[] upperBucketSample = Arrays.stream(singleValueSample)
+                    .filter(point -> point >= rangeBoundary && point < MAX_SAMPLE_VALUE)
+                    .toArray();
 
-        final long[] lowerBucketSample = Arrays.stream(singleValueSample)
-            .filter(point -> point >= MIN_SAMPLE_VALUE && point < rangeBoundary)
-            .toArray();
-        final long[] upperBucketSample = Arrays.stream(singleValueSample)
-            .filter(point -> point >= rangeBoundary && point < MAX_SAMPLE_VALUE)
-            .toArray();
+                final Range range = response.getAggregations().get("range");
+                assertThat(range, notNullValue());
+                List<? extends Range.Bucket> buckets = range.getBuckets();
+                assertThat(buckets, notNullValue());
+                assertThat(buckets, hasSize(2));
 
-        final Range range = response.getAggregations().get("range");
-        assertThat(range, notNullValue());
-        List<? extends Range.Bucket> buckets = range.getBuckets();
-        assertThat(buckets, notNullValue());
-        assertThat(buckets, hasSize(2));
+                final Range.Bucket lowerBucket = buckets.get(0);
+                assertThat(lowerBucket, notNullValue());
 
-        final Range.Bucket lowerBucket = buckets.get(0);
-        assertThat(lowerBucket, notNullValue());
+                final MedianAbsoluteDeviation lowerBucketMAD = lowerBucket.getAggregations().get("mad");
+                assertThat(lowerBucketMAD, notNullValue());
+                assertThat(lowerBucketMAD.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(lowerBucketSample)));
 
-        final MedianAbsoluteDeviation lowerBucketMAD = lowerBucket.getAggregations().get("mad");
-        assertThat(lowerBucketMAD, notNullValue());
-        assertThat(lowerBucketMAD.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(lowerBucketSample)));
+                final Range.Bucket upperBucket = buckets.get(1);
+                assertThat(upperBucket, notNullValue());
 
-        final Range.Bucket upperBucket = buckets.get(1);
-        assertThat(upperBucket, notNullValue());
-
-        final MedianAbsoluteDeviation upperBucketMAD = upperBucket.getAggregations().get("mad");
-        assertThat(upperBucketMAD, notNullValue());
-        assertThat(upperBucketMAD.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(upperBucketSample)));
-
+                final MedianAbsoluteDeviation upperBucketMAD = upperBucket.getAggregations().get("mad");
+                assertThat(upperBucketMAD, notNullValue());
+                assertThat(upperBucketMAD.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(upperBucketSample)));
+            }
+        );
     }
 
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         final int numberOfBuckets = 10;
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(
-                terms("terms").field("value")
-                    .size(numberOfBuckets)
-                    .order(BucketOrder.compound(BucketOrder.aggregation("filter>mad", true)))
-                    .subAggregation(
-                        filter("filter", termQuery("value", MAX_SAMPLE_VALUE + 1)).subAggregation(randomBuilder().field("value"))
-                    )
-            )
-            .get();
+        assertResponse(
+            prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(
+                    terms("terms").field("value")
+                        .size(numberOfBuckets)
+                        .order(BucketOrder.compound(BucketOrder.aggregation("filter>mad", true)))
+                        .subAggregation(
+                            filter("filter", termQuery("value", MAX_SAMPLE_VALUE + 1)).subAggregation(randomBuilder().field("value"))
+                        )
+                ),
+            response -> {
+                assertHitCount(response, NUMBER_OF_DOCS);
 
-        assertHitCount(response, NUMBER_OF_DOCS);
+                final Terms terms = response.getAggregations().get("terms");
+                assertThat(terms, notNullValue());
+                List<? extends Terms.Bucket> buckets = terms.getBuckets();
+                assertThat(buckets, notNullValue());
+                assertThat(buckets, hasSize(numberOfBuckets));
 
-        final Terms terms = response.getAggregations().get("terms");
-        assertThat(terms, notNullValue());
-        List<? extends Terms.Bucket> buckets = terms.getBuckets();
-        assertThat(buckets, notNullValue());
-        assertThat(buckets, hasSize(numberOfBuckets));
+                for (int i = 0; i < numberOfBuckets; i++) {
+                    Terms.Bucket bucket = buckets.get(i);
+                    assertThat(bucket, notNullValue());
 
-        for (int i = 0; i < numberOfBuckets; i++) {
-            Terms.Bucket bucket = buckets.get(i);
-            assertThat(bucket, notNullValue());
+                    SingleBucketAggregation filter = bucket.getAggregations().get("filter");
+                    assertThat(filter, notNullValue());
+                    assertThat(filter.getDocCount(), equalTo(0L));
 
-            Filter filter = bucket.getAggregations().get("filter");
-            assertThat(filter, notNullValue());
-            assertThat(filter.getDocCount(), equalTo(0L));
-
-            MedianAbsoluteDeviation mad = filter.getAggregations().get("mad");
-            assertThat(mad, notNullValue());
-            assertThat(mad.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
-        }
+                    MedianAbsoluteDeviation mad = filter.getAggregations().get("mad");
+                    assertThat(mad, notNullValue());
+                    assertThat(mad.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+                }
+            }
+        );
     }
 
     /**
@@ -492,131 +493,70 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
      */
     public void testScriptCaching() throws Exception {
         assertAcked(
-            prepareCreate("cache_test_idx").setMapping("d", "type=long")
-                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
+            prepareCreate("cache_test_idx").setMapping("d", "type=long").setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
 
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
+            prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
-            .addAggregation(
-                randomBuilder().field("d")
-                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", emptyMap()))
-            )
-            .get();
-        assertSearchResponse(r);
+        assertNoFailures(
+            prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(
+                    randomBuilder().field("d")
+                        .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", emptyMap()))
+                )
+        );
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
-            .addAggregation(
-                randomBuilder().field("d")
-                    .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
-            )
-            .get();
-        assertSearchResponse(r);
+        assertNoFailures(
+            prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(
+                    randomBuilder().field("d")
+                        .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
+                )
+        );
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(1L)
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(randomBuilder().field("d")).get();
-        assertSearchResponse(r);
+        assertNoFailures(prepareSearch("cache_test_idx").setSize(0).addAggregation(randomBuilder().field("d")));
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(2L)
         );
     }

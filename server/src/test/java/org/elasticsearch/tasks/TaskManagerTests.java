@@ -1,30 +1,45 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TestTransportChannels;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +60,18 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -74,9 +100,11 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingChannelTask() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertThat(reason, equalTo("channel was closed"));
@@ -122,9 +150,11 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
@@ -159,7 +189,7 @@ public class TaskManagerTests extends ESTestCase {
                             threadPool,
                             "action-" + i,
                             randomIntBetween(0, 1000),
-                            Version.CURRENT
+                            TransportVersion.current()
                         );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
@@ -179,8 +209,10 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testRemoveBansOnChannelDisconnects() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {}
         });
@@ -206,7 +238,7 @@ public class TaskManagerTests extends ESTestCase {
                     threadPool,
                     "action",
                     randomIntBetween(1, 10000),
-                    Version.CURRENT
+                    TransportVersion.current()
                 )
             );
         }
@@ -223,7 +255,264 @@ public class TaskManagerTests extends ESTestCase {
         assertThat(taskManager.numberOfChannelPendingTaskTrackers(), equalTo(0));
     }
 
-    static class CancellableRequest extends TransportRequest {
+    public void testTaskAccounting() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+
+        final Task task1 = taskManager.register("transport", "test", new CancellableRequest("thread 1"));
+        final Task task2 = taskManager.register("transport", "test", new CancellableRequest("thread 2"));
+
+        final MockConnection connection1 = new MockConnection();
+        final MockConnection connection2 = new MockConnection();
+
+        Releasable releasableConnection1 = taskManager.registerChildConnection(task1.getId(), connection1);
+        Releasable releasableConnection2 = taskManager.registerChildConnection(task2.getId(), connection2);
+        Releasable releasableConnection3 = taskManager.registerChildConnection(task1.getId(), connection1);
+
+        assertEquals(2, taskManager.childTasksPerConnection(task1.getId(), connection1).intValue());
+        assertEquals(1, taskManager.childTasksPerConnection(task2.getId(), connection2).intValue());
+
+        releasableConnection1.close();
+        assertEquals(1, taskManager.childTasksPerConnection(task1.getId(), connection1).intValue());
+
+        releasableConnection2.close();
+        assertNull(taskManager.childTasksPerConnection(task2.getId(), connection2));
+
+        releasableConnection3.close();
+        assertNull(taskManager.childTasksPerConnection(task1.getId(), connection1));
+    }
+
+    /**
+     * Check that registering a task also causes tracing to be started on that task.
+     */
+    public void testRegisterTaskStartsTracingIfTraceParentExists() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        // fake an APM trace context
+        threadPool.getThreadContext().putTransient(Task.APM_TRACE_CONTEXT, new Object());
+        final boolean hasParentTask = randomBoolean();
+        final TaskId parentTask = hasParentTask ? new TaskId("parentNode", 1) : TaskId.EMPTY_TASK_ID;
+
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+
+            final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+                @Override
+                public void setParentTask(TaskId taskId) {}
+
+                @Override
+                public void setRequestId(long requestId) {}
+
+                @Override
+                public TaskId getParentTask() {
+                    return parentTask;
+                }
+            });
+
+            Map<String, Object> attributes = hasParentTask
+                ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
+                : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
+            verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), eq(attributes));
+
+            taskManager.unregister(task);
+            verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+        }
+    }
+
+    /**
+     * Check that registering a task also causes tracing to be started on that task.
+     */
+    public void testRegisterTaskSkipsTracingIfTraceParentMissing() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        // no trace parent
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+                @Override
+                public void setParentTask(TaskId taskId) {}
+
+                @Override
+                public void setRequestId(long requestId) {}
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+            });
+        }
+
+        verifyNoInteractions(mockTracer);
+    }
+
+    /**
+     * Check that unregistering a task also causes tracing to be stopped on that task.
+     */
+    public void testUnregisterTaskStopsTracingIfTraceContextExists() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+        });
+
+        // fake an APM trace context
+        threadPool.getThreadContext().putTransient(Task.APM_TRACE_CONTEXT, null);
+
+        taskManager.unregister(task);
+        verify(mockTracer).stopTrace(task);
+    }
+
+    /**
+     * Check that unregistering a task also causes tracing to be stopped on that task.
+     */
+    public void testUnregisterTaskStopsTracingIfTraceContextMissing() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+        });
+
+        // no trace context
+
+        taskManager.unregister(task);
+        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+        verifyNoMoreInteractions(mockTracer);
+    }
+
+    /**
+     * Check that registering and executing a task also causes tracing to be started if a trace parent exists.
+     */
+    public void testRegisterAndExecuteStartsTracingIfTraceParentExists() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        // fake an APM trace context
+        threadPool.getThreadContext().putTransient(Task.APM_TRACE_CONTEXT, new Object());
+
+        final Task task = taskManager.registerAndExecute(
+            "testType",
+            new TransportAction<ActionRequest, ActionResponse>(
+                "actionName",
+                new ActionFilters(Set.of()),
+                taskManager,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
+                @Override
+                protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                    listener.onResponse(new ActionResponse() {
+                        @Override
+                        public void writeTo(StreamOutput out) {}
+                    });
+                }
+            },
+            new ActionRequest() {
+                @Override
+                public ActionRequestValidationException validate() {
+                    return null;
+                }
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+            },
+            null,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        verify(mockTracer).startTrace(any(), eq(task), eq("actionName"), anyMap());
+        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+    }
+
+    /**
+     * Check that registering and executing a task skips tracing if trace parent does not exists.
+     */
+    public void testRegisterAndExecuteSkipsTracingIfTraceParentMissing() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        // clean thread context without trace parent
+
+        final Task task = taskManager.registerAndExecute(
+            "testType",
+            new TransportAction<ActionRequest, ActionResponse>(
+                "actionName",
+                new ActionFilters(Set.of()),
+                taskManager,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
+                @Override
+                protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                    listener.onResponse(new ActionResponse() {
+                        @Override
+                        public void writeTo(StreamOutput out) {}
+                    });
+                }
+            },
+            new ActionRequest() {
+                @Override
+                public ActionRequestValidationException validate() {
+                    return null;
+                }
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+            },
+            null,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+        verifyNoMoreInteractions(mockTracer);
+    }
+
+    public void testRegisterWithEnabledDisabledTracing() {
+        final Tracer mockTracer = mock(Tracer.class);
+        final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer));
+
+        taskManager.register("type", "action", makeTaskRequest(true, 123), false);
+        verify(taskManager, times(0)).maybeStartTrace(any(), any());
+
+        taskManager.register("type", "action", makeTaskRequest(false, 234), false);
+        verify(taskManager, times(0)).maybeStartTrace(any(), any());
+
+        clearInvocations(taskManager);
+
+        taskManager.register("type", "action", makeTaskRequest(true, 345), true);
+        verify(taskManager, times(1)).maybeStartTrace(any(), any());
+
+        clearInvocations(taskManager);
+
+        taskManager.register("type", "action", makeTaskRequest(false, 456), true);
+        verify(taskManager, times(1)).maybeStartTrace(any(), any());
+    }
+
+    static class CancellableRequest extends AbstractTransportRequest {
         private final String requestId;
 
         CancellableRequest(String requestId) {
@@ -258,4 +547,201 @@ public class TaskManagerTests extends ESTestCase {
             super.addCloseListener(listener);
         }
     }
+
+    public static final class MockConnection implements Transport.Connection {
+        @Override
+        public DiscoveryNode getNode() {
+            return null;
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws TransportException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {}
+
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {}
+
+        @Override
+        public boolean isClosed() {
+            return false;
+        }
+
+        @Override
+        public void close() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void onRemoved() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            assert false : "shouldn't release a mock connection";
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+    }
+
+    private TaskAwareRequest makeTaskRequest(boolean cancellable, final int parentTaskNum) {
+        return new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return new TaskId("something", parentTaskNum);
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                if (cancellable) {
+                    return new CancellableTask(id, type, action, "request-" + id, parentTaskId, headers) {
+                        @Override
+                        public boolean shouldCancelChildrenOnCancellation() {
+                            return false;
+                        }
+
+                        @Override
+                        public String toString() {
+                            return getDescription();
+                        }
+                    };
+                }
+
+                return new Task(id, type, action, "request-" + id, parentTaskId, headers);
+            }
+        };
+    }
+
+    public void testForEachCancellableTaskIteratesOverTasks() throws Exception {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+
+        Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
+        Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
+        Task task3 = taskManager.register("transport", "action3", new CancellableRequest("3"));
+        try {
+            assertBusy(() -> {
+                Set<Long> visitedTaskIds = new HashSet<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    visitedTaskIds.add(info.task().getId());
+                    return true;
+                });
+                assertThat(visitedTaskIds, is(Set.of(task1.getId(), task2.getId(), task3.getId())));
+            });
+        } finally {
+            taskManager.unregister(task1);
+            taskManager.unregister(task2);
+            taskManager.unregister(task3);
+        }
+    }
+
+    public void testForEachCancellableTaskEarlyTermination() throws Exception {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+
+        Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
+        Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
+        Task task3 = taskManager.register("transport", "action3", new CancellableRequest("3"));
+        try {
+            assertBusy(() -> {
+                List<Long> visitedTaskIds = new ArrayList<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    visitedTaskIds.add(info.task().getId());
+                    return false;
+                });
+                assertThat(visitedTaskIds.size(), is(1));
+            });
+        } finally {
+            taskManager.unregister(task1);
+            taskManager.unregister(task2);
+            taskManager.unregister(task3);
+        }
+    }
+
+    public void testForEachCancellableTaskSkipsNonPositiveThreshold() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+
+        Task task = taskManager.register("transport", "action", new CancellableRequest("1"));
+        try {
+            List<Long> visitedTaskIds = new ArrayList<>();
+            taskManager.forEachCancellableTask(0, info -> {
+                visitedTaskIds.add(info.task().getId());
+                return true;
+            });
+            assertThat(visitedTaskIds.isEmpty(), is(true));
+
+            taskManager.forEachCancellableTask(-1, info -> {
+                visitedTaskIds.add(info.task().getId());
+                return true;
+            });
+            assertThat(visitedTaskIds.isEmpty(), is(true));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testForEachCancellableTaskReportsHasOutstandingChildren() throws Exception {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
+            @Override
+            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {}
+        });
+
+        Task parentTask = taskManager.register("transport", "parent", new CancellableRequest("parent"));
+        try {
+            CancellableTask cancellableParent = (CancellableTask) parentTask;
+
+            assertBusy(() -> {
+                List<TaskManager.CancellableTaskInfo> infos = new ArrayList<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    infos.add(info);
+                    return true;
+                });
+                assertThat(infos.size(), is(1));
+                assertThat(infos.getFirst().hasOutstandingChildren(), is(false));
+            });
+
+            MockConnection connection = new MockConnection();
+            taskManager.registerChildConnection(cancellableParent.getId(), connection);
+
+            List<TaskManager.CancellableTaskInfo> infos = new ArrayList<>();
+            taskManager.forEachCancellableTask(1, info -> {
+                infos.add(info);
+                return true;
+            });
+            assertThat(infos.size(), is(1));
+            assertThat(infos.getFirst().hasOutstandingChildren(), is(true));
+        } finally {
+            taskManager.unregister(parentTask);
+        }
+    }
+
 }

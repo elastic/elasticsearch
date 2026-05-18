@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -24,24 +25,23 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 public class SourceIntervalsSourceTests extends ESTestCase {
 
-    private static final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER = context -> {
-        return docID -> Collections.<Object>singletonList(context.reader().document(docID).get("body"));
-    };
+    private static final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER =
+        context -> docID -> Collections.<Object>singletonList(context.reader().storedFields().document(docID).get("body"));
 
     public void testIntervals() throws IOException {
         final FieldType ft = new FieldType(TextField.TYPE_STORED);
@@ -111,7 +111,7 @@ public class SourceIntervalsSourceTests extends ESTestCase {
                 // Same test, but with a bad approximation now
                 source = new SourceIntervalsSource(
                     Intervals.term(new BytesRef("d")),
-                    new MatchAllDocsQuery(),
+                    Queries.ALL_DOCS_INSTANCE,
                     SOURCE_FETCHER_PROVIDER,
                     Lucene.STANDARD_ANALYZER
                 );

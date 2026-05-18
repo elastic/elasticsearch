@@ -11,9 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
@@ -38,24 +39,33 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     private final NativeController nativeController;
     private final String nodeName;
     private volatile Duration processConnectTimeout;
+    private volatile boolean modelGraphValidationEnabled;
 
     public NativePyTorchProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.nodeName = clusterService.getNodeName();
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
+        this.modelGraphValidationEnabled = MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED.get(env.settings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED, this::setModelGraphValidationEnabled);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
-        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
+        this.processConnectTimeout = processConnectTimeout.toDuration();
+    }
+
+    void setModelGraphValidationEnabled(boolean modelGraphValidationEnabled) {
+        this.modelGraphValidationEnabled = modelGraphValidationEnabled;
     }
 
     @Override
     public NativePyTorchProcess createProcess(
         TrainedModelDeploymentTask task,
         ExecutorService executorService,
+        TimeoutRunnable afterInStreamClose,
         Consumer<String> onProcessCrash
     ) {
         ProcessPipes processPipes = new ProcessPipes(
@@ -63,31 +73,32 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             NAMED_PIPE_HELPER,
             processConnectTimeout,
             PyTorchBuilder.PROCESS_NAME,
-            task.getModelId(),
+            task.getDeploymentId(),
             null,
             false,
             true,
             true,
             true,
-            false
+            false // We do not need a persist pipe. This is also why we use 3 threads per model assignment in the pytorch thread pool.
         );
 
         executeProcess(processPipes, task);
 
         NativePyTorchProcess process = new NativePyTorchProcess(
-            task.getModelId(),
+            task.getDeploymentId(),
             nativeController,
             processPipes,
             0,
             Collections.emptyList(),
+            afterInStreamClose,
             onProcessCrash
         );
 
         try {
             process.start(executorService);
         } catch (IOException | EsRejectedExecutionException e) {
-            String msg = "Failed to connect to pytorch process for job " + task.getModelId();
-            logger.error(msg);
+            String msg = "Failed to connect to pytorch process for job " + task.getDeploymentId();
+            logger.error(msg, e);
             try {
                 IOUtils.close(process);
             } catch (IOException ioe) {
@@ -99,12 +110,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
-        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
-            nativeController,
-            processPipes,
-            task.getParams().getInferenceThreads(),
-            task.getParams().getModelThreads()
-        );
+        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(nativeController, processPipes, task.getParams(), modelGraphValidationEnabled);
         try {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {

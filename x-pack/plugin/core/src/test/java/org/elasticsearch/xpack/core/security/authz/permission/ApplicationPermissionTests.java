@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +41,7 @@ public class ApplicationPermissionTests extends ESTestCase {
 
     private ApplicationPrivilege storePrivilege(String app, String name, String... patterns) {
         store.add(new ApplicationPrivilegeDescriptor(app, name, Sets.newHashSet(patterns), Collections.emptyMap()));
-        return new ApplicationPrivilege(app, name, patterns);
+        return ApplicationPrivilegeTests.createPrivilege(app, name, patterns);
     }
 
     public void testCheckSimplePermission() {
@@ -163,6 +164,33 @@ public class ApplicationPermissionTests extends ESTestCase {
         final Set<ApplicationPrivilege> privileges = ApplicationPrivilege.get(application, names, store);
         assertThat(privileges, hasSize(1));
         return privileges.iterator().next();
+    }
+
+    public void testGrantsLiteralAndPatternResources() {
+        final ApplicationPermission perm = buildPermission(app1All, "dashboard/*", "user/12345");
+
+        // Literal resources (fast path via isLiteralPattern → grantsResource predicate)
+        assertThat("literal match under wildcard grant", perm.grants(app1All, "dashboard/1"), equalTo(true));
+        assertThat("literal match on exact grant", perm.grants(app1All, "user/12345"), equalTo(true));
+        assertThat("literal non-match", perm.grants(app1All, "report/1"), equalTo(false));
+        assertThat("literal non-match on partial", perm.grants(app1All, "dashboard"), equalTo(false));
+        assertThat("literal with / in non-leading position", perm.grants(app1All, "dash/board/nested"), equalTo(false));
+
+        // Wildcard * resources (old path via Automatons.patterns → subsetOf)
+        assertThat("wildcard subset of grant", perm.grants(app1All, "dashboard/*"), equalTo(true));
+        assertThat("wildcard broader than grant", perm.grants(app1All, "*"), equalTo(false));
+        assertThat("wildcard non-match", perm.grants(app1All, "report/*"), equalTo(false));
+
+        // Single-char wildcard ? resources (old path)
+        assertThat("? matching single char", perm.grants(app1All, "dashboard/?"), equalTo(true));
+        assertThat("? non-match on multi-char", perm.grants(app1All, "user/1234?"), equalTo(false));
+
+        // Escape \\ resources (old path)
+        assertThat("escaped star is literal", perm.grants(app1All, "dashboard/\\*"), equalTo(true));
+
+        // Lucene regex /.../ resources (old path)
+        assertThat("regex match", perm.grants(app1All, "/dashboard\\/.*/"), equalTo(true));
+        assertThat("regex non-match", perm.grants(app1All, "/report\\/.*/"), equalTo(false));
     }
 
     private ApplicationPermission buildPermission(ApplicationPrivilege privilege, String... resources) {

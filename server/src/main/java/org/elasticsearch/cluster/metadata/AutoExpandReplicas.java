@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Setting;
@@ -18,7 +20,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 
@@ -27,7 +30,8 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isInd
  * This setting or rather it's value is expanded into a min and max value which requires special handling
  * based on the number of datanodes in the cluster. This class handles all the parsing and streamlines the access to these values.
  */
-public final class AutoExpandReplicas {
+public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
+
     // the value we recognize in the "max" position to mean all the nodes
     private static final String ALL_NODES_VALUE = "all";
 
@@ -78,11 +82,7 @@ public final class AutoExpandReplicas {
         return new AutoExpandReplicas(min, max, true);
     }
 
-    private final int minReplicas;
-    private final int maxReplicas;
-    private final boolean enabled;
-
-    private AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
+    public AutoExpandReplicas {
         if (minReplicas > maxReplicas) {
             throw new IllegalArgumentException(
                 "["
@@ -93,47 +93,34 @@ public final class AutoExpandReplicas {
                     + maxReplicas
             );
         }
-        this.minReplicas = minReplicas;
-        this.maxReplicas = maxReplicas;
-        this.enabled = enabled;
-    }
-
-    int getMinReplicas() {
-        return minReplicas;
-    }
-
-    int getMaxReplicas(int numDataNodes) {
-        return Math.min(maxReplicas, numDataNodes - 1);
     }
 
     public boolean expandToAllNodes() {
         return maxReplicas == Integer.MAX_VALUE;
     }
 
-    private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
-        if (enabled) {
-            int numMatchingDataNodes = 0;
-            for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
-                Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, discoveryNode, allocation);
-                if (decision.type() != Decision.Type.NO) {
-                    numMatchingDataNodes++;
-                }
-            }
-
-            final int min = getMinReplicas();
-            final int max = getMaxReplicas(numMatchingDataNodes);
-            int numberOfReplicas = numMatchingDataNodes - 1;
-            if (numberOfReplicas < min) {
-                numberOfReplicas = min;
-            } else if (numberOfReplicas > max) {
-                numberOfReplicas = max;
-            }
-
-            if (numberOfReplicas >= min && numberOfReplicas <= max) {
-                return OptionalInt.of(numberOfReplicas);
+    public int getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
+        assert enabled : "should only be called when enabled";
+        int numMatchingDataNodes = 0;
+        for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
+            Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, discoveryNode, allocation);
+            if (decision.type() != Decision.Type.NO) {
+                numMatchingDataNodes++;
             }
         }
-        return OptionalInt.empty();
+        return calculateDesiredNumberOfReplicas(numMatchingDataNodes);
+    }
+
+    // package private for testing
+    int calculateDesiredNumberOfReplicas(int numMatchingDataNodes) {
+        int numberOfReplicas = numMatchingDataNodes - 1;
+        // Make sure number of replicas is always between min and max
+        if (numberOfReplicas < minReplicas) {
+            numberOfReplicas = minReplicas;
+        } else if (numberOfReplicas > maxReplicas) {
+            numberOfReplicas = maxReplicas;
+        }
+        return numberOfReplicas;
     }
 
     @Override
@@ -147,17 +134,38 @@ public final class AutoExpandReplicas {
      * The map has the desired number of replicas as key and the indices to update as value, as this allows the result
      * of this method to be directly applied to RoutingTable.Builder#updateNumberOfReplicas.
      */
-    public static Map<Integer, List<String>> getAutoExpandReplicaChanges(Metadata metadata, RoutingAllocation allocation) {
+    public static Map<Integer, List<String>> getAutoExpandReplicaChanges(
+        ProjectMetadata project,
+        Supplier<RoutingAllocation> allocationSupplier
+    ) {
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
-
-        for (final IndexMetadata indexMetadata : metadata) {
+        // RoutingAllocation is fairly expensive to compute, only lazy create it via the supplier if we actually need it
+        RoutingAllocation allocation = null;
+        for (final IndexMetadata indexMetadata : project) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
-                AutoExpandReplicas autoExpandReplicas = SETTING.get(indexMetadata.getSettings());
-                autoExpandReplicas.getDesiredNumberOfReplicas(indexMetadata, allocation).ifPresent(numberOfReplicas -> {
-                    if (numberOfReplicas != indexMetadata.getNumberOfReplicas()) {
-                        nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetadata.getIndex().getName());
+                AutoExpandReplicas autoExpandReplicas = indexMetadata.getAutoExpandReplicas();
+                // Make sure auto-expand is applied only when configured, and entirely disabled in stateless
+                if (autoExpandReplicas.enabled() == false) {
+                    continue;
+                }
+                // Special case for stateless indices: auto-expand is disabled, unless number_of_replicas has been set
+                // manually to 0 via index settings, which needs to be converted to 1.
+                if (Objects.equals(
+                    indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
+                    "stateless"
+                )) {
+                    if (indexMetadata.getNumberOfReplicas() == 0) {
+                        nrReplicasChanged.computeIfAbsent(1, ArrayList::new).add(indexMetadata.getIndex().getName());
                     }
-                });
+                    continue;
+                }
+                if (allocation == null) {
+                    allocation = allocationSupplier.get();
+                }
+                int numberOfReplicas = autoExpandReplicas.getDesiredNumberOfReplicas(indexMetadata, allocation);
+                if (numberOfReplicas != indexMetadata.getNumberOfReplicas()) {
+                    nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetadata.getIndex().getName());
+                }
             }
         }
         return nrReplicasChanged;

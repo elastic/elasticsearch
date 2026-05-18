@@ -1,0 +1,23 @@
+{
+    "properties" : {
+        "host" : {
+            "type" : "keyword"
+        },
+        "host_group" : {
+          "type" : "text",
+          "store": true
+        },
+        "description" : {
+          "type" : "text"
+        },
+        "card" : {
+            "type" : "keyword"
+        },
+        "ip0" : {
+            "type" : "ip"
+        },
+        "ip1" : {
+            "type" : "ip"
+        }
+    }
+}

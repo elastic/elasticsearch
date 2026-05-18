@@ -1,0 +1,22 @@
+{
+  "index_patterns": [
+    ".profiling-executables*"
+  ],
+  "composed_of": [
+    "profiling-executables",
+    "profiling-executables@custom",
+    "profiling-ilm",
+    "profiling-hot-tier",
+    "profiling-ilm@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-executables@custom",
+    "profiling-ilm@custom"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for .profiling-executables",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

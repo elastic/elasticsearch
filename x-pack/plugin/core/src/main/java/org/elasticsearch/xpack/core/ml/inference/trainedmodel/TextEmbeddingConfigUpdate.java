@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -26,6 +27,8 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.T
 public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedXContentObject {
 
     public static final String NAME = TextEmbeddingConfig.NAME;
+
+    public static final TextEmbeddingConfigUpdate EMPTY_INSTANCE = new TextEmbeddingConfigUpdate(null, null);
 
     public static TextEmbeddingConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
@@ -96,25 +99,11 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
-            return originalConfig;
+    public TransportVersion getMinimalSupportedVersion() {
+        if (getTokenizationUpdate() instanceof ByteLevelBpeTokenizationUpdate) {
+            return ByteLevelBpeTokenization.ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED;
         }
-
-        if (originalConfig instanceof TextEmbeddingConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        TextEmbeddingConfig embeddingConfig = (TextEmbeddingConfig) originalConfig;
-        return new TextEmbeddingConfig(
-            embeddingConfig.getVocabularyConfig(),
-            tokenizationUpdate == null ? embeddingConfig.getTokenization() : tokenizationUpdate.apply(embeddingConfig.getTokenization()),
-            resultsField == null ? embeddingConfig.getResultsField() : resultsField
-        );
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -160,6 +149,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
             return this;
         }
 
+        @Override
         public TextEmbeddingConfigUpdate build() {
             return new TextEmbeddingConfigUpdate(resultsField, tokenizationUpdate);
         }

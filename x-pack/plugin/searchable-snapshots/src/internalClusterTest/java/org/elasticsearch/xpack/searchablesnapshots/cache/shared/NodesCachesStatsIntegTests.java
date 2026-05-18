@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -15,21 +17,20 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheRequest;
-import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
-import java.util.Locale;
-import java.util.stream.Collectors;
-
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     public void testNodesCachesStats() throws Exception {
@@ -45,7 +47,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         // since this test verifies the cache stats on specific nodes
         ensureStableCluster(nodeNames.length);
 
-        final String index = getTestName().toLowerCase(Locale.ROOT);
+        final String index = randomIdentifier();
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
         final int nbDocs = randomIntBetween(1_000, 10_000);
@@ -60,7 +62,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         final String snapshot = "snapshot";
         createFullSnapshot(repository, snapshot);
 
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
 
         final String mountedIndex = "mounted-index";
         mountSnapshot(repository, snapshot, index, mountedIndex, Settings.EMPTY, Storage.SHARED_CACHE);
@@ -80,9 +82,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final String nodeName = nodeCachesStats.getNode().getName();
 
             final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-            final long totalFsSize = client().admin()
-                .cluster()
-                .prepareNodesStats(nodeId)
+            final long totalFsSize = clusterAdmin().prepareNodesStats(nodeId)
                 .clear()
                 .setFs(true)
                 .get()
@@ -93,43 +93,42 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 .getTotal()
                 .getBytes();
 
-            final long cacheSize = FrozenCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
+            final long cacheSize = SharedBlobCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
             assertThat(nodeCachesStats.getSize(), equalTo(cacheSize));
 
-            final long regionSize = FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
-            assertThat(nodeCachesStats.getRegionSize(), equalTo(regionSize));
+            final long regionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
 
+            assertThat(nodeCachesStats.getRegionSize(), equalTo(regionSize));
             assertThat(nodeCachesStats.getNumRegions(), equalTo(Math.toIntExact(cacheSize / regionSize)));
             assertThat(nodeCachesStats.getWrites(), equalTo(0L));
             assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
             assertThat(nodeCachesStats.getReads(), equalTo(0L));
             assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-            assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
         }
 
+        // Make sure we have at least one query that matches docs on all shards.
+        prepareSearch(mountedIndex).addAggregation(
+            AggregationBuilders.global("all").subAggregation(AggregationBuilders.histogram("by_id").field("id").interval(100))
+        ).setSize(0).get().decRef();
+
         for (int i = 0; i < 20; i++) {
-            client().prepareSearch(mountedIndex)
-                .setQuery(
-                    randomBoolean()
-                        ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
-                        : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-                )
-                .setSize(randomIntBetween(0, 1000))
-                .get();
+            prepareSearch(mountedIndex).setQuery(
+                randomBoolean()
+                    ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
+                    : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
+            ).setSize(randomIntBetween(0, 1000)).get().decRef();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
-        final ClearSearchableSnapshotsCacheResponse clearCacheResponse = client().execute(
+        final BroadcastResponse clearCacheResponse = client().execute(
             ClearSearchableSnapshotsCacheAction.INSTANCE,
             new ClearSearchableSnapshotsCacheRequest(mountedIndex)
         ).actionGet();
         assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
         assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
 
-        final String[] dataNodesWithFrozenShards = client().admin()
-            .cluster()
-            .prepareState()
+        final String[] nodesWithFrozenShards = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .routingTable()
@@ -141,30 +140,60 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             .collect(toSet())
             .toArray(String[]::new);
 
-        final NodesCachesStatsResponse response = client().execute(
+        final var response = client().execute(
             TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
-            new NodesRequest(dataNodesWithFrozenShards)
+            new NodesRequest(nodesWithFrozenShards)
         ).actionGet();
-        assertThat(
-            response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
-            containsInAnyOrder(dataNodesWithFrozenShards)
-        );
+        assertThat(response.getNodes().stream().map(r -> r.getNode().getId()).toList(), containsInAnyOrder(nodesWithFrozenShards));
         assertThat(response.hasFailures(), equalTo(false));
 
-        for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
-            if (nodeCachesStats.getNumRegions() > 0) {
-                assertThat(nodeCachesStats.getWrites(), greaterThan(0L));
-                assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
-                assertThat(nodeCachesStats.getReads(), greaterThan(0L));
-                assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
-                assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
-            } else {
-                assertThat(nodeCachesStats.getWrites(), equalTo(0L));
-                assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
-                assertThat(nodeCachesStats.getReads(), equalTo(0L));
-                assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-                assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
-            }
-        }
+        // include all nodes' stats in the assertion message so that any failure
+        // provides enough context to debug edge cases not captured in #129863
+        final var allNodesStats = String.join(
+            ",",
+            response.getNodes()
+                .stream()
+                .map(
+                    nodeStats -> format(
+                        "[node=[%s], numRegions=[%d], writes=[%d], bytesWritten=[%d], reads=[%d], bytesRead=[%d], evictions=[%d]]",
+                        nodeStats.getNode().getName(),
+                        nodeStats.getNumRegions(),
+                        nodeStats.getWrites(),
+                        nodeStats.getBytesWritten(),
+                        nodeStats.getReads(),
+                        nodeStats.getBytesRead(),
+                        nodeStats.getEvictions()
+                    )
+                )
+                .toList()
+        );
+        response.getNodes().forEach(nodeStats -> {
+            final var nodeName = nodeStats.getNode().getName();
+            assertThat(
+                format("unexpected write stats for node [%s], all stats: [%s]", nodeName, allNodesStats),
+                nodeStats.getWrites(),
+                nodeStats.getNumRegions() > 0 ? greaterThan(0L) : equalTo(0L)
+            );
+            assertThat(
+                format("unexpected bytes written stats for node [%s], all stats: [%s]", nodeName, allNodesStats),
+                nodeStats.getBytesWritten(),
+                nodeStats.getNumRegions() > 0 ? greaterThan(0L) : equalTo(0L)
+            );
+            assertThat(
+                format("unexpected read stats for node [%s], all stats: [%s]", nodeName, allNodesStats),
+                nodeStats.getReads(),
+                nodeStats.getNumRegions() > 0 ? greaterThan(0L) : equalTo(0L)
+            );
+            assertThat(
+                format("unexpected bytes read stats for node [%s], all stats: [%s]", nodeName, allNodesStats),
+                nodeStats.getBytesRead(),
+                nodeStats.getNumRegions() > 0 ? greaterThan(0L) : equalTo(0L)
+            );
+            assertThat(
+                format("unexpected evictions stats for node [%s], all stats: [%s]", nodeName, allNodesStats),
+                nodeStats.getEvictions(),
+                nodeStats.getNumRegions() > 0 ? greaterThan(0L) : equalTo(0L)
+            );
+        });
     }
 }

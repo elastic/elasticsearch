@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.stats;
 
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 
 import java.util.Collections;
@@ -47,7 +48,7 @@ public class Metrics {
     public Metrics() {
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
-            Map<OperationType, CounterMetric> metricsMap = new LinkedHashMap<>(OperationType.values().length);
+            Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);
             for (OperationType type : OperationType.values()) {
                 metricsMap.put(type, new CounterMetric());
             }
@@ -56,7 +57,7 @@ public class Metrics {
         }
         opsByTypeMetrics = Collections.unmodifiableMap(qMap);
 
-        Map<FeatureMetric, CounterMetric> fMap = new LinkedHashMap<>(FeatureMetric.values().length);
+        Map<FeatureMetric, CounterMetric> fMap = Maps.newLinkedHashMapWithExpectedSize(FeatureMetric.values().length);
         for (FeatureMetric featureMetric : FeatureMetric.values()) {
             fMap.put(featureMetric, new CounterMetric());
         }

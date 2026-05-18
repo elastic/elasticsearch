@@ -1,0 +1,183 @@
+---
+"get cluster stats returns synonym sets stats":
+
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason:  "synonym sets stats are added for v8.10.0"
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.analysis.synonyms: 0 }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            analysis:
+              filter:
+                bigram_max_size:
+                  type: length
+                  max: 16
+                  min: 0
+                synonyms_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+                other_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar baz"]
+
+                synonyms_path_filter:
+                  type: synonym
+                  synonyms_path: "/a/reused/path"
+
+                other_synonyms_path_filter:
+                  type: synonym_graph
+                  synonyms_path: "/a/different/path"
+
+                another_synonyms_path_filter:
+                  type: synonym_graph
+                  synonyms_path: "/another/different/path"
+
+                synonyms_set_filter:
+                  type: synonym_graph
+                  synonyms_set: reused-synonym-set
+
+
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            analysis:
+              filter:
+                en-stem-filter:
+                  name: light_english
+                  type: stemmer
+                  language: light_english
+
+                other_synonyms_filter:
+                  type: synonym
+                  synonyms_set: another-synonym-set
+
+                a_repeated_synonyms_set_filter:
+                  type: synonym
+                  synonyms_set: reused-synonym-set
+
+                repeated_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+
+
+  - do:
+      indices.create:
+        index: test-index3
+        body:
+          settings:
+            analysis:
+              filter:
+                other_synonyms_filter:
+                  type: synonym
+                  synonyms_set: a-different-synonym-set
+
+                a_repeated_synonyms_set_filter:
+                  type: synonym
+                  synonyms_set: reused-synonym-set
+
+                more_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.analysis.synonyms: 3 }
+  - match: { indices.analysis.synonyms.inline.count: 4 }
+  - match: { indices.analysis.synonyms.inline.index_count: 3 }
+  - match: { indices.analysis.synonyms.paths.count: 3 }
+  - match: { indices.analysis.synonyms.paths.index_count: 1 }
+  - match: { indices.analysis.synonyms.sets.count: 3 }
+  - match: { indices.analysis.synonyms.sets.index_count: 3 }
+
+---
+"get cluster stats returns multiple synonym graph filter stats":
+
+  - requires:
+      cluster_features: ["cluster.stats.multiple_synonym_graph_filters"]
+      reason: "multiple synonym graph filter stats"
+
+  # Create synonym sets so that synonyms_set + updateable filters can be instantiated
+  - do:
+      synonyms.put_synonym:
+        id: test-set-1
+        body:
+          synonyms_set:
+            - synonyms: "foo, bar"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-set-2
+        body:
+          synonyms_set:
+            - synonyms: "baz, qux"
+
+  # Analyzer with two synonym_graph filters backed by synonyms_set (SHOULD count)
+  - do:
+      indices.create:
+        index: test-multiple-synset-graph
+        body:
+          settings:
+            analysis:
+              filter:
+                syn_graph_1:
+                  type: synonym_graph
+                  synonyms_set: test-set-1
+                  updateable: true
+                syn_graph_2:
+                  type: synonym_graph
+                  synonyms_set: test-set-2
+                  updateable: true
+              analyzer:
+                double_synset_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ "syn_graph_1", "syn_graph_2" ]
+          mappings:
+            properties:
+              content:
+                type: text
+                analyzer: standard
+                search_analyzer: double_synset_analyzer
+
+  # Analyzer with two inline synonym_graph filters (SHOULD also count)
+  - do:
+      indices.create:
+        index: test-inline-graph
+        body:
+          settings:
+            analysis:
+              filter:
+                inline_sg_1:
+                  type: synonym_graph
+                  synonyms: [ "foo, bar" ]
+                inline_sg_2:
+                  type: synonym_graph
+                  synonyms: [ "baz, qux" ]
+              analyzer:
+                double_inline_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ "inline_sg_1", "inline_sg_2" ]
+
+  - do:
+      cluster.stats: {}
+
+  # Both indices should count: 2 analyzers, 2 indices
+  - match: { indices.analysis.multiple_synonym_graph_filters.analyzer_count: 2 }
+  - match: { indices.analysis.multiple_synonym_graph_filters.index_count: 2 }

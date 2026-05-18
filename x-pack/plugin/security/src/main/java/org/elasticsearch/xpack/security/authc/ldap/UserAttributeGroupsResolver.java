@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
@@ -57,7 +56,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
             final List<String> groups = attributes.stream()
                 .filter((attr) -> attr.getName().equals(attribute))
                 .flatMap(attr -> Arrays.stream(attr.getValues()))
-                .collect(Collectors.toUnmodifiableList());
+                .toList();
             listener.onResponse(groups);
         } else {
             searchForEntry(

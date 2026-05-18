@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
@@ -25,13 +25,14 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -48,19 +49,20 @@ public class ServiceAccountService {
 
     private final Client client;
     private final IndexServiceAccountTokenStore indexServiceAccountTokenStore;
-    private final CompositeServiceAccountTokenStore compositeServiceAccountTokenStore;
+    private final ServiceAccountTokenStore readOnlyServiceAccountTokenStore;
+
+    public ServiceAccountService(Client client, ServiceAccountTokenStore readOnlyServiceAccountTokenStore) {
+        this(client, readOnlyServiceAccountTokenStore, null);
+    }
 
     public ServiceAccountService(
         Client client,
-        FileServiceAccountTokenStore fileServiceAccountTokenStore,
-        IndexServiceAccountTokenStore indexServiceAccountTokenStore
+        ServiceAccountTokenStore readOnlyServiceAccountTokenStore,
+        @Nullable IndexServiceAccountTokenStore indexServiceAccountTokenStore
     ) {
         this.client = client;
+        this.readOnlyServiceAccountTokenStore = readOnlyServiceAccountTokenStore;
         this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
-        this.compositeServiceAccountTokenStore = new CompositeServiceAccountTokenStore(
-            List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
-            client.threadPool().getThreadContext()
-        );
     }
 
     public static boolean isServiceAccountPrincipal(String principal) {
@@ -133,7 +135,7 @@ public class ServiceAccountService {
             return;
         }
 
-        compositeServiceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+        readOnlyServiceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
             if (storeAuthenticationResult.isSuccess()) {
                 listener.onResponse(
                     createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName)
@@ -151,26 +153,35 @@ public class ServiceAccountService {
         CreateServiceAccountTokenRequest request,
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
+        if (indexServiceAccountTokenStore == null) {
+            throw new IllegalStateException("Can't create token because index service account token store not configured");
+        }
         indexServiceAccountTokenStore.createToken(authentication, request, listener);
     }
 
     public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        if (indexServiceAccountTokenStore == null) {
+            throw new IllegalStateException("Can't delete token because index service account token store not configured");
+        }
         indexServiceAccountTokenStore.deleteToken(request, listener);
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
+        if (indexServiceAccountTokenStore == null) {
+            throw new IllegalStateException("Can't find tokens because index service account token store not configured");
+        }
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         findIndexTokens(accountId, listener);
     }
 
-    // TODO: remove since authentication is dealt centrally by AuthenticationContext and friends
-    public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert authentication.isAuthenticatedWithServiceAccount() : "authentication is not for service account: " + authentication;
-        final String principal = authentication.getUser().principal();
+    // TODO: No production code usage
+    public static void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
+        assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
+        final String principal = authentication.getEffectiveSubject().getUser().principal();
         getRoleDescriptorForPrincipal(principal, listener);
     }
 
-    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
+    public static void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(
@@ -181,29 +192,21 @@ public class ServiceAccountService {
         listener.onResponse(account.roleDescriptor());
     }
 
-    private Authentication createAuthentication(
+    private static Authentication createAuthentication(
         ServiceAccount account,
         ServiceAccountToken token,
         TokenSource tokenSource,
         String nodeName
     ) {
         final User user = account.asUser();
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
-            ServiceAccountSettings.REALM_NAME,
-            ServiceAccountSettings.REALM_TYPE,
-            nodeName
-        );
-        return new Authentication(
+        return Authentication.newServiceAccountAuthentication(
             user,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
+            nodeName,
             Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT))
         );
     }
 
-    private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
+    private static ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
         return new ElasticsearchSecurityException(
             "failed to authenticate service account [{}] with token name [{}]",
             RestStatus.UNAUTHORIZED,
@@ -213,10 +216,9 @@ public class ServiceAccountService {
     }
 
     private void findIndexTokens(ServiceAccountId accountId, ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        indexServiceAccountTokenStore.findTokensFor(
-            accountId,
-            ActionListener.wrap(indexTokenInfos -> { findFileTokens(indexTokenInfos, accountId, listener); }, listener::onFailure)
-        );
+        indexServiceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(indexTokenInfos -> {
+            findFileTokens(indexTokenInfos, accountId, listener);
+        }, listener::onFailure));
     }
 
     private void findFileTokens(

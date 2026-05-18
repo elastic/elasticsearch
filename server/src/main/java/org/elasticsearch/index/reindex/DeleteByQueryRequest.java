@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -39,7 +40,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *     <li>it's results won't be visible until the index is refreshed.</li>
  * </ul>
  */
-public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
+public class DeleteByQueryRequest extends AbstractBulkByPaginatedSearchRequest<DeleteByQueryRequest>
     implements
         IndicesRequest.Replaceable,
         ToXContentObject {
@@ -60,7 +61,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         super(in);
     }
 
-    private DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
+    DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
         super(search, setDefaults);
         // Delete-By-Query does not require the source
         if (setDefaults) {
@@ -124,6 +125,11 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
@@ -138,8 +144,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
-    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices);
+    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices, activeSlices);
     }
 
     @Override

@@ -11,17 +11,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
-import java.util.function.UnaryOperator;
-
 /**
  * Rules that apply transformation to a tree. In addition, performs
  * type filtering so that a rule that the rule implementation doesn't
  * have to manually filter.
  * <p>
  * Rules <strong>could</strong> could be built as lambdas but most
- * rules are much larger so we keep them as full blown subclasses.
+ * rules are much larger, so we keep them as full-blown subclasses.
  */
-public abstract class Rule<E extends T, T extends Node<T>> implements UnaryOperator<T> {
+public abstract class Rule<E extends T, T extends Node<T>> {
 
     protected Logger log = LogManager.getLogger(getClass());
 
@@ -44,10 +42,10 @@ public abstract class Rule<E extends T, T extends Node<T>> implements UnaryOpera
         return name;
     }
 
-    protected abstract T rule(E e);
-
     @Override
     public String toString() {
         return name();
     }
+
+    public abstract T apply(T t);
 }

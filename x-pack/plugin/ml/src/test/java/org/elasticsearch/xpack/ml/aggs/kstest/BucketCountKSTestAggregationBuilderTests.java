@@ -15,9 +15,8 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,7 +31,7 @@ public class BucketCountKSTestAggregationBuilderTests extends BasePipelineAggreg
 
     @Override
     protected List<SearchPlugin> plugins() {
-        return Collections.singletonList(new MachineLearning(Settings.EMPTY));
+        return List.of(MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY));
     }
 
     @Override
@@ -89,7 +88,7 @@ public class BucketCountKSTestAggregationBuilderTests extends BasePipelineAggreg
                     new SamplingMethod.UpperTail()
                 )
             ),
-            containsString("must be a multi-bucket aggregation for aggregation")
+            containsString("Unable to find unqualified multi-bucket aggregation in buckets_path")
         );
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.update;
@@ -11,12 +12,15 @@ package org.elasticsearch.update;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -299,7 +303,9 @@ public class UpdateNoopIT extends ESIntegTestCase {
 
     private void updateAndCheckSource(long expectedSeqNo, long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
         UpdateResponse updateResponse = update(detectNoop, expectedSeqNo, expectedVersion, xContentBuilder);
-        assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), BytesReference.bytes(xContentBuilder).utf8ToString());
+        Map<String, Object> actual = XContentHelper.convertToMap(updateResponse.getGetResult().sourceRef(), false, XContentType.JSON).v2();
+        Map<String, Object> expected = XContentHelper.convertToMap(BytesReference.bytes(xContentBuilder), false, XContentType.JSON).v2();
+        assertEquals(expected, actual);
     }
 
     private UpdateResponse update(Boolean detectNoop, long expectedSeqNo, long expectedVersion, XContentBuilder xContentBuilder) {
@@ -318,9 +324,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
     }
 
     private long totalNoopUpdates() {
-        return client().admin()
-            .indices()
-            .prepareStats("test")
+        return indicesAdmin().prepareStats("test")
             .setIndexing(true)
             .get()
             .getIndex("test")

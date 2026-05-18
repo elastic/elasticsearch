@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis;
@@ -14,15 +15,21 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 
 import java.io.Reader;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public final class ReloadableCustomAnalyzer extends Analyzer implements AnalyzerComponentsProvider {
 
     private volatile AnalyzerComponents components;
 
     private CloseableThreadLocal<AnalyzerComponents> storedComponents = new CloseableThreadLocal<>();
+
+    // external resources that this analyzer is based on
+    private final Set<String> resources;
 
     private final int positionIncrementGap;
 
@@ -53,7 +60,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         }
     };
 
-    ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
+    public ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
         super(UPDATE_STRATEGY);
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME) == false) {
             throw new IllegalArgumentException(
@@ -63,11 +70,29 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         this.components = components;
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
+
+        Set<String> resourcesTemp = new HashSet<>();
+        for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
+            if (tokenFilter.getResourceName() != null) {
+                resourcesTemp.add(tokenFilter.getResourceName());
+            }
+        }
+        resources = resourcesTemp.isEmpty() ? null : Set.copyOf(resourcesTemp);
     }
 
     @Override
     public AnalyzerComponents getComponents() {
         return this.components;
+    }
+
+    public boolean usesResource(String resourceName) {
+        if (resourceName == null) {
+            return true;
+        }
+        if (resources == null) {
+            return false;
+        }
+        return resources.contains(resourceName);
     }
 
     @Override
@@ -113,7 +138,14 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
-        AnalyzerComponents components = AnalyzerComponents.createComponents(name, settings, tokenizers, charFilters, tokenFilters);
+        AnalyzerComponents components = AnalyzerComponents.createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            name,
+            settings,
+            tokenizers,
+            charFilters,
+            tokenFilters
+        );
         this.components = components;
     }
 
@@ -133,7 +165,8 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        final AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents stored = getStoredComponents();
+        final AnalyzerComponents components = stored != null ? stored : getComponents();
         Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
@@ -144,7 +177,11 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        final AnalyzerComponents components = getStoredComponents();
+        AnalyzerComponents stored = getStoredComponents();
+        // AnalyzerWrapper subclasses that wrap this RCA bypass UPDATE_STRATEGY, so storedComponents
+        // may be unset; fall back to the volatile. initReader and createComponents may then see
+        // different versions, but char filters are never updateable so the difference is harmless.
+        final AnalyzerComponents components = stored != null ? stored : getComponents();
         if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);

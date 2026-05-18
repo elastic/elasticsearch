@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -14,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,9 +22,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class IndexStorePluginTests extends ESTestCase {
 
@@ -110,25 +110,16 @@ public class IndexStorePluginTests extends ESTestCase {
             IllegalStateException.class,
             () -> new MockNode(settings, Arrays.asList(BarStorePlugin.class, FooStorePlugin.class))
         );
-        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
-            assertThat(
-                e,
-                hasToString(
-                    matches(
-                        "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values "
-                            + "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ "
-                            + "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)"
-                    )
+        assertThat(
+            e,
+            hasToString(
+                matchesRegex(
+                    "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values "
+                        + "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ "
+                        + "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)"
                 )
-            );
-        } else {
-            assertThat(
-                e,
-                hasToString(
-                    matches("java.lang.IllegalStateException: Duplicate key org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+")
-                )
-            );
-        }
+            )
+        );
     }
 
     public void testDuplicateIndexStoreRecoveryStateFactories() {
@@ -137,18 +128,6 @@ public class IndexStorePluginTests extends ESTestCase {
             IllegalStateException.class,
             () -> new MockNode(settings, Arrays.asList(FooCustomRecoveryStore.class, BarCustomRecoveryStore.class))
         );
-        if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
-            assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
-        } else {
-            assertThat(
-                e,
-                hasToString(
-                    matches(
-                        "java.lang.IllegalStateException: Duplicate key "
-                            + "org.elasticsearch.plugins.IndexStorePluginTests$RecoveryFactory@[\\w\\d]+"
-                    )
-                )
-            );
-        }
+        assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
     }
 }

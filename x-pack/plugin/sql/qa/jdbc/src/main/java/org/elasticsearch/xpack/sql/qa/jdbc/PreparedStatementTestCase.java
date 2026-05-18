@@ -12,6 +12,7 @@ import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -39,7 +40,9 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 import static org.hamcrest.Matchers.equalTo;
@@ -160,7 +163,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             versionSupportsDateNanos()
         );
 
-        long randomTimestampWitnNanos = randomTimeInNanos();
+        long randomTimestampWitnNanos = randomTimestampWithNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
@@ -192,7 +195,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             versionSupportsDateNanos()
         );
 
-        long randomTimestampWitnNanos = randomTimeInNanos();
+        long randomTimestampWitnNanos = randomTimestampWithNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
@@ -213,6 +216,14 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 }
             }
         }
+    }
+
+    private static long randomTimestampWithNanos() {
+        long randomTimestampWithNanos = randomTimeInNanos();
+        // Indexing will jiggle the value by adding -1, 0, 1. The query will truncate it from ns to ms and expect no match. If the
+        // jiggled value will round to no sub-ms fraction, the query will match. So ensure that won't happen.
+        randomTimestampWithNanos += (randomTimestampWithNanos % 1_000_000 < 10) ? 10 : 0;
+        return randomTimestampWithNanos;
     }
 
     public void testDate() throws IOException, SQLException {
@@ -411,6 +422,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
         int intVal = randomInt();
         long longVal = randomLong();
+        BigInteger bigIntegerVal = randomBigInteger();
         double doubleVal = randomDouble();
         float floatVal = randomFloat();
         boolean booleanVal = randomBoolean();
@@ -438,6 +450,26 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 assertEquals(new Tuple<>(BYTE.getName(), byteVal), execute(statement));
                 statement.setShort(1, shortVal);
                 assertEquals(new Tuple<>(SHORT.getName(), shortVal), execute(statement));
+            }
+        }
+    }
+
+    public void testSingleParameterUnsignedLong() throws SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
+
+        BigInteger bigIntegerVal = randomBigInteger();
+        long longVal = randomLong();
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT ?")) {
+
+                statement.setObject(1, bigIntegerVal);
+                assertEquals(new Tuple<>(UNSIGNED_LONG_TYPE_NAME, bigIntegerVal), execute(statement));
+
+                statement.setObject(1, longVal, JDBCType.BIGINT, 19);
+                assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
+                statement.setObject(1, Math.abs(longVal), JDBCType.BIGINT, 20);
+                assertEquals(new Tuple<>(UNSIGNED_LONG_TYPE_NAME, BigInteger.valueOf(Math.abs(longVal))), execute(statement));
             }
         }
     }

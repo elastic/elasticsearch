@@ -12,12 +12,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -27,7 +27,8 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     RepositoriesMeteringRequest,
     RepositoriesMeteringResponse,
     TransportRepositoriesStatsAction.RepositoriesNodeStatsRequest,
-    RepositoriesNodeMeteringResponse> {
+    RepositoriesNodeMeteringResponse,
+    Void> {
 
     private final RepositoriesService repositoriesService;
 
@@ -41,14 +42,11 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     ) {
         super(
             RepositoriesMeteringAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            RepositoriesMeteringRequest::new,
             RepositoriesNodeStatsRequest::new,
-            ThreadPool.Names.SAME,
-            RepositoriesNodeMeteringResponse.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.repositoriesService = repositoriesService;
     }
@@ -77,7 +75,7 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
         return new RepositoriesNodeMeteringResponse(clusterService.localNode(), repositoriesService.repositoriesStats());
     }
 
-    static final class RepositoriesNodeStatsRequest extends TransportRequest {
+    static final class RepositoriesNodeStatsRequest extends AbstractTransportRequest {
         RepositoriesNodeStatsRequest() {}
 
         RepositoriesNodeStatsRequest(StreamInput in) throws IOException {

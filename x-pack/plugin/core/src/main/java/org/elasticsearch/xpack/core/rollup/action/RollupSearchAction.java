@@ -18,7 +18,7 @@ public class RollupSearchAction extends ActionType<SearchResponse> {
     public static final String NAME = "indices:data/read/xpack/rollup/search";
 
     private RollupSearchAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME);
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {

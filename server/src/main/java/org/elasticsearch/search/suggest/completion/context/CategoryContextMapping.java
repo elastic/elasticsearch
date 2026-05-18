@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion.context;
@@ -13,6 +14,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -28,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A {@link ContextMapping} that uses a simple string as a criteria
@@ -126,8 +127,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     public Set<String> parseContext(LuceneDocument document) {
         Set<String> values = null;
         if (fieldName != null) {
-            IndexableField[] fields = document.getFields(fieldName);
-            values = new HashSet<>(fields.length);
+            List<IndexableField> fields = document.getFields(fieldName);
+            values = Sets.newHashSetWithExpectedSize(fields.size());
             // TODO we should be checking mapped field types, not lucene field types
             for (IndexableField field : fields) {
                 if (field instanceof SortedDocValuesField || field instanceof SortedSetDocValuesField || field instanceof StoredField) {
@@ -174,7 +175,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         internalInternalQueryContexts.addAll(
             queryContexts.stream()
                 .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix()))
-                .collect(Collectors.toList())
+                .toList()
         );
         return internalInternalQueryContexts;
     }

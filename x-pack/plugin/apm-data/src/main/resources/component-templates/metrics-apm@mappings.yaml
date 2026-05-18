@@ -1,0 +1,13 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default mappings for metrics-apm.* data streams
+  managed: true
+template:
+  mappings:
+    properties:
+      system.process.cpu.start_time:
+        type: date
+      processor.event:
+        type: constant_keyword
+        value: metric

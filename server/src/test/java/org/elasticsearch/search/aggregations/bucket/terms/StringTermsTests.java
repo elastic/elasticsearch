@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -34,19 +36,14 @@ public class StringTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected List<InternalTerms<?, ?>> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalTerms<?, ?>> randomResultsToReduce(String name, int size) {
         List<InternalTerms<?, ?>> inputs = new ArrayList<>();
         BytesRef[] dict = generateRandomDict();
         for (int i = 0; i < size; i++) {
             InternalTerms<?, ?> t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(dict, name);
             inputs.add(t);
         }
-        return inputs;
-    }
-
-    @Override
-    protected Class<ParsedStringTerms> implementationClass() {
-        return ParsedStringTerms.class;
+        return new BuilderAndToReduce<>(mockBuilder(inputs), inputs);
     }
 
     @Override
@@ -86,7 +83,7 @@ public class StringTermsTests extends InternalTermsTestCase {
                 }
                 case 8 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
@@ -121,7 +118,7 @@ public class StringTermsTests extends InternalTermsTestCase {
                 case 2 -> minDocCount += between(1, 100);
                 case 3 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }

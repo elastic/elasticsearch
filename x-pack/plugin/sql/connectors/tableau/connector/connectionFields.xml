@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  ~ Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+  ~ or more contributor license agreements. Licensed under the Elastic License
+  ~ 2.0; you may not use this file except in compliance with the Elastic License
+  ~ 2.0.
+  -->
+
+<connection-fields>
+
+    <field name="server" label="Server" category="endpoint" value-type="string" />
+
+    <field name="port" label="Port" category="endpoint" value-type="string" default-value="9200"/>
+
+    <field name="authentication" label="Authentication" category="authentication" value-type="string" editable="false" default-value="auth-user-pass" />
+
+    <field name="username" label="Username" category="authentication" value-type="string" />
+    <field name="password" label="Password" category="authentication" value-type="string" secure="true" />
+
+    <field name="sslmode" label="Require SSL" value-type="boolean" category="general" default-value="" >
+        <boolean-options>
+            <false-value value="" />
+            <true-value value="require" />
+        </boolean-options>
+    </field>
+
+    <field name="vendor1" value-type="string" category="general" label="Additional settings" optional="true"/>
+
+</connection-fields>

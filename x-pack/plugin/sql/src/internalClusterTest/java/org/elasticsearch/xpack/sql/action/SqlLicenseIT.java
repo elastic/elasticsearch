@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -23,7 +23,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -37,10 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37320")
 public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 
     @Before
     public void resetLicensing() throws Exception {
@@ -61,8 +56,10 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Enable http so we can test JDBC licensing because only exists on the REST layer.
-        String httpPlugin = randomBoolean() ? Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME : NioTransportPlugin.NIO_TRANSPORT_NAME;
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(NetworkModule.HTTP_TYPE_KEY, httpPlugin).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
+            .build();
     }
 
     private static OperationMode randomValidSqlLicenseType() {
@@ -114,12 +111,12 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").get()
+            new SqlQueryRequestBuilder(client()).query("SELECT * FROM test")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
 
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").get();
         assertThat(response.size(), Matchers.equalTo(2L));
     }
 
@@ -129,14 +126,12 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").mode("jdbc").get()
+            new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").mode("jdbc")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [jdbc]"));
         enableJdbcLicensing();
 
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test")
-            .mode("jdbc")
-            .get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").mode("jdbc").get();
         assertThat(response.size(), Matchers.equalTo(2L));
     }
 
@@ -146,13 +141,12 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get()
+            new SqlTranslateRequestBuilder(client()).query("SELECT * FROM test")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
 
-        SqlTranslateResponse response = new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE).query("SELECT * FROM test")
-            .get();
+        SqlTranslateResponse response = new SqlTranslateRequestBuilder(client()).query("SELECT * FROM test").get();
         SearchSourceBuilder source = response.source();
         assertThat(source.docValueFields(), Matchers.contains(new FieldAndFormat("count", null)));
         FetchSourceContext fetchSource = source.fetchSource();
@@ -162,7 +156,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     // TODO test SqlGetIndicesAction. Skipping for now because of lack of serialization support.
 
     private void setupTestIndex() {
-        ElasticsearchAssertions.assertAcked(client().admin().indices().prepareCreate("test").get());
+        ElasticsearchAssertions.assertAcked(indicesAdmin().prepareCreate("test").get());
         client().prepareBulk()
             .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
             .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))

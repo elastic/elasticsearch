@@ -1,22 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
-import java.util.Map;
-
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -26,7 +29,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new ShowKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };
@@ -61,9 +64,8 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore(password, "reindex.ssl.keystore.password", value);
         terminal.addSecretInput(password);
-        terminal.setHasOutputStream(false);
         execute("reindex.ssl.keystore.password");
-        assertEquals(value + "\n", terminal.getOutput());
+        assertThat(terminal.getOutput().lines().toList(), contains(value));
     }
 
     public void testShowBinaryValue() throws Exception {
@@ -74,7 +76,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         saveKeystore(ks, password);
 
         terminal.addSecretInput(password);
-        terminal.setHasOutputStream(true);
+        terminal.setSupportsBinary(true);
 
         execute("binary.file");
         assertThat(terminal.getOutputBytes(), equalTo(value));
@@ -88,7 +90,6 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         saveKeystore(ks, password);
 
         terminal.addSecretInput(password);
-        terminal.setHasOutputStream(false);
 
         UserException e = expectThrows(UserException.class, () -> execute("binary.file"));
         assertEquals(e.getMessage(), ExitCodes.IO_ERROR, e.exitCode);
@@ -121,17 +122,15 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore("", name, value);
         final boolean console = randomBoolean();
-        if (console) {
-            terminal.setHasOutputStream(false);
-        }
+        terminal.setSupportsBinary(console == false);
 
         execute(name);
         // Not prompted for a password
 
         if (console) {
-            assertEquals(value + "\n", terminal.getOutput());
+            assertThat(terminal.getOutput().lines().toList(), contains(value));
         } else {
-            assertEquals(value, terminal.getOutput());
+            assertThat(terminal.getOutput(), equalTo(value));
         }
     }
 }

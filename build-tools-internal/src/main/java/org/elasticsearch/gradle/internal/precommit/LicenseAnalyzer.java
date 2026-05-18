@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -102,7 +103,7 @@ public class LicenseAnalyzer {
             AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
             LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
             OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-            SOFTWARE\\.
+            SOFTWARE\\.?
             """).replaceAll("\\s+", "\\\\s*"), Pattern.DOTALL)),
         new LicenseMatcher(
             "MIT-0",
@@ -147,53 +148,16 @@ public class LicenseAnalyzer {
         for (LicenseMatcher matcher : matchers) {
             boolean matches = matcher.matches(licenseFile);
             if (matches) {
-                return new LicenseInfo(matcher.getIdentifier(), matcher.spdxLicense, matcher.sourceRedistributionRequired);
+                return new LicenseInfo(matcher.identifier(), matcher.spdxLicense, matcher.sourceRedistributionRequired);
             }
         }
 
         throw new IllegalStateException("Unknown license for license file: " + licenseFile);
     }
 
-    public static class LicenseInfo {
-        private final String identifier;
-        private final boolean spdxLicense;
-        private final boolean sourceRedistributionRequired;
+    public record LicenseInfo(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired) {}
 
-        public LicenseInfo(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired) {
-            this.identifier = identifier;
-            this.spdxLicense = spdxLicense;
-            this.sourceRedistributionRequired = sourceRedistributionRequired;
-        }
-
-        public String getIdentifier() {
-            return identifier;
-        }
-
-        public boolean isSpdxLicense() {
-            return spdxLicense;
-        }
-
-        public boolean isSourceRedistributionRequired() {
-            return sourceRedistributionRequired;
-        }
-    }
-
-    private static class LicenseMatcher {
-        private final String identifier;
-        private final boolean spdxLicense;
-        private final boolean sourceRedistributionRequired;
-        private final Pattern pattern;
-
-        LicenseMatcher(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired, Pattern pattern) {
-            this.identifier = identifier;
-            this.spdxLicense = spdxLicense;
-            this.sourceRedistributionRequired = sourceRedistributionRequired;
-            this.pattern = pattern;
-        }
-
-        public String getIdentifier() {
-            return identifier;
-        }
+    private record LicenseMatcher(String identifier, boolean spdxLicense, boolean sourceRedistributionRequired, Pattern pattern) {
 
         public boolean matches(File licenseFile) {
             try {

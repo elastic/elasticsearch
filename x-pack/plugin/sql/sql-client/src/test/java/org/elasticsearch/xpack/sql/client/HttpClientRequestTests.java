@@ -13,8 +13,6 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -47,6 +45,7 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.FETCH_SIZE_NAME;
@@ -94,7 +93,7 @@ public class HttpClientRequestTests extends ESTestCase {
     private void assertBinaryRequestForCLI(XContentType xContentType) throws URISyntaxException {
         boolean isBinary = XContentType.CBOR == xContentType;
 
-        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
+        String url = "http://" + webServer.getHttpAddress();
         String query = randomAlphaOfLength(256);
         int fetchSize = randomIntBetween(1, 100);
         Properties props = new Properties();
@@ -106,7 +105,7 @@ public class HttpClientRequestTests extends ESTestCase {
 
         prepareMockResponse();
         try {
-            httpClient.basicQuery(query, fetchSize);
+            httpClient.basicQuery(query, fetchSize, randomBoolean(), randomBoolean());
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
         }
@@ -152,7 +151,7 @@ public class HttpClientRequestTests extends ESTestCase {
     private void assertBinaryRequestForDrivers(XContentType xContentType) throws URISyntaxException {
         boolean isBinary = XContentType.CBOR == xContentType;
 
-        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
+        String url = "http://" + webServer.getHttpAddress();
         String query = randomAlphaOfLength(256);
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
@@ -175,7 +174,9 @@ public class HttpClientRequestTests extends ESTestCase {
             new RequestInfo(mode, ClientVersion.CURRENT),
             randomBoolean(),
             randomBoolean(),
-            isBinary
+            isBinary,
+            randomBoolean(),
+            null
         );
 
         prepareMockResponse();
@@ -200,6 +201,51 @@ public class HttpClientRequestTests extends ESTestCase {
 
     private void prepareMockResponse() {
         webServer.enqueue(new Response().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[]}"));
+    }
+
+    public void testApiKeyAuthentication() throws URISyntaxException {
+        String url = "http://" + webServer.getHttpAddress();
+        String apiKey = "test_api_key_encoded";
+        Properties props = new Properties();
+        props.setProperty(ConnectionConfiguration.AUTH_API_KEY, apiKey);
+
+        URI uri = new URI(url);
+        ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
+        HttpClient httpClient = new HttpClient(conCfg);
+
+        prepareMockResponse();
+        try {
+            httpClient.basicQuery("SELECT 1", 10, false, false);
+        } catch (SQLException e) {
+            logger.info("Ignored SQLException", e);
+        }
+        assertEquals(1, webServer.requests().size());
+        RawRequest recordedRequest = webServer.takeRequest();
+        assertEquals("ApiKey " + apiKey, recordedRequest.getHeader("Authorization"));
+    }
+
+    public void testBasicAuthentication() throws URISyntaxException {
+        String url = "http://" + webServer.getHttpAddress();
+        String user = "testuser";
+        String pass = "testpass";
+        Properties props = new Properties();
+        props.setProperty(ConnectionConfiguration.AUTH_USER, user);
+        props.setProperty(ConnectionConfiguration.AUTH_PASS, pass);
+
+        URI uri = new URI(url);
+        ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
+        HttpClient httpClient = new HttpClient(conCfg);
+
+        prepareMockResponse();
+        try {
+            httpClient.basicQuery("SELECT 1", 10, false, false);
+        } catch (SQLException e) {
+            logger.info("Ignored SQLException", e);
+        }
+        assertEquals(1, webServer.requests().size());
+        RawRequest recordedRequest = webServer.takeRequest();
+        String expectedAuth = "Basic " + java.util.Base64.getEncoder().encodeToString((user + ":" + pass).getBytes(StandardCharsets.UTF_8));
+        assertEquals(expectedAuth, recordedRequest.getHeader("Authorization"));
     }
 
     @SuppressForbidden(reason = "use http server")
@@ -239,14 +285,7 @@ public class HttpClientRequestTests extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to respond to request [{} {}]",
-                            s.getRequestMethod(),
-                            s.getRequestURI()
-                        ),
-                        e
-                    );
+                    logger.error(() -> format("failed to respond to request [%s %s]", s.getRequestMethod(), s.getRequestURI()), e);
                 } finally {
                     s.close();
                 }
@@ -269,6 +308,18 @@ public class HttpClientRequestTests extends ESTestCase {
 
         int getPort() {
             return port;
+        }
+
+        /**
+         * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+         */
+        String getHttpAddress() {
+            String host = getHostName();
+            if (host.contains(":")) {
+                // IPv6 address needs brackets
+                host = "[" + host + "]";
+            }
+            return host + ":" + getPort();
         }
 
         void enqueue(Response response) {

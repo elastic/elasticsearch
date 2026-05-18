@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -177,7 +179,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     public void testMalformedJson() {
         final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-        String suggest = """
+        String suggest = Strings.format("""
             {
               "bad-payload" : {
                 "text" : "the amsterdma meetpu",
@@ -185,7 +187,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
                   "field" : { "%s" : "bad-object" }
                 }
               }
-            }""".formatted(field);
+            }""", field);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, suggest)) {
             final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(parser);
             fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);

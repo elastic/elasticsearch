@@ -1,28 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CannedTokenStream;
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.StopFilter;
-import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
@@ -34,43 +37,77 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
+import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
@@ -113,11 +150,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("fielddata", true), m -> {
+        checker.registerUpdateCheck("fielddata", b -> b.field("fielddata", true), m -> {
             TextFieldType ft = (TextFieldType) m.fieldType();
             assertTrue(ft.fielddata());
         });
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("fielddata_frequency_filter", b -> {
             b.field("fielddata", true);
             b.startObject("fielddata_frequency_filter");
             {
@@ -132,19 +169,26 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertEquals(20, ft.fielddataMaxFrequency(), 0);
             assertEquals(100, ft.fielddataMinSegmentSize());
         });
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", "true"), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck(
+            "eager_global_ordinals",
+            b -> b.field("eager_global_ordinals", "true"),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals())
+        );
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-            b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+            b.field("search_quote_analyzer", "standard");
+        }, m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        }
         checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
         checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
@@ -162,7 +206,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             b.field("type", "text");
             b.field("norms", true);
         }, b -> {
@@ -202,10 +246,9 @@ public class TextFieldMapperTests extends MapperTestCase {
                 } }
             )
         );
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
-            Map.of()
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
         );
     }
 
@@ -219,10 +262,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -232,6 +275,1016 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+    }
+
+    public void testStoreParameterDefaults() throws IOException {
+        var timeSeriesIndexMode = randomBoolean();
+        var isStored = randomBoolean();
+        var hasKeywordFieldForSyntheticSource = randomBoolean();
+
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        if (timeSeriesIndexMode) {
+            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+        }
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "text");
+            if (isStored) {
+                b.field("store", isStored);
+            }
+            if (hasKeywordFieldForSyntheticSource) {
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+
+            if (timeSeriesIndexMode) {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+                b.startObject("dimension");
+                b.field("type", "keyword");
+                b.field("time_series_dimension", "true");
+                b.endObject();
+            }
+        });
+        IndexVersion bwcVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcVersion, indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", "1234");
+            if (timeSeriesIndexMode) {
+                b.field("@timestamp", "2000-10-10T23:40:53.384Z");
+                b.field("dimension", "dimension1");
+            }
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        if (isStored || (timeSeriesIndexMode && hasKeywordFieldForSyntheticSource == false)) {
+            assertTrue(fieldType.stored());
+        } else {
+            assertFalse(fieldType.stored());
+        }
+    }
+
+    public void testStoring() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field shouldn't be stored anywhere, only indexed
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // the value for the field should be in regular _source since synthetic source is not enabled
+        List<IndexableField> sourceFields = doc.rootDoc().getFields("_source");
+        assertThat(sourceFields, hasSize(1));
+    }
+
+    public void testStoringWhenStoreIsSet() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", true);
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to be set
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // the field to be stored in a stored field since store was explicitly set
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        // the value for the field should be in regular _source since synthetic source is not enabled
+        List<IndexableField> sourceFields = doc.rootDoc().getFields("_source");
+        assertThat(sourceFields, hasSize(1));
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabled() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field should be stored in a fallback stored field (name._original)
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledInLogsDbIndices() throws IOException {
+        // given
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .put(IndexSettings.MODE.getKey(), "logsdb");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        // then
+        var source = source(b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.field("name", "quick brown fox");
+        });
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field should be stored in binary doc values (name._original)
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledInLegacyIndexVersion() throws IOException {
+        // given
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        // when
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to true since synthetic source is enabled
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // the field should be stored in a fallback stored field named._original
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndStoreIsSet() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", true);
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to be set
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // the field should be stored in a stored field since store was explicitly set
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testDocValuesEnabledWithIndexing() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("doc_values", true);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "test value")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // text field with doc_values creates 2 fields: one for the inverted index, one for doc_values
+        assertEquals(2, fields.size());
+
+        // Check that we have both an indexed field and a doc_values field
+        boolean hasIndexedField = false;
+        boolean hasDocValuesField = false;
+        for (IndexableField field : fields) {
+            if (field.fieldType().docValuesType() == DocValuesType.BINARY) {
+                hasDocValuesField = true;
+            }
+            if (field.fieldType().indexOptions() != IndexOptions.NONE) {
+                hasIndexedField = true;
+            }
+        }
+        assertTrue("Should have an indexed field", hasIndexedField);
+        assertTrue("Should have a doc_values field", hasDocValuesField);
+
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        assertTrue(textMapper.fieldType().hasDocValues());
+        assertTrue(textMapper.fieldType().usesBinaryDocValues());
+    }
+
+    public void testDocValuesEnabledWithoutIndexing() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "test value")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // text field with doc_values and index disabled creates only 1 field: doc_values
+        assertEquals(1, fields.size());
+
+        // Check that we only have a doc_values field (no indexed field)
+        boolean hasIndexedField = false;
+        boolean hasDocValuesField = false;
+        for (IndexableField field : fields) {
+            if (field.fieldType().docValuesType() == DocValuesType.BINARY) {
+                hasDocValuesField = true;
+            }
+            if (field.fieldType().indexOptions() != IndexOptions.NONE) {
+                hasIndexedField = true;
+            }
+        }
+        assertFalse("Should not have an indexed field", hasIndexedField);
+        assertTrue("Should have a doc_values field", hasDocValuesField);
+
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        assertTrue(textMapper.fieldType().hasDocValues());
+        assertTrue(textMapper.fieldType().usesBinaryDocValues());
+    }
+
+    /**
+     * Text field doc_values have always used the SeparateCount format (with a parallel .counts numeric doc values field) since their
+     * introduction in 9.4.0. This test pins that contract for the current index version.
+     */
+    public void testDocValuesUsesSeparateCountFormat() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary text doc_values must be written in SeparateCount format (with .counts companion) for the current index version",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    /**
+     * Text field doc_values were introduced in 9.4.0 using the SeparateCount format. Regardless of indexCreatedVersion, the primary doc
+     * values write path must produce SeparateCount output so the read path
+     * (AbstractBinaryDocValuesQuery / BytesRefsFromBinaryMultiSeparateCountBlockLoader) can decode it.
+     */
+    public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(legacyVersion, fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        })).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary text doc_values must be written in SeparateCount format (with .counts companion) even for legacy index versions",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    public void testDocValuesDisabledByDefault() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "test value")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+
+        // Verify that doc_values are disabled by default
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        assertFalse(textMapper.fieldType().hasDocValues());
+    }
+
+    public void testDocValuesLowCardinality() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+
+        // note: we disable indexing as thats the expected use case for doc_values: indexing disabled and doc_values enabled
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "low").endObject()
+            )
+
+        );
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertFalse(mapper.fieldType().usesBinaryDocValues());
+    }
+
+    public void testDocValuesHighCardinality() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
+            )
+        );
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertTrue(mapper.fieldType().usesBinaryDocValues());
+    }
+
+    public void testDocValuesSerialized() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        // doc_values = true should be serialized
+        DocumentMapper mapperWithTrue = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        }));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        mapperWithTrue.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String mappingString = Strings.toString(builder);
+
+        assertTrue(mappingString.contains("doc_values"));
+
+        // when doc_values is not specified (default), it should not be serialized
+        DocumentMapper mapperWithDefault = createDocumentMapper(fieldMapping(b -> { b.field("type", "text"); }));
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        mapperWithDefault.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        mappingString = Strings.toString(builder);
+
+        assertFalse(mappingString.contains("doc_values"));
+    }
+
+    public void testDocValuesWithAggregations() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        // when doc_values are enabled, the field should be aggregatable without enabling fielddata
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        }));
+
+        TextFieldType fieldType = (TextFieldType) mapperService.fieldType("field");
+        assertTrue(fieldType.isAggregatable());
+    }
+
+    public void testFieldDataUsesDocValues() throws Exception {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        // when doc_values are enabled, fielddataBuilder should use doc values
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        }));
+
+        TextFieldType fieldType = (TextFieldType) mapperService.fieldType("field");
+        assertTrue(fieldType.hasDocValues());
+
+        // verify that we can build fielddata from doc values
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "test value"))).rootDoc());
+        }, reader -> {
+            FieldDataContext ctx = new FieldDataContext(
+                "test",
+                null,
+                () -> null,
+                Set::of,
+                () -> false,
+                MappedFieldType.FielddataOperation.SEARCH
+            );
+            IndexFieldData<?> fieldData = fieldType.fielddataBuilder(ctx).build(null, null);
+            assertNotNull(fieldData);
+
+            LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
+            SortedBinaryDocValues values = leafData.getBytesValues();
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("test value"), values.nextValue());
+        });
+    }
+
+    public void testDocValuesMultiValueWithIndexing() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("doc_values", true);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "potato1 tomato1", "potato2 tomato2", "potato3 tomato3")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // should have 3 indexed fields + 1 binary doc_values field (HIGH cardinality stores all values in one field)
+        assertEquals(4, fields.size());
+
+        // doc_value count should be 1 since HIGH cardinality uses binary doc values which stores all values together
+        long docValuesCount = fields.stream().filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY).count();
+        assertEquals(1, docValuesCount);
+    }
+
+    public void testDocValuesMultiValueWithoutIndexing() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("index", false);
+            b.field("doc_values", true);
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "potato1 tomato1", "potato2 tomato2", "potato3 tomato3")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // should have only 1 binary doc_values field (no indexed fields when index is disabled)
+        assertEquals(1, fields.size());
+
+        // doc_value count should be 1 since HIGH cardinality uses binary doc values which stores all values together
+        long docValuesCount = fields.stream().filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY).count();
+        assertEquals(1, docValuesCount);
+    }
+
+    public void testDocValuesHighCardinalityMultiValue() throws Exception {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
+            )
+        );
+
+        TextFieldType fieldType = (TextFieldType) mapperService.fieldType("field");
+        assertTrue(fieldType.hasDocValues());
+        assertTrue(fieldType.usesBinaryDocValues());
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.array("field", "value1", "value2"))).rootDoc());
+        }, reader -> {
+            FieldDataContext ctx = new FieldDataContext(
+                "test",
+                null,
+                () -> null,
+                Set::of,
+                () -> false,
+                MappedFieldType.FielddataOperation.SEARCH
+            );
+            IndexFieldData<?> fieldData = fieldType.fielddataBuilder(ctx).build(null, null);
+            assertNotNull(fieldData);
+
+            LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
+            SortedBinaryDocValues values = leafData.getBytesValues();
+            assertTrue(values.advanceExact(0));
+            assertEquals(2, values.docValueCount());
+            assertEquals(new BytesRef("value1"), values.nextValue());
+            assertEquals(new BytesRef("value2"), values.nextValue());
+        });
+    }
+
+    public void testSyntheticSourceWithDocValues() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> b.field("field", "test value"));
+        assertEquals("{\"field\":\"test value\"}", syntheticSource);
+    }
+
+    public void testSyntheticSourceWithDocValuesMultiValue() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> b.array("field", "value1", "value2"));
+        assertEquals("{\"field\":[\"value1\",\"value2\"]}", syntheticSource);
+    }
+
+    public void testSyntheticSourceWithDocValuesHighCardinality() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
+            )
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> b.array("field", "value1", "value2"));
+        assertEquals("{\"field\":[\"value1\",\"value2\"]}", syntheticSource);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiField() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // by the keyword multi field, since keywords have doc_values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldInLegacyIndexVersion() throws IOException {
+        // given
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE;
+        DocumentMapper mapper = createMapperService(beforeVersion, indexSettings, mapping).documentMapper();
+
+        // when
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // then
+
+        // expect store to default to false since the keyword field acts a synthetic source delegate
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field should not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // by the keyword multi field, since keywords have doc_values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldAndStoreIsSet() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", true);
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to be set
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // the field should be double stored:
+
+        // the field should be stored in a stored field since store was explicitly set
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        // the field should also be stored by the keyword multi field since it'll have doc values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldAndValueExceedsIgnoreAbove() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field should be stored in a fallback stored field (name._original) since the keyword cannot act as the delegate
+        // due to the value exceeding ignore_above
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        // there should be nothing stored by the keyword multi field since the value exceeds ignore_above
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldAndValueExceedsIgnoreAboveInLogsDbIndices()
+        throws IOException {
+        // given
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .put(IndexSettings.MODE.getKey(), "logsdb");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        // then
+        var source = source(b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.field("name", "quick brown fox");
+        });
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // logsdb indices use binary doc values
+        // the field should be stored in binary doc values (name._original) since the keyword cannot act as the delegate
+        // due to the value exceeding ignore_above
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+
+        // there should be nothing stored by the keyword multi field since the value exceeds ignore_above
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldAndValueDoesNotExceedIgnoreAbove() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("ignore_above", 50);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field should not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // by its delegate keyword field
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiField() throws IOException {
+        // given
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("text");
+            b.field("type", "text");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("name.text");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the text multi-field should not store anything - the parent keyword field handles storage
+        FieldStorageVerifier.forField("name.text", doc.rootDoc()).verify();
+
+        // the parent keyword field should store in doc values
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiFieldBwc() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("text");
+            b.field("type", "text");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        IndexVersion beforeVersion = IndexVersions.INDEX_INT_SORT_INT_TYPE;
+        DocumentMapper mapper = createMapperService(beforeVersion, indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("name.text");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // this is double stored, but we expect it to be in legacy index versions:
+
+        // in legacy index versions, the text multi-field was stored as a stored field
+        FieldStorageVerifier.forField("name.text", doc.rootDoc()).expectStoredField().verify();
+
+        // the parent keyword field should store in doc values
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+    }
+
+    public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValue() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", false);
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", false);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "QUICK Brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect the original, non-normalized value to be stored in a stored field (name._original)
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+
+        // verify that source is synthesized correctly
+        assertThat(syntheticSource(mapper, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"QUICK Brown fox\"}"));
+    }
+
+    public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValueInLogsDbIndices() throws IOException {
+        // given
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .put(IndexSettings.MODE.getKey(), "logsdb");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", false);
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", false);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        // when
+        var source = source(b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.field("name", "quick brown fox");
+        });
+        ParsedDocument doc = mapper.parse(source);
+
+        // then
+
+        // expect the original, non-normalized value to be stored in binary doc values (name._original)
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+
+        // verify that source is synthesized correctly
+        assertThat(syntheticSource(mapper, b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.field("name", "QUICK Brown fox");
+        }), equalTo("{\"@timestamp\":\"2024-01-01T00:00:00.000Z\",\"name\":\"QUICK Brown fox\"}"));
+    }
+
+    public void testDelegatesSyntheticSourceForNormalizedKeywordMultiFieldWhenSkipStoreOriginalValue() throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", false);
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", true);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "QUICK Brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // the field not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // by the keyword multi field, since keywords have doc_values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+
+        assertThat(syntheticSource(mapper, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"quick brown fox\"}"));
     }
 
     public void testBWCSerialization() throws IOException {
@@ -253,24 +1306,20 @@ public class TextFieldMapperTests extends MapperTestCase {
     public void testEnableStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
-    }
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().stored());
 
-    public void testDisableIndex() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        // we enabled store, so the field should be stored in a stored field
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectStoredField().verify();
     }
 
     public void testDisableNorms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("norms", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().omitNorms());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().omitNorms());
     }
 
     public void testIndexOptions() throws IOException {
@@ -304,9 +1353,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
             String field = entry.getKey();
             IndexOptions options = entry.getValue();
-            IndexableField[] fields = doc.rootDoc().getFields(field);
-            assertEquals(1, fields.length);
-            assertEquals(options, fields[0].fieldType().indexOptions());
+            List<IndexableField> fields = doc.rootDoc().getFields(field);
+            assertEquals(1, fields.size());
+            assertEquals(options, fields.get(0).fieldType().indexOptions());
         }
     }
 
@@ -314,10 +1363,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -358,10 +1407,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -521,16 +1570,23 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
+        assertFalse(disabledMapper.fieldType("field").isAggregatable());
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            () -> disabledMapper.fieldType("field")
+                .fielddataBuilder(new FieldDataContext("index", null, null, null, () -> false, MappedFieldType.FielddataOperation.SEARCH))
         );
-        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Fielddata is disabled on [field] in [index]. "
+                    + "Text fields are not optimised for operations that require per-document field data"
+            )
+        );
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }); // no exception
-                                                                                                                         // this time
-
+        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")); // no exception
+        assertTrue(enabledMapper.fieldType("field").isAggregatable());
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "text").field("index", false).field("fielddata", true)))
@@ -743,7 +1799,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(searchExecutionContext);
         assertThat(q5, is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         Query q6 = matchQueryParser.parse(MatchQueryParser.Type.PHRASE, "synfield", "motor dogs");
         assertThat(
@@ -783,10 +1839,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapperService.documentMapper()
             .parse(source(b -> b.array("field", "Some English text that is going to be very useful", "bad", "Prio 1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
-        assertEquals(3, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field._index_phrase");
+        assertEquals(3, fields.size());
 
-        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(fields[0].name(), f -> null), null)) {
+        try (TokenStream ts = fields.get(0).tokenStream(mapperService.indexAnalyzer(fields.get(0).name(), f -> null), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());
@@ -794,10 +1850,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
             MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
             TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
-            assertEquals(1, td.totalHits.value);
+            assertEquals(1, td.totalHits.value());
         });
 
         Exception e = expectThrows(
@@ -836,7 +1892,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext context = createSearchExecutionContext(ms);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);
+        assertEquals(new ConstantScoreQuery(new FieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {
@@ -868,8 +1924,8 @@ public class TextFieldMapperTests extends MapperTestCase {
 
             ParsedDocument doc = ms.documentMapper()
                 .parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
-            IndexableField[] fields = doc.rootDoc().getFields("field._index_prefix");
-            assertEquals(1, fields.length);
+            List<IndexableField> fields = doc.rootDoc().getFields("field._index_prefix");
+            assertEquals(1, fields.size());
             withLuceneIndex(ms, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check we can index
 
             assertAnalyzesTo(
@@ -1011,7 +2067,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
             matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "motor dogs");
             Query expected = new SpanNearQuery.Builder("synfield", true).addClause(new SpanTermQuery(new Term("synfield", "motor")))
@@ -1026,7 +2082,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
             matchQueryParser.setPhraseSlop(1);
             matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "two dogs");
@@ -1086,5 +2142,782 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("text", true, false, true);
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
+        TextFieldFamilySyntheticSourceTestSetup.validateRoundTripReader(syntheticSource, reader, roundTripReader);
+    }
+
+    public void testUnknownAnalyzerOnLegacyIndex() throws IOException {
+        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "text").field("analyzer", "does_not_exist"));
+
+        expectThrows(MapperParsingException.class, () -> createMapperService(startingMapping));
+
+        MapperService mapperService = createMapperService(IndexVersion.fromId(5000099), startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        merge(mapperService, startingMapping);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+
+        // check that analyzer can be swapped out on legacy index
+        XContentBuilder differentAnalyzer = fieldMapping(b -> b.field("type", "text").field("analyzer", "keyword"));
+        merge(mapperService, differentAnalyzer);
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
+    }
+
+    public void testIgnoreFieldDataOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("fielddata", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
+
+        MapperService finalMapperService = mapperService;
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
+        );
+    }
+
+    public void testIgnoreEagerGlobalOrdinalsOnLegacyIndex() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "text").field("eager_global_ordinals", true));
+        MapperService mapperService = createMapperService(mapping);
+        assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
+        assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "text").field("store", true)));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").field("doc_values", false).field("store", true).endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testEmpty() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        var d0 = source(b -> b.field("field", new String[0]));
+        var d1 = source(b -> b.field("field", ""));
+        var d2 = source(b -> b.field("field", "hello"));
+        var d3 = source(b -> b.nullField("field"));
+        withLuceneIndex(mapperService, iw -> {
+            for (SourceToParse src : List.of(d0, d1, d2, d3)) {
+                iw.addDocument(mapperService.documentMapper().parse(src).rootDoc());
+            }
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            MappedFieldType ft = mapperService.fieldType("field");
+            SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
+            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics());
+            SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
+            var indexSettings = mapperService.getIndexSettings();
+            IndexFieldData<?> sfd = ft.fielddataBuilder(
+                new FieldDataContext("", indexSettings, () -> searchLookup, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT)
+            ).build(null, null);
+            LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+            TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
+            SortedBinaryDocValues dv = scriptDV.getInput();
+            assertFalse(dv.advanceExact(0));
+            assertTrue(dv.advanceExact(1));
+            assertTrue(dv.advanceExact(2));
+            assertFalse(dv.advanceExact(3));
+        });
+    }
+
+    public void testNormsEnabledByDefault() throws IOException {
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> b.field("potato", "a potato flew around my room"));
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(false));
+    }
+
+    public void testNormsEnabledWhenIndexModeIsNotGiven() throws IOException {
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> b.field("potato", "a potato flew around my room"));
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(false));
+    }
+
+    public void textNormsEnabledWhenIndexModeIsNull() throws IOException {
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), (String) null);
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> b.field("potato", "a potato flew around my room"));
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(false));
+    }
+
+    public void testNormsDisabledWhenIndexModeIsLogsDb() throws IOException {
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(true));
+    }
+
+    public void testNormsDisabledWhenIndexModeIsTsdb() throws IOException {
+        // given
+        Instant currentTime = Instant.now();
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), currentTime.minus(1, ChronoUnit.HOURS).toEpochMilli())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), currentTime.plus(1, ChronoUnit.HOURS).toEpochMilli())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+        });
+
+        var source = source(null, b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(true));
+    }
+
+    public void testNormsEnabledWhenIndexModeIsLogsDb_bwcCheck() throws IOException {
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        });
+
+        // when
+        IndexVersion bwcIndexVersion = IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(false));
+    }
+
+    public void testNormsEnabledWhenIndexModeIsTsdb_bwcCheck() throws IOException {
+        // given
+        Instant currentTime = Instant.now();
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), currentTime.minus(1, ChronoUnit.HOURS).toEpochMilli())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), currentTime.plus(1, ChronoUnit.HOURS).toEpochMilli())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension");
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+        });
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        }, null);
+
+        // when
+        IndexVersion bwcIndexVersion = IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(false));
+    }
+
+    public void testNormsDisabledWhenIndexModeIsColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(true));
+    }
+
+    public void testNormsDisabledWhenIndexModeIsColumnarLogsdb() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(true));
+    }
+
+    public void testConditionalBlockLoader() throws IOException {
+        int numDocs = between(5, 100);
+        List<Object> textValues = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int numValues = between(1, 2);
+            if (numValues == 1) {
+                textValues.add(randomAlphaOfLength(between(1, 512)));
+            } else {
+                Set<String> subs = new HashSet<>();
+                for (int v = 0; v < numValues; v++) {
+                    subs.add(randomAlphaOfLength(between(1, 512)));
+                }
+                textValues.add(subs);
+            }
+        }
+        for (int ignoreAbove : List.of(5, 20, 128, 256, 512, 1000, Integer.MAX_VALUE)) {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            final int ignoreAboveFinal = ignoreAbove;
+            var mapping = mapping(b -> {
+                b.startObject("name");
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.field("ignore_above", ignoreAboveFinal);
+                b.endObject();
+                b.endObject();
+                b.endObject();
+            });
+            try (MapperService mapperService = createSytheticSourceMapperService(mapping); Directory directory = newDirectory()) {
+                IndexWriterConfig conf = new IndexWriterConfig();
+                conf.setMergePolicy(NoMergePolicy.INSTANCE);
+                IndexWriter iw = new IndexWriter(directory, conf);
+                DocumentMapper mapper = mapperService.documentMapper();
+                for (Object v : textValues) {
+                    var source = source(b -> { b.field("name", v); });
+                    ParsedDocument doc = mapper.parse(source);
+                    iw.addDocument(doc.rootDoc());
+                }
+                iw.close();
+                try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                    LeafReaderContext ctx = reader.leaves().get(0);
+                    BlockLoader blockLoader = mapperService.fieldType("name")
+                        .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {});
+                    Predicate<Object> exceedIgnoreAbove = v -> {
+                        if (v instanceof Collection<?> ls) {
+                            return ls.stream().anyMatch(s -> s.toString().length() > ignoreAbove);
+                        } else {
+                            return v.toString().length() > ignoreAbove;
+                        }
+                    };
+                    final TestBlock testBlock;
+                    if (textValues.stream().anyMatch(exceedIgnoreAbove)) {
+                        assertNull(blockLoader.columnAtATimeReader(ctx));
+                        assertFalse(blockLoader.rowStrideStoredFieldSpec().noRequirements());
+                        try (var rowReader = blockLoader.rowStrideReader(breaker, ctx)) {
+                            StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
+                            SourceLoader.Leaf leafSourceLoader = null;
+                            if (storedFieldsSpec.requiresSource()) {
+                                var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+                                leafSourceLoader = sourceLoader.leaf(ctx.reader(), null);
+                                storedFieldsSpec = storedFieldsSpec.merge(
+                                    new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
+                                );
+                            }
+                            var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                                leafSourceLoader
+                            );
+                            try (var builder = blockLoader.builder(TestBlock.factory(), numDocs)) {
+                                for (int doc = 0; doc < textValues.size(); doc++) {
+                                    Object values = textValues.get(doc);
+                                    storedFields.advanceTo(doc);
+                                    rowReader.read(doc, storedFields, builder);
+                                    final boolean fallback = exceedIgnoreAbove.test(values);
+                                    assertThat(
+                                        "doc=" + doc + " values=" + values + " ignore_above=" + ignoreAbove,
+                                        storedFields.loaded(),
+                                        equalTo(fallback)
+                                    );
+                                }
+                                testBlock = (TestBlock) builder.build();
+                            }
+                        }
+                    } else {
+                        try (var columnReader = blockLoader.columnAtATimeReader(ctx).apply(breaker)) {
+                            assertNotNull(columnReader);
+                            testBlock = (TestBlock) columnReader.read(
+                                TestBlock.factory(),
+                                TestBlock.docs(IntStream.range(0, numDocs).toArray()),
+                                0,
+                                randomBoolean()
+                            );
+                        }
+                    }
+                    for (int i = 0; i < textValues.size(); i++) {
+                        Object expected = textValues.get(i);
+                        if (expected instanceof Collection<?> ls) {
+                            expected = ls.stream().map(v -> new BytesRef(v.toString())).sorted().toList();
+                        } else {
+                            expected = new BytesRef(expected.toString());
+                        }
+                        if (testBlock.get(i) instanceof Collection<?> c) {
+                            assertThat(c.stream().sorted().toList(), equalTo(expected));
+                        } else {
+                            assertThat(testBlock.get(i), equalTo(expected));
+                        }
+                    }
+                }
+            }
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        // text defaults to HIGH cardinality, which uses binary doc values
+        return DocValuesType.BINARY;
+    }
+
+    public void testDocValuesExceedsMaxTermLength() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        // create a value that exceeds MAX_TERM_LENGTH (32766 bytes)
+        String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+
+        // explicitly test LOW cardinality since MAX_TERM_LENGTH limits only apply to SORTED_SET doc values
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "low").endObject()
+            )
+        );
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", longValue)));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // we shouldn't have a SortedSetDocValuesField since values exceeding length limits are stored in BinaryDocValuesFields
+        boolean hasSortedSetDocValues = fields.stream().anyMatch(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET);
+        assertFalse("Values that exceed Lucene's max term length should not be stored in SortedSetDocValuesField", hasSortedSetDocValues);
+
+        // check that the fallback field exists and is stored in binary doc values
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        String fallbackFieldName = textMapper.fieldType().syntheticSourceFallbackFieldName();
+        IndexableField fallbackField = doc.rootDoc().getByKey(fallbackFieldName);
+        assertNotNull("Fallback field should exist for values exceeding Lucene's max term length", fallbackField);
+        assertThat(fallbackField, instanceOf(MultiValuedBinaryDocValuesField.class));
+    }
+
+    public void testDocValuesUnderMaxTermLength() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        String value = "x".repeat(1000);
+
+        // explicitly test LOW cardinality since MAX_TERM_LENGTH limits only apply to SORTED_SET doc values
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "low").endObject()
+            )
+        );
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // expect a SortedSetDocValuesField since the value doesn't exceed Lucene's max term length
+        boolean hasSortedSetDocValues = fields.stream().anyMatch(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET);
+        assertTrue("Values not exceeding Lucene's max term length should be stored in SortedSetDocValuesFields", hasSortedSetDocValues);
+
+        // check that the fallback field does NOT exist
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        String fallbackFieldName = textMapper.fieldType().syntheticSourceFallbackFieldName();
+        IndexableField fallbackField = doc.rootDoc().getByKey(fallbackFieldName);
+        assertNull("Fallback fields should not exist for values not exceeding Lucene's max term length", fallbackField);
+    }
+
+    public void testDocValuesMixedLengthValues() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        String shortValue = "short value";
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+
+        // explicitly test LOW cardinality since MAX_TERM_LENGTH limits only apply to SORTED_SET doc values
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "low").endObject()
+            )
+        );
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", shortValue, longValue)));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // should have exactly one SortedSetDocValuesField (for the short value)
+        long sortedSetCount = fields.stream().filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET).count();
+        assertEquals("Should have one SortedSetDocValuesField for the short value", 1, sortedSetCount);
+
+        // check that the fallback field exists (for the long value)
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        String fallbackFieldName = textMapper.fieldType().syntheticSourceFallbackFieldName();
+        IndexableField fallbackField = doc.rootDoc().getByKey(fallbackFieldName);
+        assertNotNull("Fallback field should exist for the long value", fallbackField);
+    }
+
+    public void testDocValuesHighCardinalityNoLengthLimit() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        assumeTrue("extended doc_values options must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+
+        // with HIGH cardinality (binary doc values), there's no length limit
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
+            )
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", longValue)));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+
+        // expect no SortedSetDocValuesFields since HIGH cardinality uses binary doc values
+        boolean hasSortedSetDocValues = fields.stream().anyMatch(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET);
+        assertFalse("HIGH cardinality should not use SortedSetDocValuesField", hasSortedSetDocValues);
+
+        // verify the value is stored in binary doc values on the main field
+        IndexableField binaryDocValuesField = doc.rootDoc().getByKey("field");
+        assertNotNull("Value should be stored in binary doc values on the main field", binaryDocValuesField);
+        assertThat(binaryDocValuesField, instanceOf(MultiValuedBinaryDocValuesField.class));
+
+        // verify there is no fallback field since everything should be stored in binary doc values under the field's name
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        String fallbackFieldName = textMapper.fieldType().syntheticSourceFallbackFieldName();
+        IndexableField fallbackField = doc.rootDoc().getByKey(fallbackFieldName);
+        assertNull("Fallback field should not be used for HIGH cardinality", fallbackField);
+    }
+
+    public void testSyntheticSourceWithDocValuesExceedsMaxTermLength() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        // create a value that exceeds MAX_TERM_LENGTH
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
+        ).documentMapper();
+
+        // despite the value exceeding Lucene's max term length, we still expect to synthesize it
+        var syntheticSource = syntheticSource(mapper, b -> b.field("field", longValue));
+        assertEquals("{\"field\":\"" + longValue + "\"}", syntheticSource);
+    }
+
+    public void testSyntheticSourceWithDocValuesMixedLengthValues() throws IOException {
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        String shortValue = "short";
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "text").field("index", false).field("doc_values", true))
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> b.array("field", shortValue, longValue));
+
+        // expect both values in synthetic source
+        assertThat(syntheticSource, containsString(shortValue));
+        assertThat(syntheticSource, containsString(longValue));
+    }
+
+    public void testSingleFallbackValueIsAcceptedWhenMultiValueFalse() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
+        );
+        String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        mapper.parse(source(b -> b.field("field", longValue)));
+    }
+
+    /**
+     * We have two values for a field: normal value, and a value that exceeds MAX_TERM_LENGTH.
+     * <p>
+     * First value routes to SortedSet doc values; second exceeds MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
+     * While these are technically two separate fields, single values are enforced on a document-level, so the second value is rejected.
+     */
+    public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
+        );
+        String shortValue = randomAlphanumericOfLength(5);
+        String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", shortValue, longValue)))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Mirror of {@link #testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalseAndFirstValueInRegularField} with the order reversed.
+     */
+    public void testSecondValueInRegularFieldIsRejectedWhenMultiValueFalseAndFirstValueInFallbackField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
+        );
+        String longValue = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        String shortValue = randomAlphanumericOfLength(5);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", longValue, shortValue)))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * We have two values for a field, both of which exceed MAX_TERM_LENGTH and would route to the {@code ._original} fallback field.
+     */
+    public void testSecondValueInFallbackFieldIsRejectedWhenMultiValueFalse() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
+        );
+        String longValue1 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        String longValue2 = randomAlphanumericOfLength(IndexWriter.MAX_TERM_LENGTH + 1);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", longValue1, longValue2)))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
     }
 }

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -21,31 +21,51 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
-import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
-    private static final ToScriptField<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
-        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-        n
-    );
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
-    private static RootFlattenedFieldType createDefaultFieldType() {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, MOCK_TO_SCRIPT_FIELD);
+public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
+
+    private static final Mapper.IgnoreAbove IGNORE_ABOVE = new Mapper.IgnoreAbove(null, IndexMode.STANDARD);
+
+    private static RootFlattenedFieldType createDefaultFieldType(int ignoreAbove) {
+        return new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, true),
+            Collections.emptyMap(),
+            false,
+            false,
+            new Mapper.IgnoreAbove(ignoreAbove),
+            true,
+            false,
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+        );
     }
 
     public void testValueForDisplay() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
         String fieldValue = "{ \"key\": \"value\" }";
         BytesRef storedValue = new BytesRef(fieldValue);
@@ -53,7 +73,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
         Query expected = new TermQuery(new Term("field", "value"));
         assertEquals(expected, ft.termQuery("value", null));
@@ -63,43 +83,55 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         RootFlattenedFieldType unsearchable = new RootFlattenedFieldType(
             "field",
-            false,
-            true,
+            IndexType.terms(false, true),
             Collections.emptyMap(),
             false,
             false,
-            MOCK_TO_SCRIPT_FIELD
+            IGNORE_ABOVE,
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType(
+        RootFlattenedFieldType noDv = new RootFlattenedFieldType(
             "field",
-            true,
-            false,
+            IndexType.terms(true, false),
             Collections.emptyMap(),
             false,
             false,
-            MOCK_TO_SCRIPT_FIELD
+            IGNORE_ABOVE,
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), noDv.existsQuery(null));
 
         RootFlattenedFieldType withDv = new RootFlattenedFieldType(
             "field",
-            true,
-            true,
+            IndexType.terms(true, true),
             Collections.emptyMap(),
             false,
             false,
-            MOCK_TO_SCRIPT_FIELD
+            IGNORE_ABOVE,
+            true,
+            randomBoolean(),
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
         );
-        assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
+        assertEquals(new FieldExistsQuery("field._keyed"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
         Query expected = new FuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
         Query actual = ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT);
@@ -120,7 +152,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
         TermRangeQuery expected = new TermRangeQuery("field", new BytesRef("lower"), new BytesRef("upper"), false, false);
         assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_CONTEXT));
@@ -139,7 +171,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
         Query expected = new RegexpQuery(new Term("field", "val.*"));
         Query actual = ft.regexpQuery("val.*", 0, 0, 10, null, MOCK_CONTEXT);
@@ -153,7 +185,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
         Query expected = new WildcardQuery(new Term("field", new BytesRef("valu*")));
         assertEquals(expected, ft.wildcardQuery("valu*", null, MOCK_CONTEXT));
@@ -167,9 +199,161 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         Map<String, Object> sourceValue = Map.of("key", "value");
-        RootFlattenedFieldType ft = createDefaultFieldType();
+        RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
         assertEquals(List.of(sourceValue), fetchSourceValue(ft, sourceValue));
         assertEquals(List.of(), fetchSourceValue(ft, null));
+    }
+
+    public void testFetchSourceValueWithIgnoreAbove() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key", "test ignore above");
+
+        assertEquals(List.of(), fetchSourceValue(createDefaultFieldType(10), sourceValue));
+        assertEquals(List.of(sourceValue), fetchSourceValue(createDefaultFieldType(20), sourceValue));
+    }
+
+    public void testFetchSourceValueWithList() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key1", List.of("one", "two", "three"));
+
+        assertEquals(List.of(Map.of("key1", List.of("one", "two"))), fetchSourceValue(createDefaultFieldType(3), sourceValue));
+    }
+
+    public void testFetchSourceValueWithMultipleFields() throws IOException {
+        Map<String, Object> sourceValue = Map.of(
+            "key1",
+            "test",
+            "key2",
+            List.of("one", "two", "three"),
+            "key3",
+            "hi",
+            "key4",
+            List.of("the quick brown fox", "jumps over the lazy dog")
+        );
+
+        List<?> result = fetchSourceValue(createDefaultFieldType(3), sourceValue);
+        assertEquals(1, result.size());
+        Map<?, ?> resultMap = (Map<?, ?>) result.get(0);
+        List<String> actualKeys = new ArrayList<>(resultMap.keySet().stream().map(Object::toString).toList());
+        assertEquals("fields must be returned in alphabetical order", List.of("key2", "key3"), actualKeys);
+        assertMap(resultMap, matchesMap().entry("key2", List.of("one", "two")).entry("key3", "hi"));
+    }
+
+    public void testFetchSourceValueWithMixedFieldTypes() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key1", List.of("one", 1, "two", 2));
+
+        assertEquals(List.of(Map.of("key1", List.of("one", 1, "two", 2))), fetchSourceValue(createDefaultFieldType(3), sourceValue));
+    }
+
+    public void testFetchSourceValueWithNonString() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key1", List.of(100, 200), "key2", 50L, "key3", new Tuple<>(10, 100));
+
+        List<?> result = fetchSourceValue(createDefaultFieldType(3), sourceValue);
+        assertEquals(1, result.size());
+        Map<?, ?> resultMap = (Map<?, ?>) result.get(0);
+        List<String> actualKeys = new ArrayList<>(resultMap.keySet().stream().map(Object::toString).toList());
+        assertEquals("fields must be returned in alphabetical order", List.of("key1", "key2", "key3"), actualKeys);
+        assertMap(resultMap, matchesMap().entry("key1", List.of(100, 200)).entry("key2", 50L).entry("key3", new Tuple<>(10, 100)));
+    }
+
+    public void testFetchSourceValueFilterStringsOnly() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key1", List.of("the quick brown", 1_234_567, "jumps over", 2_456));
+
+        assertEquals(List.of(Map.of("key1", List.of(1_234_567, 2_456))), fetchSourceValue(createDefaultFieldType(8), sourceValue));
+    }
+
+    /**
+     * {@code RootFlattenedFieldType} advertises support for the {@code ExtractFlattenedSubfieldConfig}
+     * loader config when doc values are present, so the optimizer may rewrite
+     * {@code field_extract(root, "<key>")} into a fused load.
+     */
+    public void testSupportsBlockLoaderConfigAcceptsExtractFlattenedSubfieldWhenDocValuesPresent() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        assertTrue(
+            "with doc values, ExtractFlattenedSubfieldConfig must be advertised as supported",
+            withDv.supportsBlockLoaderConfig(
+                new ExtractFlattenedSubfieldConfig(randomAlphaOfLengthBetween(3, 32)),
+                MappedFieldType.FieldExtractPreference.NONE
+            )
+        );
+    }
+
+    /**
+     * Without doc values, the keyed sub-field loader cannot be built, so the optimizer must keep
+     * the per-row evaluator.
+     */
+    public void testSupportsBlockLoaderConfigRejectsExtractFlattenedSubfieldWhenDocValuesAbsent() {
+        RootFlattenedFieldType noDv = noDocValuesFieldType();
+        assertFalse(
+            "without doc values the field type must reject the ExtractFlattenedSubfieldConfig",
+            noDv.supportsBlockLoaderConfig(
+                new ExtractFlattenedSubfieldConfig(randomAlphaOfLengthBetween(3, 32)),
+                MappedFieldType.FieldExtractPreference.NONE
+            )
+        );
+    }
+
+    public void testSupportsBlockLoaderConfigRejectsUnrelatedFunctions() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        BlockLoaderFunctionConfig unrelated = new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.LENGTH);
+        assertFalse(
+            "the flattened root only supports the ExtractFlattenedSubfieldConfig fusion. Other configs must be rejected",
+            withDv.supportsBlockLoaderConfig(unrelated, MappedFieldType.FieldExtractPreference.NONE)
+        );
+    }
+
+    public void testBlockLoaderReturnsKeyedFlattenedLoaderForExtractFlattenedSubfield() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        String key = randomAlphaOfLengthBetween(3, 32);
+        BlockLoader loader = withDv.blockLoader(new DummyBlockLoaderContext("test-index") {
+            @Override
+            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                return new ExtractFlattenedSubfieldConfig(key);
+            }
+        });
+        assertThat(
+            "with an ExtractFlattenedSubfieldConfig, the field type must dispatch to the keyed sub-field loader",
+            loader,
+            instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
+        );
+    }
+
+    public void testBlockLoaderThrowsForExtractFlattenedSubfieldWithoutDocValues() {
+        RootFlattenedFieldType noDv = noDocValuesFieldType();
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> noDv.blockLoader(new DummyBlockLoaderContext("test-index") {
+                @Override
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                    return new ExtractFlattenedSubfieldConfig(randomAlphaOfLengthBetween(3, 32));
+                }
+            })
+        );
+        assertThat(e.getMessage(), containsString("requires doc values"));
+    }
+
+    public void testBlockLoaderFallsBackToRootLoaderWithoutExtractConfig() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        BlockLoader loader = withDv.blockLoader(new DummyBlockLoaderContext("test-index"));
+        assertThat(
+            "without an Extract config, the existing RootFlattenedDocValuesBlockLoader path must still be used",
+            loader,
+            instanceOf(RootFlattenedDocValuesBlockLoader.class)
+        );
+    }
+
+    private static RootFlattenedFieldType noDocValuesFieldType() {
+        return new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, false),
+            Collections.emptyMap(),
+            false,
+            false,
+            IGNORE_ABOVE,
+            false,
+            false,
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+        );
     }
 }

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,15 +56,6 @@ public class CompositeValuesSourceParserHelper {
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
         } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
-            if (out.getVersion().before(Version.V_7_5_0)) {
-                throw new IOException(
-                    "Attempting to serialize ["
-                        + builder.getClass().getSimpleName()
-                        + "] to a node with unsupported version ["
-                        + out.getVersion()
-                        + "]"
-                );
-            }
             code = 3;
         } else {
             throw new IOException("invalid builder type: " + builder.getClass().getSimpleName());

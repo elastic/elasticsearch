@@ -14,7 +14,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,7 +33,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class TransportMonitoringBulkAction extends HandledTransportAction<MonitoringBulkRequest, MonitoringBulkResponse> {
 
@@ -49,7 +50,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         Exporters exportService,
         MonitoringService monitoringService
     ) {
-        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new);
+        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.exportService = exportService;
@@ -57,6 +58,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     }
 
     @Override
+    @FixForMultiProject(description = "Once/if this action becomes project-aware, it must consider project blocks as well")
     protected void doExecute(Task task, MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener) {
         clusterService.state().blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
 
@@ -122,7 +124,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
             return bulkDocs.stream()
                 .filter(bulkDoc -> bulkDoc.getSystem() != MonitoredSystem.UNKNOWN)
                 .map(this::createMonitoringDoc)
-                .collect(Collectors.toList());
+                .toList();
         }
 
         /**

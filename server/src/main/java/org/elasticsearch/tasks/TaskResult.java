@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.tasks;
 
@@ -69,6 +70,9 @@ public final class TaskResult implements Writeable, ToXContentObject {
     }
 
     public TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
+        if (error != null && result != null) {
+            throw new IllegalArgumentException("TaskResult cannot have both a non-null error and a non-null result");
+        }
         this.completed = completed;
         this.task = requireNonNull(task, "task is required");
         this.error = error;
@@ -80,7 +84,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
      */
     public TaskResult(StreamInput in) throws IOException {
         completed = in.readBoolean();
-        task = new TaskInfo(in);
+        task = TaskInfo.from(in);
         error = in.readOptionalBytesReference();
         response = in.readOptionalBytesReference();
     }
@@ -142,6 +146,10 @@ public final class TaskResult implements Writeable, ToXContentObject {
         return completed;
     }
 
+    public TaskResult withError(Exception newError) throws IOException {
+        return new TaskResult(completed, task, toXContent(newError), response);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -173,9 +181,8 @@ public final class TaskResult implements Writeable, ToXContentObject {
         );
         parser.declareBoolean(constructorArg(), new ParseField("completed"));
         parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
-        ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
-        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
+        ObjectParserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
+        ObjectParserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
         PARSER = parser.build();
     }
 

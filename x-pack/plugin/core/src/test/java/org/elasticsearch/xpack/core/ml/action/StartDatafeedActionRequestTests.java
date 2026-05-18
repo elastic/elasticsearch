@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.Request;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StartDatafeedActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class StartDatafeedActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -22,13 +22,13 @@ public class StartDatafeedActionRequestTests extends AbstractSerializingTestCase
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

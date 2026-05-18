@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.join.query;
 
@@ -18,6 +19,7 @@ import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +30,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -48,7 +51,9 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * A query builder for {@code has_child} query.
  */
-public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
+public class HasChildQueryBuilder extends LeafQueryBuilder<HasChildQueryBuilder> {
+
+    private static final MatchNoDocsQuery CANNOT_LOAD_EMPTY_READER = new MatchNoDocsQuery("Can't load against an empty reader");
     public static final String NAME = "has_child";
 
     /**
@@ -59,6 +64,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
     public static final int DEFAULT_MIN_CHILDREN = 1;
+    private static final ScoreMode DEFAULT_SCORE_MODE = ScoreMode.None;
 
     /**
      * The default value for ignore_unmapped.
@@ -79,7 +85,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private InnerHitBuilder innerHitBuilder;
     private int minChildren = DEFAULT_MIN_CHILDREN;
     private int maxChildren = DEFAULT_MAX_CHILDREN;
-    private boolean ignoreUnmapped = false;
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public HasChildQueryBuilder(String type, QueryBuilder query, ScoreMode scoreMode) {
         this(type, query, DEFAULT_MIN_CHILDREN, DEFAULT_MAX_CHILDREN, scoreMode, null);
@@ -223,11 +229,19 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
         builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(SCORE_MODE_FIELD.getPreferredName(), NestedQueryBuilder.scoreModeAsString(scoreMode));
-        builder.field(MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
-        builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
-        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        printBoostAndQueryName(builder);
+        if (false == scoreMode.equals(DEFAULT_SCORE_MODE)) {
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), NestedQueryBuilder.scoreModeAsString(scoreMode));
+        }
+        if (minChildren != DEFAULT_MIN_CHILDREN) {
+            builder.field(MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
+        }
+        if (maxChildren != DEFAULT_MAX_CHILDREN) {
+            builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+        }
+        if (ignoreUnmapped != DEFAULT_IGNORE_UNMAPPED) {
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        }
+        boostAndQueryNameToXContent(builder);
         if (innerHitBuilder != null) {
             builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitBuilder, params);
         }
@@ -237,7 +251,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     public static HasChildQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
-        ScoreMode scoreMode = ScoreMode.None;
+        ScoreMode scoreMode = DEFAULT_SCORE_MODE;
         int minChildren = HasChildQueryBuilder.DEFAULT_MIN_CHILDREN;
         int maxChildren = HasChildQueryBuilder.DEFAULT_MAX_CHILDREN;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
@@ -304,7 +318,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         Joiner joiner = Joiner.getJoiner(context);
         if (joiner == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] no join field has been configured");
             }
@@ -312,7 +326,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(
                     context,
@@ -324,7 +338,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         String parentJoinField = joiner.parentJoinField(type);
         if (context.isFieldMapped(parentJoinField) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
         }
@@ -333,7 +347,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         Query childFilter = joiner.filter(type);
         Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
         MappedFieldType ft = context.getFieldType(parentJoinField);
-        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
         return new LateParsingQuery(
             parentFilter,
             filteredQuery,
@@ -388,11 +402,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query rewritten = super.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query rewritten = super.rewrite(searcher);
             if (rewritten != this) {
                 return rewritten;
             }
+            IndexReader reader = searcher.getIndexReader();
             if (reader instanceof DirectoryReader) {
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
@@ -415,10 +430,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // blow up since for this query to work we have to have a DirectoryReader otherwise
                     // we can't load global ordinals - for this to work we simply check if the reader has no leaves
                     // and rewrite to match nothing
-                    return new MatchNoDocsQuery();
+                    return CANNOT_LOAD_EMPTY_READER;
                 }
                 throw new IllegalStateException(
-                    "can't load global ordinals for reader of type: " + reader.getClass() + " must be a DirectoryReader"
+                    "can't load global ordinals for reader of type: " + searcher.getClass() + " must be a DirectoryReader"
                 );
             }
         }
@@ -526,5 +541,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             );
             innerHits.put(name, innerHitContextBuilder);
         }
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

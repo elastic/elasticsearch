@@ -6,14 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
-import com.sun.net.httpserver.HttpsServer;
-
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,11 +19,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -50,13 +46,9 @@ import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -206,7 +198,7 @@ public class HttpClientTests extends ESTestCase {
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
-                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
                 .setSecureSettings(secureSettings)
                 .build();
 
@@ -236,7 +228,7 @@ public class HttpClientTests extends ESTestCase {
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
-                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
                 .setSecureSettings(secureSettings)
                 .build();
 
@@ -254,7 +246,7 @@ public class HttpClientTests extends ESTestCase {
             .put(environment.settings())
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
-            .putList("xpack.http.ssl.supported_protocols", getProtocols())
+            .putList("xpack.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
             .setSecureSettings(secureSettings)
             .build();
 
@@ -396,7 +388,7 @@ public class HttpClientTests extends ESTestCase {
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
             .put("xpack.security.http.ssl.enabled", false)
-            .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+            .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
             .setSecureSettings(serverSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(serverSettings));
@@ -411,7 +403,7 @@ public class HttpClientTests extends ESTestCase {
                 .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
                 .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
                 .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
-                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
                 .put("xpack.security.http.ssl.enabled", false)
                 .build();
 
@@ -491,7 +483,7 @@ public class HttpClientTests extends ESTestCase {
             request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
         } else {
             // ensure that fromUrl acts the same way than the above builder
-            request = HttpRequest.builder().fromUrl(String.format(Locale.ROOT, "http://localhost:%s%s", webServer.getPort(), path)).build();
+            request = HttpRequest.builder().fromUrl(Strings.format("http://localhost:%s%s", webServer.getPort(), path)).build();
         }
         httpClient.execute(request);
 
@@ -508,6 +500,7 @@ public class HttpClientTests extends ESTestCase {
             .setBody("foo")
             .addHeader("foo", "bar")
             .addHeader("foo", "baz")
+            .addHeader("Foo", "bam")
             .addHeader("Content-Length", "3");
         webServer.enqueue(mockResponse);
 
@@ -517,7 +510,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests(), hasSize(1));
 
         assertThat(httpResponse.headers(), hasKey("foo"));
-        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz"));
+        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz", "bam"));
     }
 
     // finally fixing https://github.com/elastic/x-plugins/issues/1141 - yay! Fixed due to switching to apache http client internally!
@@ -547,7 +540,7 @@ public class HttpClientTests extends ESTestCase {
                     socket.getOutputStream().flush();
                 } catch (Exception e) {
                     hasExceptionHappened.set(e);
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error in writing non HTTP response"), e);
+                    logger.error("Error in writing non HTTP response", e);
                 }
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();
@@ -573,7 +566,7 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(data));
 
         Settings settings = Settings.builder()
-            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
+            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.of(randomBytesLength - 1, ByteSizeUnit.BYTES))
             .build();
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
@@ -585,7 +578,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatGetRedirectIsFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
 
@@ -608,7 +601,7 @@ public class HttpClientTests extends ESTestCase {
 
     // not allowed by RFC, only allowed for GET or HEAD
     public void testThatPostRedirectIsNotFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldNeverBeRead"));
 
@@ -697,7 +690,7 @@ public class HttpClientTests extends ESTestCase {
     public void testThatWhiteListingWorksForRedirects() throws Exception {
         int numberOfRedirects = randomIntBetween(1, 10);
         for (int i = 0; i < numberOfRedirects; i++) {
-            String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/redirect" + i;
+            String redirectUrl = "http://" + webServer.getHttpAddress() + "/redirect" + i;
             webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         }
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
@@ -762,6 +755,72 @@ public class HttpClientTests extends ESTestCase {
         assertThat(automaton.run(randomAlphaOfLength(10)), is(true));
     }
 
+    public void testThatWhiteListBlocksPerRequestProxy() throws Exception {
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                .path("/")
+                .proxy(new HttpProxy("not-whitelisted-proxy", randomIntBetween(1000, 5000), randomFrom(Scheme.HTTP, Scheme.HTTPS)))
+                .build();
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
+            assertThat(e.getMessage(), containsString("proxy host"));
+            assertThat(e.getMessage(), containsString("not whitelisted"));
+        }
+    }
+
+    public void testThatWhiteListAllowsWhitelistedProxy() throws Exception {
+        try (MockWebServer proxyServer = new MockWebServer()) {
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("proxiedContent"));
+            proxyServer.start();
+
+            String proxyUri = "http://localhost:" + proxyServer.getPort();
+            Settings settings = Settings.builder().putList(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri(), proxyUri).build();
+
+            try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
+                HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                    .path("/")
+                    .proxy(new HttpProxy("localhost", proxyServer.getPort()))
+                    .build();
+                HttpResponse response = client.execute(request);
+                assertThat(response.status(), equalTo(200));
+                assertThat(response.body().utf8ToString(), equalTo("proxiedContent"));
+            }
+
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(proxyServer.requests(), hasSize(1));
+        }
+    }
+
+    public void testThatSystemProxyIsExemptFromWhitelist() throws Exception {
+        try (MockWebServer proxyServer = new MockWebServer()) {
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("proxiedContent"));
+            proxyServer.start();
+
+            // Whitelist only the target — the system-wide proxy is NOT whitelisted but should still work
+            Settings settings = Settings.builder()
+                .put(environment.settings())
+                .put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri())
+                .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
+                .build();
+
+            final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
+            try (HttpClient client = new HttpClient(settings, sslService, null, mockClusterService())) {
+                HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                    .path("/")
+                    .method(HttpMethod.GET)
+                    .build();
+                HttpResponse response = client.execute(request);
+                assertThat(response.status(), equalTo(200));
+                assertThat(response.body().utf8ToString(), equalTo("proxiedContent"));
+            }
+
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(proxyServer.requests(), hasSize(1));
+        }
+    }
+
     public void testCreateUri() throws Exception {
         assertCreateUri("https://example.org/foo/", "/foo/");
         assertCreateUri("https://example.org/foo", "/foo");
@@ -816,6 +875,29 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    public void testNoCookies() throws IOException {
+        /*
+         * In this test we make the same request twice, and assert that the second request is not sent with the cookie that the first
+         * response tells us to set.
+         */
+        int responseCode = randomIntBetween(200, 203);
+        String body = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(responseCode).setBody(body).addHeader("Set-Cookie", "test-cookie=" + randomAlphaOfLength(10))
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5));
+        requestBuilder.body(randomAlphaOfLength(5));
+        HttpRequest request = requestBuilder.build();
+
+        httpClient.execute(request);
+        httpClient.execute(request);
+        assertNull(webServer.requests().get(1).getHeader("Cookie"));
+    }
+
     private void assertCreateUri(String uri, String expectedPath) {
         final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
         final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);
@@ -830,24 +912,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return String.format(Locale.ROOT, "http://%s:%s", webServer.getHostName(), webServer.getPort());
-    }
-
-    /**
-     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
-     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
-     */
-    private static List<String> getProtocols() {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
-            return List.of("TLSv1.2");
-        } else {
-            JavaVersion full = AccessController.doPrivileged(
-                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
-            );
-            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
-                return List.of("TLSv1.2");
-            }
-        }
-        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+        return Strings.format("http://%s", webServer.getHttpAddress());
     }
 }

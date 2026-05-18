@@ -11,28 +11,20 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 
 /**
  * Provides a number of utility methods for interacting with {@link Settings} and {@link Setting} inside a {@link Realm}.
@@ -44,10 +36,35 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FA
  */
 public class RealmSettings {
 
+    private static final String DOMAIN_SETTING_PREFIX = "xpack.security.authc.domains.";
     public static final Setting.AffixSetting<List<String>> DOMAIN_TO_REALM_ASSOC_SETTING = Setting.affixKeySetting(
-        "xpack.security.authc.domains.",
+        DOMAIN_SETTING_PREFIX,
         "realms",
         key -> Setting.stringListSetting(key, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<Boolean> DOMAIN_UID_LITERAL_USERNAME_SETTING = Setting.affixKeySetting(
+        DOMAIN_SETTING_PREFIX,
+        "uid_generation.literal_username",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+    );
+
+    private static final Pattern VALID_FIXED_SUFFIX = Pattern.compile("^[a-zA-Z][a-zA-Z0-9]{0,9}$");
+    public static final Setting.AffixSetting<String> DOMAIN_UID_SUFFIX_SETTING = Setting.affixKeySetting(
+        DOMAIN_SETTING_PREFIX,
+        "uid_generation.suffix",
+        key -> Setting.simpleString(key, v -> {
+            if (false == VALID_FIXED_SUFFIX.matcher(v).matches()) {
+                throw new IllegalArgumentException(
+                    "Invalid value ["
+                        + v
+                        + "] for ["
+                        + key
+                        + "]. Fixed-string suffix must begin with a letter and followed by either letters or digits and"
+                        + "the total length must be between 1 and 10 characters (inclusive)."
+                );
+            }
+        }, Setting.Property.NodeScope)
     );
 
     public static final String RESERVED_REALM_AND_DOMAIN_NAME_PREFIX = "_";
@@ -125,58 +142,41 @@ public class RealmSettings {
     }
 
     /**
-     * Returns the domain name that the given realm is assigned to.
-     * Assumes {@code #verifyRealmNameToDomainNameAssociation} successfully verified the configuration.
+     * Computes the realm name to domain name association.
+     * Also verifies that realms are assigned to at most one domain and that domains do not refer to undefined realms.
      */
-    public static @Nullable String getDomainForRealm(Settings globalSettings, RealmConfig.RealmIdentifier realmIdentifier) {
-        // TODO reserved realm settings need to be pulled into core
-        if (realmIdentifier.equals(new RealmConfig.RealmIdentifier("reserved", "reserved"))
-            || realmIdentifier.equals(
-                new RealmConfig.RealmIdentifier(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE)
-            )
-            || realmIdentifier.equals(new RealmConfig.RealmIdentifier(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE))
-            || realmIdentifier.equals(new RealmConfig.RealmIdentifier(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE))
-            || realmIdentifier.equals(new RealmConfig.RealmIdentifier(ATTACH_REALM_NAME, ATTACH_REALM_TYPE))
-            || realmIdentifier.equals(
-                new RealmConfig.RealmIdentifier(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE)
-            )) {
-            return null;
-        }
-        // file and native realms can be referred to by their default names too
-        for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
-            Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
-            if (realmsByDomainSetting.get(globalSettings).contains(realmIdentifier.getName())) {
-                return domainName;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Verifies that realms are assigned to at most one domain and that domains do not refer to undefined realms.
-     * Must be invoked once on node start-up (and usually not by cmd line tools).
-     */
-    public static void verifyRealmNameToDomainNameAssociation(
-        Settings globalSettings,
-        Collection<RealmConfig.RealmIdentifier> allRealmIdentifiers
-    ) {
-        final Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
-        for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
+    public static Map<String, DomainConfig> computeRealmNameToDomainConfigAssociation(Settings globalSettings) {
+        final Settings domainSettings = globalSettings.getByPrefix(DOMAIN_SETTING_PREFIX);
+        final Map<String, Set<DomainConfig>> realmToDomainsMap = new HashMap<>();
+        for (String domainName : domainSettings.names()) {
             if (domainName.startsWith(RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
                 throw new IllegalArgumentException(
                     "Security domain name must not start with \"" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "\""
                 );
             }
-            Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
-            for (String realmName : realmsByDomainSetting.get(globalSettings)) {
-                realmToDomainsMap.computeIfAbsent(realmName, k -> new TreeSet<>()).add(domainName);
+
+            final Setting<List<String>> domainRealmsSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
+            if (false == domainRealmsSetting.exists(globalSettings)) {
+                throw new IllegalArgumentException("[" + domainRealmsSetting.getKey() + "] must exist for security domain configuration");
+            }
+            final Set<String> memberRealmNames = Set.copyOf(domainRealmsSetting.get(globalSettings));
+            // TODO: Does it make sense to have empty realms for a domain?
+
+            final boolean literalUsername = DOMAIN_UID_LITERAL_USERNAME_SETTING.getConcreteSettingForNamespace(domainName)
+                .get(globalSettings);
+            final Setting<String> suffixSetting = DOMAIN_UID_SUFFIX_SETTING.getConcreteSettingForNamespace(domainName);
+            final String suffix = suffixSetting.exists(globalSettings) ? suffixSetting.get(globalSettings) : null;
+
+            final DomainConfig domainConfig = new DomainConfig(domainName, memberRealmNames, literalUsername, suffix);
+            for (String realmName : memberRealmNames) {
+                realmToDomainsMap.computeIfAbsent(realmName, k -> new TreeSet<>()).add(domainConfig);
             }
         }
         final StringBuilder realmToMultipleDomainsErrorMessageBuilder = new StringBuilder(
             "Realms can be associated to at most one domain, but"
         );
         boolean realmToMultipleDomains = false;
-        for (Map.Entry<String, Set<String>> realmToDomains : realmToDomainsMap.entrySet()) {
+        for (Map.Entry<String, Set<DomainConfig>> realmToDomains : realmToDomainsMap.entrySet()) {
             if (realmToDomains.getValue().size() > 1) {
                 if (realmToMultipleDomains) {
                     realmToMultipleDomainsErrorMessageBuilder.append(" and");
@@ -184,18 +184,21 @@ public class RealmSettings {
                 realmToMultipleDomainsErrorMessageBuilder.append(" realm [")
                     .append(realmToDomains.getKey())
                     .append("] is associated to domains ")
-                    .append(realmToDomains.getValue());
+                    .append(realmToDomains.getValue().stream().map(DomainConfig::name).sorted().toList());
                 realmToMultipleDomains = true;
             }
         }
         if (realmToMultipleDomains) {
             throw new IllegalArgumentException(realmToMultipleDomainsErrorMessageBuilder.toString());
         }
+
+        final Set<RealmConfig.RealmIdentifier> allRealmIdentifiers = RealmSettings.getRealmSettings(globalSettings).keySet();
         // default file and native realm names can be used in domain association
         boolean fileRealmConfigured = false;
         boolean nativeRealmConfigured = false;
+        Set<String> unknownRealms = new HashSet<>(realmToDomainsMap.keySet());
         for (RealmConfig.RealmIdentifier identifier : allRealmIdentifiers) {
-            realmToDomainsMap.remove(identifier.getName());
+            unknownRealms.remove(identifier.getName());
             if (identifier.getType().equals(FileRealmSettings.TYPE)) {
                 fileRealmConfigured = true;
             }
@@ -204,18 +207,21 @@ public class RealmSettings {
             }
         }
         if (false == fileRealmConfigured) {
-            realmToDomainsMap.remove(FileRealmSettings.DEFAULT_NAME);
+            unknownRealms.remove(FileRealmSettings.DEFAULT_NAME);
         }
         if (false == nativeRealmConfigured) {
-            realmToDomainsMap.remove(NativeRealmSettings.DEFAULT_NAME);
+            unknownRealms.remove(NativeRealmSettings.DEFAULT_NAME);
         }
         // verify that domain assignment does not refer to unknown realms
-        if (false == realmToDomainsMap.isEmpty()) {
-            final StringBuilder undefinedRealmsErrorMessageBuilder = new StringBuilder("Undefined realms ").append(
-                realmToDomainsMap.keySet()
-            ).append(" cannot be assigned to domains");
+        if (false == unknownRealms.isEmpty()) {
+            final StringBuilder undefinedRealmsErrorMessageBuilder = new StringBuilder("Undefined realms ").append(unknownRealms)
+                .append(" cannot be assigned to domains");
             throw new IllegalArgumentException(undefinedRealmsErrorMessageBuilder.toString());
         }
+        return realmToDomainsMap.entrySet()
+            .stream()
+            .map(e -> Map.entry(e.getKey(), e.getValue().stream().findAny().get()))
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey(), e -> e.getValue()));
     }
 
     /**

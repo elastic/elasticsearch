@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -11,12 +12,12 @@ package org.elasticsearch.cli.keystore;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.junit.After;
@@ -76,11 +77,11 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
     }
 
     void saveKeystore(KeyStoreWrapper keystore, String password) throws Exception {
-        keystore.save(env.configFile(), password.toCharArray());
+        keystore.save(env.configDir(), password.toCharArray());
     }
 
     KeyStoreWrapper loadKeystore(String password) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(password.toCharArray());
         return keystore;
     }

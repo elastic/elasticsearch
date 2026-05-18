@@ -1,33 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
-public abstract class AbstractLongDocValuesField implements ScriptDocValues.Supplier<Long>, DocValuesField<Long> {
+public abstract class AbstractLongDocValuesField extends AbstractScriptFieldFactory<Long>
+    implements
+        Field<Long>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<Long> {
 
     protected final String name;
     // used for backwards compatibility for old-style "doc" access
     // as a delegate to this field class
     protected ScriptDocValues<?> scriptDocValues = null;
 
-    protected final SortedNumericDocValues input;
+    protected final SortedNumericLongValues input;
     protected long[] values = new long[0];
     protected int count;
 
-    public AbstractLongDocValuesField(SortedNumericDocValues input, String name) {
+    public AbstractLongDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }
@@ -59,7 +64,7 @@ public abstract class AbstractLongDocValuesField implements ScriptDocValues.Supp
     }
 
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<?> toScriptDocValues() {
         if (scriptDocValues == null) {
             scriptDocValues = newScriptDocValues();
         }

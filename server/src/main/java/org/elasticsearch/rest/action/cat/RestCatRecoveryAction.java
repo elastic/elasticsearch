@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -23,6 +24,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 
@@ -38,6 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * in a string format, designed to be used at the command line. An Index can
  * be specified to limit output to a particular index or indices.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestCatRecoveryAction extends AbstractCatAction {
 
     @Override
@@ -127,20 +131,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             }
 
             // Sort ascending by shard id for readability
-            CollectionUtil.introSort(shardRecoveryStates, new Comparator<RecoveryState>() {
-                @Override
-                public int compare(RecoveryState o1, RecoveryState o2) {
-                    int id1 = o1.getShardId().id();
-                    int id2 = o2.getShardId().id();
-                    if (id1 < id2) {
-                        return -1;
-                    } else if (id1 > id2) {
-                        return 1;
-                    } else {
-                        return 0;
-                    }
-                }
-            });
+            CollectionUtil.introSort(shardRecoveryStates, Comparator.comparingInt(o -> o.getShardId().id()));
 
             for (RecoveryState state : shardRecoveryStates) {
                 t.startRow();
@@ -171,10 +162,10 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
-                t.addCell(new ByteSizeValue(state.getIndex().totalRecoverBytes()));
-                t.addCell(new ByteSizeValue(state.getIndex().recoveredBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()));
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
-                t.addCell(new ByteSizeValue(state.getIndex().totalBytes()));
+                t.addCell(ByteSizeValue.ofBytes(state.getIndex().totalBytes()));
                 t.addCell(state.getTranslog().totalOperations());
                 t.addCell(state.getTranslog().recoveredOperations());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));

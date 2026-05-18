@@ -1,0 +1,30 @@
+## Smoke tests for char filters included in the analysis-common module
+
+#todo this can be expanded with parameters once settings support is added
+---
+"Stable tokenizer plugin. Tokenizes text by _":
+  - do:
+      indices.analyze:
+        body:
+          text: x y_z
+          tokenizer:
+            type: example_tokenizer_factory
+            tokenizer_list_of_chars: ["_", " "]
+  - length: { tokens: 3 }
+  - match:  { tokens.0.token: "x" }
+  - match:  { tokens.1.token: "y" }
+  - match:  { tokens.2.token: "z" }
+
+  - do:
+      indices.analyze:
+        body:
+          text: x_y_z
+          explain: true
+          tokenizer:
+            type: example_tokenizer_factory
+            tokenizer_list_of_chars: ["_", " "]
+  - match:  { detail.custom_analyzer: true }
+  - length: { detail.tokenizer.tokens: 3 }
+  - match:  { detail.tokenizer.tokens.0.token: "x" }
+  - match:  { detail.tokenizer.tokens.1.token: "y" }
+  - match:  { detail.tokenizer.tokens.2.token: "z" }

@@ -12,16 +12,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
@@ -60,7 +60,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -71,26 +71,32 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(
                 new FilterAllocationDecider(
-                    clusterState.getMetadata().settings(),
+                    currentState.cluster().getMetadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ),
-                new DataTierAllocationDecider(),
+                DataTierAllocationDecider.INSTANCE,
+                new IndexVersionAllocationDecider(),
                 new NodeVersionAllocationDecider(),
                 new NodeShutdownAllocationDecider(),
                 new NodeReplacementAllocationDecider()
             )
         );
-        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null, null, System.nanoTime());
+        RoutingAllocation allocation = RoutingAllocation.immutable(
+            allocationDeciders,
+            currentState.cluster(),
+            null,
+            null,
+            System.nanoTime()
+        );
         List<String> validNodeIds = new ArrayList<>();
         String indexName = indexMetadata.getIndex().getName();
-        final Map<ShardId, List<ShardRouting>> routingsByShardId = clusterState.getRoutingTable()
+        final Map<ShardId, List<ShardRouting>> routingsByShardId = currentState.routingTable()
             .allShards(indexName)
             .stream()
             .collect(Collectors.groupingBy(ShardRouting::shardId));
 
         if (routingsByShardId.isEmpty() == false) {
-            for (RoutingNode node : routingNodes) {
+            for (RoutingNode node : allocation.routingNodes()) {
                 boolean canAllocateOneCopyOfEachShard = routingsByShardId.values()
                     .stream() // For each shard
                     .allMatch(
@@ -113,14 +119,14 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     .build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE)
                     .settings(settings);
-                getClient().admin()
+                getClient(currentState.projectId()).admin()
                     .indices()
-                    .updateSettings(updateSettingsRequest, ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
+                    .updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
             } else {
                 // No nodes currently match the allocation rules, so report this as an error and we'll retry
                 logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
                 listener.onFailure(
-                    new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto" + " prior to shrink")
+                    new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName + "] onto prior to shrink")
                 );
             }
         } else {

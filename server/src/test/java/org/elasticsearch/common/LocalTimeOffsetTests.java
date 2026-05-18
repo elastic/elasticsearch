@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -11,7 +12,6 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.LocalTimeOffset.Gap;
 import org.elasticsearch.common.LocalTimeOffset.Overlap;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -254,11 +254,8 @@ public class LocalTimeOffsetTests extends ESTestCase {
         assertKnownMovesBacktoPreviousDay("America/Moncton", "2005-10-29T03:01:00");
         assertKnownMovesBacktoPreviousDay("America/St_Johns", "2010-11-07T02:31:00");
         assertKnownMovesBacktoPreviousDay("Canada/Newfoundland", "2010-11-07T02:31:00");
-        if (JavaVersion.current().compareTo(JavaVersion.parse("11")) > 0) {
-            // Added in java 12
-            assertKnownMovesBacktoPreviousDay("Pacific/Guam", "1969-01-25T13:01:00");
-            assertKnownMovesBacktoPreviousDay("Pacific/Saipan", "1969-01-25T13:01:00");
-        }
+        assertKnownMovesBacktoPreviousDay("Pacific/Guam", "1969-01-25T13:01:00");
+        assertKnownMovesBacktoPreviousDay("Pacific/Saipan", "1969-01-25T13:01:00");
     }
 
     private void assertKnownMovesBacktoPreviousDay(String zone, String time) {
@@ -278,7 +275,7 @@ public class LocalTimeOffsetTests extends ESTestCase {
     }
 
     /**
-     * The the last "fully defined" transitions in the provided {@linkplain ZoneId}.
+     * The last "fully defined" transitions in the provided {@linkplain ZoneId}.
      */
     private static ZoneOffsetTransition lastTransitionIn(ZoneId zone) {
         List<ZoneOffsetTransition> transitions = zone.getRules().getTransitions();

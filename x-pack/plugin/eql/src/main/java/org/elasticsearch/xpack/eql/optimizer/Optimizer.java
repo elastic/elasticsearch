@@ -14,13 +14,16 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
+import org.elasticsearch.xpack.eql.plan.logical.AbstractJoin;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
 import org.elasticsearch.xpack.eql.util.StringUtils;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -42,7 +45,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
@@ -76,8 +78,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch(
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        var substitutions = new Batch<>(
             "Substitution",
             Limiter.ONCE,
             new ReplaceWildcards(),
@@ -87,7 +89,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new AddMandatoryJoinKeyFilter()
         );
 
-        Batch operators = new Batch(
+        var operators = new Batch<>(
             "Operator Optimization",
             new ConstantFolding(),
             // boolean
@@ -105,13 +107,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters()
         );
 
-        Batch constraints = new Batch("Infer constraints", Limiter.ONCE, new PropagateJoinKeyConstraints());
+        var constraints = new Batch<>("Infer constraints", Limiter.ONCE, new PropagateJoinKeyConstraints());
 
-        Batch ordering = new Batch("Implicit Order", new SortByLimit(), new PushDownOrderBy());
+        var ordering = new Batch<>("Implicit Order", new SortByLimit(), new PushDownOrderBy());
 
-        Batch local = new Batch("Skip Elasticsearch", new SkipEmptyFilter(), new SkipEmptyJoin(), new SkipQueryOnLimitZero());
+        var local = new Batch<>("Skip Elasticsearch", new SkipEmptyFilter(), new SkipEmptyJoin(), new SkipQueryOnLimitZero());
 
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
+        var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
         return asList(substitutions, operators, constraints, operators, ordering, local, label);
     }
@@ -198,9 +200,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      * Add the constraint manually to each query - this helps simplifying as well
      * as propagating the constraint.
      */
-    static class AddMandatoryJoinKeyFilter extends OptimizerRule<Join> {
+    static class AddMandatoryJoinKeyFilter extends OptimizerRule<AbstractJoin> {
         @Override
-        protected LogicalPlan rule(Join join) {
+        protected LogicalPlan rule(AbstractJoin join) {
             // collect all mandatory keys and add them as a filter
             boolean changed = false;
             List<KeyedFilter> filters = new ArrayList<>(join.queries());
@@ -220,11 +222,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         mandatoryKeys.stream().map(m -> new IsNotNull(m.source(), m)).collect(toList())
                     );
                     Filter joinKeyNotNull = new Filter(join.source(), k.child(), constraint);
-                    filters.set(i, new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.timestamp()));
+                    filters.set(
+                        i,
+                        new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.tiebreaker(), k.isMissingEventFilter())
+                    );
                 }
             }
             if (changed) {
-                join = join.with(filters, join.until(), join.direction());
+                if (join instanceof Join j) {
+                    join = j.with(filters, j.until(), j.direction());
+                } else if (join instanceof Sample sample) {
+                    join = sample.with(filters);
+                }
             }
             return join;
         }
@@ -241,6 +250,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return null;
         }
 
+    }
+
+    static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn {
+
+        @Override
+        protected boolean shouldValidateIn() {
+            return true;
+        }
     }
 
     static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
@@ -341,9 +358,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     /**
-     * Any condition applied on a join/sequence key, gets propagated to all rules.
+     * Any condition applied on a join/sequence/sample key, gets propagated to all rules.
      */
-    static class PropagateJoinKeyConstraints extends OptimizerRule<Join> {
+    static class PropagateJoinKeyConstraints extends OptimizerRule<AbstractJoin> {
 
         static class Constraint {
             private final Expression condition;
@@ -375,55 +392,80 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(Join join) {
+        protected LogicalPlan rule(AbstractJoin join) {
             List<Constraint> constraints = new ArrayList<>();
 
-            // collect constraints for each filter
-            join.queries().forEach(k -> k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))));
+            // collect constraints for each non-negated filter only; negated (missing event) filters use different semantics
+            for (KeyedFilter k : join.queries()) {
+                if (k.isMissingEventFilter() == false) {
+                    k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k)));
+                }
+            }
 
             if (constraints.isEmpty() == false) {
-                List<KeyedFilter> queries = join.queries().stream().map(k -> addConstraint(k, constraints)).collect(toList());
+                // propagate constraints only to non-negated filters; applying key constraints to missing event filters is incorrect
+                List<KeyedFilter> queries = new ArrayList<>(join.queries().size());
+                for (KeyedFilter k : join.queries()) {
+                    queries.add(k.isMissingEventFilter() ? k : addConstraint(k, constraints));
+                }
 
-                join = join.with(queries, join.until(), join.direction());
+                if (join instanceof Join j) {
+                    join = j.with(queries, j.until(), j.direction());
+                } else if (join instanceof Sample sample) {
+                    join = sample.with(queries);
+                }
             }
 
             return join;
         }
 
-        private List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
+        private static List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
             List<Constraint> constraints = new ArrayList<>();
             List<? extends NamedExpression> keys = filter.keys();
 
             List<Expression> and = Predicates.splitAnd(condition);
             for (Expression exp : and) {
-                // if there are no conjunction and at least one key matches, save the expression along with the key
-                // and its ordinal so it can be replaced
-                if (exp.anyMatch(Or.class::isInstance) == false) {
-                    // comparisons against variables are not done
-                    // hence why on the first key match, the expression is picked up
-                    exp.anyMatch(e -> {
-                        for (int i = 0; i < keys.size(); i++) {
-                            Expression key = keys.get(i);
-                            if (e.semanticEquals(key)) {
-                                constraints.add(new Constraint(exp, filter, i));
-                                return true;
-                            }
-                        }
-                        return false;
-                    });
+                // if the expression only involves filter keys, it's simple enough (eg. there are no conjunction), and at least one key
+                // matches, save the expression along with the key and its ordinal so it can be replaced
+                if (exp.anyMatch(Or.class::isInstance)) {
+                    continue;
                 }
+
+                // expressions that involve attributes other than the keys have to be discarded
+                if (exp.anyMatch(x -> x instanceof Attribute && keys.stream().noneMatch(k -> x.semanticEquals(k)))) {
+                    continue;
+                }
+
+                exp.anyMatch(e -> {
+                    for (int i = 0; i < keys.size(); i++) {
+                        Expression key = keys.get(i);
+                        if (e.semanticEquals(key)) {
+                            constraints.add(new Constraint(exp, filter, i));
+                            return true;
+                        }
+                    }
+                    return false;
+                });
             }
+
             return constraints;
         }
 
         // adapt constraint to the given filter by replacing the keys accordingly in the expressions
-        private KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
+        private static KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
             Expression constraint = Predicates.combineAnd(
                 constraints.stream().map(c -> c.constraintFor(k)).filter(Objects::nonNull).collect(toList())
             );
 
             return constraint != null
-                ? new KeyedFilter(k.source(), new Filter(k.source(), k.child(), constraint), k.keys(), k.timestamp(), k.tiebreaker())
+                ? new KeyedFilter(
+                    k.source(),
+                    new Filter(k.source(), k.child(), constraint),
+                    k.keys(),
+                    k.timestamp(),
+                    k.tiebreaker(),
+                    k.isMissingEventFilter()
+                )
                 : k;
         }
     }
@@ -479,10 +521,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     boolean baseFilter = true;
                     for (KeyedFilter filter : queries) {
                         // preserve the order for the base query, everything else needs to be ascending
-                        List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
+                        List<Order> pushedOrder = baseFilter && filter.isMissingEventFilter() == false ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
                         orderedQueries.add(filter.replaceChild(order));
-                        baseFilter = false;
+                        if (filter.isMissingEventFilter() == false) {
+                            baseFilter = false;
+                        }
                     }
 
                     KeyedFilter until = join.until();
@@ -522,14 +566,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SkipEmptyJoin extends OptimizerRule<Join> {
+    static class SkipEmptyJoin extends OptimizerRule<AbstractJoin> {
 
         @Override
-        protected LogicalPlan rule(Join plan) {
+        protected LogicalPlan rule(AbstractJoin plan) {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
-                if (filter.anyMatch(LocalRelation.class::isInstance)) {
-                    return new LocalRelation(plan.source(), plan.output(), Type.SEQUENCE);
+                if (filter.isMissingEventFilter() == false && filter.anyMatch(LocalRelation.class::isInstance)) {
+                    return new LocalRelation(plan.source(), plan.output(), plan instanceof Sample ? Type.SAMPLE : Type.SEQUENCE);
                 }
             }
             return plan;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
@@ -14,12 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotInfo.SnapshotInfoBuilder;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,36 +26,15 @@ import java.util.Objects;
  */
 public class CreateSnapshotResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ObjectParser<CreateSnapshotResponse, Void> PARSER = new ObjectParser<>(
-        CreateSnapshotResponse.class.getName(),
-        true,
-        CreateSnapshotResponse::new
-    );
-
-    static {
-        PARSER.declareObject(
-            CreateSnapshotResponse::setSnapshotInfoFromBuilder,
-            SnapshotInfo.SNAPSHOT_INFO_PARSER,
-            new ParseField("snapshot")
-        );
-    }
-
     @Nullable
-    private SnapshotInfo snapshotInfo;
-
-    CreateSnapshotResponse() {}
+    private final SnapshotInfo snapshotInfo;
 
     public CreateSnapshotResponse(@Nullable SnapshotInfo snapshotInfo) {
         this.snapshotInfo = snapshotInfo;
     }
 
     public CreateSnapshotResponse(StreamInput in) throws IOException {
-        super(in);
         snapshotInfo = in.readOptionalWriteable(SnapshotInfo::readFrom);
-    }
-
-    private void setSnapshotInfoFromBuilder(SnapshotInfoBuilder snapshotInfoBuilder) {
-        this.snapshotInfo = snapshotInfoBuilder.build();
     }
 
     /**
@@ -101,10 +77,6 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
         }
         builder.endObject();
         return builder;
-    }
-
-    public static CreateSnapshotResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

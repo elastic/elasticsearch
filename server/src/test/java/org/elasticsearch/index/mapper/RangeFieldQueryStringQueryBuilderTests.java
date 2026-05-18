@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -14,7 +15,6 @@ import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
+import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -162,7 +163,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }
         );
 
-        Query controlDv = SortedNumericDocValuesField.newSlowRangeQuery(
+        Query controlDv = SortedNumericDocValuesRangeQuery.newRangeQuery(
             DATE_FIELD_NAME,
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
             parser.parse(upperBoundExact, () -> 0).toEpochMilli()

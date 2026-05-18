@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.support.filtering;
@@ -20,6 +21,9 @@ import java.util.Set;
 public class FilterPath {
     private static final String WILDCARD = "*";
     private static final String DOUBLE_WILDCARD = "**";
+
+    // This is ridiculously large, but we can be 100% certain that if any filter tries to exceed this depth then it is a mistake
+    static final int MAX_TREE_DEPTH = 500;
 
     private final Map<String, FilterPath> termsChildren;
     private final FilterPath[] wildcardChildren;
@@ -68,13 +72,22 @@ public class FilterPath {
      * if current node is a double wildcard node, the node will also add to nextFilters.
      * @param name the xcontent property name
      * @param nextFilters nextFilters is a List, used to check the inner property of name
+     * @param matchFieldNamesWithDots support dot in field name or not
      * @return true if the name equal a final node, otherwise return false
      */
-    boolean matches(String name, List<FilterPath> nextFilters) {
+    public boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) { // << here
         if (nextFilters == null) {
             return false;
         }
 
+        // match dot first
+        if (matchFieldNamesWithDots) {
+            // contains dot and not the first or last char
+            int dotIndex = name.indexOf('.');
+            if ((dotIndex != -1) && (dotIndex != 0) && (dotIndex != name.length() - 1)) {
+                return matchFieldNamesWithDots(name, dotIndex, nextFilters);
+            }
+        }
         FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {
             if (termNode.isFinalNode()) {
@@ -102,8 +115,28 @@ public class FilterPath {
         return false;
     }
 
+    private boolean matchFieldNamesWithDots(String name, int dotIndex, List<FilterPath> nextFilters) {
+        String prefixName = name.substring(0, dotIndex);
+        String suffixName = name.substring(dotIndex + 1);
+        List<FilterPath> prefixFilterPath = new ArrayList<>();
+        boolean prefixMatch = matches(prefixName, prefixFilterPath, true);
+        // if prefixMatch return true(because prefix is a final FilterPath node)
+        if (prefixMatch) {
+            return true;
+        }
+        // if has prefixNextFilter, use them to match suffix
+        for (FilterPath filter : prefixFilterPath) {
+            boolean matches = filter.matches(suffixName, nextFilters, true);
+            if (matches) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static class FilterPathBuilder {
-        private class BuildNode {
+
+        private static class BuildNode {
             private final Map<String, BuildNode> children;
             private final boolean isFinalNode;
 
@@ -113,17 +146,22 @@ public class FilterPath {
             }
         }
 
-        private BuildNode root = new BuildNode(false);
+        private final BuildNode root = new BuildNode(false);
 
         void insert(String filter) {
-            insertNode(filter, root);
+            insertNode(filter, root, 0);
         }
 
         FilterPath build() {
             return buildPath("", root);
         }
 
-        void insertNode(String filter, BuildNode node) {
+        static void insertNode(String filter, BuildNode node, int depth) {
+            if (depth > MAX_TREE_DEPTH) {
+                throw new IllegalArgumentException(
+                    "Filter exceeds maximum depth at [" + (filter.length() > 100 ? filter.substring(0, 100) : filter) + "]"
+                );
+            }
             int end = filter.length();
             int splitPosition = -1;
             boolean findEscapes = false;
@@ -139,24 +177,18 @@ public class FilterPath {
             }
 
             if (splitPosition > 0) {
-                String field = findEscapes
-                    ? filter.substring(0, splitPosition).replaceAll("\\\\.", ".")
-                    : filter.substring(0, splitPosition);
-                BuildNode child = node.children.get(field);
-                if (child == null) {
-                    child = new BuildNode(false);
-                    node.children.put(field, child);
-                }
+                String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
+                BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
-                    insertNode(filter.substring(splitPosition + 1), child);
+                    insertNode(filter.substring(splitPosition + 1), child, depth + 1);
                 }
             } else {
-                String field = findEscapes ? filter.replaceAll("\\\\.", ".") : filter;
+                String field = findEscapes ? filter.replace("\\.", ".") : filter;
                 node.children.put(field, new BuildNode(true));
             }
         }
 
-        FilterPath buildPath(String segment, BuildNode node) {
+        static FilterPath buildPath(String segment, BuildNode node) {
             Map<String, FilterPath> termsChildren = new HashMap<>();
             List<FilterPath> wildcardChildren = new ArrayList<>();
             for (Map.Entry<String, BuildNode> entry : node.children.entrySet()) {

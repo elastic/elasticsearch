@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -11,7 +12,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,7 +43,8 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool
+            threadpool,
+            null
         );
         collector = new ResponseCollectorService(clusterService);
     }
@@ -123,8 +125,8 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1"))
-                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))
+                    .add(DiscoveryNodeUtils.create("node1", new TransportAddress(TransportAddress.META_ADDRESS, 9200)))
+                    .add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
             )
             .build();
         ClusterState newState = ClusterState.builder(previousState)
@@ -136,5 +138,22 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         final Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
         assertFalse(nodeStats.containsKey("node2"));
+    }
+
+    public void testArsFormulaAdjustmentFeatureFlag() {
+        // 100ms response time, 10ms service time
+        collector.addNodeStatistics("node1", 1, 100 * 1_000_000L, 10 * 1_000_000L);
+        double rank = collector.getAllNodeStatistics().get("node1").rank(1);
+
+        if (ResponseCollectorService.ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled()) {
+            // With the adjustment enabled, the response time component (rS - muBarSInverse) is dropped,
+            // so rank should equal just the queue-based term: qHatS^3 * muBarSInverse
+            // qHatS = 1 + 1*1 + 1 = 3, muBarSInverse = 10ms, so rank = 27 * 10 = 270
+            assertThat(rank, equalTo(270.0));
+        } else {
+            // Without the adjustment, rank = (rS - muBarSInverse) + qHatS^3 * muBarSInverse
+            // = (100 - 10) + 270 = 360
+            assertThat(rank, equalTo(360.0));
+        }
     }
 }

@@ -14,6 +14,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
@@ -27,7 +30,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
     public static final String NAME = "cluster:admin/transform/validate";
 
     private ValidateTransformAction() {
-        super(NAME, ValidateTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -36,7 +39,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         private final boolean deferValidation;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
             this.deferValidation = deferValidation;
         }
@@ -86,13 +89,18 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             Request that = (Request) obj;
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return Objects.equals(config, that.config) && deferValidation == that.deferValidation && timeout().equals(that.timeout());
+            return Objects.equals(config, that.config) && deferValidation == that.deferValidation && ackTimeout().equals(that.ackTimeout());
         }
 
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), config, deferValidation);
+            return Objects.hash(ackTimeout(), config, deferValidation);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
 
@@ -105,12 +113,12 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            this.destIndexMappings = in.readMap(StreamInput::readString, StreamInput::readString);
+            this.destIndexMappings = in.readMap(StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(destIndexMappings, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(destIndexMappings, StreamOutput::writeString);
         }
 
         public Map<String, String> getDestIndexMappings() {

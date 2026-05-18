@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -306,10 +308,11 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(batches);
         when(dataExtractor.hasNext()).thenAnswer(a -> delegateStubDataExtractor.hasNext());
         when(dataExtractor.next()).thenAnswer(a -> delegateStubDataExtractor.next());
+        when(dataExtractor.createRow(any(SearchHit.class))).thenAnswer(a -> delegateStubDataExtractor.makeRow(a.getArgument(0)));
     }
 
     private static SearchHit newHit(String json) {
-        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10));
         hit.sourceRef(new BytesArray(json));
         return hit;
     }
@@ -325,6 +328,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     private static DataFrameDataExtractor.Row newRow(SearchHit hit, String[] values, boolean isTraining, int checksum) {
         DataFrameDataExtractor.Row row = mock(DataFrameDataExtractor.Row.class);
         when(row.getHit()).thenReturn(hit);
+        when(row.getSource()).thenReturn(hit.getSourceAsMap());
         when(row.getValues()).thenReturn(values);
         when(row.isTraining()).thenReturn(isTraining);
         when(row.getChecksum()).thenReturn(checksum);
@@ -340,19 +344,33 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
     private static class DelegateStubDataExtractor {
 
-        private final List<List<DataFrameDataExtractor.Row>> batches;
+        private final List<SearchHits> batches;
+        private final Map<SearchHit, DataFrameDataExtractor.Row> rows = new HashMap<>();
         private int batchIndex;
 
-        private DelegateStubDataExtractor(List<List<DataFrameDataExtractor.Row>> batches) {
-            this.batches = batches;
+        private DelegateStubDataExtractor(List<List<DataFrameDataExtractor.Row>> rows) {
+            batches = new ArrayList<>(rows.size());
+            for (List<DataFrameDataExtractor.Row> batch : rows) {
+                List<SearchHit> batchHits = new ArrayList<>(batch.size());
+                for (DataFrameDataExtractor.Row row : batch) {
+                    this.rows.put(row.getHit(), row);
+                    batchHits.add(row.getHit());
+                }
+                SearchHit[] hitArray = batchHits.toArray(new SearchHit[0]);
+                batches.add(new SearchHits(hitArray, new TotalHits(hitArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN));
+            }
         }
 
         public boolean hasNext() {
             return batchIndex < batches.size();
         }
 
-        public Optional<List<DataFrameDataExtractor.Row>> next() {
+        public Optional<SearchHits> next() {
             return Optional.of(batches.get(batchIndex++));
+        }
+
+        public DataFrameDataExtractor.Row makeRow(SearchHit hit) {
+            return rows.get(hit);
         }
     }
 }

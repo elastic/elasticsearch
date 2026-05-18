@@ -1,0 +1,17 @@
+---
+"Basic YAML integration test that fails":
+
+  - do:
+      index:
+        index: test_1
+        id:    testid
+        body:  { "foo": "Hello: testid" }
+
+  - do:
+      get:
+        index: test_1
+        id:    testid
+
+  - match: { _index:   test_1 }
+  - match: { _id:      testid      }
+  - match: { _source:  { foo: "Hello: test2id" } }

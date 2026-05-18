@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.constantkeyword;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,7 +28,7 @@ public class ConstantKeywordPainlessExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         List<Whitelist> whitelist = singletonList(WHITELIST);
-        Map<ScriptContext<?>, List<Whitelist>> contextWhitelists = new HashMap<>(CORE_CONTEXTS.size());
+        Map<ScriptContext<?>, List<Whitelist>> contextWhitelists = Maps.newMapWithExpectedSize(CORE_CONTEXTS.size());
         for (ScriptContext<?> scriptContext : CORE_CONTEXTS.values()) {
             contextWhitelists.put(scriptContext, whitelist);
         }

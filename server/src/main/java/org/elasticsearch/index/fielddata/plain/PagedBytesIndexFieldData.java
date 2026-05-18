@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.plain;
 
@@ -33,7 +34,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -52,7 +53,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final double minFrequency, maxFrequency;
         private final int minSegmentSize;
         private final ValuesSourceType valuesSourceType;
-        private final ToScriptField<SortedSetDocValues> toScriptField;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
         public Builder(
             String name,
@@ -60,14 +61,14 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             double maxFrequency,
             int minSegmentSize,
             ValuesSourceType valuesSourceType,
-            ToScriptField<SortedSetDocValues> toScriptField
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
         ) {
             this.name = name;
             this.minFrequency = minFrequency;
             this.maxFrequency = maxFrequency;
             this.minSegmentSize = minSegmentSize;
             this.valuesSourceType = valuesSourceType;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -80,7 +81,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 minFrequency,
                 maxFrequency,
                 minSegmentSize,
-                toScriptField
+                toScriptFieldFactory
             );
         }
     }
@@ -93,9 +94,9 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         double minFrequency,
         double maxFrequency,
         int minSegmentSize,
-        ToScriptField<SortedSetDocValues> toScriptField
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, toScriptField);
+        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldFactory);
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
         this.minSegmentSize = minSegmentSize;
@@ -138,7 +139,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         );
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
-            data = AbstractLeafOrdinalsFieldData.empty(toScriptField);
+            data = AbstractLeafOrdinalsFieldData.empty(toScriptFieldFactory);
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
@@ -169,7 +170,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build();
 
-            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals, toScriptField);
+            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals, toScriptFieldFactory);
             success = true;
             return data;
         } finally {

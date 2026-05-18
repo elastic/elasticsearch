@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest.action.cat;
 
@@ -16,6 +17,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
@@ -23,6 +28,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestAliasAction extends AbstractCatAction {
 
     @Override
@@ -42,19 +48,21 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final GetAliasesRequest getAliasesRequest = request.hasParam("alias")
-            ? new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias")))
-            : new GetAliasesRequest();
+        final var masterNodeTimeout = RestUtils.getMasterNodeTimeout(request);
+        final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(
+            masterNodeTimeout,
+            Strings.commaDelimitedListToStringArray(request.param("alias"))
+        );
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
-        getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
-
-        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestResponseListener<GetAliasesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetAliasesResponse response) throws Exception {
-                Table tab = buildTable(request, response);
-                return RestTable.buildResponse(tab, channel);
-            }
-        });
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .getAliases(getAliasesRequest, new RestResponseListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(GetAliasesResponse response) throws Exception {
+                    Table tab = buildTable(request, response);
+                    return RestTable.buildResponse(tab, channel);
+                }
+            });
     }
 
     @Override

@@ -65,16 +65,16 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
     public ApplicationPrivilegeDescriptor(StreamInput input) throws IOException {
         this.application = input.readString();
         this.name = input.readString();
-        this.actions = Collections.unmodifiableSet(input.readSet(StreamInput::readString));
-        this.metadata = Collections.unmodifiableMap(input.readMap());
+        this.actions = input.readCollectionAsImmutableSet(StreamInput::readString);
+        this.metadata = Collections.unmodifiableMap(input.readGenericMap());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(application);
         out.writeString(name);
-        out.writeCollection(actions, StreamOutput::writeString);
-        out.writeMap(metadata);
+        out.writeStringCollection(actions);
+        out.writeGenericMap(metadata);
     }
 
     public String getApplication() {

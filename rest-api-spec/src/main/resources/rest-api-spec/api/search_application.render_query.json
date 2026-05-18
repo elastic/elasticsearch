@@ -1,0 +1,38 @@
+{
+  "search_application.render_query": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-render-query",
+      "description": "Render a search application query"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/search_application/{name}/_render_query",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the search application to render the query for"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "Search parameters, which will override any default search parameters defined in the search application template",
+      "required": false
+    }
+  }
+}

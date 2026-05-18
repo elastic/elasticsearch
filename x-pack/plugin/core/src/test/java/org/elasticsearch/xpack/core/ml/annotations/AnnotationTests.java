@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
+public class AnnotationTests extends AbstractXContentSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation doParseInstance(XContentParser parser) {
@@ -24,6 +24,11 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
     @Override
     protected Annotation createTestInstance() {
         return randomAnnotation(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null);
+    }
+
+    @Override
+    protected Annotation mutateInstance(Annotation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static Annotation randomAnnotation(String jobId) {
@@ -57,5 +62,18 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
             Annotation testAnnotation = createTestInstance();
             assertThat(testAnnotation, equalTo(new Annotation.Builder(testAnnotation).build()));
         }
+    }
+
+    public void testSearchScopeChangedEventFromString() {
+        assertThat(Annotation.Event.fromString("search_scope_changed"), equalTo(Annotation.Event.SEARCH_SCOPE_CHANGED));
+        assertThat(Annotation.Event.fromString("SEARCH_SCOPE_CHANGED"), equalTo(Annotation.Event.SEARCH_SCOPE_CHANGED));
+    }
+
+    public void testSearchScopeChangedEventToString() {
+        assertThat(Annotation.Event.SEARCH_SCOPE_CHANGED.toString(), equalTo("search_scope_changed"));
+    }
+
+    public void testUnknownEventFromStringReturnsNull() {
+        assertNull(Annotation.Event.fromString("unknown_event_type"));
     }
 }

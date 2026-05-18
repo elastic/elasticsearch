@@ -7,13 +7,12 @@
 package org.elasticsearch.xpack.security.authc.pki;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -34,8 +33,8 @@ import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 import java.security.MessageDigest;
 import java.security.cert.CertificateEncodingException;
@@ -53,6 +52,9 @@ import java.util.regex.Pattern;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
+import javax.security.auth.x500.X500Principal;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class PkiRealm extends Realm implements CachingRealm {
 
@@ -76,13 +78,14 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     private final X509TrustManager trustManager;
     private final Pattern principalPattern;
+    private final String principalRdnOid;
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
     private DelegatedAuthorizationSupport delegatedRealms;
     private final boolean delegationEnabled;
 
-    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
-        this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
+    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, UserRoleMapper userRoleMapper) {
+        this(config, new CompositeRoleMapper(new DnRoleMapper(config, watcherService), userRoleMapper));
     }
 
     // pkg private for testing
@@ -91,8 +94,20 @@ public class PkiRealm extends Realm implements CachingRealm {
         this.delegationEnabled = config.getSetting(PkiRealmSettings.DELEGATION_ENABLED_SETTING);
         this.trustManager = trustManagers(config);
         this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
+        String rdnOid = config.getSetting(PkiRealmSettings.USERNAME_RDN_OID_SETTING);
+        String rdnOidFromName = config.getSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING);
+        if (false == rdnOid.isEmpty() && false == rdnOidFromName.isEmpty()) {
+            throw new SettingsException(
+                "Both ["
+                    + config.getConcreteSetting(PkiRealmSettings.USERNAME_RDN_OID_SETTING).getKey()
+                    + "] and ["
+                    + config.getConcreteSetting(PkiRealmSettings.USERNAME_RDN_NAME_SETTING).getKey()
+                    + "] are set. Only one of these settings can be configured."
+            );
+        }
+        this.principalRdnOid = false == rdnOid.isEmpty() ? rdnOid : (false == rdnOidFromName.isEmpty() ? rdnOidFromName : null);
         this.roleMapper = roleMapper;
-        this.roleMapper.refreshRealmOnChange(this);
+        this.roleMapper.clearRealmCacheOnChange(this);
         this.cache = CacheBuilder.<BytesKey, User>builder()
             .setExpireAfterWrite(config.getSetting(PkiRealmSettings.CACHE_TTL_SETTING))
             .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
@@ -133,7 +148,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         // validation). In this case the principal should be set by the realm that completes the authentication. But in the common case,
         // where a single PKI realm is configured, there is no risk of eagerly parsing the principal before authentication and it also
         // maintains BWC.
-        String parsedPrincipal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+        String parsedPrincipal = getPrincipalFromToken(token);
         if (parsedPrincipal == null) {
             return null;
         }
@@ -150,13 +165,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             final BytesKey fingerprint = computeTokenFingerprint(token);
             User user = cache.get(fingerprint);
             if (user != null) {
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "Using cached authentication for DN [{}], as principal [{}]",
-                        token.dn(),
-                        user.principal()
-                    )
-                );
+                logger.debug(() -> format("Using cached authentication for DN [%s], as principal [%s]", token.dn(), user.principal()));
                 if (delegatedRealms.hasDelegation()) {
                     delegatedRealms.resolve(user.principal(), listener);
                 } else {
@@ -170,11 +179,11 @@ public class PkiRealm extends Realm implements CachingRealm {
                 // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
                 // be set by a different realm that failed trusted chain validation. We SHOULD NOT parse the principal BEFORE this step, but
                 // we do it for BWC purposes. Changing this is a breaking change.
-                final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+                final String principal = getPrincipalFromToken(token);
                 if (principal == null) {
                     logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "the extracted principal after cert chain validation, from DN [{}], using pattern [{}] is null",
+                        () -> format(
+                            "the extracted principal after cert chain validation, from DN [%s], using pattern [%s] is null",
                             token.dn(),
                             principalPattern.toString()
                         )
@@ -191,8 +200,8 @@ public class PkiRealm extends Realm implements CachingRealm {
                     }, listener::onFailure);
                     if (false == principal.equals(token.principal())) {
                         logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
+                            () -> format(
+                                "the extracted principal before [%s] and after [%s] cert chain validation, for DN [%s], are different",
                                 token.principal(),
                                 principal,
                                 token.dn()
@@ -218,9 +227,9 @@ public class PkiRealm extends Realm implements CachingRealm {
                 "pki_dn",
                 token.dn(),
                 "pki_delegated_by_user",
-                token.getDelegateeAuthentication().getUser().principal(),
+                token.getDelegateeAuthentication().getEffectiveSubject().getUser().principal(),
                 "pki_delegated_by_realm",
-                token.getDelegateeAuthentication().getAuthenticatedBy().getName()
+                token.getDelegateeAuthentication().getEffectiveSubject().getRealm().getName()
             );
         } else {
             metadata = Map.of("pki_dn", token.dn());
@@ -237,28 +246,34 @@ public class PkiRealm extends Realm implements CachingRealm {
         listener.onResponse(null);
     }
 
+    String getPrincipalFromToken(X509AuthenticationToken token) {
+        return principalRdnOid != null
+            ? getPrincipalFromRdnAttribute(principalRdnOid, token, logger)
+            : getPrincipalFromSubjectDN(principalPattern, token, logger);
+    }
+
+    static String getPrincipalFromRdnAttribute(String principalRdnOid, X509AuthenticationToken token, Logger logger) {
+        X500Principal certPrincipal = token.credentials()[0].getSubjectX500Principal();
+        String principal = RdnFieldExtractor.extract(certPrincipal.getEncoded(), principalRdnOid);
+        if (principal == null) {
+            logger.debug(
+                () -> format("the extracted principal from DN [%s] using RDN OID [%s] is empty", certPrincipal.toString(), principalRdnOid)
+            );
+            return null;
+        }
+        return principal;
+    }
+
     static String getPrincipalFromSubjectDN(Pattern principalPattern, X509AuthenticationToken token, Logger logger) {
         String dn = token.credentials()[0].getSubjectX500Principal().toString();
         Matcher matcher = principalPattern.matcher(dn);
         if (false == matcher.find()) {
-            logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "could not extract principal from DN [{}] using pattern [{}]",
-                    dn,
-                    principalPattern.toString()
-                )
-            );
+            logger.debug(() -> format("could not extract principal from DN [%s] using pattern [%s]", dn, principalPattern.toString()));
             return null;
         }
         String principal = matcher.group(1);
         if (Strings.isNullOrEmpty(principal)) {
-            logger.debug(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "the extracted principal from DN [{}] using pattern [{}] is empty",
-                    dn,
-                    principalPattern.toString()
-                )
-            );
+            logger.debug(() -> format("the extracted principal from DN [%s] using pattern [%s] is empty", dn, principalPattern.toString()));
             return null;
         }
         return principal;
@@ -291,7 +306,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             RealmSettings.realmSettingPrefix(realmConfig.identifier()),
             realmConfig.env()
         );
-        final SslTrustConfig trustConfig = sslConfiguration.getTrustConfig();
+        final SslTrustConfig trustConfig = sslConfiguration.trustConfig();
         if (trustConfig.isSystemDefault()) {
             return null;
         }

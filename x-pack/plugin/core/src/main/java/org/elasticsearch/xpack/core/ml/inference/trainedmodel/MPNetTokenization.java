@@ -20,6 +20,7 @@ import java.io.IOException;
 public class MPNetTokenization extends Tokenization {
 
     public static final ParseField NAME = new ParseField("mpnet");
+    public static final String MASK_TOKEN = "<mask>";
 
     public static ConstructingObjectParser<MPNetTokenization, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<MPNetTokenization, Void> parser = new ConstructingObjectParser<>(
@@ -29,7 +30,8 @@ public class MPNetTokenization extends Tokenization {
                 (Boolean) a[0],
                 (Boolean) a[1],
                 (Integer) a[2],
-                a[3] == null ? null : Truncate.fromString((String) a[3])
+                a[3] == null ? null : Truncate.fromString((String) a[3]),
+                (Integer) a[4]
             )
         );
         Tokenization.declareCommonFields(parser);
@@ -47,13 +49,19 @@ public class MPNetTokenization extends Tokenization {
         @Nullable Boolean doLowerCase,
         @Nullable Boolean withSpecialTokens,
         @Nullable Integer maxSequenceLength,
-        @Nullable Truncate truncate
+        @Nullable Truncate truncate,
+        @Nullable Integer span
     ) {
-        super(doLowerCase, withSpecialTokens, maxSequenceLength, truncate);
+        super(doLowerCase, withSpecialTokens, maxSequenceLength, truncate, span);
     }
 
     public MPNetTokenization(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
+        return new MPNetTokenization(this.doLowerCase, this.withSpecialTokens, updatedMaxSeqLength, Truncate.NONE, updatedSpan);
     }
 
     @Override
@@ -63,6 +71,11 @@ public class MPNetTokenization extends Tokenization {
 
     XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
+    }
+
+    @Override
+    public String getMaskToken() {
+        return MASK_TOKEN;
     }
 
     @Override

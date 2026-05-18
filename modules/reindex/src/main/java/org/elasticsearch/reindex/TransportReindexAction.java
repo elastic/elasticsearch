@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -14,30 +15,35 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.function.Function;
-
-import static java.util.Collections.emptyList;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
-    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.listSetting(
+    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.stringListSetting(
         "reindex.remote.whitelist",
-        emptyList(),
-        Function.identity(),
+        Property.NodeScope
+    );
+    // Hosts matching the blocklist are not allowed, even if they match the whitelist
+    public static final Setting<List<String>> REMOTE_CLUSTER_BLOCKLIST = Setting.stringListSetting(
+        "reindex.remote.blocklist",
         Property.NodeScope
     );
 
@@ -52,12 +58,19 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         ClusterService clusterService,
         ScriptService scriptService,
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
+        FeatureService featureService,
+        TaskResultsService taskResultsService
     ) {
         this(
             ReindexAction.NAME,
@@ -65,12 +78,19 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             threadPool,
             actionFilters,
             indexNameExpressionResolver,
+            projectResolver,
             clusterService,
             scriptService,
             autoCreateIndex,
             client,
             transportService,
-            sslConfig
+            sslConfig,
+            reindexMetrics,
+            bulkByScrollSearchContextMetrics,
+            relocationNodePicker,
+            reindexSettings,
+            featureService,
+            taskResultsService
         );
     }
 
@@ -80,27 +100,55 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         ClusterService clusterService,
         ScriptService scriptService,
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        @Nullable ReindexMetrics reindexMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        ReindexRelocationNodePicker relocationNodePicker,
+        ReindexSettings reindexSettings,
+        FeatureService featureService,
+        TaskResultsService taskResultsService
     ) {
-        super(name, transportService, actionFilters, ReindexRequest::new);
+        super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
-        this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
-        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
+        this.reindexValidator = new ReindexValidator(
+            settings,
+            clusterService,
+            indexNameExpressionResolver,
+            projectResolver,
+            autoCreateIndex
+        );
+        this.reindexer = new Reindexer(
+            clusterService,
+            reindexSettings,
+            projectResolver,
+            client,
+            threadPool,
+            scriptService,
+            sslConfig,
+            reindexMetrics,
+            bulkByScrollSearchContextMetrics,
+            transportService,
+            relocationNodePicker,
+            featureService,
+            taskResultsService
+        );
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        normalize(request);
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         reindexer.initTask(
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             request,
-            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
+            listener.delegateFailure((l, v) -> reindexer.execute(bulkByPaginatedSearchTask, request, getBulkClient(), l))
         );
     }
 
@@ -119,5 +167,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     protected void validate(ReindexRequest request) {
         reindexValidator.initialValidation(request);
+    }
+
+    /**
+     * This method can be overridden if different than usual normalization is needed.
+     * This method should throw an exception if normalization fails.
+     */
+    protected void normalize(ReindexRequest request) {
+        reindexValidator.normalize(request);
     }
 }

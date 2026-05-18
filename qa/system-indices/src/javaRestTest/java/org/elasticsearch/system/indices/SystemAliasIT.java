@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.system.indices;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
@@ -24,29 +22,24 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SystemAliasIT extends ESRestTestCase {
-    static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("rest-user-password".toCharArray()));
+public class SystemAliasIT extends AbstractSystemIndicesIT {
 
     @After
     public void resetFeatures() throws Exception {
-        client().performRequest(new Request("POST", "/_features/_reset"));
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+        performPostFeaturesReset(client());
     }
 
     public void testCreatingSystemIndexWithAlias() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
             request.setJsonEntity("{\"aliases\": {\".internal-unmanaged-alias\": {}}}");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
     }
 
     public void testCreatingSystemIndexWithLegacyAlias() throws Exception {
@@ -67,17 +60,19 @@ public class SystemAliasIT extends ESRestTestCase {
 
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", false);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", false);
     }
 
     public void testCreatingSystemIndexWithIndexAliasEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -94,13 +89,14 @@ public class SystemAliasIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
     }
 
     public void testCreatingSystemIndexWithAliasEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -118,13 +114,14 @@ public class SystemAliasIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
     }
 
     public void testCreatingSystemIndexWithAliasesEndpoint() throws Exception {
         {
             Request request = new Request("PUT", "/.internal-unmanaged-index-8");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
@@ -154,12 +151,12 @@ public class SystemAliasIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
 
-        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
-        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias");
+        assertAliasIsHiddenInIndexResponse(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
+        assertAliasIsHiddenInAliasesEndpoint(".internal-unmanaged-index-8", ".internal-unmanaged-alias", true);
     }
 
     @SuppressWarnings("unchecked")
-    private void assertAliasIsHiddenInIndexResponse(String indexName, String aliasName) throws IOException {
+    private void assertAliasIsHiddenInIndexResponse(String indexName, String aliasName, boolean expectMatch) throws IOException {
         Request request = new Request("GET", "/" + indexName);
         request.setOptions(
             expectWarnings(
@@ -177,23 +174,25 @@ public class SystemAliasIT extends ESRestTestCase {
         assertThat(indexSettingsMap.get("hidden"), equalTo("true"));
 
         Map<String, Object> aliasesMap = (Map<String, Object>) indexMap.get("aliases");
-        assertThat(aliasesMap.keySet(), equalTo(Set.of(aliasName)));
-        Map<String, Object> aliasMap = (Map<String, Object>) aliasesMap.get(aliasName);
-        assertThat(aliasMap.get("is_hidden"), notNullValue());
-        assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        if (expectMatch == false) {
+            assertTrue(aliasesMap.keySet().isEmpty());
+        } else {
+            assertThat(aliasesMap.keySet(), equalTo(Set.of(aliasName)));
+            Map<String, Object> aliasMap = (Map<String, Object>) aliasesMap.get(aliasName);
+            assertThat(aliasMap.get("is_hidden"), notNullValue());
+            assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private void assertAliasIsHiddenInAliasesEndpoint(String indexName, String aliasName) throws IOException {
+    private void assertAliasIsHiddenInAliasesEndpoint(String indexName, String aliasName, boolean expectMatch) throws IOException {
         Request request = new Request("GET", "/_aliases");
         request.setOptions(
             expectWarnings(
                 "this request accesses system indices: ["
                     + indexName
                     + "], "
-                    + "but in a future major version, direct access to system indices will be prevented by default",
-                "this request accesses aliases with names reserved for system indices: [.internal-unmanaged-alias], "
-                    + "but in a future major version, direct access to system indices and their aliases will not be allowed"
+                    + "but in a future major version, direct access to system indices will be prevented by default"
             )
         );
         Response response = client().performRequest(request);
@@ -201,7 +200,11 @@ public class SystemAliasIT extends ESRestTestCase {
         Map<String, Object> indexAliasMap = (Map<String, Object>) responseMap.get(indexName);
         Map<String, Object> aliasesMap = (Map<String, Object>) indexAliasMap.get("aliases");
         Map<String, Object> aliasMap = (Map<String, Object>) aliasesMap.get(aliasName);
-        assertThat(aliasMap.get("is_hidden"), notNullValue());
-        assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        if (expectMatch == false) {
+            assertNull(aliasMap);
+        } else {
+            assertThat(aliasMap.get("is_hidden"), notNullValue());
+            assertThat(aliasMap.get("is_hidden"), equalTo(true));
+        }
     }
 }

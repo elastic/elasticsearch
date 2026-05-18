@@ -87,19 +87,16 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(
             "base64EncodedToken".getBytes(StandardCharsets.UTF_8)
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            kerberosAuthenticationToken,
-            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
+        });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
             byte[] originalCreds = (byte[]) original.credentials();
             return new KerberosAuthenticationToken(Arrays.copyOf(originalCreds, originalCreds.length));
         });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            kerberosAuthenticationToken,
-            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); },
-            KerberosAuthenticationTokenTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
+        }, KerberosAuthenticationTokenTests::mutateTestItem);
     }
 
     private static KerberosAuthenticationToken mutateTestItem(KerberosAuthenticationToken original) {
@@ -113,8 +110,11 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
 
     private static void assertContainsAuthenticateHeader(ElasticsearchSecurityException e) {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
-        assertThat(e.getHeaderKeys(), hasSize(1));
-        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), notNullValue());
-        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), contains(KerberosAuthenticationToken.NEGOTIATE_SCHEME_NAME));
+        assertThat(e.getBodyHeaderKeys(), hasSize(1));
+        assertThat(e.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), notNullValue());
+        assertThat(
+            e.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE),
+            contains(KerberosAuthenticationToken.NEGOTIATE_SCHEME_NAME)
+        );
     }
 }

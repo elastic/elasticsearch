@@ -1,22 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
+import java.util.HashSet;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -42,8 +45,8 @@ public class RoutingNodeTests extends ESTestCase {
         super.setUp();
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode discoveryNode = new DiscoveryNode("name1", "node-1", transportAddress, emptyMap(), emptySet(), Version.CURRENT);
-        routingNode = new RoutingNode("node1", discoveryNode, unassignedShard0, initializingShard0, relocatingShard0);
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("name1", "node-1", transportAddress, emptyMap(), emptySet());
+        routingNode = RoutingNodesHelper.routingNode("node1", discoveryNode, unassignedShard0, initializingShard0, relocatingShard0);
     }
 
     public void testAdd() {
@@ -93,24 +96,22 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testNumberOfShardsWithState() {
-        assertThat(routingNode.numberOfShardsWithState(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED), equalTo(2));
         assertThat(routingNode.numberOfShardsWithState(ShardRoutingState.STARTED), equalTo(1));
         assertThat(routingNode.numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertThat(routingNode.numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
     }
 
     public void testShardsWithState() {
-        assertThat(routingNode.shardsWithState(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).size(), equalTo(2));
-        assertThat(routingNode.shardsWithState(ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(routingNode.shardsWithState(ShardRoutingState.STARTED).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState(ShardRoutingState.RELOCATING).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).count(), equalTo(1L));
     }
 
     public void testShardsWithStateInIndex() {
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).size(), equalTo(2));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.STARTED).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.RELOCATING).size(), equalTo(1));
-        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).count(), equalTo(2L));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.STARTED).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.RELOCATING).count(), equalTo(1L));
+        assertThat(routingNode.shardsWithState("test", ShardRoutingState.INITIALIZING).count(), equalTo(1L));
     }
 
     public void testNumberOfOwningShards() {
@@ -133,6 +134,35 @@ public class RoutingNodeTests extends ESTestCase {
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test1", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(1));
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test2", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test3", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
+    }
+
+    public void testReturnStartedShards() {
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
+
+        ShardRouting startedShard = TestShardRouting.newShardRouting("test1", 1, "node-1", false, ShardRoutingState.STARTED);
+
+        routingNode.add(startedShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
+
+        ShardRouting relocatingShard = TestShardRouting.newShardRouting(
+            "test2",
+            2,
+            "node-1",
+            "node-2",
+            false,
+            ShardRoutingState.RELOCATING
+        );
+        routingNode.add(relocatingShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
+
+        routingNode.remove(startedShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
+    }
+
+    private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
+        final var result = new HashSet<ShardId>();
+        routingNode.started().forEach(shardRouting -> result.add(shardRouting.shardId()));
+        return result;
     }
 
 }

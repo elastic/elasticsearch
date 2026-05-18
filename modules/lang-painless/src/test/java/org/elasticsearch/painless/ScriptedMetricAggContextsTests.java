@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -16,7 +17,8 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -32,10 +35,10 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, PAINLESS_BASE_WHITELIST);
         return contexts;
     }
 
@@ -72,11 +75,6 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
         Scorable scorer = new Scorable() {
             @Override
-            public int docID() {
-                return 0;
-            }
-
-            @Override
             public float score() {
                 return 0.5f;
             }
@@ -110,9 +108,8 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         SearchLookup lookup = mock(SearchLookup.class);
         LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
         when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
-        SourceLookup sourceLookup = mock(SourceLookup.class);
-        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
-        when(sourceLookup.source()).thenReturn(Collections.singletonMap("test", 1));
+        Supplier<Source> source = () -> Source.fromMap(Map.of("test", 1), XContentType.JSON);
+        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", source));
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, lookup);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(leafReaderContext);
 
@@ -141,9 +138,8 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         SearchLookup lookup = mock(SearchLookup.class);
         LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
         when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
-        SourceLookup sourceLookup = mock(SourceLookup.class);
-        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
-        when(sourceLookup.source()).thenReturn(Collections.singletonMap("three", 3));
+        Supplier<Source> source = () -> Source.fromMap(Map.of("three", 3), XContentType.JSON);
+        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", source));
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, lookup);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(leafReaderContext);
 

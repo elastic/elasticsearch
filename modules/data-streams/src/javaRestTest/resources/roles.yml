@@ -1,0 +1,25 @@
+manage_data_stream_lifecycle:
+  cluster:
+    - monitor
+  indices:
+    - names: [ 'data-stream-lifecycle-*' ]
+      privileges:
+        - read
+        - write
+        - manage_data_stream_lifecycle
+under_privilged:
+  cluster:
+    - monitor
+  indices:
+    - names: [ 'data-stream-lifecycle-*', 'lazy-ds*' ]
+      privileges:
+        - read
+        - write
+        - view_index_metadata
+only_get:
+  indices:
+    - names: [ 'my-ds*' ]
+      privileges:
+        - read
+        - view_index_metadata
+no_privilege:

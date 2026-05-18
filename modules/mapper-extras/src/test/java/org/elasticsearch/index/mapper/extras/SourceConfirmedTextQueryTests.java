@@ -1,51 +1,77 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CheckHits;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Matches;
+import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
+import org.apache.lucene.tests.search.CheckHits;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SourceConfirmedTextQueryTests extends ESTestCase {
 
-    private static final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> SOURCE_FETCHER_PROVIDER = context -> {
-        return docID -> Collections.<Object>singletonList(context.reader().document(docID).get("body"));
-    };
+    private static final AtomicInteger sourceFetchCount = new AtomicInteger();
+
+    private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> sourceFetcherProvider() {
+        return context -> docID -> {
+            sourceFetchCount.incrementAndGet();
+            return Collections.singletonList(context.reader().storedFields().document(docID).get("body"));
+        };
+    }
 
     public void testTerm() throws Exception {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
@@ -63,10 +89,10 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 TermQuery query = new TermQuery(new Term("body", "c"));
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 ScoreDoc[] phraseHits = searcher.search(query, 10).scoreDocs;
@@ -77,9 +103,29 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
 
                 // Term query with missing term
                 query = new TermQuery(new Term("body", "e"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+            }
+        }
+    }
+
+    public void testMissingPhrase() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+
+            Document doc = new Document();
+            doc.add(new TextField("body", "a b c b a b c", Store.YES));
+            w.addDocument(doc);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = newSearcher(reader);
+                PhraseQuery query = new PhraseQuery("missing_field", "b", "c");
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+                Explanation explanation = searcher.explain(sourceConfirmedPhraseQuery, 0);
+                assertFalse(explanation.isMatch());
+
+                Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE, 1);
+                assertNull(weight.matches(getOnlyLeafReader(reader).getContext(), 0));
             }
         }
     }
@@ -100,10 +146,10 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 PhraseQuery query = new PhraseQuery("body", "b", "c");
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 ScoreDoc[] phraseHits = searcher.search(query, 10).scoreDocs;
@@ -114,7 +160,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
 
                 // Sloppy phrase query
                 query = new PhraseQuery(1, "body", "b", "d");
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 phraseHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, phraseHits.length);
@@ -124,13 +170,13 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
 
                 // Phrase query with no matches
                 query = new PhraseQuery("body", "d", "c");
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
 
                 // Phrase query with one missing term
                 query = new PhraseQuery("body", "b", "e");
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
             }
@@ -153,13 +199,13 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MultiPhraseQuery query = new MultiPhraseQuery.Builder().add(new Term[] { new Term("body", "a"), new Term("body", "b") }, 0)
                     .add(new Term[] { new Term("body", "c") }, 1)
                     .build();
 
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
 
@@ -174,7 +220,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     .add(new Term[] { new Term("body", "d") }, 1)
                     .setSlop(1)
                     .build();
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 phraseHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, phraseHits.length);
@@ -186,7 +232,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 query = new MultiPhraseQuery.Builder().add(new Term[] { new Term("body", "d"), new Term("body", "c") }, 0)
                     .add(new Term[] { new Term("body", "a") }, 1)
                     .build();
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
 
@@ -194,7 +240,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 query = new MultiPhraseQuery.Builder().add(new Term[] { new Term("body", "d"), new Term("body", "c") }, 0)
                     .add(new Term[] { new Term("body", "e") }, 1)
                     .build();
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
             }
@@ -217,10 +263,10 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("body");
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 ScoreDoc[] phrasePrefixHits = searcher.search(query, 10).scoreDocs;
                 ScoreDoc[] sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
                 CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
@@ -229,7 +275,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
 
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "c"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 phrasePrefixHits = searcher.search(query, 10).scoreDocs;
                 sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
                 CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
@@ -239,7 +285,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "b"));
                 query.add(new Term("body", "c"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 phrasePrefixHits = searcher.search(query, 10).scoreDocs;
                 sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
                 CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
@@ -251,7 +297,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 query.add(new Term("body", "a"));
                 query.add(new Term("body", "c"));
                 query.setSlop(2);
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 phrasePrefixHits = searcher.search(query, 10).scoreDocs;
                 sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
                 CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
@@ -262,7 +308,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "d"));
                 query.add(new Term("body", "b"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
 
@@ -270,7 +316,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                 query = new MultiPhrasePrefixQuery("body");
                 query.add(new Term("body", "d"));
                 query.add(new Term("body", "f"));
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(0, searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
             }
@@ -293,14 +339,14 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 SpanNearQuery query = new SpanNearQuery(
                     new SpanQuery[] { new SpanTermQuery(new Term("body", "b")), new SpanTermQuery(new Term("body", "c")) },
                     0,
                     false
                 );
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 ScoreDoc[] spanHits = searcher.search(query, 10).scoreDocs;
@@ -315,7 +361,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     1,
                     false
                 );
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 spanHits = searcher.search(query, 10).scoreDocs;
                 assertEquals(2, spanHits.length);
@@ -329,7 +375,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     0,
                     false
                 );
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
 
@@ -339,7 +385,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     0,
                     false
                 );
-                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
                 assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
             }
@@ -348,30 +394,28 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
 
     public void testToString() {
         PhraseQuery query = new PhraseQuery("body", "b", "c");
-        Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+        Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
         assertEquals(query.toString(), sourceConfirmedPhraseQuery.toString());
     }
 
     public void testEqualsHashCode() {
         PhraseQuery query1 = new PhraseQuery("body", "b", "c");
-        Query sourceConfirmedPhraseQuery1 = new SourceConfirmedTextQuery(query1, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+        Query sourceConfirmedPhraseQuery1 = new SourceConfirmedTextQuery(query1, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
 
         assertEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery1);
         assertEquals(sourceConfirmedPhraseQuery1.hashCode(), sourceConfirmedPhraseQuery1.hashCode());
 
         PhraseQuery query2 = new PhraseQuery("body", "b", "c");
-        Query sourceConfirmedPhraseQuery2 = new SourceConfirmedTextQuery(query2, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+        Query sourceConfirmedPhraseQuery2 = new SourceConfirmedTextQuery(query2, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
         assertEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery2);
 
         PhraseQuery query3 = new PhraseQuery("body", "b", "d");
-        Query sourceConfirmedPhraseQuery3 = new SourceConfirmedTextQuery(query3, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+        Query sourceConfirmedPhraseQuery3 = new SourceConfirmedTextQuery(query3, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
         assertNotEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery3);
 
-        Query sourceConfirmedPhraseQuery4 = new SourceConfirmedTextQuery(query1, context -> null, Lucene.STANDARD_ANALYZER);
-        assertNotEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery4);
-
-        Query sourceConfirmedPhraseQuery5 = new SourceConfirmedTextQuery(query1, SOURCE_FETCHER_PROVIDER, Lucene.KEYWORD_ANALYZER);
-        assertNotEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery5);
+        PhraseQuery query4 = new PhraseQuery("body", "b", "c");
+        Query sourceConfirmedPhraseQuery6 = new SourceConfirmedTextQuery(query4, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+        assertEquals(sourceConfirmedPhraseQuery1, sourceConfirmedPhraseQuery6);
     }
 
     public void testApproximation() {
@@ -404,7 +448,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         assertEquals(approximation, SourceConfirmedTextQuery.approximate(query));
 
         MultiPhrasePrefixQuery phrasePrefixQuery = new MultiPhrasePrefixQuery("body");
-        assertEquals(new MatchNoDocsQuery(), SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+        assertEquals(Queries.NO_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
 
         phrasePrefixQuery.add(new Term("body", "apache"));
         approximation = new BooleanQuery.Builder().add(new PrefixQuery(new Term("body", "apache")), Occur.FILTER).build();
@@ -418,15 +462,153 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         assertEquals(approximation, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
     }
 
+    public void testBinaryDocValuesFieldFetcherIsLazy() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            Document doc = new Document();
+            doc.add(new TextField("body", "the quick brown fox", Store.YES));
+            w.addDocument(doc);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = newSearcher(reader);
+
+                // MatchOnlyTextFieldType with usesBinaryDocValues=true, which uses binaryDocValuesFieldFetcher.
+                // The index has no binary doc values (plain TextField), so any attempt to open them throws
+                // IllegalStateException. This lets us verify when the lazy fetcher actually opens doc values.
+                MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+                    "body",
+                    new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                    Lucene.STANDARD_ANALYZER,
+                    false,
+                    Collections.emptyMap(),
+                    false,
+                    false,
+                    null,
+                    false,
+                    IndexVersion.current(),
+                    true,
+                    true
+                );
+
+                // NOTE: "fox brown" has both terms in the index but in the wrong order. A boolean MUST
+                // conjunction with a nonexistent term forces the scorer to be created (ScorerSupplier.get()
+                // runs) but no doc survives. Without the lazy fix this would throw IllegalStateException
+                // because the eager binaryDocValuesFieldFetcher opens doc values in ScorerSupplier.get().
+                // With the fix, valueFetcher.apply() is never called and no exception is thrown.
+                Query phraseQuery = ft.phraseQuery(
+                    new CannedTokenStream(new Token("fox", 0, 3), new Token("brown", 4, 9)),
+                    0,
+                    true,
+                    FieldTypeTestCase.MOCK_CONTEXT
+                );
+                Query booleanQuery = new BooleanQuery.Builder().add(phraseQuery, Occur.MUST)
+                    .add(new TermQuery(new Term("body", "nonexistent")), Occur.MUST)
+                    .build();
+                assertEquals(0, searcher.count(booleanQuery));
+
+                // NOTE: "brown fox" matches the approximation AND the phrase order, so the confirmation
+                // phase calls valueFetcher.apply(docId), which lazily opens BinaryDocValues. Since the
+                // index has no binary doc values, this throws IllegalStateException, proving the lazy
+                // init fires only when a doc actually reaches the confirmation phase.
+                Query matchingQuery = ft.phraseQuery(
+                    new CannedTokenStream(new Token("brown", 0, 5), new Token("fox", 6, 9)),
+                    0,
+                    true,
+                    FieldTypeTestCase.MOCK_CONTEXT
+                );
+                expectThrows(IllegalStateException.class, () -> searcher.count(matchingQuery));
+            }
+        }
+    }
+
     public void testEmptyIndex() throws Exception {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 PhraseQuery query = new PhraseQuery("body", "a", "b");
-                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
                 assertEquals(0, searcher.count(sourceConfirmedPhraseQuery));
             }
         }
+    }
+
+    public void testMatches() throws Exception {
+        checkMatches(new TermQuery(new Term("body", "d")), "a b c d e", new int[] { 3, 3 }, false);
+        checkMatches(new PhraseQuery("body", "b", "c"), "a b c d c b c a", new int[] { 1, 2, 5, 6 }, true);
+    }
+
+    private static void checkMatches(Query query, String inputDoc, int[] expectedMatches, boolean expectedFetch) throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            Document doc = new Document();
+            doc.add(new TextField("body", "xxxxxnomatchxxxx", Store.YES));
+            doc.add(new KeywordField("sort", "0", Store.NO));
+            w.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new TextField("body", inputDoc, Store.YES));
+            doc.add(new KeywordField("sort", "1", Store.NO));
+            w.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new TextField("body", "xxxx " + inputDoc, Store.YES));
+            doc.add(new KeywordField("sort", "2", Store.NO));
+            w.addDocument(doc);
+
+            Query sourceConfirmedQuery = new SourceConfirmedTextQuery(query, sourceFetcherProvider(), Lucene.STANDARD_ANALYZER);
+
+            try (IndexReader ir = DirectoryReader.open(w)) {
+                {
+                    IndexSearcher searcher = new IndexSearcher(ir);
+                    TopDocs td = searcher.search(
+                        sourceConfirmedQuery,
+                        3,
+                        new Sort(KeywordField.newSortField("sort", false, SortedSetSelector.Type.MAX))
+                    );
+
+                    Weight weight = searcher.createWeight(searcher.rewrite(sourceConfirmedQuery), ScoreMode.COMPLETE_NO_SCORES, 1);
+
+                    int firstDoc = td.scoreDocs[0].doc;
+                    LeafReaderContext firstCtx = searcher.getLeafContexts().get(ReaderUtil.subIndex(firstDoc, searcher.getLeafContexts()));
+                    checkMatches(weight, firstCtx, firstDoc - firstCtx.docBase, expectedMatches, 0, expectedFetch);
+
+                    int secondDoc = td.scoreDocs[1].doc;
+                    LeafReaderContext secondCtx = searcher.getLeafContexts()
+                        .get(ReaderUtil.subIndex(secondDoc, searcher.getLeafContexts()));
+                    checkMatches(weight, secondCtx, secondDoc - secondCtx.docBase, expectedMatches, 1, expectedFetch);
+                }
+
+                {
+                    IndexSearcher searcher = new IndexSearcher(ir);
+                    TopDocs td = searcher.search(KeywordField.newExactQuery("sort", "0"), 1);
+
+                    Weight weight = searcher.createWeight(searcher.rewrite(sourceConfirmedQuery), ScoreMode.COMPLETE_NO_SCORES, 1);
+                    int firstDoc = td.scoreDocs[0].doc;
+                    LeafReaderContext firstCtx = searcher.getLeafContexts().get(ReaderUtil.subIndex(firstDoc, searcher.getLeafContexts()));
+                    checkMatches(weight, firstCtx, firstDoc - firstCtx.docBase, new int[0], 0, false);
+                }
+            }
+        }
+    }
+
+    private static void checkMatches(Weight w, LeafReaderContext ctx, int doc, int[] expectedMatches, int offset, boolean expectedFetch)
+        throws IOException {
+        int count = sourceFetchCount.get();
+        Matches matches = w.matches(ctx, doc);
+        if (expectedMatches.length == 0) {
+            assertNull(matches);
+            assertThat(sourceFetchCount.get() - count, equalTo(expectedFetch ? 1 : 0));
+            return;
+        }
+        assertNotNull(matches);
+        MatchesIterator mi = matches.getMatches("body");
+        int i = 0;
+        while (mi.next()) {
+            assertThat(expectedMatches.length, greaterThan(i + 1));
+            assertEquals(mi.startPosition(), expectedMatches[i] + offset);
+            assertEquals(mi.endPosition(), expectedMatches[i + 1] + offset);
+            i += 2;
+        }
+        assertEquals(expectedMatches.length, i);
+        assertThat(sourceFetchCount.get() - count, equalTo(expectedFetch ? 1 : 0));
     }
 
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -26,7 +27,7 @@ class LoggingOutputStream extends OutputStream {
     // limit a single log message to 64k
     static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 64;
 
-    class Buffer {
+    static class Buffer {
 
         /** The buffer of bytes sent to the stream */
         byte[] bytes = new byte[DEFAULT_BUFFER_LENGTH];
@@ -104,7 +105,7 @@ class LoggingOutputStream extends OutputStream {
     }
 
     // pkg private for testing
-    void log(String msg) {
+    protected void log(String msg) {
         logger.log(level, msg);
     }
 }

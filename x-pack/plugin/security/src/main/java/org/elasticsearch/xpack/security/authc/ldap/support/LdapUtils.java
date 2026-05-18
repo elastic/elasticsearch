@@ -27,32 +27,26 @@ import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import javax.naming.ldap.Rdn;
+
+import static org.elasticsearch.core.Strings.format;
 
 public final class LdapUtils {
 
@@ -67,15 +61,6 @@ public final class LdapUtils {
             return new DN(dn);
         } catch (LDAPException e) {
             throw new IllegalArgumentException("invalid DN [" + dn + "]", e);
-        }
-    }
-
-    public static <T> T privilegedConnect(CheckedSupplier<T, LDAPException> supplier) throws LDAPException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) supplier::get);
-        } catch (PrivilegedActionException e) {
-            throw (LDAPException) e.getCause();
         }
     }
 
@@ -138,7 +123,7 @@ public final class LdapUtils {
             @Override
             @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
             protected void doRun() throws Exception {
-                privilegedConnect(() -> ldapPool.bindAndRevertAuthentication(bind.duplicate()));
+                ldapPool.bindAndRevertAuthentication(bind.duplicate());
                 LOGGER.trace("LDAP bind [{}] succeeded for [{}]", bind, ldapPool);
                 runnable.run();
             }
@@ -192,7 +177,7 @@ public final class LdapUtils {
             @Override
             @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
             protected void doRun() throws Exception {
-                privilegedConnect(() -> ldap.bind(bind.duplicate()));
+                ldap.bind(bind.duplicate());
                 LOGGER.trace("LDAP bind [{}] succeeded for [{}]", bind, ldap);
                 runnable.run();
             }
@@ -293,7 +278,7 @@ public final class LdapUtils {
         boolean searching = false;
         LDAPConnection ldapConnection = null;
         try {
-            ldapConnection = privilegedConnect(ldap::getConnection);
+            ldapConnection = ldap.getConnection();
             final LDAPConnection finalConnection = ldapConnection;
             searchForEntry(finalConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(entry -> {
                 assert isLdapConnectionThread(Thread.currentThread())
@@ -402,7 +387,7 @@ public final class LdapUtils {
         boolean searching = false;
         LDAPConnection ldapConnection = null;
         try {
-            ldapConnection = privilegedConnect(ldap::getConnection);
+            ldapConnection = ldap.getConnection();
             final LDAPConnection finalConnection = ldapConnection;
             search(finalConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(searchResult -> {
                 IOUtils.closeWhileHandlingException(() -> ldap.releaseConnection(finalConnection));
@@ -554,8 +539,7 @@ public final class LdapUtils {
             // in order to get the actual object we are searching for
             final String[] referralUrls = referenceList.stream()
                 .flatMap((ref) -> Arrays.stream(ref.getReferralURLs()))
-                .collect(Collectors.toList())
-                .toArray(Strings.EMPTY_ARRAY);
+                .toArray(String[]::new);
             final SearchRequest request = searchRequestRef.get();
             if (referralUrls.length == 0 || request.followReferrals(ldapConnection) == false) {
                 // either no referrals to follow or we have explicitly disabled referral following
@@ -658,13 +642,7 @@ public final class LdapUtils {
                             searchResult
                         );
                     } catch (LDAPException e) {
-                        LOGGER.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "caught exception while trying to follow referral [{}]",
-                                referralUrl
-                            ),
-                            e
-                        );
+                        LOGGER.warn(() -> format("caught exception while trying to follow referral [%s]", referralUrl), e);
                         if (ignoreReferralErrors) {
                             // Needed in order for the countDown to be correct
                             referralListener.onResponse(emptyResult(searchResult));
@@ -730,9 +708,7 @@ public final class LdapUtils {
 
         // in order to follow the referral we need to open a new connection and we do so using the
         // referral connector on the ldap connection
-        final LDAPConnection referralConn = privilegedConnect(
-            () -> ldapConnection.getReferralConnector().getReferralConnection(referralURL, ldapConnection)
-        );
+        final LDAPConnection referralConn = ldapConnection.getReferralConnector().getReferralConnection(referralURL, ldapConnection);
         final LdapSearchResultListener ldapListener = new LdapSearchResultListener(
             referralConn,
             ignoreErrors,
@@ -744,10 +720,7 @@ public final class LdapUtils {
                 if (ignoreErrors) {
                     if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug(
-                            new ParameterizedMessage(
-                                "Failed to retrieve results from referral URL [{}]." + " Treating as 'no results'",
-                                referralURL
-                            ),
+                            () -> format("Failed to retrieve results from referral URL [%s]." + " Treating as 'no results'", referralURL),
                             e
                         );
                     }

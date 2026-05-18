@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -80,24 +81,14 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalDateRange.Bucket("range_" + i, from, from, to, to, docCount, aggregations, keyed, format));
+            buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, format));
         }
         return new InternalDateRange(name, buckets, format, keyed, metadata);
     }
 
     @Override
-    protected Class<ParsedDateRange> implementationClass() {
-        return ParsedDateRange.class;
-    }
-
-    @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalDateRange.Bucket.class;
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedDateRange.ParsedBucket.class;
     }
 
     @Override
@@ -114,23 +105,11 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
                 buckets = new ArrayList<>(buckets);
                 double from = randomDouble();
                 double to = from + randomDouble();
-                buckets.add(
-                    new InternalDateRange.Bucket(
-                        "range_a",
-                        from,
-                        from,
-                        to,
-                        to,
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false,
-                        format
-                    )
-                );
+                buckets.add(new InternalDateRange.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, format));
             }
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

@@ -1,25 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.StringFieldScript.LeafFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesModeTests extends MapperServiceTestCase {
@@ -30,40 +38,99 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testPartitioned() {
-        Settings s = Settings.builder().put(getSettings()).put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2).build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        Settings s = Settings.builder()
+            .put(getSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+            .put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2)
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
     }
 
     public void testSortField() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 
     public void testSortMode() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
     public void testSortOrder() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
     }
 
     public void testWithoutRoutingPath() {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires [index.routing_path]"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+    }
+
+    public void testWithEmptyRoutingPath() {
+        Settings s = getSettings("");
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+    }
+
+    public void testWithoutStartTime() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
+
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
+    }
+
+    public void testWithoutEndTime() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), "1970-01-01T00:00:00Z")
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
+
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(0L));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
+    }
+
+    public void testSetDefaultTimeRangeValue() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999).toString())
+            .put(TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999).toString())
+            .build();
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
     }
 
     public void testRequiredRouting() {
         Settings s = getSettings();
+        var mapperService = new TestMapperServiceBuilder().settings(s).applyDefaultMapping(false).build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(s, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
+            () -> withMapping(mapperService, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
         );
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
@@ -85,8 +152,22 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
-    public void testRoutingPathMatchesObject() {
-        Settings s = getSettings(randomBoolean() ? "dim.o" : "dim.*");
+    public void testRoutingPathMatchesObject() throws IOException {
+        Settings s = getSettings("dim.o*");
+        createMapperService(s, mapping(b -> {
+            b.startObject("dim").startObject("properties");
+            {
+                b.startObject("o").startObject("properties");
+                b.startObject("inner_dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.endObject().endObject();
+            }
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.endObject().endObject();
+        }));
+    }
+
+    public void testRoutingPathEqualsObjectNameError() {
+        Settings s = getSettings("dim.o");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             {
@@ -97,13 +178,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
         })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.o] was [object]."
-            )
-        );
+        assertThat(e.getMessage(), equalTo("All fields that match routing_path must be flattened fields. [dim.o] was [object]."));
     }
 
     public void testRoutingPathMatchesNonDimensionKeyword() {
@@ -117,27 +192,21 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_dim] was not [time_series_dimension: true]."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.non_dim] was not a dimension."
             )
         );
     }
 
-    public void testRoutingPathMatchesNonKeyword() {
+    public void testRoutingPathMatchesNonKeyword() throws IOException {
         Settings s = getSettings(randomBoolean() ? "dim.non_kwd" : "dim.*");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
+        createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_kwd").field("type", "integer").field("time_series_dimension", true).endObject();
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_kwd] was [integer]."
-            )
-        );
+        }));
     }
 
     public void testRoutingPathMatchesScriptedKeyword() {
@@ -152,8 +221,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] has a [script] parameter."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] has a [script] parameter."
             )
         );
     }
@@ -167,8 +237,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] was a runtime [keyword]."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] was a runtime [keyword]."
             )
         );
     }
@@ -191,7 +262,12 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         if (context.equals(StringFieldScript.CONTEXT) && script.getLang().equals("mock")) {
             return (T) new StringFieldScript.Factory() {
                 @Override
-                public LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                public LeafFactory newFactory(
+                    String fieldName,
+                    Map<String, Object> params,
+                    SearchLookup searchLookup,
+                    OnScriptError onScriptError
+                ) {
                     throw new UnsupportedOperationException("error should be thrown before getting here");
                 }
             };

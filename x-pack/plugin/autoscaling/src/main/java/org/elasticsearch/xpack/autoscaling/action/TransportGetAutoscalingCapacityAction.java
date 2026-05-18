@@ -15,10 +15,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -27,7 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
-import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
+import org.elasticsearch.xpack.autoscaling.capacity.nodeinfo.AutoscalingNodeInfoService;
 
 import java.util.Objects;
 
@@ -40,7 +39,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
     private final AutoscalingCalculateCapacityService capacityService;
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
-    private final AutoscalingMemoryInfoService memoryInfoService;
+    private final AutoscalingNodeInfoService nodeInfoService;
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
     private final CapacityResponseCache<GetAutoscalingCapacityAction.Response> responseCache = new CapacityResponseCache<>(
         run -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(run),
@@ -53,12 +52,10 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final AutoscalingCalculateCapacityService.Holder capacityServiceHolder,
         final ClusterInfoService clusterInfoService,
         final SnapshotsInfoService snapshotsInfoService,
-        final AutoscalingMemoryInfoService memoryInfoService,
-        final AllocationDeciders allocationDeciders,
+        final AutoscalingNodeInfoService nodeInfoService,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
         super(
@@ -68,13 +65,12 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             GetAutoscalingCapacityAction.Request::new,
-            indexNameExpressionResolver,
             GetAutoscalingCapacityAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsInfoService = snapshotsInfoService;
-        this.memoryInfoService = memoryInfoService;
-        this.capacityService = capacityServiceHolder.get(allocationDeciders);
+        this.nodeInfoService = nodeInfoService;
+        this.capacityService = capacityServiceHolder.get();
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
         assert this.capacityService != null;
@@ -104,7 +100,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
                 clusterService.state(),
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
-                memoryInfoService.snapshot(),
+                nodeInfoService.snapshot(),
                 ensureNotCancelled
             )
         );

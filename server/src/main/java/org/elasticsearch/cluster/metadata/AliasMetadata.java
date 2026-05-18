@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +33,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment, AliasInfo {
 
     private final String alias;
 
@@ -223,7 +223,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(AliasMetadata::new, in);
+        return SimpleDiffable.readDiffFrom(AliasMetadata::new, in);
     }
 
     @Override
@@ -237,7 +237,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return builder;
     }
 
-    public static AliasMetadata getFirstAliasMetadata(Metadata metadata, IndexAbstraction ia) {
+    public static AliasMetadata getFirstAliasMetadata(ProjectMetadata metadata, IndexAbstraction ia) {
         if (ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("unexpected type: [" + ia.getType() + "]");
         }
@@ -289,8 +289,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 return this;
             }
             try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                this.filter = new CompressedXContent(BytesReference.bytes(builder));
+                this.filter = new CompressedXContent(filter);
                 return this;
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
@@ -336,7 +335,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 if (binary) {
                     builder.field("filter", aliasMetadata.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(aliasMetadata.filter().uncompressed(), true).v2());
+                    aliasMetadata.filter.copyTo(builder.field("filter"));
                 }
             }
             if (aliasMetadata.indexRouting() != null) {
@@ -398,6 +397,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                     } else if ("is_hidden".equals(currentFieldName)) {
                         builder.isHidden(parser.booleanValue());
                     }
+                } else if (token == null) {
+                    throw new IllegalArgumentException("unexpected null token while parsing alias");
                 }
             }
             return builder.build();

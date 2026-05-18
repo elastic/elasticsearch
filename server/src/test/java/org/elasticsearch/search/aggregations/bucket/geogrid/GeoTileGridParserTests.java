@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
@@ -21,8 +23,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class GeoTileGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, """
-            {"field":"my_loc", "precision":%s, "size": 500, "shard_size": 550}""".formatted(precision));
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.format("""
+            {"field":"my_loc", "precision":%s, "size": 500, "shard_size": 550}""", precision));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -31,9 +33,9 @@ public class GeoTileGridParserTests extends ESTestCase {
 
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.format("""
             {"field":"my_loc", "precision":"%s", "size": "500", "shard_size": "550"}
-            """.formatted(precision));
+            """, precision));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -71,7 +73,7 @@ public class GeoTileGridParserTests extends ESTestCase {
 
     public void testParseValidBounds() throws Exception {
         Rectangle bbox = GeometryTestUtils.randomRectangle();
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.format("""
             {
               "field": "my_loc",
               "precision": 5,
@@ -83,7 +85,7 @@ public class GeoTileGridParserTests extends ESTestCase {
                 "left": %s,
                 "right": %s
               }
-            }""".formatted(bbox.getMaxY(), bbox.getMinY(), bbox.getMinX(), bbox.getMaxX()));
+            }""", bbox.getMaxY(), bbox.getMinY(), bbox.getMinX(), bbox.getMaxX()));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory

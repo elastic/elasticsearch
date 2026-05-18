@@ -9,25 +9,32 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.SINGLE_NODE_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -37,29 +44,152 @@ import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testRemovedSettingNotSet() {
-        final Settings settings = Settings.EMPTY;
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.EMPTY;
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
         final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
-            settings,
+            clusterSettings,
+            nodeSettings,
             removedSetting,
-            "http://removed-setting.example.com"
+            "http://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
         );
         assertThat(issue, nullValue());
     }
 
     public void testRemovedSetting() {
-        final Settings settings = Settings.builder().put("node.removed_setting", "value").build();
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting", "value").build();
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
         final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
-            settings,
+            clusterSettings,
+            nodeSettings,
             removedSetting,
-            "https://removed-setting.example.com"
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
         );
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting] is deprecated"));
-        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting] setting."));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting] setting. Some detail."));
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testRemovedAffixSetting() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting.a.value", "value").build();
+        final Setting<?> removedSetting = Setting.affixKeySetting(
+            "node.removed_setting.",
+            "value",
+            key -> Setting.simpleString(key, Setting.Property.NodeScope)
+        );
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting.*.value] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting.*.value] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testRemovedGroupSetting() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting.v", "value").build();
+        final Setting<?> removedSetting = Setting.groupSetting("node.removed_setting.", Setting.Property.NodeScope);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting.] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting.] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testMultipleRemovedSettings() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder()
+            .put("node.removed_setting1", "value")
+            .put("node.removed_setting2", "value")
+            .build();
+        final Setting<?> removedSetting1 = Setting.simpleString("node.removed_setting1");
+        final Setting<?> removedSetting2 = Setting.simpleString("node.removed_setting2");
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleRemovedSettings(
+            clusterSettings,
+            nodeSettings,
+            shuffledList(List.of(removedSetting1, removedSetting2)),
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Settings [node.removed_setting1, node.removed_setting2] are deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove each setting in [node.removed_setting1, node.removed_setting2]. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testMultipleDataPaths() {
+        final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getMessage(), equalTo("Specifying multiple data paths is deprecated"));
+        assertThat(
+            issue.getDetails(),
+            equalTo(
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
+            )
+        );
+        String url = "https://ela.st/es-deprecation-7-multiple-paths";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoMultipleDataPaths() {
+        Settings settings = Settings.builder().put("path.data", "data").build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
+    public void testDataPathsList() {
+        final Settings settings = Settings.builder().putList("path.data", "d1").build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getMessage(), equalTo("Multiple data paths are not supported"));
+        assertThat(
+            issue.getDetails(),
+            equalTo(
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
+            )
+        );
+        String url = "https://ela.st/es-deprecation-7-multiple-paths";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoDataPathsListDefault() {
+        final Settings settings = Settings.builder().build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        assertThat(issue, nullValue());
     }
 
     public void testSharedDataPathSetting() {
@@ -68,14 +198,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir())
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
+        final String expectedUrl = "https://ela.st/es-deprecation-7-shared-data-path";
         assertThat(
             issues,
             contains(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "setting [path.shared_data] is deprecated and will be removed in a future version",
                     expectedUrl,
                     "Found shared data path configured. Discontinue use of this setting.",
@@ -120,16 +252,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
 
         final Settings settings = builder.build();
-        final List<DeprecationIssue> deprecationIssues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        final List<DeprecationIssue> deprecationIssues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         assertEquals(1, deprecationIssues.size());
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
         assertEquals("Realm that start with [_] will not be permitted in a future major release.", deprecationIssue.getMessage());
-        assertEquals(
-            "https://www.elastic.co/guide/en/elasticsearch/reference" + "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
-            deprecationIssue.getUrl()
-        );
+        assertEquals("https://ela.st/es-deprecation-7-realm-prefix", deprecationIssue.getUrl());
         assertEquals(
             "Found realm "
                 + (invalidRealmNames.size() == 1 ? "name" : "names")
@@ -141,33 +273,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    public void testSingleDataNodeWatermarkSetting() {
-        Settings settings = Settings.builder().put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true).build();
-
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
-
-        final String expectedUrl = "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/"
-            + "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        assertThat(
-            issues,
-            hasItem(
-                new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and"
-                        + " will not be available in a future version",
-                    expectedUrl,
-                    "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured."
-                        + " Discontinue use of this setting.",
-                    false,
-                    null
-                )
-            )
-        );
-    }
-
     void monitoringSetting(String settingKey, String value) {
         Settings settings = Settings.builder().put(settingKey, value).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
         assertThat(
             issues,
@@ -187,7 +298,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     void monitoringExporterSetting(String suffix, String value) {
         String settingKey = "xpack.monitoring.exporters.test." + suffix;
         Settings settings = Settings.builder().put(settingKey, value).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
+        );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
         assertThat(
             issues,
@@ -196,7 +311,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + settingKey + "]",
+                    "Remove the following settings: [" + settingKey + "]",
                     false,
                     null
                 )
@@ -208,7 +323,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         String settingKey = "xpack.monitoring.exporters.test." + suffix;
         String subSettingKey = settingKey + ".subsetting";
         Settings settings = Settings.builder().put(subSettingKey, value).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
+        );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
         assertThat(
             issues,
@@ -217,7 +336,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + subSettingKey + "]",
+                    "Remove the following settings: [" + subSettingKey + "]",
                     false,
                     null
                 )
@@ -230,7 +349,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(settingKey, value);
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
+        );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
         assertThat(
             issues,
@@ -374,7 +497,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testExporterUseIngestPipelineSettings() {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.use_ingest", true).build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting";
         assertThat(
@@ -384,7 +510,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.use_ingest]",
                     false,
                     null
                 )
@@ -397,7 +523,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.monitoring.exporters.test.index.pipeline.master_timeout", TimeValue.timeValueSeconds(10))
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting";
         assertThat(
@@ -408,7 +537,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] "
                         + "settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,
                     null
                 )
@@ -419,7 +548,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testExporterCreateLegacyTemplateSetting() {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.index.template.create_legacy_templates", true).build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting";
         assertThat(
@@ -430,8 +562,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be "
                         + "removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: "
-                        + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
+                    "Remove the following settings: " + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                     false,
                     null
                 )
@@ -444,7 +575,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "use-context")
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         assertThat(
             issues,
@@ -470,7 +604,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), "456/7m")
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         assertThat(
             issues,
@@ -492,9 +629,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.field.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+                + " removed in a future release. See the deprecation documentation for the next major version.",
+            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -505,7 +642,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), "2453")
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         assertThat(
             issues,
@@ -527,9 +667,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.update.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+                + " removed in a future release. See the deprecation documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -541,7 +681,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), 200)
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         assertThat(
             issues,
@@ -562,10 +705,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -577,7 +720,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), "2d")
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         assertThat(
             issues,
@@ -598,17 +744,20 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release! See the breaking changes documentation for the next major version.",
-            "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future"
-                + " release! See the breaking changes documentation for the next major version."
+            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
+            "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " See the deprecation documentation for the next major version."
         );
     }
 
     public void testEnforceDefaultTierPreferenceSetting() {
         Settings settings = Settings.builder().put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey(), randomBoolean()).build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
 
         final String expectedUrl = "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html";
         assertThat(
@@ -628,9 +777,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules) {
-        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, pluginsAndModules)
+        final List<DeprecationIssue> issues = filterChecks(
+            NodeDeprecationChecks.SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
         return issues;
@@ -655,8 +804,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version."
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
             )
         );
     }
@@ -668,7 +817,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Setting [xpack.eql.enabled] is deprecated",
-            "https://ela.st/es-deprecation-8-eql-enabled-setting",
+            "https://ela.st/es-deprecation-7-eql-enabled-setting",
             "Remove the [xpack.eql.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
             false,
             null
@@ -678,9 +827,61 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version."
+                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
             )
         );
+    }
+
+    public void testDynamicSettings() {
+        String concreteSettingKey = "xpack.monitoring.exporters." + randomAlphaOfLength(10) + ".use_ingest";
+        Settings clusterSettings = Settings.builder().put(concreteSettingKey, randomBoolean()).build();
+        Settings nodettings = Settings.builder().build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.persistentSettings(clusterSettings);
+        } else {
+            metadataBuilder.transientSettings(clusterSettings);
+        }
+        Metadata metadata = metadataBuilder.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        final List<DeprecationIssue> issues = filterChecks(
+            NodeDeprecationChecks.SINGLE_NODE_CHECKS,
+            c -> c.apply(nodettings, pluginsAndModules, clusterState, licenseState)
+        );
+
+        Map<String, Object> meta = null;
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "The [" + concreteSettingKey + "] settings are deprecated and will be removed after 8.0",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
+            "Remove the following settings: [" + concreteSettingKey + "]",
+            false,
+            meta
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testCheckNodeAttrData() {
+        Settings settings = Settings.builder().put("node.attr.data", randomAlphaOfLength(randomIntBetween(4, 20))).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting node.attributes.data is not recommended",
+            "https://ela.st/es-deprecation-7-node-attr-data-setting",
+            "One or more of your nodes is configured with node.attributes.data settings. This is typically used to create a "
+                + "hot/warm or tiered architecture, based on legacy guidelines. Data tiers are a recommended replacement for tiered "
+                + "architecture clusters.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
+        return checks.stream().map(mapper).filter(Objects::nonNull).toList();
     }
 }

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
@@ -32,6 +33,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     private final int totalOperations;
     private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
+    private long lastModifiedTime = -1;
 
     /**
      * Create a translog writer against the specified translog file channel.
@@ -145,5 +147,16 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         if (isClosed()) {
             throw new AlreadyClosedException(toString() + " is already closed");
         }
+    }
+
+    @Override
+    public long getLastModifiedTime() throws IOException {
+        long modified = this.lastModifiedTime;
+        if (modified == -1) {
+            // cache the lastModifiedTime and return it forever, translogs are immutable
+            modified = super.getLastModifiedTime();
+            this.lastModifiedTime = modified;
+        }
+        return modified;
     }
 }

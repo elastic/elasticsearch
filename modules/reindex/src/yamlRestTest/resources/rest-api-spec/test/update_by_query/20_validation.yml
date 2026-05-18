@@ -3,7 +3,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /conflicts may only be .* but was \[cat\]/
@@ -13,14 +13,14 @@
 
 ---
 "invalid max_docs in URL fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -30,14 +30,14 @@
 
 ---
 "invalid max_docs in body fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -48,14 +48,14 @@
 
 ---
 "inconsistent max_docs in body and max_docs in URL fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
@@ -69,14 +69,14 @@
 
 ---
 "max_docs shoule be greater than slices":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] should be >= \[slices\]/
@@ -90,7 +90,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /Failed to parse int parameter \[scroll_size\] with value \[asdf\]/
@@ -110,7 +110,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { age: 23 }
   - do:
       indices.refresh: {}
@@ -176,3 +176,15 @@
       update_by_query:
         slices: 0
         index: test
+---
+"Remote indices are not allowed in update-by-query":
+  - do:
+      catch: bad_request
+      update_by_query:
+        index: "remote:test"
+        body:
+          query:
+            match_all: {}
+  - match: { status: 400 }
+  - match: { error.type: "action_request_validation_exception" }
+  - match: { error.reason: "Validation Failed: 1: Cross-cluster calls are not supported in this context but remote indices were requested: [remote:test];" }

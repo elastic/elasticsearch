@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -118,11 +119,10 @@ public class SimpleFeatureFactoryTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82592")
     public void testRectangle() throws IOException {
         int z = randomIntBetween(3, 10);
-        int x = randomIntBetween(1, (1 << z) - 2);
-        int y = randomIntBetween(1, (1 << z) - 2);
+        int x = randomIntBetween(2, (1 << z) - 1);
+        int y = randomIntBetween(2, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
         SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
         {

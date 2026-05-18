@@ -97,13 +97,13 @@ public class ImmutableFollowParameters implements Writeable {
 
     public ImmutableFollowParameters(StreamInput in) throws IOException {
         maxReadRequestOperationCount = in.readOptionalVInt();
-        maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+        maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxOutstandingReadRequests = in.readOptionalVInt();
         maxWriteRequestOperationCount = in.readOptionalVInt();
-        maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+        maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxOutstandingWriteRequests = in.readOptionalVInt();
         maxWriteBufferCount = in.readOptionalVInt();
-        maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
+        maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         maxRetryDelay = in.readOptionalTimeValue();
         readPollTimeout = in.readOptionalTimeValue();
     }

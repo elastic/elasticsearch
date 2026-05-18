@@ -7,10 +7,7 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
@@ -43,12 +39,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     public void waitForTemplates() throws Exception {
         if (AbstractUpgradeTestCase.CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.OLD) {
             try {
-                boolean clusterUnderstandsComposableTemplates = AbstractUpgradeTestCase.UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_8_0);
-                XPackRestTestHelper.waitForTemplates(
-                    client(),
-                    XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                    clusterUnderstandsComposableTemplates
-                );
+                XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
             } catch (AssertionError e) {
                 throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
             }
@@ -73,6 +64,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         } catch (AssertionError e) {
             throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
         }
+    }
+
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
     }
 
     @Override

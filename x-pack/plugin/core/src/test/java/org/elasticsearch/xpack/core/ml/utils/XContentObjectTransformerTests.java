@@ -59,23 +59,7 @@ public class XContentObjectTransformerTests extends ESTestCase {
         assertXContentAreEqual(aggTransformer.fromMap(aggMap), aggMap);
         assertXContentAreEqual(aggTransformer.fromMap(aggMap), aggTransformer.toMap(aggTransformer.fromMap(aggMap)));
 
-        Map<String, Object> queryMap = Collections.singletonMap(
-            "match",
-            Collections.singletonMap("fieldName", new HashMap<String, Object>() {
-                {
-                    // Add all the default fields so they are not added dynamically when the object is parsed
-                    put("query", "fieldValue");
-                    put("operator", "OR");
-                    put("prefix_length", 0);
-                    put("max_expansions", 50);
-                    put("fuzzy_transpositions", true);
-                    put("lenient", false);
-                    put("zero_terms_query", "NONE");
-                    put("auto_generate_synonyms_phrase_query", true);
-                    put("boost", 1.0);
-                }
-            })
-        );
+        Map<String, Object> queryMap = Map.of("match", Map.of("fieldName", Map.of("query", "fieldValue")));
 
         XContentObjectTransformer<QueryBuilder> queryBuilderTransformer = XContentObjectTransformer.queryBuilderTransformer(
             xContentRegistry()

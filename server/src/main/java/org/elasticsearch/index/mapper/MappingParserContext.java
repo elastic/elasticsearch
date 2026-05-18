@@ -1,22 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -29,36 +36,82 @@ public class MappingParserContext {
     private final Function<String, SimilarityProvider> similarityLookupService;
     private final Function<String, Mapper.TypeParser> typeParsers;
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
-    private final Version indexVersionCreated;
+    private final IndexVersion indexVersionCreated;
+    private final Supplier<TransportVersion> clusterTransportVersion;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
-    private final DateFormatter dateFormatter;
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
-    private final IdFieldMapper idFieldMapper;
+    private final Function<Query, BitSetProducer> bitSetProducer;
+    private final long mappingObjectDepthLimit;
+    private long mappingObjectDepth = 0;
+    private final List<VectorsFormatProvider> vectorsFormatProviders;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
+    private final Supplier<ProjectMetadata> projectMetadataSupplier;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
-        Version indexVersionCreated,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        DateFormatter dateFormatter,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        RootObjectMapperNamespaceValidator namespaceValidator,
+        Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.indexVersionCreated = indexVersionCreated;
+        this.clusterTransportVersion = clusterTransportVersion;
         this.searchExecutionContextSupplier = searchExecutionContextSupplier;
-        this.dateFormatter = dateFormatter;
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.idFieldMapper = idFieldMapper;
+        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
+        this.bitSetProducer = bitSetProducer;
+        this.vectorsFormatProviders = vectorsFormatProviders;
+        this.namespaceValidator = namespaceValidator;
+        this.projectMetadataSupplier = projectMetadataSupplier;
+    }
+
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders
+    ) {
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            bitSetProducer,
+            vectorsFormatProviders,
+            null,
+            null
+        );
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -67,10 +120,6 @@ public class MappingParserContext {
 
     public IndexSettings getIndexSettings() {
         return indexSettings;
-    }
-
-    public IdFieldMapper idFieldMapper() {
-        return idFieldMapper;
     }
 
     public Settings getSettings() {
@@ -89,8 +138,12 @@ public class MappingParserContext {
         return runtimeFieldParsers.apply(type);
     }
 
-    public Version indexVersionCreated() {
+    public IndexVersion indexVersionCreated() {
         return indexVersionCreated;
+    }
+
+    public Supplier<TransportVersion> clusterTransportVersion() {
+        return clusterTransportVersion;
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -103,7 +156,7 @@ public class MappingParserContext {
      * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
      */
     public DateFormatter getDateFormatter() {
-        return dateFormatter;
+        return null;
     }
 
     public boolean isWithinMultiField() {
@@ -124,8 +177,31 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
-    MappingParserContext createMultiFieldContext(MappingParserContext in) {
-        return new MultiFieldParserContext(in);
+    public BitSetProducer bitSetProducer(Query query) {
+        return bitSetProducer.apply(query);
+    }
+
+    public List<VectorsFormatProvider> getVectorsFormatProviders() {
+        return vectorsFormatProviders;
+    }
+
+    void incrementMappingObjectDepth() throws MapperParsingException {
+        mappingObjectDepth++;
+        if (mappingObjectDepth > mappingObjectDepthLimit) {
+            throw new MapperParsingException("Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded");
+        }
+    }
+
+    void decrementMappingObjectDepth() throws MapperParsingException {
+        mappingObjectDepth--;
+    }
+
+    public MappingParserContext createMultiFieldContext() {
+        return new MultiFieldParserContext(this);
+    }
+
+    public Supplier<ProjectMetadata> getProjectMetadata() {
+        return projectMetadataSupplier;
     }
 
     private static class MultiFieldParserContext extends MappingParserContext {
@@ -135,12 +211,15 @@ public class MappingParserContext {
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
+                in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,
-                in.dateFormatter,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper
+                in.bitSetProducer,
+                in.vectorsFormatProviders,
+                in.namespaceValidator,
+                null
             );
         }
 
@@ -150,20 +229,36 @@ public class MappingParserContext {
         }
     }
 
-    static class DynamicTemplateParserContext extends MappingParserContext {
-        DynamicTemplateParserContext(MappingParserContext in) {
+    public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter) {
+        return new DynamicTemplateParserContext(this, dateFormatter);
+    }
+
+    private static class DynamicTemplateParserContext extends MappingParserContext {
+
+        private final DateFormatter dateFormatter;
+
+        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter) {
             super(
                 in.similarityLookupService,
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
+                in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,
-                in.dateFormatter,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper
+                in.bitSetProducer,
+                in.vectorsFormatProviders,
+                in.namespaceValidator,
+                null
             );
+            this.dateFormatter = dateFormatter;
+        }
+
+        @Override
+        public DateFormatter getDateFormatter() {
+            return dateFormatter;
         }
 
         @Override

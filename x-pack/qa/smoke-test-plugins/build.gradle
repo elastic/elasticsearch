@@ -1,38 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
-dependencies {
-  testImplementation project(':x-pack:qa')
+def pluginPaths = []
+def pluginNames = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  pluginPaths << pluginProject.path
+  pluginNames << pluginName
 }
 
-def pluginPaths = project(':plugins').getChildProjects().findAll { pluginName, pluginProject ->
-  // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-  def ignoreIngestAttachment = BuildParams.inFipsJvm && pluginName == "ingest-attachment"
-
-  return ignoreIngestAttachment == false
-}.collect {pluginName, pluginProject -> pluginProject.path }
+dependencies {
+  yamlRestTestImplementation project(':x-pack:qa')
+  pluginPaths.each { pluginPath ->
+    clusterPlugins(project(pluginPath))
+  }
+}
 
 ext.expansions = [
   'expected.plugins.count': pluginPaths.size()
 ]
 
-tasks.named("processTestResources").configure {
+tasks.named("processYamlRestTestResources").configure {
   inputs.properties(project.expansions)
   filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  user username: "test_user", password: "x-pack-test-password"
-
-  pluginPaths.each {pluginPath ->
-    plugin pluginPath
-  }
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("plugins require default distro with all modules")
+  systemProperty('tests.plugin.names', pluginNames.join(','))
 }

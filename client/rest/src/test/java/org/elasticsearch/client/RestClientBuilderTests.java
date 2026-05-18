@@ -182,7 +182,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
             RestClient.builder(badId + ":");
             fail("should have failed");
         } catch (IllegalStateException e) {
-            assertEquals("cloudId " + badId + ":" + " must begin with a human readable identifier followed by a colon", e.getMessage());
+            assertEquals("cloudId " + badId + ": must begin with a human readable identifier followed by a colon", e.getMessage());
         }
 
         RestClient client = RestClient.builder(encodedId).build();
@@ -235,6 +235,11 @@ public class RestClientBuilderTests extends RestClientTestCase {
     public void testSetPathPrefixMalformed() {
         assertSetPathPrefixThrows("//");
         assertSetPathPrefixThrows("base/path//");
+        assertSetPathPrefixThrows("/base/path//");
+        assertSetPathPrefixThrows("/base//path");
+        assertSetPathPrefixThrows("/base//path/");
+        assertSetPathPrefixThrows("//base/path");
+        assertSetPathPrefixThrows("base//path");
     }
 
     private static void assertSetPathPrefixThrows(final String pathPrefix) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -11,21 +12,24 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 
@@ -40,10 +44,19 @@ public class TokenCountFieldMapper extends FieldMapper {
         return (TokenCountFieldMapper) in;
     }
 
+    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
+        true,
+        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+        true
+    );
+
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParameters()
+        );
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);
@@ -52,7 +65,9 @@ public class TokenCountFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : nodeIntegerValue(o),
-            m -> toType(m).nullValue
+            m -> toType(m).nullValue,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
         private final Parameter<Boolean> enablePositionIncrements = Parameter.boolParam(
             "enable_position_increments",
@@ -68,24 +83,30 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { index, docValuesParameters, store, analyzer, nullValue, enablePositionIncrements, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
         public TokenCountFieldMapper build(MapperBuilderContext context) {
             if (analyzer.getValue() == null) {
-                throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
+                throw new MapperParsingException("Analyzer must be set for field [" + leafName() + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 index.getValue(),
                 store.getValue(),
-                hasDocValues.getValue(),
+                docValuesParameters.getValue().enabled(),
                 nullValue.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                context.isSourceSynthetic()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
     }
 
@@ -97,55 +118,54 @@ public class TokenCountFieldMapper extends FieldMapper {
             boolean isStored,
             boolean hasDocValues,
             Number nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isSyntheticSource
         ) {
             super(
                 name,
                 NumberFieldMapper.NumberType.INTEGER,
-                isSearchable,
+                IndexType.points(isSearchable, hasDocValues),
                 isStored,
-                hasDocValues,
                 false,
                 nullValue,
                 meta,
                 null,
                 false,
-                null
+                null,
+                null,
+                isSyntheticSource
             );
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, ignoredValues) -> List.of();
+                return ValueFetcher.EMPTY;
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     private final boolean index;
-    private final boolean hasDocValues;
+    private final FieldMapper.DocValuesParameter.Values docValuesParameters;
     private final boolean store;
     private final NamedAnalyzer analyzer;
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
+    private final DocValuesFieldFactory dvFactory;
 
-    protected TokenCountFieldMapper(
-        String simpleName,
-        MappedFieldType defaultFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, defaultFieldType, multiFields, copyTo);
+    protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, defaultFieldType, builderParams);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();
         this.index = builder.index.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.store = builder.store.getValue();
+        // in parseCreateField(), we call IndexType.points(), which defaults skippers to false
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, IndexVersion.current());
     }
 
     @Override
@@ -160,10 +180,17 @@ public class TokenCountFieldMapper extends FieldMapper {
         if (value == null) {
             tokenCount = nullValue;
         } else {
-            tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
+            tokenCount = countPositions(analyzer, fullPath(), value, enablePositionIncrements);
         }
 
-        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store));
+        NumberFieldMapper.NumberType.INTEGER.addFields(
+            context.doc(),
+            fieldType().name(),
+            tokenCount,
+            IndexType.points(index, docValuesParameters.enabled()),
+            store,
+            dvFactory
+        );
     }
 
     /**
@@ -203,12 +230,13 @@ public class TokenCountFieldMapper extends FieldMapper {
         return analyzer.name();
     }
 
-    /**
-     * Indicates if position increments are counted.
-     * @return <code>true</code> if position increments are counted
-     */
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
+    public FieldMapper.DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -218,6 +246,6 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 }

@@ -71,7 +71,7 @@ public class LatestConfig implements Writeable, ToXContentObject {
     }
 
     public LatestConfig(StreamInput in) throws IOException {
-        this.uniqueKey = in.readStringList();
+        this.uniqueKey = in.readStringCollectionAsList();
         this.sort = in.readString();
     }
 

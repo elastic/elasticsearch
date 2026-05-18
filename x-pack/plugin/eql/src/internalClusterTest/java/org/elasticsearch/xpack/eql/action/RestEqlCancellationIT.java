@@ -21,8 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
-import org.junit.BeforeClass;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,13 +38,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
-    private static String nodeHttpTypeKey;
-
-    @BeforeClass
-    public static void setUpTransport() {
-        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
@@ -55,34 +47,20 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .build();
-    }
-
-    private static String getHttpTypeKey(Class<? extends Plugin> clazz) {
-        if (clazz.equals(NioTransportPlugin.class)) {
-            return NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME;
-        } else {
-            assert clazz.equals(Netty4Plugin.class);
-            return Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME;
-        }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(getTestTransportPlugin());
-        plugins.add(NioTransportPlugin.class);
         return plugins;
     }
 
     public void testRestCancellation() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
-                .get()
+            indicesAdmin().prepareCreate("test").setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
         );
         createIndex("idx_unmapped");
 
@@ -93,14 +71,13 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .endObject()
+                )
             );
         }
 
@@ -108,18 +85,22 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
-        org.elasticsearch.client.eql.EqlSearchRequest eqlSearchRequest = new org.elasticsearch.client.eql.EqlSearchRequest(
-            "test",
-            "my_event where val==1"
-        ).eventCategoryField("event_type");
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("GET", "/test/_eql/search");
-        request.setJsonEntity(Strings.toString(eqlSearchRequest));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("query", "my_event where val==1")
+                    .field("event_category_field", "event_type")
+                    .endObject()
+            )
+        );
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
-        final PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         logger.trace("Waiting for block to be established");
@@ -132,8 +113,8 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         assertBusy(() -> {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
-                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.taskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.id());
                     if (task != null) {
                         assertThat(task, instanceOf(EqlSearchTask.class));
                         EqlSearchTask eqlSearchTask = (EqlSearchTask) task;
@@ -157,8 +138,4 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         expectThrows(CancellationException.class, future::actionGet);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 }

@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
 
 import org.elasticsearch.action.ActionListener;
+
+import java.util.Collection;
 
 import static org.mockito.ArgumentMatchers.any;
 
@@ -26,4 +29,30 @@ public abstract class ActionListenerUtils {
     public static <T> ActionListener<T> anyActionListener() {
         return any(ActionListener.class);
     }
+
+    /**
+     * Returns a Mockito matcher for any argument that is a {@link Collection}.
+     * @param <T> the action listener type that the caller expects. Do not specify this, it will be inferred
+     * @return a collection matcher
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> Collection<T> anyCollection() {
+        return any(Collection.class);
+    }
+
+    /** Create a listener that throws a {@link AssertionError} if it's ever called */
+    public static <T> ActionListener<T> neverCalledListener() {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T t) {
+                throw new AssertionError("listener onResponse should never be called but called with: " + t);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("listener onFailure should never be called but called with: " + e, e);
+            }
+        };
+    }
+
 }

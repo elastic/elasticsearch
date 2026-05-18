@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.util.function.BooleanSupplier;
 
@@ -29,12 +28,12 @@ public class SearchableSnapshotAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override
@@ -44,11 +43,11 @@ public class SearchableSnapshotAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().getProject().getIndexSafe(shardRouting.index()), allocation);
     }
 
     private Decision allowAllocation(IndexMetadata indexMetadata, RoutingAllocation allocation) {
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+        if (indexMetadata.isSearchableSnapshot()) {
             if (hasValidLicenseSupplier.getAsBoolean()) {
                 return allocation.decision(Decision.YES, NAME, "valid license for searchable snapshots");
             } else {

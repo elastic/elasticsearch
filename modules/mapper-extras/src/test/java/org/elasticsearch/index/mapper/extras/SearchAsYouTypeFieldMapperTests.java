@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper.extras;
 
@@ -23,18 +24,21 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -54,12 +58,13 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -94,7 +99,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             b.field("type", "search_as_you_type");
             b.field("norms", true);
         }, b -> {
@@ -102,16 +107,17 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("norms", false);
         }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-            b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+            b.field("search_quote_analyzer", "standard");
+        }, m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
+        checker.registerIgnoredParameter("doc_values");
     }
 
     @Override
@@ -136,10 +142,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         NamedAnalyzer keyword = new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer());
         NamedAnalyzer simple = new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer());
         NamedAnalyzer whitespace = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
-        return new IndexAnalyzers(
-            Map.of("default", dflt, "standard", standard, "keyword", keyword, "simple", simple, "whitespace", whitespace),
-            Map.of(),
-            Map.of()
+        return IndexAnalyzers.of(
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "simple", simple, "whitespace", whitespace)
         );
     }
 
@@ -158,16 +162,16 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "new york city")));
         for (String field : new String[] { "field", "field._index_prefix", "field._2gram", "field._3gram" }) {
-            IndexableField[] fields = doc.rootDoc().getFields(field);
-            assertEquals(1, fields.length);
-            assertEquals("new york city", fields[0].stringValue());
+            List<IndexableField> fields = doc.rootDoc().getFields(field);
+            assertEquals(1, fields.size());
+            assertEquals("new york city", fields.get(0).stringValue());
         }
     }
 
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
-        assertRootFieldMapper(rootMapper, 3, "default");
+        assertSearchAsYouTypeFieldMapper(rootMapper, 3, "default");
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
         assertPrefixFieldType(prefixFieldMapper, rootMapper.indexAnalyzers(), 3, "default");
@@ -198,7 +202,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         );
 
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
-        assertRootFieldMapper(rootMapper, maxShingleSize, analyzerName);
+        assertSearchAsYouTypeFieldMapper(rootMapper, maxShingleSize, analyzerName);
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
         assertPrefixFieldType(prefixFieldMapper, rootMapper.indexAnalyzers(), maxShingleSize, analyzerName);
@@ -272,6 +276,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }));
             assertMultiField(shingleSize, mapperService, "field", "field.text");
+
+            Mapper mapper = mapperService.mappingLookup().getMapper("field");
+            assertThat(mapper, instanceOf(SearchAsYouTypeFieldMapper.class));
+            assertSearchAsYouTypeFieldMapper((SearchAsYouTypeFieldMapper) mapper, size, "default");
         }
     }
 
@@ -298,9 +306,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "new york city")));
         for (String field : fields) {
-            IndexableField[] indexFields = doc.rootDoc().getFields(field);
-            assertEquals(1, indexFields.length);
-            assertEquals("new york city", indexFields[0].stringValue());
+            List<IndexableField> indexFields = doc.rootDoc().getFields(field);
+            assertEquals(1, indexFields.size());
+            assertEquals("new york city", indexFields.get(0).stringValue());
         }
     }
 
@@ -483,7 +491,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "two words").toQuery(searchExecutionContext);
-            Query expected = new MatchNoDocsQuery();
+            Query expected = Queries.NO_DOCS_INSTANCE;
             assertThat(q, equalTo(expected));
         }
 
@@ -592,9 +600,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         Query q = parser.parse("foo:*");
         assertEquals(
             new ConstantScoreQuery(
-                new BooleanQuery.Builder().add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-                    .add(new NormsFieldExistsQuery("foo.bar._3gram"), BooleanClause.Occur.SHOULD)
-                    .add(new NormsFieldExistsQuery("foo.bar._2gram"), BooleanClause.Occur.SHOULD)
+                new BooleanQuery.Builder().add(new FieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
+                    .add(new FieldExistsQuery("foo.bar._3gram"), BooleanClause.Occur.SHOULD)
+                    .add(new FieldExistsQuery("foo.bar._2gram"), BooleanClause.Occur.SHOULD)
                     .add(new TermQuery(new Term("_field_names", "foo.bar._index_prefix")), BooleanClause.Occur.SHOULD)
                     .build()
             ),
@@ -666,24 +674,24 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             }
         }));
 
-        IndexableField[] rootFields = parsedDocument.rootDoc().getFields("field");
-        IndexableField[] prefixFields = parsedDocument.rootDoc().getFields("field._index_prefix");
-        IndexableField[] shingle2Fields = parsedDocument.rootDoc().getFields("field._2gram");
-        IndexableField[] shingle3Fields = parsedDocument.rootDoc().getFields("field._3gram");
-        for (IndexableField[] fields : new IndexableField[][] { rootFields, prefixFields, shingle2Fields, shingle3Fields }) {
-            Set<String> expectedValues = Arrays.stream(fields).map(IndexableField::stringValue).collect(Collectors.toSet());
+        List<IndexableField> rootFields = parsedDocument.rootDoc().getFields("field");
+        List<IndexableField> prefixFields = parsedDocument.rootDoc().getFields("field._index_prefix");
+        List<IndexableField> shingle2Fields = parsedDocument.rootDoc().getFields("field._2gram");
+        List<IndexableField> shingle3Fields = parsedDocument.rootDoc().getFields("field._3gram");
+        for (List<IndexableField> fields : List.of(rootFields, prefixFields, shingle2Fields, shingle3Fields)) {
+            Set<String> expectedValues = fields.stream().map(IndexableField::stringValue).collect(Collectors.toSet());
             assertThat(values, equalTo(expectedValues));
         }
     }
 
-    private static void assertRootFieldMapper(SearchAsYouTypeFieldMapper mapper, int maxShingleSize, String analyzerName) {
+    private static void assertSearchAsYouTypeFieldMapper(SearchAsYouTypeFieldMapper mapper, int maxShingleSize, String analyzerName) {
 
         assertThat(mapper.maxShingleSize(), equalTo(maxShingleSize));
         assertThat(mapper.fieldType(), notNullValue());
         assertSearchAsYouTypeFieldType(mapper, mapper.fieldType(), maxShingleSize, analyzerName, mapper.prefixField().fieldType());
 
         assertThat(mapper.prefixField(), notNullValue());
-        assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.name()));
+        assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.fullPath()));
         assertPrefixFieldType(mapper.prefixField(), mapper.indexAnalyzers(), maxShingleSize, analyzerName);
 
         for (int shingleSize = 2; shingleSize <= maxShingleSize; shingleSize++) {
@@ -700,6 +708,24 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         final int numberOfShingleSubfields = (maxShingleSize - 2) + 1;
         assertThat(mapper.shingleFields().length, equalTo(numberOfShingleSubfields));
+
+        final Set<String> fieldsUsingSourcePath = new HashSet<>();
+        mapper.sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.fullPath()));
+        int multiFields = 0;
+        for (FieldMapper ignored : mapper.multiFields()) {
+            multiFields++;
+        }
+        assertThat(fieldsUsingSourcePath.size(), equalTo(numberOfShingleSubfields + 1 + multiFields));
+
+        final Set<String> expectedFieldsUsingSourcePath = new HashSet<>();
+        expectedFieldsUsingSourcePath.add(mapper.prefixField().fullPath());
+        for (ShingleFieldMapper shingleFieldMapper : mapper.shingleFields()) {
+            expectedFieldsUsingSourcePath.add(shingleFieldMapper.fullPath());
+        }
+        for (FieldMapper multiField : mapper.multiFields()) {
+            expectedFieldsUsingSourcePath.add(multiField.fullPath());
+        }
+        assertThat(fieldsUsingSourcePath, equalTo(expectedFieldsUsingSourcePath));
     }
 
     private static void assertSearchAsYouTypeFieldType(
@@ -712,7 +738,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
         NamedAnalyzer indexAnalyzer = mapper.indexAnalyzers().get(fieldType.name());
-        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
         int shingleSize = 2;
@@ -734,7 +760,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         ShingleFieldType fieldType = mapper.fieldType();
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        for (NamedAnalyzer analyzer : asList(indexAnalyzers.get(fieldType.name()), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(indexAnalyzers.get(fieldType.name()), fieldType.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
             if (shingleSize > 1) {
                 final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
@@ -755,13 +781,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     ) {
         PrefixFieldType fieldType = mapper.fieldType();
         NamedAnalyzer indexAnalyzer = indexAnalyzers.get(fieldType.name());
-        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
 
         final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) indexAnalyzer.analyzer();
         final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo()
-            .getSearchAnalyzer()
+            .searchAnalyzer()
             .analyzer();
         for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
             assertThat(analyzer.shingleSize(), equalTo(shingleSize));
@@ -793,4 +819,73 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assumeFalse("We don't have doc values or fielddata", true);
         return null;
     }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
+        return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
+            public SyntheticSourceExample example(int maxValues) {
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value, value, this::mapping);
+                }
+
+                var array = randomList(1, 5, this::generateValue);
+                return new SyntheticSourceExample(array, array, this::mapping);
+            }
+
+            private Object generateValue() {
+                return rarely()
+                    ? null
+                    : randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "search_as_you_type");
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", true);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
+        // MockAnalyzer is "too good" and produces random payloads every time
+        // which then leads to failures during assertReaderEquals.
+        return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
 }

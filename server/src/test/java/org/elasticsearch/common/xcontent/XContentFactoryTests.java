@@ -1,15 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
-
-import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
-import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -75,24 +73,6 @@ public class XContentFactoryTests extends ESTestCase {
         if (type.canonical() != XContentType.CBOR && type.canonical() != XContentType.SMILE) {
             assertThat(XContentFactory.xContentType(Strings.toString(builder)), equalTo(type.canonical()));
         }
-    }
-
-    public void testCBORBasedOnMajorObjectDetection() {
-        // for this {"f "=> 5} perl encoder for example generates:
-        byte[] bytes = new byte[] { (byte) 0xA1, (byte) 0x43, (byte) 0x66, (byte) 6f, (byte) 6f, (byte) 0x5 };
-        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
-        // assertThat(((Number) XContentHelper.convertToMap(bytes, true).v2().get("foo")).intValue(), equalTo(5));
-
-        // this if for {"foo" : 5} in python CBOR
-        bytes = new byte[] { (byte) 0xA1, (byte) 0x63, (byte) 0x66, (byte) 0x6f, (byte) 0x6f, (byte) 0x5 };
-        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
-        assertThat(((Number) XContentHelper.convertToMap(new BytesArray(bytes), true).v2().get("foo")).intValue(), equalTo(5));
-
-        // also make sure major type check doesn't collide with SMILE and JSON, just in case
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, SmileConstants.HEADER_BYTE_1), equalTo(false));
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) '{'), equalTo(false));
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) ' '), equalTo(false));
-        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) '-'), equalTo(false));
     }
 
     public void testCBORBasedOnMagicHeaderDetection() {

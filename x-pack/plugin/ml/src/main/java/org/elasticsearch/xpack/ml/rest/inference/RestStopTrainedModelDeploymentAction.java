@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -21,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestStopTrainedModelDeploymentAction extends BaseRestHandler {
 
     @Override
@@ -51,6 +54,12 @@ public class RestStopTrainedModelDeploymentAction extends BaseRestHandler {
             );
             request.setForce(
                 restRequest.paramAsBoolean(StopTrainedModelDeploymentAction.Request.FORCE.getPreferredName(), request.isForce())
+            );
+            request.setFinishPendingWork(
+                restRequest.paramAsBoolean(
+                    StopTrainedModelDeploymentAction.Request.FINISH_PENDING_WORK.getPreferredName(),
+                    request.shouldFinishPendingWork()
+                )
             );
         }
         return channel -> client.execute(StopTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

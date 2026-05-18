@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -17,6 +17,9 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -39,9 +42,53 @@ public class SuggestionEntryTests extends ESTestCase {
 
     private static final Map<Class<? extends Entry<?>>, Function<XContentParser, ? extends Entry<?>>> ENTRY_PARSERS = new HashMap<>();
     static {
-        ENTRY_PARSERS.put(TermSuggestion.Entry.class, TermSuggestion.Entry::fromXContent);
-        ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, PhraseSuggestion.Entry::fromXContent);
-        ENTRY_PARSERS.put(CompletionSuggestion.Entry.class, CompletionSuggestion.Entry::fromXContent);
+        ENTRY_PARSERS.put(TermSuggestion.Entry.class, SuggestTests::parseTermSuggestionEntry);
+        ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, SuggestionEntryTests::parsePhraseSuggestionEntry);
+        ENTRY_PARSERS.put(CompletionSuggestion.Entry.class, SuggestionEntryTests::parseCompletionSuggestionEntry);
+    }
+
+    private static final ObjectParser<PhraseSuggestion.Entry, Void> PHRASE_SUGGESTION_ENTRY_PARSER = new ObjectParser<>(
+        "PhraseSuggestionEntryParser",
+        true,
+        PhraseSuggestion.Entry::new
+    );
+    static {
+        SuggestTests.declareCommonEntryParserFields(PHRASE_SUGGESTION_ENTRY_PARSER);
+        /*
+         * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+         * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+         */
+        PHRASE_SUGGESTION_ENTRY_PARSER.declareObjectArray(
+            (e, o) -> e.addOptions(o),
+            (p, c) -> SuggestionOptionTests.parsePhraseSuggestionOption(p),
+            new ParseField(Entry.OPTIONS)
+        );
+    }
+
+    public static PhraseSuggestion.Entry parsePhraseSuggestionEntry(XContentParser parser) {
+        return PHRASE_SUGGESTION_ENTRY_PARSER.apply(parser, null);
+    }
+
+    private static final ObjectParser<CompletionSuggestion.Entry, Void> COMPLETION_SUGGESTION_ENTRY_PARSER = new ObjectParser<>(
+        "CompletionSuggestionEntryParser",
+        true,
+        CompletionSuggestion.Entry::new
+    );
+    static {
+        SuggestTests.declareCommonEntryParserFields(COMPLETION_SUGGESTION_ENTRY_PARSER);
+        /*
+         * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+         * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+         */
+        COMPLETION_SUGGESTION_ENTRY_PARSER.declareObjectArray(
+            (e, o) -> e.addOptions(o),
+            (p, c) -> CompletionSuggestionOptionTests.parseOption(p),
+            new ParseField(Entry.OPTIONS)
+        );
+    }
+
+    public static CompletionSuggestion.Entry parseCompletionSuggestionEntry(XContentParser parser) {
+        return COMPLETION_SUGGESTION_ENTRY_PARSER.apply(parser, null);
     }
 
     /**
@@ -85,43 +132,50 @@ public class SuggestionEntryTests extends ESTestCase {
     private void doTestFromXContent(boolean addRandomFields) throws IOException {
         for (Class<? extends Entry<?>> entryType : ENTRY_PARSERS.keySet()) {
             Entry<Option> entry = createTestItem((forciblyCast(entryType)));
-            XContentType xContentType = randomFrom(XContentType.values());
-            boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toShuffledXContent(entry, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-            BytesReference mutated;
-            if (addRandomFields) {
-                // "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
-                // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
-                // where we cannot add random stuff
-                // exclude "options" which contain SearchHits,
-                // on root level of SearchHit fields are interpreted as meta-fields and will be kept
-                Predicate<String> excludeFilter = (path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight")
-                    || path.contains("fields")
-                    || path.contains("_source")
-                    || path.contains("inner_hits")
-                    || path.contains("options"));
+            Entry<Option> parsed = null;
+            try {
+                XContentType xContentType = randomFrom(XContentType.values());
+                boolean humanReadable = randomBoolean();
+                BytesReference originalBytes = toShuffledXContent(entry, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+                BytesReference mutated;
+                if (addRandomFields) {
+                    // "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
+                    // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
+                    // where we cannot add random stuff
+                    // exclude "options" which contain SearchHits,
+                    // on root level of SearchHit fields are interpreted as meta-fields and will be kept
+                    Predicate<String> excludeFilter = (path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                        || path.endsWith("highlight")
+                        || path.contains("fields")
+                        || path.contains("_source")
+                        || path.contains("inner_hits")
+                        || path.contains("options"));
 
-                mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
-            } else {
-                mutated = originalBytes;
+                    mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+                } else {
+                    mutated = originalBytes;
+                }
+                try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+                    ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                    parsed = (Entry<Option>) ENTRY_PARSERS.get(entry.getClass()).apply(parser);
+                    assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                    assertNull(parser.nextToken());
+                }
+                assertEquals(entry.getClass(), parsed.getClass());
+                assertEquals(entry.getText(), parsed.getText());
+                assertEquals(entry.getLength(), parsed.getLength());
+                assertEquals(entry.getOffset(), parsed.getOffset());
+                assertEquals(entry.getOptions().size(), parsed.getOptions().size());
+                for (int i = 0; i < entry.getOptions().size(); i++) {
+                    assertEquals(entry.getOptions().get(i).getClass(), parsed.getOptions().get(i).getClass());
+                }
+                assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+            } finally {
+                SuggestTests.decRefCompletionOptionTestFactoryRefs(entry);
+                if (parsed != null) {
+                    SuggestTests.decRefCompletionOptionTestFactoryRefs(parsed);
+                }
             }
-            Entry<Option> parsed;
-            try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                parsed = (Entry<Option>) ENTRY_PARSERS.get(entry.getClass()).apply(parser);
-                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-                assertNull(parser.nextToken());
-            }
-            assertEquals(entry.getClass(), parsed.getClass());
-            assertEquals(entry.getText(), parsed.getText());
-            assertEquals(entry.getLength(), parsed.getLength());
-            assertEquals(entry.getOffset(), parsed.getOffset());
-            assertEquals(entry.getOptions().size(), parsed.getOptions().size());
-            for (int i = 0; i < entry.getOptions().size(); i++) {
-                assertEquals(entry.getOptions().get(i).getClass(), parsed.getOptions().get(i).getClass());
-            }
-            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
         }
     }
 

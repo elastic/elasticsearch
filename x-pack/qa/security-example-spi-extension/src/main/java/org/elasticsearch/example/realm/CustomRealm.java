@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.List;
-import java.util.function.Function;
 
 public class CustomRealm extends Realm {
 
@@ -55,7 +54,7 @@ public class CustomRealm extends Realm {
     public static final Setting.AffixSetting<List<String>> ROLES_SETTING = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "roles",
-        key -> Setting.listSetting(key, DEFAULT_ROLES, Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, DEFAULT_ROLES, Setting.Property.NodeScope)
     );
 
     private final String username;

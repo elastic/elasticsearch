@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
@@ -51,11 +51,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         ensureStableCluster(4);
 
         // We index data with mapping changes into cluster and have master failover at same time
-        client().admin()
-            .indices()
-            .prepareCreate("myindex")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-            .get();
+        createIndex("myindex", 1, 0);
         ensureGreen("myindex");
 
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -74,7 +70,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 }
                 for (int i = 0; i < 10; i++) {
                     // index data with mapping changes
-                    IndexResponse response = client(dataNode).prepareIndex("myindex").setSource("field_" + i, "val").get();
+                    DocWriteResponse response = client(dataNode).prepareIndex("myindex").setSource("field_" + i, "val").get();
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }
@@ -102,7 +98,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
         ensureGreen("myindex");
         refresh();
-        assertThat(client().prepareSearch("myindex").get().getHits().getTotalHits().value, equalTo(10L));
+        assertHitCount(prepareSearch("myindex"), 10);
     }
 
 }

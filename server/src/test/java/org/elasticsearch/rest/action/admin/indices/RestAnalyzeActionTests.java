@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.RestRequest;
@@ -16,10 +16,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -96,8 +95,9 @@ public class RestAnalyzeActionTests extends ESTestCase {
             new BytesArray("{invalid_json}"),
             XContentType.JSON
         ).build();
-        try (NodeClient client = new NoOpNodeClient(this.getClass().getSimpleName())) {
-            IOException e = expectThrows(IOException.class, () -> action.handleRequest(request, null, client));
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
+            var e = expectThrows(XContentParseException.class, () -> action.handleRequest(request, null, client));
             assertThat(e.getMessage(), containsString("expecting double-quote"));
         }
     }

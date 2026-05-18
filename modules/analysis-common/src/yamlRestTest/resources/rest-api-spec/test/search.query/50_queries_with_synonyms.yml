@@ -26,7 +26,7 @@
   - do:
       index:
           index: test
-          id: 3
+          id: "3"
           body:
             field1: quick lazy huge brown pidgin
             field2: the quick lazy huge brown fox jumps over the tree
@@ -34,14 +34,14 @@
   - do:
       index:
           index: test
-          id: 1
+          id: "1"
           body:
             field1: the quick brown fox
 
   - do:
       index:
           index: test
-          id: 2
+          id: "2"
           body:
             field1: the quick lazy huge brown fox jumps over the tree
           refresh: true
@@ -133,7 +133,7 @@
   - do:
       index:
           index: test
-          id: 1
+          id: "1"
           body:
             text: quick brown fox
           refresh: true
@@ -174,7 +174,7 @@
   - do:
       index:
           index: test
-          id: 2
+          id: "2"
           body:
             text: fast brown fox
           refresh: true
@@ -200,3 +200,50 @@
                 query: quick brown
                 operator: and
   - match: { hits.total: 2 }
+---
+# Tests that this returns 400, and not 500 (#123871)
+"Test multi_match phrase with no positions":
+  - requires:
+      cluster_features: [ "search.multi.match.checks.positions" ]
+      reason: "This previously resulted in a 5xx error code"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              filter:
+                syns:
+                  type: synonym
+                  synonyms: [ "quick,fast" ]
+              analyzer:
+                syns:
+                  tokenizer: standard
+                  filter: [ "syns" ]
+          mappings:
+            properties:
+              field1:
+                type: text
+                index_options: freqs
+                analyzer: syns
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          field1: the quick brown fox
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          query:
+            multi_match:
+              query: the fast brown
+              type: phrase
+              fields:
+                - field1
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: query_shard_exception }
+  - match: { error.root_cause.0.reason: "failed to create query: field:[field1] was indexed without position data; cannot run MultiPhraseQuery" }

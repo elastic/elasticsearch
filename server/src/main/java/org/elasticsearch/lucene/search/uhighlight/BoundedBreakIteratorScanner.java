@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.search.uhighlight;
 
@@ -89,16 +90,29 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
             innerStart = innerEnd;
             innerEnd = windowEnd;
         } else {
-            windowStart = innerStart = mainBreak.preceding(offset);
-            windowEnd = innerEnd = mainBreak.following(offset - 1);
-            // expand to next break until we reach maxLen
-            while (innerEnd - innerStart < maxLen) {
-                int newEnd = mainBreak.following(innerEnd);
-                if (newEnd == DONE || (newEnd - innerStart) > maxLen) {
-                    break;
-                }
-                windowEnd = innerEnd = newEnd;
+            innerStart = Math.max(mainBreak.preceding(offset), 0);
+
+            final long targetEndOffset = (long) offset + Math.max(0, maxLen - (offset - innerStart));
+            final int textEndIndex = getText().getEndIndex();
+
+            if (targetEndOffset + 1 > textEndIndex) {
+                innerEnd = textEndIndex;
+            } else {
+                innerEnd = mainBreak.preceding((int) targetEndOffset + 1);
             }
+
+            assert innerEnd != DONE && innerEnd >= innerStart;
+
+            // in case no break was found up to maxLen, find one afterwards.
+            if (innerStart == innerEnd) {
+                innerEnd = mainBreak.following((int) targetEndOffset);
+                assert innerEnd - innerStart > maxLen;
+            } else {
+                assert innerEnd - innerStart <= maxLen;
+            }
+
+            windowStart = innerStart;
+            windowEnd = innerEnd;
         }
 
         if (innerEnd - innerStart > maxLen) {
@@ -118,15 +132,16 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     }
 
     /**
-     * Can be invoked only after a call to preceding(offset+1).
+     * Can be invoked only after a call to preceding().
+     *
      * See {@link FieldHighlighter} for usage.
      */
     @Override
     public int following(int offset) {
-        if (offset != lastPrecedingOffset || innerEnd == -1) {
-            throw new IllegalArgumentException("offset != lastPrecedingOffset: " + "usage doesn't look like UnifiedHighlighter");
+        if (innerEnd == -1) {
+            throw new IllegalArgumentException("preceding should be called first, usage doesn't look like UnifiedHighlighter");
         }
-        return innerEnd;
+        return Math.max(offset, innerEnd);
     }
 
     /**
@@ -147,26 +162,31 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
 
     @Override
     public int first() {
-        throw new IllegalStateException("first() should not be called in this context");
+        reset();
+        return mainBreak.first();
     }
 
     @Override
     public int next() {
-        throw new IllegalStateException("next() should not be called in this context");
+        reset();
+        return mainBreak.next();
     }
 
     @Override
     public int last() {
-        throw new IllegalStateException("last() should not be called in this context");
+        reset();
+        return mainBreak.last();
     }
 
     @Override
     public int next(int n) {
-        throw new IllegalStateException("next(n) should not be called in this context");
+        reset();
+        return mainBreak.next(n);
     }
 
     @Override
     public int previous() {
-        throw new IllegalStateException("previous() should not be called in this context");
+        reset();
+        return mainBreak.previous();
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.process;
@@ -21,7 +22,6 @@ public final class ProcessService implements ReportingService<ProcessInfo> {
 
     private static final Logger logger = LogManager.getLogger(ProcessService.class);
 
-    private final ProcessProbe probe;
     private final ProcessInfo info;
     private final SingleObjectCache<ProcessStats> processStatsCache;
 
@@ -33,10 +33,9 @@ public final class ProcessService implements ReportingService<ProcessInfo> {
     );
 
     public ProcessService(Settings settings) {
-        this.probe = ProcessProbe.getInstance();
         final TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        processStatsCache = new ProcessStatsCache(refreshInterval, probe.processStats());
-        this.info = probe.processInfo(refreshInterval.millis());
+        processStatsCache = new ProcessStatsCache(refreshInterval, ProcessProbe.processStats());
+        this.info = ProcessProbe.processInfo(refreshInterval.millis());
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
@@ -49,14 +48,14 @@ public final class ProcessService implements ReportingService<ProcessInfo> {
         return processStatsCache.getOrRefresh();
     }
 
-    private class ProcessStatsCache extends SingleObjectCache<ProcessStats> {
+    private static class ProcessStatsCache extends SingleObjectCache<ProcessStats> {
         ProcessStatsCache(TimeValue interval, ProcessStats initValue) {
             super(interval, initValue);
         }
 
         @Override
         protected ProcessStats refresh() {
-            return probe.processStats();
+            return ProcessProbe.processStats();
         }
     }
 }

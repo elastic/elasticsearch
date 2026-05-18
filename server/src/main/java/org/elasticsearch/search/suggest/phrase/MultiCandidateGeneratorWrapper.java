@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -19,16 +20,11 @@ import java.util.Arrays;
 public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
 
     private final CandidateGenerator[] candidateGenerator;
-    private int numCandidates;
+    private final int numCandidates;
 
     public MultiCandidateGeneratorWrapper(int numCandidates, CandidateGenerator... candidateGenerators) {
         this.candidateGenerator = candidateGenerators;
         this.numCandidates = numCandidates;
-    }
-
-    @Override
-    public boolean isKnownWord(BytesRef term) throws IOException {
-        return candidateGenerator[0].isKnownWord(term);
     }
 
     @Override
@@ -44,7 +40,7 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
         return reduce(set, numCandidates);
     }
 
-    private CandidateSet reduce(CandidateSet set, int numCandidates) {
+    private static CandidateSet reduce(CandidateSet set, int numCandidates) {
         if (set.candidates.length > numCandidates) {
             Candidate[] candidates = set.candidates;
             Arrays.sort(candidates, (left, right) -> Double.compare(right.score, left.score));

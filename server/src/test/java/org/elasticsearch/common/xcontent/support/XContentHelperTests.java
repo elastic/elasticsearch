@@ -1,33 +1,45 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class XContentHelperTests extends ESTestCase {
+
+    protected XContentParser decorateParser(XContentParser parser) {
+        return parser;
+    }
 
     Map<String, Object> getMap(Object... keyValues) {
         Map<String, Object> map = new HashMap<>();
@@ -40,7 +52,7 @@ public class XContentHelperTests extends ESTestCase {
     Map<String, Object> getNamedMap(String name, Object... keyValues) {
         Map<String, Object> map = getMap(keyValues);
 
-        Map<String, Object> namedMap = new HashMap<>(1);
+        Map<String, Object> namedMap = Maps.newMapWithExpectedSize(1);
         namedMap.put(name, map);
         return namedMap;
     }
@@ -59,7 +71,173 @@ public class XContentHelperTests extends ESTestCase {
 
         XContentHelper.mergeDefaults(content, defaults);
 
-        assertThat(content, Matchers.equalTo(expected));
+        assertThat(content, equalTo(expected));
+    }
+
+    public void testMergingDefaults() {
+        Map<String, Object> base = getMap("key1", "old", "key3", "old", "map", getMap("key1", "old", "key3", "old"));
+        Map<String, Object> toMerge = getMap("key2", "new", "key3", "new", "map", getMap("key2", "new", "key3", "new"));
+        XContentHelper.mergeDefaults(base, toMerge);
+        Map<String, Object> expected = getMap(
+            "key1",
+            "old",
+            "key2",
+            "new",
+            "key3",
+            "old",
+            "map",
+            Map.of("key1", "old", "key2", "new", "key3", "old")
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMerge() {
+        Map<String, Object> base = getMap("key1", "old", "key3", "old", "key4", "old");
+        Map<String, Object> toMerge = getMap("key2", "new", "key3", "new", "key4", "new");
+        XContentHelper.merge(base, toMerge, (parent, key, oldValue, newValue) -> "key3".equals(key) ? newValue : oldValue);
+        Map<String, Object> expected = getMap("key1", "old", "key2", "new", "key3", "new", "key4", "old");
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMapReplacement() {
+        Map<String, Object> base = getMap(
+            "key1",
+            "old",
+            "key3",
+            "old",
+            "key4",
+            "old",
+            "map",
+            Map.of("key1", "old", "key3", "old", "key4", "old")
+        );
+        Map<String, Object> toMerge = getMap(
+            "key2",
+            "new",
+            "key3",
+            "new",
+            "key4",
+            "new",
+            "map",
+            Map.of("key2", "new", "key3", "new", "key4", "new")
+        );
+        XContentHelper.merge(
+            base,
+            toMerge,
+            (parent, key, oldValue, newValue) -> "key3".equals(key) || "map".equals(key) ? newValue : oldValue
+        );
+        Map<String, Object> expected = getMap(
+            "key1",
+            "old",
+            "key2",
+            "new",
+            "key3",
+            "new",
+            "key4",
+            "old",
+            "map",
+            Map.of("key2", "new", "key3", "new", "key4", "new")
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMapMerge() {
+        Map<String, Object> base = getMap(
+            "key1",
+            "old",
+            "key3",
+            "old",
+            "key4",
+            "old",
+            "map",
+            new HashMap<>(Map.of("key1", "old", "key3", "old", "key4", "old"))
+        );
+        Map<String, Object> toMerge = getMap(
+            "key2",
+            "new",
+            "key3",
+            "new",
+            "key4",
+            "new",
+            "map",
+            Map.of("key2", "new", "key3", "new", "key4", "new")
+        );
+        XContentHelper.merge(base, toMerge, (parent, key, oldValue, newValue) -> "key3".equals(key) ? oldValue : null);
+        Map<String, Object> expected = getMap(
+            "key1",
+            "old",
+            "key2",
+            "new",
+            "key3",
+            "old",
+            "key4",
+            "old",
+            "map",
+            Map.of("key1", "old", "key2", "new", "key3", "old", "key4", "old")
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingListValueWithCustomMapReplacement() {
+        Map<String, Object> base = getMap(
+            "key",
+            List.of("value1", "value3", "value4"),
+            "list",
+            List.of(new HashMap<>(Map.of("map", new HashMap<>(Map.of("key1", "old", "key3", "old", "key4", "old")))))
+        );
+        Map<String, Object> toMerge = getMap(
+            "key",
+            List.of("value1", "value2", "value4"),
+            "list",
+            List.of(Map.of("map", Map.of("key2", "new", "key3", "new", "key4", "new")))
+        );
+        XContentHelper.merge(
+            base,
+            toMerge,
+            (parent, key, oldValue, newValue) -> "key3".equals(key) || "map".equals(key) ? newValue : oldValue
+        );
+        Map<String, Object> expected = getMap(
+            "key",
+            List.of("value1", "value2", "value4", "value3"),
+            "list",
+            List.of(Map.of("map", Map.of("key2", "new", "key3", "new", "key4", "new")))
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingListValueWithCustomMapMerge() {
+        Map<String, Object> base = getMap(
+            "key",
+            List.of("value1", "value3", "value4"),
+            "list",
+            List.of(new HashMap<>(Map.of("map", new HashMap<>(Map.of("key1", "old", "key3", "old", "key4", "old")))))
+        );
+        Map<String, Object> toMerge = getMap(
+            "key",
+            List.of("value1", "value2", "value4"),
+            "list",
+            List.of(Map.of("map", Map.of("key2", "new", "key3", "new", "key4", "new")))
+        );
+        XContentHelper.merge(base, toMerge, (parent, key, oldValue, newValue) -> "key3".equals(key) ? newValue : null);
+        Map<String, Object> expected = getMap(
+            "key",
+            List.of("value1", "value2", "value4", "value3"),
+            "list",
+            List.of(Map.of("map", Map.of("key1", "old", "key2", "new", "key3", "new", "key4", "old")))
+        );
+        assertThat(base, equalTo(expected));
+    }
+
+    public void testMergingWithCustomMergeWithException() {
+        final Map<String, Object> base = getMap("key1", "old", "key3", "old", "key4", "old");
+        final Map<String, Object> toMerge = getMap("key2", "new", "key3", "new", "key4", "new");
+        final XContentHelper.CustomMerge customMerge = (parent, key, oldValue, newValue) -> {
+            if ("key3".equals(key)) {
+                throw new IllegalArgumentException(key + " is not allowed");
+            }
+            return oldValue;
+        };
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentHelper.merge(base, toMerge, customMerge));
+        assertThat(e.getMessage(), containsString("key3 is not allowed"));
     }
 
     public void testToXContent() throws IOException {
@@ -88,8 +266,9 @@ public class XContentHelperTests extends ESTestCase {
         } else {
             BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, randomBoolean());
             try (
-                XContentParser parser = xContentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())
+                XContentParser parser = decorateParser(
+                    xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())
+                )
             ) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -127,8 +306,9 @@ public class XContentHelperTests extends ESTestCase {
 
             BytesReference bytes;
             try (
-                XContentParser parser = xContentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input.streamInput())
+                XContentParser parser = decorateParser(
+                    xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, input.streamInput())
+                )
             ) {
 
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -144,8 +324,9 @@ public class XContentHelperTests extends ESTestCase {
 
             // now parse the contents of 'level2'
             try (
-                XContentParser parser = xContentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())
+                XContentParser parser = decorateParser(
+                    xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())
+                )
             ) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -197,8 +378,9 @@ public class XContentHelperTests extends ESTestCase {
 
         BytesReference inner;
         try (
-            XContentParser parser = XContentType.CBOR.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())
+            XContentParser parser = decorateParser(
+                XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())
+            )
         ) {
 
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -209,8 +391,9 @@ public class XContentHelperTests extends ESTestCase {
         }
 
         try (
-            XContentParser parser = XContentType.CBOR.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inner.streamInput())
+            XContentParser parser = decorateParser(
+                XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, inner.streamInput())
+            )
         ) {
 
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -228,8 +411,7 @@ public class XContentHelperTests extends ESTestCase {
 
         String inputJson = "{ \"mappings\" : {} }";
         try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputJson)
+            XContentParser parser = decorateParser(XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, inputJson))
         ) {
 
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -242,5 +424,42 @@ public class XContentHelperTests extends ESTestCase {
 
         }
 
+    }
+
+    public void testParseToType() throws IOException {
+        String json = """
+            { "a": "b", "c": "d"}
+            """;
+        Set<String> names = XContentHelper.parseToType(parser -> {
+            Set<String> fields = new HashSet<>();
+            XContentParser.Token token = parser.currentToken();
+            if (token == null) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.START_OBJECT) {
+                fields.add(parser.nextFieldName());
+            }
+            for (token = parser.nextToken(); token != null; token = parser.nextToken()) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    fields.add(parser.currentName());
+                }
+            }
+            return fields;
+        }, new BytesArray(json), XContentType.JSON, null).v2();
+
+        assertThat(names, equalTo(Set.of("a", "c")));
+    }
+
+    public void testGetParserWithInvalidInput() throws IOException {
+        assertThrows(
+            "Should detect bad JSON",
+            NotXContentException.class,
+            () -> decorateParser(XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray("not actually XContent")))
+        );
+        XContentParser parser = decorateParser(
+            XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray("not actually XContent"), XContentType.JSON)
+        );
+        assertNotNull("Should not detect bad JSON", parser); // This is more like assertNotThrows
+        assertThrows("Should detect bad JSON at parse time", XContentParseException.class, parser::numberValue);
     }
 }

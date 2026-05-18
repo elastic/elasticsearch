@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
@@ -18,23 +20,16 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.Request.PART;
+import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutTrainedModelDefinitionPartAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(
-                PUT,
-                BASE_PATH
-                    + "trained_models/{"
-                    + TrainedModelConfig.MODEL_ID.getPreferredName()
-                    + "}/definition/{"
-                    + PutTrainedModelDefinitionPartAction.Request.PART
-                    + "}"
-            ).build()
-        );
+        return List.of(new Route(PUT, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/definition/{" + PART + "}"));
     }
 
     @Override

@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -23,6 +26,8 @@ import java.util.function.Function;
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
  */
 public abstract class AbstractObjectParser<Value, Context> {
+
+    protected AbstractObjectParser() {}
 
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
@@ -192,6 +197,23 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
+    /**
+     * Declare an object or boolean field that parses explicit {@code null}s in the json to a default value.
+     */
+    public <T> void declareObjectOrBooleanOrNull(
+        BiConsumer<Value, T> consumer,
+        ContextParser<Context, T> objectParser,
+        T nullValue,
+        ParseField field
+    ) {
+        declareField(
+            consumer,
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : objectParser.parse(p, c),
+            field,
+            ValueType.OBJECT_OR_BOOLEAN_OR_NULL
+        );
+    }
+
     public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.floatValue(), field, ValueType.FLOAT);
@@ -226,11 +248,13 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareLong(BiConsumer<Value, Long> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.longValue(), field, ValueType.LONG);
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareLongOrNull(BiConsumer<Value, Long> consumer, long nullValue, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(
@@ -241,14 +265,16 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.intValue(), field, ValueType.INT);
     }
 
     /**
-     * Declare a double field that parses explicit {@code null}s in the json to a default value.
+     * Declare an integer field that parses explicit {@code null}s in the json to a default value.
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareIntOrNull(BiConsumer<Value, Integer> consumer, int nullValue, ParseField field) {
         declareField(
             consumer,
@@ -298,7 +324,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     ) {
         declareField(
             (value, list) -> { if (list != null) consumer.accept(value, list); },
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, () -> objectParser.parse(p, c)),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, c, objectParser),
             field,
             ValueType.OBJECT_ARRAY_OR_NULL
         );
@@ -316,10 +342,12 @@ public abstract class AbstractObjectParser<Value, Context> {
         declareFieldArray(consumer, (p, c) -> p.floatValue(), field, ValueType.FLOAT_ARRAY);
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareLongArray(BiConsumer<Value, List<Long>> consumer, ParseField field) {
         declareFieldArray(consumer, (p, c) -> p.longValue(), field, ValueType.LONG_ARRAY);
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/130797
     public void declareIntArray(BiConsumer<Value, List<Integer>> consumer, ParseField field) {
         declareFieldArray(consumer, (p, c) -> p.intValue(), field, ValueType.INT_ARRAY);
     }
@@ -333,7 +361,7 @@ public abstract class AbstractObjectParser<Value, Context> {
         ParseField field,
         ValueType type
     ) {
-        declareField(consumer, (p, c) -> parseArray(p, () -> itemParser.parse(p, c)), field, type);
+        declareField(consumer, (p, c) -> parseArray(p, c, itemParser), field, type);
     }
 
     /**
@@ -400,25 +428,21 @@ public abstract class AbstractObjectParser<Value, Context> {
      */
     public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
-    private interface IOSupplier<T> {
-        T get() throws IOException;
-    }
-
-    private static <T> List<T> parseArray(XContentParser parser, IOSupplier<T> supplier) throws IOException {
-        List<T> list = new ArrayList<>();
-        if (parser.currentToken().isValue()
-            || parser.currentToken() == XContentParser.Token.VALUE_NULL
-            || parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            list.add(supplier.get()); // single value
-        } else {
-            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (parser.currentToken().isValue()
-                    || parser.currentToken() == XContentParser.Token.VALUE_NULL
-                    || parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    list.add(supplier.get());
-                } else {
-                    throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
-                }
+    public static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
+        throws IOException {
+        final XContentParser.Token currentToken = parser.currentToken();
+        if (currentToken.isValue()
+            || currentToken == XContentParser.Token.VALUE_NULL
+            || currentToken == XContentParser.Token.START_OBJECT) {
+            return Collections.singletonList(itemParser.parse(parser, context)); // single value
+        }
+        final List<T> list = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            if (token.isValue() || token == XContentParser.Token.VALUE_NULL || token == XContentParser.Token.START_OBJECT) {
+                list.add(itemParser.parse(parser, context));
+            } else {
+                throw new IllegalStateException("expected value but got [" + token + "]");
             }
         }
         return list;

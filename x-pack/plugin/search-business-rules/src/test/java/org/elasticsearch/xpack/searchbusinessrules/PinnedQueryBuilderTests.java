@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
@@ -18,12 +16,11 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +39,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
     }
 
-    private QueryBuilder createRandomQuery() {
+    private static QueryBuilder createRandomQuery() {
         if (randomBoolean()) {
             return new MatchAllQueryBuilder();
         } else {
@@ -50,7 +47,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
     }
 
-    private QueryBuilder createTestTermQueryBuilder() {
+    private static QueryBuilder createTestTermQueryBuilder() {
         String fieldName = null;
         Object value;
         switch (randomIntBetween(0, 3)) {
@@ -93,8 +90,13 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         return new TermQueryBuilder(fieldName, value);
     }
 
-    private Item[] generateRandomItems() {
-        return randomArray(1, 100, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
+    private static SpecifiedDocument[] generateRandomItems() {
+        return randomArray(
+            1,
+            100,
+            SpecifiedDocument[]::new,
+            () -> new SpecifiedDocument(randomBoolean() ? null : randomAlphaOfLength(64), randomAlphaOfLength(256))
+        );
     }
 
     @Override
@@ -108,10 +110,14 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     @Override
+    protected PinnedQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new PinnedQueryBuilder(queryBuilder, "id");
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>();
         classpathPlugins.add(SearchBusinessRules.class);
-        classpathPlugins.add(TestGeoShapeFieldMapperPlugin.class);
         return classpathPlugins;
     }
 
@@ -119,24 +125,29 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (String) null));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, "1"));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), "1", null, "2"));
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (SpecifiedDocument) null));
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, new SpecifiedDocument("test", "1")));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (PinnedQueryBuilder.Item) null)
+            () -> new PinnedQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new SpecifiedDocument("test", "1"),
+                null,
+                new SpecifiedDocument("test", "2")
+            )
         );
-        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, new Item("test", "1")));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test", "1"), null, new Item("test", "2"))
+            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new SpecifiedDocument("test*", "1"))
         );
-        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test*", "1")));
         String[] bigIdList = new String[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
-        Item[] bigItemList = new Item[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
+        SpecifiedDocument[] bigSpecifiedDocumentList = new SpecifiedDocument[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         for (int i = 0; i < bigIdList.length; i++) {
             bigIdList[i] = String.valueOf(i);
-            bigItemList[i] = new Item("test", String.valueOf(i));
+            bigSpecifiedDocumentList[i] = new SpecifiedDocument("test", String.valueOf(i));
         }
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigIdList));
-        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigItemList));
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigSpecifiedDocumentList));
 
     }
 
@@ -155,13 +166,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "ids": [ "1", "2" ],
-                "boost": 1.0
+                "ids": [ "1", "2" ]
               }
             }""";
 
@@ -179,13 +188,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ],
-                "boost": 1.0
+                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ]
               }
             }""";
 
@@ -216,7 +223,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testDocsRewrite() throws IOException {
-        PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), new Item("test", "1"));
+        PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), new SpecifiedDocument("test", "1"));
         QueryBuilder rewritten = pinnedQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
     }
@@ -241,12 +248,16 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testDocInsertionOrderRetained() {
-        Item[] items = randomArray(10, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
-        PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), items);
-        List<Item> addedDocs = pqb.docs();
+        SpecifiedDocument[] specifiedDocuments = randomArray(
+            10,
+            SpecifiedDocument[]::new,
+            () -> new SpecifiedDocument(randomAlphaOfLength(64), randomAlphaOfLength(256))
+        );
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(new MatchAllQueryBuilder(), specifiedDocuments);
+        List<SpecifiedDocument> addedDocs = pqb.docs();
         int pos = 0;
-        for (Item item : addedDocs) {
-            assertEquals(items[pos++], item);
+        for (SpecifiedDocument specifiedDocument : addedDocs) {
+            assertEquals(specifiedDocuments[pos++], specifiedDocument);
         }
     }
 }

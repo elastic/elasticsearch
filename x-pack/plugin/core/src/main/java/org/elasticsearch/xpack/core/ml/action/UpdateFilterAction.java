@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,10 +36,10 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/update";
 
     private UpdateFilterAction() {
-        super(NAME, PutFilterAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static final ParseField ADD_ITEMS = new ParseField("add_items");
         public static final ParseField REMOVE_ITEMS = new ParseField("remove_items");
@@ -128,8 +128,8 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
             super.writeTo(out);
             out.writeString(filterId);
             out.writeOptionalString(description);
-            out.writeStringArray(addItems.toArray(new String[addItems.size()]));
-            out.writeStringArray(removeItems.toArray(new String[removeItems.size()]));
+            out.writeStringCollection(addItems);
+            out.writeStringCollection(removeItems);
         }
 
         @Override

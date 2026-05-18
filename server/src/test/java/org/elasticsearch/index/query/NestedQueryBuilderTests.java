@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -14,21 +15,26 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -46,6 +52,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBuilder> {
+
+    private static final String VECTOR_FIELD = "vector";
+    private static final int VECTOR_DIMENSION = 3;
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -75,6 +84,27 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("nested1")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "cosine")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent(Strings.toString(builder)),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
     }
 
     /**
@@ -93,6 +123,11 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             );
         }
         return nqb;
+    }
+
+    @Override
+    protected NestedQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new NestedQueryBuilder("path", queryBuilder, ScoreMode.None);
     }
 
     @Override
@@ -117,7 +152,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
      * Test (de)serialization on all previous released versions
      */
     public void testSerializationBWC() throws IOException {
-        for (Version version : VersionUtils.allReleasedVersions()) {
+        for (TransportVersion version : TransportVersionUtils.allReleasedVersions()) {
             NestedQueryBuilder testQuery = createTestQueryBuilder();
             assertSerialization(testQuery, version);
         }
@@ -138,7 +173,11 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(e.getMessage(), equalTo("[nested] requires 'score_mode' field"));
     }
 
-    public void testFromJson() throws IOException {
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
         String json = """
             {
               "nested" : {
@@ -177,7 +216,34 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             }""";
 
         NestedQueryBuilder parsed = (NestedQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
+        checkGeneratedJson("""
+              {
+              "nested" : {
+                "query" : {
+                  "bool" : {
+                    "must" : [ {
+                      "match" : {
+                        "obj1.name" : {
+                          "query" : "blue"
+                        }
+                      }
+                    }, {
+                      "range" : {
+                        "obj1.count" : {
+                          "gt" : 5,
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "boost" : 1.0
+                  }
+                },
+                "path" : "obj1",
+                "ignore_unmapped" : false,
+                "score_mode" : "avg",
+                "boost" : 1.0
+              }
+            }""", parsed);
 
         assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
     }
@@ -196,6 +262,30 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertEquals("Rewrite first", e.getMessage());
     }
 
+    public void testKnnRewriteForInnerHits() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
+        KnnVectorQueryBuilder innerQueryBuilder = new KnnVectorQueryBuilder(
+            "nested1." + VECTOR_FIELD,
+            new float[] { 1.0f, 2.0f, 3.0f },
+            null,
+            1,
+            10f,
+            null,
+            null
+        );
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(
+            "nested1",
+            innerQueryBuilder,
+            RandomPicks.randomFrom(random(), ScoreMode.values())
+        );
+        InnerHitsRewriteContext rewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), context::nowInMillis);
+        QueryBuilder queryBuilder = Rewriteable.rewrite(nestedQueryBuilder, rewriteContext, true);
+        assertTrue(queryBuilder instanceof NestedQueryBuilder);
+        NestedQueryBuilder rewritten = (NestedQueryBuilder) queryBuilder;
+        assertTrue(rewritten.query() instanceof ExactKnnQueryBuilder);
+    }
+
     public void testIgnoreUnmapped() throws IOException {
         final NestedQueryBuilder queryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
         queryBuilder.ignoreUnmapped(true);
@@ -205,10 +295,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
         final NestedQueryBuilder failingQueryBuilder = new NestedQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
         failingQueryBuilder.ignoreUnmapped(false);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> failingQueryBuilder.toQuery(createSearchExecutionContext())
-        );
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("[" + NestedQueryBuilder.NAME + "] failed to find nested object under path [unmapped]"));
     }
 
@@ -330,9 +417,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testBuildIgnoreUnmappedNestQuery() throws Exception {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.getObjectMapper("path")).thenReturn(null);
         IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
         when(searchExecutionContext.getIndexSettings()).thenReturn(settings);
+        when(searchExecutionContext.nestedLookup()).thenReturn(NestedLookup.EMPTY);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.getSearchExecutionContext()).thenReturn(searchExecutionContext);
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();

@@ -60,7 +60,7 @@ public class WildcardServiceProviderResolver {
         }
     }
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(WildcardServiceProviderResolver.class);
 
     private final Settings settings;
     private final ScriptService scriptService;

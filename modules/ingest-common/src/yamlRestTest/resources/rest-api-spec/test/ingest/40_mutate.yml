@@ -89,7 +89,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body:  >
           {
@@ -108,7 +108,7 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - is_false: _source.field_to_rename
   - is_false: _source.field_to_remove
   - match: { _source.new_field: ["new_value", "item2", "item3", "item4"] }
@@ -148,13 +148,13 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {field: "value"}
 
   - do:
       get:
         index: surprise
-        id: 1
+        id: "1"
   - length: { _source: 1 }
   - match: { _source.field: "value" }

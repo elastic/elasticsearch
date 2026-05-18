@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
@@ -57,24 +58,6 @@ public enum DistanceUnit implements Writeable {
      */
     public double getEarthCircumference() {
         return GeoUtils.EARTH_EQUATOR / meters;
-    }
-
-    /**
-     * Measures the radius of earth in this unit
-     *
-     * @return length of earth radius in this unit
-     */
-    public double getEarthRadius() {
-        return GeoUtils.EARTH_SEMI_MAJOR_AXIS / meters;
-    }
-
-    /**
-     * Measures a longitude in this unit
-     *
-     * @return length of a longitude degree in this unit
-     */
-    public double getDistancePerDegree() {
-        return GeoUtils.EARTH_EQUATOR / (360.0 * meters);
     }
 
     /**
@@ -179,24 +162,6 @@ public enum DistanceUnit implements Writeable {
             }
         }
         throw new IllegalArgumentException("No distance unit match [" + unit + "]");
-    }
-
-    /**
-     * Parses the suffix of a given distance string and return the corresponding {@link DistanceUnit}
-     *
-     * @param distance string representing a distance
-     * @param defaultUnit default unit to use, if no unit is provided by the string
-     * @return unit of the given distance
-     */
-    public static DistanceUnit parseUnit(String distance, DistanceUnit defaultUnit) {
-        for (DistanceUnit unit : values()) {
-            for (String name : unit.names) {
-                if (distance.endsWith(name)) {
-                    return unit;
-                }
-            }
-        }
-        return defaultUnit;
     }
 
     /**

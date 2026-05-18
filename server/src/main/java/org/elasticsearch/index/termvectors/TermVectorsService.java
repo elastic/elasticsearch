@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.termvectors;
@@ -17,15 +18,18 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -33,6 +37,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -40,11 +45,11 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,9 +84,10 @@ public class TermVectorsService {
 
         try (
             Engine.GetResult get = indexShard.get(
-                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType())
+                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType()),
+                request.getSplitShardCountSummary()
             );
-            Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")
+            Engine.Searcher searcher = indexShard.acquireExternalSearcher("term_vector", request.getSplitShardCountSummary())
         ) {
             Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
@@ -94,7 +100,7 @@ public class TermVectorsService {
             /* or from an existing document */
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
-                termVectorsByField = docIdAndVersion.reader.getTermVectors(docIdAndVersion.docId);
+                termVectorsByField = docIdAndVersion.reader.termVectors().get(docIdAndVersion.docId);
                 Set<String> selectedFields = request.selectedFields();
                 // generate tvs for fields where analyzer is overridden
                 if (selectedFields == null && request.perFieldAnalyzer() != null) {
@@ -132,6 +138,9 @@ public class TermVectorsService {
                 );
             }
             termVectorsResponse.setTookInMillis(TimeUnit.NANOSECONDS.toMillis(nanoTimeSupplier.getAsLong() - startTime));
+        } catch (StaleRequestException sre) {
+            // The exception type is important to execute retries during resharding.
+            throw sre;
         } catch (Exception ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         }
@@ -180,9 +189,14 @@ public class TermVectorsService {
             return false;
         }
         // and must be indexed
-        if (fieldType.isIndexed() == false) {
+        if (fieldType.indexType().hasTerms() == false) {
             return false;
         }
+        // and must not be the nested path field
+        if (fieldType.name().equals(NestedPathFieldMapper.NAME)) {
+            return false;
+        }
+
         return true;
     }
 
@@ -240,7 +254,7 @@ public class TermVectorsService {
         } else {
             return mapperService.indexAnalyzer(
                 field,
-                f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); }
+                f -> Lucene.KEYWORD_ANALYZER    // if no analyzer configured it must be untokenized so return a keyword analyzer
             );
         }
     }
@@ -271,14 +285,14 @@ public class TermVectorsService {
             }
         }
         if (source != null) {
+            IndexSettings indexSettings = indexShard.indexSettings();
             MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
-            SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setSource(source);
+            Source s = Source.fromMap(source, XContentType.JSON);
             for (String field : fields) {
                 if (values.containsKey(field) == false) {
-                    SourceValueFetcher valueFetcher = SourceValueFetcher.toString(mappingLookup.sourcePaths(field));
+                    SourceValueFetcher valueFetcher = SourceValueFetcher.toString(mappingLookup.sourcePaths(field), indexSettings);
                     List<Object> ignoredValues = new ArrayList<>();
-                    List<Object> v = valueFetcher.fetchValues(sourceLookup, ignoredValues);
+                    List<Object> v = valueFetcher.fetchValues(s, -1, ignoredValues);
                     if (v.isEmpty() == false) {
                         values.put(field, v);
                     }
@@ -290,7 +304,13 @@ public class TermVectorsService {
         MemoryIndex index = new MemoryIndex(withOffsets);
         for (Map.Entry<String, Collection<Object>> entry : values.entrySet()) {
             String field = entry.getKey();
-            Analyzer analyzer = getAnalyzerAtField(indexShard, field, perFieldAnalyzer);
+            final Analyzer analyzer;
+            try {
+                analyzer = getAnalyzerAtField(indexShard, field, perFieldAnalyzer);
+            } catch (IllegalArgumentException e) {
+                // failed to get the analyzer for the given field, it could be a metadata field
+                continue;
+            }
             if (entry.getValue() instanceof List) {
                 for (Object text : entry.getValue()) {
                     index.addField(field, text.toString(), analyzer);
@@ -300,33 +320,35 @@ public class TermVectorsService {
             }
         }
         /* and read vectors from it */
-        return index.createSearcher().getIndexReader().getTermVectors(0);
+        return index.createSearcher().getIndexReader().termVectors().get(0);
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
-        SourceToParse source = new SourceToParse("_id_for_tv_api", request.doc(), request.xContentType(), request.routing(), Map.of());
+        SourceToParse source = new SourceToParse("_id_for_tv_api", request.doc(), request.xContentType(), request.routing());
         DocumentParser documentParser = indexShard.mapperService().documentParser();
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);
         // select the right fields and generate term vectors
-        LuceneDocument doc = parsedDocument.rootDoc();
-        Set<String> seenFields = new HashSet<>();
-        Collection<DocumentField> documentFields = new HashSet<>();
-        for (IndexableField field : doc.getFields()) {
-            MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
-            if (isValidField(fieldType) == false) {
-                continue;
+        final Set<String> seenFields = new HashSet<>();
+        final Collection<DocumentField> documentFields = new HashSet<>();
+        for (LuceneDocument doc : parsedDocument.docs()) {
+            for (IndexableField field : doc.getFields()) {
+                MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
+                if (isValidField(fieldType) == false) {
+                    continue;
+                }
+                if (request.selectedFields() != null && request.selectedFields().contains(field.name()) == false) {
+                    continue;
+                }
+                if (seenFields.contains(field.name())) {
+                    continue;
+                } else {
+                    seenFields.add(field.name());
+                }
+                @SuppressWarnings("unchecked")
+                List<Object> values = (List) getValues(doc.getFields(field.name()));
+                documentFields.add(new DocumentField(field.name(), values));
             }
-            if (request.selectedFields() != null && request.selectedFields().contains(field.name()) == false) {
-                continue;
-            }
-            if (seenFields.contains(field.name())) {
-                continue;
-            } else {
-                seenFields.add(field.name());
-            }
-            String[] values = getValues(doc.getFields(field.name()));
-            documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
         return generateTermVectors(
             indexShard,
@@ -345,7 +367,7 @@ public class TermVectorsService {
      * @param fields The <code>IndexableField</code> to get the values from
      * @return a <code>String[]</code> of field values
      */
-    public static String[] getValues(IndexableField[] fields) {
+    public static List<String> getValues(List<IndexableField> fields) {
         List<String> result = new ArrayList<>();
         for (IndexableField field : fields) {
             if (field.fieldType().indexOptions() != IndexOptions.NONE) {
@@ -356,7 +378,7 @@ public class TermVectorsService {
                 }
             }
         }
-        return result.toArray(new String[0]);
+        return result;
     }
 
     private static Fields mergeFields(Fields fields1, Fields fields2) throws IOException {

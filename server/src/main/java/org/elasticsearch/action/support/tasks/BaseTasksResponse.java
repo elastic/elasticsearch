@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.tasks;
@@ -32,11 +33,11 @@ import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
  * Base class for responses of task-related operations
  */
 public class BaseTasksResponse extends ActionResponse {
-    protected static final String TASK_FAILURES = "task_failures";
-    protected static final String NODE_FAILURES = "node_failures";
+    public static final String TASK_FAILURES = "task_failures";
+    public static final String NODE_FAILURES = "node_failures";
 
-    private List<TaskOperationFailure> taskFailures;
-    private List<ElasticsearchException> nodeFailures;
+    private final List<TaskOperationFailure> taskFailures;
+    private final List<ElasticsearchException> nodeFailures;
 
     public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : List.copyOf(taskFailures);
@@ -44,7 +45,6 @@ public class BaseTasksResponse extends ActionResponse {
     }
 
     public BaseTasksResponse(StreamInput in) throws IOException {
-        super(in);
         int size = in.readVInt();
         List<TaskOperationFailure> taskFailures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -61,14 +61,8 @@ public class BaseTasksResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(taskFailures.size());
-        for (TaskOperationFailure exp : taskFailures) {
-            exp.writeTo(out);
-        }
-        out.writeVInt(nodeFailures.size());
-        for (ElasticsearchException exp : nodeFailures) {
-            exp.writeTo(out);
-        }
+        out.writeCollection(taskFailures);
+        out.writeCollection(nodeFailures);
     }
 
     /**

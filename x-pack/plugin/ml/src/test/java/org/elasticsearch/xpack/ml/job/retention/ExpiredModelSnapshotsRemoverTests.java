@@ -7,9 +7,8 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -76,6 +76,9 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
     private List<DeleteByQueryRequest> capturedDeleteModelSnapshotRequests;
     private TestListener listener;
 
+    /** Mock search responses registered in {@link #givenClientRequests}; entries removed when passed to the listener. */
+    private final List<SearchResponse> mockSearchResponsesPendingDecRef = new ArrayList<>();
+
     @Before
     public void setUpTests() {
         capturedJobIds = new ArrayList<>();
@@ -84,8 +87,15 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         resultsProvider = mock(JobResultsProvider.class);
-
         listener = new TestListener();
+    }
+
+    @After
+    public void decRefMockSearchResponsesNeverPassedToListener() {
+        for (SearchResponse r : mockSearchResponsesPendingDecRef) {
+            r.decRef();
+        }
+        mockSearchResponsesPendingDecRef.clear();
     }
 
     public void testRemove_GivenJobWithoutActiveSnapshot() throws IOException {
@@ -100,7 +110,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
-        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
     public void testRemove_GivenJobsWithMixedRetentionPolicies() {
@@ -272,6 +282,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         long retentionDays = 3L;
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
+        when(cutoffListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         createExpiredModelSnapshotsRemover(Collections.emptyIterator()).calcCutoffEpochMs("job-1", retentionDays, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
@@ -279,7 +290,44 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(oneDayAgo.getTime(), expectedCutoffTime)));
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        List<SearchResponse> searchResponses = new ArrayList<>();
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("job-1").setModelSnapshotRetentionDays(7L).setModelSnapshotId("active").build()
+        );
+
+        Date now = new Date();
+        Date oneDayAgo = new Date(now.getTime() - TimeValue.timeValueDays(1).getMillis());
+        SearchHit snapshot1 = createModelSnapshotQueryHit("job-1", "fresh-snapshot", oneDayAgo);
+        searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(Collections.singletonList(snapshot1)));
+
+        Date eightDaysAndOneMsAgo = new Date(now.getTime() - TimeValue.timeValueDays(8).getMillis() - 1);
+        Map<String, List<ModelSnapshot>> snapshotResponses = new HashMap<>();
+        snapshotResponses.put(
+            "job-1",
+            Arrays.asList(
+                // Keeping active as its expiration is not known. We can assume "worst case" and verify it is not removed
+                createModelSnapshot("job-1", "active", eightDaysAndOneMsAgo),
+                createModelSnapshot("job-1", "old-snapshot", eightDaysAndOneMsAgo)
+            )
+        );
+
+        givenClientRequestsSucceed(searchResponses, snapshotResponses);
+
+        // Create remover with state index not writable
+        createExpiredModelSnapshotsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        listener.waitToCompletion();
+        // Should succeed, but not attempt to delete anything
+        assertThat(listener.success, is(true));
+        assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(0));
+    }
+
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover(Iterator<Job> jobIterator) {
+        return createExpiredModelSnapshotsRemover(jobIterator, true);
+    }
+
+    private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover(Iterator<Job> jobIterator, boolean isStateIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -290,11 +338,14 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             run.run();
             return null;
         }).when(executor).execute(any());
+
+        MockWritableIndexExpander.create(isStateIndexWritable);
+
         return new ExpiredModelSnapshotsRemover(
             originSettingClient,
             jobIterator,
-            threadPool,
             new TaskId("test", 0L),
+            threadPool,
             resultsProvider,
             mock(AnomalyDetectionAuditor.class)
         );
@@ -336,24 +387,27 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         Map<String, List<ModelSnapshot>> snapshots
     ) {
 
+        mockSearchResponsesPendingDecRef.clear();
+        mockSearchResponsesPendingDecRef.addAll(searchResponses);
+
         doAnswer(new Answer<Void>() {
-            AtomicInteger callCount = new AtomicInteger();
+            final AtomicInteger callCount = new AtomicInteger();
 
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
 
-                SearchRequest searchRequest = (SearchRequest) invocationOnMock.getArguments()[1];
                 // Only the last search request should fail
                 if (shouldSearchRequestsSucceed || callCount.get() < (searchResponses.size() + snapshots.size())) {
                     SearchResponse response = searchResponses.get(callCount.getAndIncrement());
-                    listener.onResponse(response);
+                    mockSearchResponsesPendingDecRef.remove(response);
+                    ActionListener.respondAndRelease(listener, response);
                 } else {
                     listener.onFailure(new RuntimeException("search failed"));
                 }
                 return null;
             }
-        }).when(client).execute(same(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
 
         doAnswer(invocationOnMock -> {
             capturedDeleteModelSnapshotRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
@@ -368,13 +422,13 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         for (Map.Entry<String, List<ModelSnapshot>> snapshot : snapshots.entrySet()) {
             doAnswer(new Answer<Void>() {
-                AtomicInteger callCount = new AtomicInteger();
+                final AtomicInteger callCount = new AtomicInteger();
 
                 @Override
-                public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                public Void answer(InvocationOnMock invocationOnMock) {
                     capturedJobIds.add((String) invocationOnMock.getArguments()[0]);
-                    Consumer<QueryPage<ModelSnapshot>> listener = (Consumer<QueryPage<ModelSnapshot>>) invocationOnMock.getArguments()[8];
-                    Consumer<Exception> failure = (Consumer<Exception>) invocationOnMock.getArguments()[9];
+                    Consumer<QueryPage<ModelSnapshot>> listener = (Consumer<QueryPage<ModelSnapshot>>) invocationOnMock.getArguments()[9];
+                    Consumer<Exception> failure = (Consumer<Exception>) invocationOnMock.getArguments()[10];
                     if (shouldSearchRequestsSucceed || callCount.get() < snapshots.size()) {
                         callCount.incrementAndGet();
                         listener.accept(new QueryPage<>(snapshot.getValue(), 10, new ParseField("snapshots")));
@@ -384,7 +438,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                     return null;
                 }
             }).when(resultsProvider)
-                .modelSnapshots(eq(snapshot.getKey()), anyInt(), anyInt(), any(), any(), any(), anyBoolean(), any(), any(), any());
+                .modelSnapshots(eq(snapshot.getKey()), anyInt(), anyInt(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
         }
 
     }

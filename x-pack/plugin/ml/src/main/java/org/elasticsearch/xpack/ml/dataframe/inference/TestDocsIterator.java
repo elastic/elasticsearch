@@ -27,7 +27,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
+/**
+ * Search-after iterator over non-training destination docs. Uses {@link SearchAfterDocumentsIterator#retainSearchHitsContainerForBatch()}
+ * so {@link SearchHit}s in each batch outlive the search response; {@link InferenceRunner} calls
+ * {@link SearchAfterDocumentsIterator#releaseRetainedSearchHits()} when done.
+ */
+class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     private final DataFrameAnalyticsConfig config;
     private Long lastDocId;
@@ -57,6 +62,11 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
     @Override
     protected FieldSortBuilder sortField() {
         return SortBuilders.fieldSort(DestinationIndex.INCREMENTAL_ID).order(SortOrder.ASC);
+    }
+
+    @Override
+    protected boolean retainSearchHitsContainerForBatch() {
+        return true;
     }
 
     @Override

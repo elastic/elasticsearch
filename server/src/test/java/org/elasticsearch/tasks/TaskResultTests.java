@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -85,6 +86,16 @@ public class TaskResultTests extends ESTestCase {
         assertEquals(taskInfo, read);
     }
 
+    public void testNonNullErrorAndResultShouldThrow() throws IOException {
+        TaskResult withError = new TaskResult(randomTaskInfo(), new RuntimeException("error"));
+        TaskResult withResponse = new TaskResult(randomTaskInfo(), randomTaskResponse());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TaskResult(randomBoolean(), randomTaskInfo(), withError.getError(), withResponse.getResponse())
+        );
+        assertEquals("TaskResult cannot have both a non-null error and a non-null result", e.getMessage());
+    }
+
     private XContentBuilder addRandomUnknownFields(XContentBuilder builder) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             Map<String, Object> map = parser.mapOrdered();
@@ -101,7 +112,8 @@ public class TaskResultTests extends ESTestCase {
         }
     }
 
-    private static TaskResult randomTaskResult() throws IOException {
+    /** Build a {@link TaskResult} covering completed, error, and response variants */
+    public static TaskResult randomTaskResult() throws IOException {
         return switch (between(0, 2)) {
             case 0 -> new TaskResult(randomBoolean(), randomTaskInfo());
             case 1 -> new TaskResult(randomTaskInfo(), new RuntimeException("error"));

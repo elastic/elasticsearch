@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.License;
@@ -15,9 +16,9 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -48,9 +49,9 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         LicenseService licenseService = mock(LicenseService.class);
 
         NodeClient client = mock(NodeClient.class);
-        Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();
+        Map<ActionType<XPackInfoFeatureResponse>, FeatureSet> featureSets = new HashMap<>();
         int featureSetCount = randomIntBetween(0, 5);
-        for (XPackInfoFeatureAction infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
+        for (ActionType<XPackInfoFeatureResponse> infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
             when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
@@ -60,14 +61,15 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             });
         }
 
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         TransportXPackInfoAction action = new TransportXPackInfoAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             licenseService,
             client
         ) {
             @Override
-            protected List<XPackInfoFeatureAction> infoActions() {
+            protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
                 return new ArrayList<>(featureSets.keySet());
             }
         };
@@ -75,8 +77,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         License license = mock(License.class);
         long expiryDate = randomLong();
         when(license.expiryDate()).thenReturn(expiryDate);
-        LicenseStatus status = randomFrom(LicenseStatus.values());
-        when(license.status()).thenReturn(status);
         String type = randomAlphaOfLength(10);
         when(license.type()).thenReturn(type);
         License.OperationMode mode = randomFrom(License.OperationMode.values());
@@ -129,7 +129,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
             assertThat(response.get().getLicenseInfo(), notNullValue());
             assertThat(response.get().getLicenseInfo().getExpiryDate(), is(expiryDate));
-            assertThat(response.get().getLicenseInfo().getStatus(), is(status));
             assertThat(response.get().getLicenseInfo().getType(), is(type));
             assertThat(response.get().getLicenseInfo().getMode(), is(mode.name().toLowerCase(Locale.ROOT)));
             assertThat(response.get().getLicenseInfo().getUid(), is(uid));

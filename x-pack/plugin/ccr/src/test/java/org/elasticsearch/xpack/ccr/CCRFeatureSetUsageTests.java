@@ -24,6 +24,11 @@ public class CCRFeatureSetUsageTests extends AbstractWireSerializingTestCase<CCR
     }
 
     @Override
+    protected CCRInfoTransportAction.Usage mutateInstance(CCRInfoTransportAction.Usage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<CCRInfoTransportAction.Usage> instanceReader() {
         return CCRInfoTransportAction.Usage::new;
     }

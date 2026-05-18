@@ -1,25 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,10 +29,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Predicate;
 
-public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
+public class SearchHitsTests extends AbstractChunkedSerializingTestCase<SearchHits> {
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()).canonical(), withOptionalInnerHits, withShardTarget);
@@ -97,6 +98,17 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         return collapseValues;
     }
 
+    /** Extra ref on each hit so a new {@link SearchHits} can own them alongside {@code instance}. */
+    private static SearchHit[] copyHitsWithIncRef(SearchHits instance) {
+        SearchHit[] orig = instance.getHits();
+        SearchHit[] out = new SearchHit[orig.length];
+        for (int i = 0; i < orig.length; i++) {
+            orig[i].mustIncRef();
+            out[i] = orig[i];
+        }
+        return out;
+    }
+
     @Override
     protected SearchHits mutateInstance(SearchHits instance) {
         switch (randomIntBetween(0, 5)) {
@@ -118,7 +130,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
                 } else {
                     totalHits = null;
                 }
-                return new SearchHits(instance.getHits(), totalHits, instance.getMaxScore());
+                return new SearchHits(copyHitsWithIncRef(instance), totalHits, instance.getMaxScore());
             case 2:
                 final float maxScore;
                 if (Float.isNaN(instance.getMaxScore())) {
@@ -126,7 +138,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
                 } else {
                     maxScore = Float.NaN;
                 }
-                return new SearchHits(instance.getHits(), instance.getTotalHits(), maxScore);
+                return new SearchHits(copyHitsWithIncRef(instance), instance.getTotalHits(), maxScore);
             case 3:
                 SortField[] sortFields;
                 if (instance.getSortFields() == null) {
@@ -135,7 +147,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
                     sortFields = randomBoolean() ? createSortFields(instance.getSortFields().length + 1) : null;
                 }
                 return new SearchHits(
-                    instance.getHits(),
+                    copyHitsWithIncRef(instance),
                     instance.getTotalHits(),
                     instance.getMaxScore(),
                     sortFields,
@@ -150,7 +162,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
                     collapseField = randomBoolean() ? instance.getCollapseField() + randomAlphaOfLengthBetween(2, 5) : null;
                 }
                 return new SearchHits(
-                    instance.getHits(),
+                    copyHitsWithIncRef(instance),
                     instance.getTotalHits(),
                     instance.getMaxScore(),
                     instance.getSortFields(),
@@ -165,7 +177,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
                     collapseValues = randomBoolean() ? createCollapseValues(instance.getCollapseValues().length + 1) : null;
                 }
                 return new SearchHits(
-                    instance.getHits(),
+                    copyHitsWithIncRef(instance),
                     instance.getTotalHits(),
                     instance.getMaxScore(),
                     instance.getSortFields(),
@@ -175,6 +187,11 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
             default:
                 throw new UnsupportedOperationException();
         }
+    }
+
+    @Override
+    protected void dispose(SearchHits searchHits) {
+        searchHits.decRef();
     }
 
     @Override
@@ -193,7 +210,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     @Override
     protected Writeable.Reader<SearchHits> instanceReader() {
-        return SearchHits::new;
+        return SearchHits::readFrom;
     }
 
     @Override
@@ -220,43 +237,42 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(SearchHits.Fields.HITS, parser.currentName());
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        SearchHits searchHits = SearchHits.fromXContent(parser);
+        SearchHits searchHits = SearchResponseUtils.parseSearchHits(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         return searchHits;
     }
 
     public void testToXContent() throws IOException {
-        SearchHit[] hits = new SearchHit[] {
-            new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap()),
-            new SearchHit(2, "id2", Collections.emptyMap(), Collections.emptyMap()) };
+        SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2") };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
         SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        assertEquals(XContentHelper.stripWhitespace("""
-            {
-              "hits": {
-                "total": {
-                  "value": 1000,
-                  "relation": "eq"
-                },
-                "max_score": 1.5,
-                "hits": [ { "_id": "id1", "_score": null }, { "_id": "id2", "_score": null } ]
-              }
-            }"""), Strings.toString(builder));
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.startObject();
+            ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "hits": {
+                    "total": {
+                      "value": 1000,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [ { "_id": "id1", "_score": null }, { "_id": "id2", "_score": null } ]
+                  }
+                }"""), Strings.toString(builder));
+        } finally {
+            searchHits.decRef();
+        }
     }
 
     public void testFromXContentWithShards() throws IOException {
         for (boolean withExplanation : new boolean[] { true, false }) {
-            final SearchHit[] hits = new SearchHit[] {
-                new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(2, "id2", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(10, "id10", Collections.emptyMap(), Collections.emptyMap()) };
+            final SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2"), new SearchHit(10, "id10") };
 
             for (SearchHit hit : hits) {
                 String index = randomAlphaOfLengthBetween(5, 10);
@@ -275,36 +291,51 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
             long totalHits = 1000;
             float maxScore = 1.5f;
             SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
-            XContentType xContentType = randomFrom(XContentType.values()).canonical();
-            BytesReference bytes = toShuffledXContent(searchHits, xContentType, ToXContent.EMPTY_PARAMS, false);
-            try (
-                XContentParser parser = xContentType.xContent()
-                    .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput())
-            ) {
-                SearchHits newSearchHits = doParseInstance(parser);
-                assertEquals(3, newSearchHits.getHits().length);
-                assertEquals("id1", newSearchHits.getAt(0).getId());
-                for (int i = 0; i < hits.length; i++) {
-                    assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
-                    if (withExplanation) {
-                        assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
-                        assertEquals(hits[i].getShard().getShardId().getId(), newSearchHits.getAt(i).getShard().getShardId().getId());
-                        assertEquals(
-                            hits[i].getShard().getShardId().getIndexName(),
-                            newSearchHits.getAt(i).getShard().getShardId().getIndexName()
-                        );
-                        assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
-                        // The index uuid is not serialized in the rest layer
-                        assertNotEquals(
-                            hits[i].getShard().getShardId().getIndex().getUUID(),
-                            newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID()
-                        );
-                    } else {
-                        assertNull(newSearchHits.getAt(i).getShard());
+            try {
+                XContentType xContentType = randomFrom(XContentType.values()).canonical();
+                BytesReference bytes = toShuffledXContent(
+                    ChunkedToXContent.wrapAsToXContent(searchHits),
+                    xContentType,
+                    ToXContent.EMPTY_PARAMS,
+                    false
+                );
+                try (
+                    XContentParser parser = xContentType.xContent()
+                        .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput())
+                ) {
+                    SearchHits newSearchHits = doParseInstance(parser);
+                    try {
+                        assertEquals(3, newSearchHits.getHits().length);
+                        assertEquals("id1", newSearchHits.getAt(0).getId());
+                        for (int i = 0; i < hits.length; i++) {
+                            assertEquals(hits[i].getExplanation(), newSearchHits.getAt(i).getExplanation());
+                            if (withExplanation) {
+                                assertEquals(hits[i].getShard().getIndex(), newSearchHits.getAt(i).getShard().getIndex());
+                                assertEquals(
+                                    hits[i].getShard().getShardId().getId(),
+                                    newSearchHits.getAt(i).getShard().getShardId().getId()
+                                );
+                                assertEquals(
+                                    hits[i].getShard().getShardId().getIndexName(),
+                                    newSearchHits.getAt(i).getShard().getShardId().getIndexName()
+                                );
+                                assertEquals(hits[i].getShard().getNodeId(), newSearchHits.getAt(i).getShard().getNodeId());
+                                // The index uuid is not serialized in the rest layer
+                                assertNotEquals(
+                                    hits[i].getShard().getShardId().getIndex().getUUID(),
+                                    newSearchHits.getAt(i).getShard().getShardId().getIndex().getUUID()
+                                );
+                            } else {
+                                assertNull(newSearchHits.getAt(i).getShard());
+                            }
+                        }
+                    } finally {
+                        newSearchHits.decRef();
                     }
                 }
+            } finally {
+                searchHits.decRef();
             }
-
         }
     }
 }

@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
@@ -17,8 +20,13 @@ import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,10 +38,21 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import javax.crypto.KeyGenerator;
+
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assume.assumeThat;
 
 public class ESTestCaseTests extends ESTestCase {
 
@@ -157,6 +176,89 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(randomUnique(() -> randomAlphaOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 
+    public void testRandomSubsetOfWithVarargs() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+
+        // 0 <= subsetSize <= listSize
+        int randomSubsetSize = randomInt(randomList.size());
+
+        // Uses the spread syntax to pass the list as an array of values (matching the var args parameter definition)
+        List<Integer> result = ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0]));
+        assertEquals(randomSubsetSize, result.size());
+        assertTrue(randomList.containsAll(result));
+    }
+
+    public void testRandomSubsetOfWithVarargsAndSizeTooLarge() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+
+        // listSize < subsetSize
+        int randomSubsetSize = randomIntBetween(randomList.size() + 1, 20);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0])));
+    }
+
+    public void testRandomSubsetOfWithVarargsAndNegativeSubsetSize() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+        int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList));
+    }
+
+    public void testRandomSubsetOfWithCollection() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.randomSubsetOf(randomList);
+        assertTrue(result.size() >= 0 && result.size() <= randomList.size());
+        assertTrue(randomList.containsAll(result));
+    }
+
+    public void testRandomNonEmptySubsetOf() {
+        List<Integer> randomList = randomList(1, 10, () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.randomNonEmptySubsetOf(randomList);
+        assertTrue(result.size() >= 1 && result.size() <= randomList.size());
+        assertTrue(randomList.containsAll(result));
+    }
+
+    public void testRandomNonEmptySubsetOfThrowsOnEmptyCollection() {
+        final var ex = expectThrows(IllegalArgumentException.class, () -> randomNonEmptySubsetOf(Collections.emptySet()));
+        assertThat(ex.getMessage(), equalTo("Can't pick non-empty subset of an empty collection"));
+    }
+
+    public void testRandomSubsetOfWithCollectionAndSizeTooLarge() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+
+        // listSize < subsetSize
+        int randomSubsetSize = randomIntBetween(randomList.size() + 1, 20);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomSubsetSize, randomList));
+    }
+
+    public void testRandomSubsetOfWithCollectionAndNegativeSubsetSize() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+        int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList));
+    }
+
+    public void testShuffledList() {
+        List<Integer> randomList = randomList(100, () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.shuffledList(randomList);
+        assertEquals(randomList.size(), result.size());
+        assertTrue(randomList.containsAll(result));
+        assertTrue(result.containsAll(randomList));
+    }
+
+    public void testRandomNonNegativeLong() {
+        assertThat(randomNonNegativeLong(), greaterThanOrEqualTo(0L));
+    }
+
+    public void testRandomNonNegativeInt() {
+        assertThat(randomNonNegativeInt(), greaterThanOrEqualTo(0));
+    }
+
+    public void testRandomNegativeInt() {
+        assertThat(randomNegativeInt(), lessThan(0));
+    }
+
     public void testRandomValueOtherThan() {
         // "normal" way of calling where the value is not null
         int bad = randomInt();
@@ -180,12 +282,12 @@ public class ESTestCaseTests extends ESTestCase {
     public void testBasePortGradle() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
         // Gradle worker IDs are 1 based
-        assertNotEquals(10300, ESTestCase.getBasePort());
+        assertNotEquals(ESTestCase.MIN_PRIVATE_PORT, ESTestCase.getWorkerBasePort());
     }
 
     public void testBasePortIDE() {
         assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
-        assertEquals(10300, ESTestCase.getBasePort());
+        assertEquals(ESTestCase.MIN_PRIVATE_PORT, ESTestCase.getWorkerBasePort());
     }
 
     public void testRandomDateFormatterPattern() {
@@ -202,5 +304,207 @@ public class ESTestCaseTests extends ESTestCase {
         String formatted = formatter.formatMillis(randomLongBetween(0, 2_000_000_000_000L));
         String formattedAgain = formatter.formatMillis(formatter.parseMillis(formatted));
         assertThat(formattedAgain, equalTo(formatted));
+    }
+
+    public void testSkipTestWaitingForLuceneFix() {
+        // skip test when Lucene fix has not been integrated yet
+        AssumptionViolatedException ave = expectThrows(
+            AssumptionViolatedException.class,
+            () -> skipTestWaitingForLuceneFix(Version.fromBits(99, 0, 0), "extra message")
+        );
+        assertThat(ave.getMessage(), containsString("Skipping test as it is waiting on a Lucene fix: extra message"));
+
+        // fail test when it still calls skipTestWaitingForLuceneFix() after Lucene fix has been integrated
+        AssertionError ae = expectThrows(
+            AssertionError.class,
+            () -> skipTestWaitingForLuceneFix(Version.fromBits(1, 0, 0), "extra message")
+        );
+        assertThat(ae.getMessage(), containsString("Remove call of skipTestWaitingForLuceneFix"));
+    }
+
+    public void testSecureRandom() throws NoSuchAlgorithmException, NoSuchProviderException {
+        assumeThat(ESTestCase.inFipsJvm(), is(false));
+        final int numInstances = 2;
+        final int numTries = 3;
+        for (int numInstance = 0; numInstance < numInstances; numInstance++) {
+            final byte[] seed = randomByteArrayOfLength(randomIntBetween(16, 32));
+            final SecureRandom secureRandom1 = secureRandom(seed);
+            final SecureRandom secureRandom2 = secureRandom(seed);
+            // verify both SecureRandom instances produce deterministic output
+            for (int numTry = 0; numTry < numTries; numTry++) {
+                final int bound = randomIntBetween(16, 1024);
+                assertThat(secureRandom1.nextBoolean(), is(equalTo(secureRandom2.nextBoolean())));
+                assertThat(secureRandom1.nextInt(), is(equalTo(secureRandom2.nextInt())));
+                assertThat(secureRandom1.nextInt(bound), is(equalTo(secureRandom2.nextInt(bound))));
+                assertThat(secureRandom1.nextLong(), is(equalTo(secureRandom2.nextLong())));
+                assertThat(secureRandom1.nextLong(bound), is(equalTo(secureRandom2.nextLong(bound))));
+                assertThat(secureRandom1.nextFloat(), is(equalTo(secureRandom2.nextFloat())));
+                assertThat(secureRandom1.nextDouble(), is(equalTo(secureRandom2.nextDouble())));
+                assertThat(secureRandom1.nextGaussian(), is(equalTo(secureRandom2.nextGaussian())));
+                assertThat(secureRandom1.nextExponential(), is(equalTo(secureRandom2.nextExponential())));
+                final byte[] randomBytes1 = new byte[bound];
+                final byte[] randomBytes2 = new byte[bound];
+                secureRandom1.nextBytes(randomBytes1);
+                secureRandom2.nextBytes(randomBytes2);
+                assertThat(randomBytes1, is(equalTo(randomBytes2)));
+            }
+        }
+    }
+
+    public void testSecureRandomNonFipsMode() {
+        assumeThat(ESTestCase.inFipsJvm(), is(false));
+        final NoSuchAlgorithmException exception = expectThrows(NoSuchAlgorithmException.class, ESTestCase::secureRandomFips);
+        assertThat(exception.getMessage(), is(equalTo("DEFAULT SecureRandom not available")));
+    }
+
+    public void testSecureRandomFipsMode() throws NoSuchAlgorithmException {
+        assumeThat(ESTestCase.inFipsJvm(), is(true));
+        // Non-FIPS SHA1PRNG/SUN works in FIPS mode
+        final SecureRandom secureRandomNonFips1 = secureRandomNonFips();
+        assertThat(secureRandomNonFips1, is(notNullValue()));
+        assertThat(secureRandomNonFips1.getProvider(), is(notNullValue()));
+        assertThat(secureRandomNonFips1.getProvider().getName(), is(equalTo("SUN")));
+        // FIPS DEFAULT/BCFIPS works in FIPS mode. If just running this method, this is the first call and triggers a log warning.
+        final SecureRandom secureRandomFips1 = secureRandomFips(); // FIPS SecureRandom works, logs warning
+        assertThat(secureRandomFips1, is(notNullValue()));
+        assertThat(secureRandomFips1.getProvider(), is(notNullValue()));
+        assertThat(secureRandomFips1.getProvider().getName(), is(equalTo("BCFIPS")));
+        // If just running this method, this is the second call and does not trigger a log warning.
+        final SecureRandom secureRandomFips2 = secureRandomFips(); // FIPS SecureRandom works, does not log warning
+        assertThat(secureRandomFips2, is(notNullValue()));
+        assertThat(secureRandomFips2.getProvider(), is(notNullValue()));
+        assertThat(secureRandomFips2.getProvider().getName(), is(equalTo("BCFIPS")));
+    }
+
+    public void testNonFipsKeyGenWithNonFipsSecureRandom() throws NoSuchAlgorithmException {
+        assumeThat(ESTestCase.inFipsJvm(), is(false));
+        // Non-FIPS SHA1PRNG/SUN
+        final SecureRandom secureRandomNonFips = secureRandomNonFips();
+        assertThat(secureRandomNonFips, is(notNullValue()));
+        assertThat(secureRandomNonFips.getProvider(), is(notNullValue()));
+        assertThat(secureRandomNonFips.getProvider().getName(), is(equalTo("SUN")));
+        // Non-FIPS AES/SunJCE
+        final KeyGenerator keyGeneratorNonFips = KeyGenerator.getInstance("AES");
+        assertThat(keyGeneratorNonFips, is(notNullValue()));
+        assertThat(keyGeneratorNonFips.getProvider(), is(notNullValue()));
+        assertThat(keyGeneratorNonFips.getProvider().getName(), is(equalTo("SunJCE")));
+        // non-FIPS KeyGenerator.init() works with non-FIPS SecureRandom
+        keyGeneratorNonFips.init(256, secureRandomNonFips);
+        assertThat(keyGeneratorNonFips.generateKey(), is(notNullValue()));
+    }
+
+    public void testFipsKeyGenWithFipsSecureRandom() throws NoSuchAlgorithmException {
+        assumeThat(ESTestCase.inFipsJvm(), is(true));
+        // FIPS DEFAULT/BCFIPS
+        final SecureRandom secureRandomFips = secureRandomFips(); // FIPS SecureRandom works
+        assertThat(secureRandomFips, is(notNullValue()));
+        assertThat(secureRandomFips.getProvider(), is(notNullValue()));
+        assertThat(secureRandomFips.getProvider().getName(), is(equalTo("BCFIPS")));
+        // FIPS AES/BCFIPS
+        final KeyGenerator keyGeneratorFips = KeyGenerator.getInstance("AES");
+        assertThat(keyGeneratorFips, is(notNullValue()));
+        assertThat(keyGeneratorFips.getProvider(), is(notNullValue()));
+        assertThat(keyGeneratorFips.getProvider().getName(), is(equalTo("BCFIPS")));
+        // FIPS KeyGenerator.init() works with FIPS SecureRandom
+        keyGeneratorFips.init(256, secureRandomFips);
+        assertThat(keyGeneratorFips.generateKey(), is(notNullValue()));
+    }
+
+    public void testFipsKeyGenWithNonFipsSecureRandom() {
+        assumeThat(ESTestCase.inFipsJvm(), is(true));
+        final Exception wrappedThrowable = expectThrows(Exception.class, () -> {
+            // Non-FIPS SHA1PRNG/SUN
+            final SecureRandom secureRandomNonFips = secureRandomNonFips(); // non-FIPS SecureRandom works
+            assertThat(secureRandomNonFips, is(notNullValue()));
+            assertThat(secureRandomNonFips.getProvider(), is(notNullValue()));
+            assertThat(secureRandomNonFips.getProvider().getName(), is(equalTo("SUN")));
+            // FIPS DEFAULT/BCFIPS
+            final KeyGenerator keyGeneratorFips = KeyGenerator.getInstance("AES");
+            assertThat(keyGeneratorFips, is(notNullValue()));
+            assertThat(keyGeneratorFips.getProvider(), is(notNullValue()));
+            assertThat(keyGeneratorFips.getProvider().getName(), is(equalTo("BCFIPS")));
+            try {
+                // FIPS KeyGenerator.init() rejects non-FIPS SecureRandom
+                keyGeneratorFips.init(256, secureRandomNonFips);
+            } catch (Throwable t) {
+                // wrap Throwable, since expectThrows can only catch Exception (FipsUnapprovedOperationError), not Throwable
+                throw new Exception(t);
+            }
+        });
+        final Throwable t = wrappedThrowable.getCause(); // unwrap Throwable (FipsUnapprovedOperationError)
+        assertThat(t.getClass().getCanonicalName(), is(equalTo("org.bouncycastle.crypto.fips.FipsUnapprovedOperationError")));
+        assertThat(t.getMessage(), is(equalTo("Attempt to create key with unapproved RNG: AES")));
+    }
+
+    public void testRandomUnsignedLongBetween() {
+        assertThat(
+            randomUnsignedLongBetween(BigInteger.ZERO, UNSIGNED_LONG_MAX),
+            both(greaterThanOrEqualTo(BigInteger.ZERO)).and(lessThanOrEqualTo(UNSIGNED_LONG_MAX))
+        );
+
+        BigInteger from = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+        BigInteger to = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+        if (from.compareTo(to) > 0) {
+            BigInteger s = from;
+            from = to;
+            to = s;
+        }
+        assertThat(randomUnsignedLongBetween(from, to), both(greaterThanOrEqualTo(from)).and(lessThanOrEqualTo(to)));
+    }
+
+    public void testRandomUnsignedLongBetweenDegenerate() {
+        BigInteger target = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+        assertThat(randomUnsignedLongBetween(target, target), equalTo(target));
+    }
+
+    public void testAssertArrayEqualsPercentDifferentSize() {
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2 }, 0.1f, 0));
+        assertThat(ex.getMessage(), is("array lengths differed, expected.length=3 actual.length=2"));
+    }
+
+    public void testAssertArrayEqualsPercentNull() {
+        var ex1 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(null, new float[] { 1, 2 }, 0.1f, 0.0f));
+        var ex2 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, null, 0.1f, 0.0f));
+
+        assertThat(ex1.getMessage(), is("expected array was null"));
+        assertThat(ex2.getMessage(), is("actual array was null"));
+    }
+
+    public void testAssertArrayEqualsPercentMessage() {
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent("test message", null, new float[] { 1, 2 }, 0.1f, 0.0f));
+        assertThat(ex.getMessage(), is("test message: expected array was null"));
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreEqual() {
+        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2, 3 }, 1e-9f, 0.0f);
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreSimilar() {
+        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 0.99f, 1.99f, 2.99f }, 0.01f, 0.0f);
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreNotSimilarEnough() {
+        var ex = expectThrows(
+            AssertionError.class,
+            () -> assertArrayEqualsPercent(new float[] { 100, 2, 3 }, new float[] { 99, 1.99f, 2.99f }, 0.001f, 0.0f)
+        );
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreWithinAbsoluteDelta() {
+        float[] expected = { 1, 2, 3, 0 };
+        float[] actual = { 0.99f, 1.99f, 2.99f, 0.01f };
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(expected, actual, 0.001f, 0.0f));
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
+        ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(expected, actual, 0.01f, 0.0f));
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [3]"));
+        assertArrayEqualsPercent(expected, actual, 0.001f, 0.02f);
+    }
+
+    public void testEmbedInRandomBytes() {
+        BytesRef v = new BytesRef(randomByteArrayOfLength(between(1, 10)));
+        BytesRef withGarbage = embedInRandomBytes(v);
+        assertThat(withGarbage, equalTo(v));
+        assertThat(withGarbage.bytes.length, greaterThan(withGarbage.length));
     }
 }

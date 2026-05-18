@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
@@ -21,7 +21,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilter;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionMatrix> {
+public class ConfusionMatrixTests extends AbstractXContentSerializingTestCase<ConfusionMatrix> {
 
     @Override
     protected ConfusionMatrix doParseInstance(XContentParser parser) throws IOException {
@@ -31,6 +31,11 @@ public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionM
     @Override
     protected ConfusionMatrix createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected ConfusionMatrix mutateInstance(ConfusionMatrix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -48,7 +53,7 @@ public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionM
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockFilter("confusion_matrix_at_0.25_TP", 1L),
                 mockFilter("confusion_matrix_at_0.25_FP", 2L),

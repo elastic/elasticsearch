@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -16,20 +17,21 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class NumbersTests extends ESTestCase {
 
     @Timeout(millis = 10000)
     public void testToLong() {
-        assertEquals(3L, Numbers.toLong("3", false));
-        assertEquals(3L, Numbers.toLong("3.1", true));
-        assertEquals(9223372036854775807L, Numbers.toLong("9223372036854775807.00", false));
-        assertEquals(-9223372036854775808L, Numbers.toLong("-9223372036854775808.00", false));
-        assertEquals(9223372036854775807L, Numbers.toLong("9223372036854775807.00", true));
-        assertEquals(-9223372036854775808L, Numbers.toLong("-9223372036854775808.00", true));
-        assertEquals(9223372036854775807L, Numbers.toLong("9223372036854775807.99", true));
-        assertEquals(-9223372036854775808L, Numbers.toLong("-9223372036854775808.99", true));
+        assertThat(Numbers.toLong("3", false), equalTo(3L));
+        assertThat(Numbers.toLong("3.1", true), equalTo(3L));
+        assertThat(Numbers.toLong("9223372036854775807.00", false), equalTo(9223372036854775807L));
+        assertThat(Numbers.toLong("-9223372036854775808.00", false), equalTo(-9223372036854775808L));
+        assertThat(Numbers.toLong("9223372036854775807.00", true), equalTo(9223372036854775807L));
+        assertThat(Numbers.toLong("-9223372036854775808.00", true), equalTo(-9223372036854775808L));
+        assertThat(Numbers.toLong("9223372036854775807.99", true), equalTo(9223372036854775807L));
+        assertThat(Numbers.toLong("-9223372036854775808.99", true), equalTo(-9223372036854775808L));
 
         assertEquals(
             "Value [9223372036854775808] is out of range for a long",

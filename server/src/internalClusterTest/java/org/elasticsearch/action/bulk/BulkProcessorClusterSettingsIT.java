@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -16,7 +17,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xcontent.XContentType;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -29,12 +29,12 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         internalCluster().startNode(settings);
 
         createIndex("willwork");
-        client().admin().cluster().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "willwork").setWaitForGreenStatus().get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
         BulkResponse br = bulkRequestBuilder.get();
         BulkItemResponse[] responses = br.getItems();
         assertEquals(3, responses.length);
@@ -51,17 +51,10 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testIndexWithDisabledAutoCreateIndex() {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")).build()
-                )
-                .get()
-        );
+        internalCluster().startNode();
+        updateClusterSettings(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")));
         final BulkItemResponse itemResponse = client().prepareBulk()
-            .add(client().prepareIndex("test-index").setSource("foo", "bar"))
+            .add(prepareIndex("test-index").setSource("foo", "bar"))
             .get()
             .getItems()[0];
         assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));

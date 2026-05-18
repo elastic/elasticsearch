@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.watcher.transport.action.activate;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -143,9 +143,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // now that we filtered out the watch status state, lets put it back in
-        IndexResponse indexResponse = client().prepareIndex()
-            .setIndex(".watches")
-            .setId("_id")
+        DocWriteResponse indexResponse = prepareIndex(".watches").setId("_id")
             .setSource(BytesReference.bytes(builder), XContentType.JSON)
             .get();
         assertThat(indexResponse.getId(), is("_id"));

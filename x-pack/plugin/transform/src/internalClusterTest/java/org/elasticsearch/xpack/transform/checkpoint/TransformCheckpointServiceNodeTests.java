@@ -11,39 +11,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.cache.request.RequestCacheStats;
-import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.seqno.SeqNoStats;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IndexingStats;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -51,6 +29,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -59,25 +38,19 @@ import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigMa
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTestCase {
 
     // re-use the mock client for the whole test suite as the underlying thread pool and the
     // corresponding context if recreated cause unreliable test execution
     // see https://github.com/elastic/elasticsearch/issues/45238 and https://github.com/elastic/elasticsearch/issues/42577
+    private static TestThreadPool threadPool;
     private static MockClientForCheckpointing mockClientForCheckpointing = null;
 
     private IndexBasedTransformConfigManager transformsConfigManager;
@@ -85,22 +58,14 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
     private class MockClientForCheckpointing extends NoOpClient {
 
-        private volatile ShardStats[] shardStats;
-        private volatile String[] indices;
+        private volatile Map<String, long[]> checkpoints;
 
-        MockClientForCheckpointing(String testName) {
-            super(testName);
+        MockClientForCheckpointing(ThreadPool threadPool) {
+            super(threadPool);
         }
 
-        void setShardStats(ShardStats[] shardStats) {
-            this.shardStats = shardStats;
-
-            Set<String> indicesSet = new HashSet<>();
-            for (ShardStats s : shardStats) {
-                indicesSet.add(s.getShardRouting().getIndexName());
-            }
-
-            this.indices = indicesSet.toArray(new String[0]);
+        void setCheckpoints(Map<String, long[]> checkpoints) {
+            this.checkpoints = checkpoints;
         }
 
         @SuppressWarnings("unchecked")
@@ -110,22 +75,9 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             Request request,
             ActionListener<Response> listener
         ) {
-
-            if (request instanceof GetIndexRequest) {
-                // for this test we only need the indices
-                assert (indices != null);
-                final GetIndexResponse indexResponse = new GetIndexResponse(indices, null, null, null, null, null);
-
-                listener.onResponse((Response) indexResponse);
-                return;
-            } else if (request instanceof IndicesStatsRequest) {
-
-                // IndicesStatsResponse is package private, therefore using a mock
-                final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
-                when(indicesStatsResponse.getShards()).thenReturn(shardStats);
-                when(indicesStatsResponse.getFailedShards()).thenReturn(0);
-
-                listener.onResponse((Response) indicesStatsResponse);
+            if (request instanceof GetCheckpointAction.Request) {
+                final GetCheckpointAction.Response getCheckpointResponse = new GetCheckpointAction.Response(checkpoints);
+                listener.onResponse((Response) getCheckpointResponse);
                 return;
             }
 
@@ -136,15 +88,19 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
     @Before
     public void createComponents() {
         // it's not possible to run it as @BeforeClass as clients aren't initialized
+        if (threadPool == null) {
+            threadPool = new TestThreadPool("TransformCheckpointServiceNodeTests");
+        }
         if (mockClientForCheckpointing == null) {
-            mockClientForCheckpointing = new MockClientForCheckpointing("TransformCheckpointServiceNodeTests");
+            mockClientForCheckpointing = new MockClientForCheckpointing(threadPool);
         }
         ClusterService clusterService = mock(ClusterService.class);
         transformsConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
             client(),
-            xContentRegistry()
+            xContentRegistry(),
+            new TransformParsingContext(false)
         );
 
         // use a mock for the checkpoint service
@@ -152,7 +108,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             mockAuditor
         );
@@ -160,8 +116,9 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
     @AfterClass
     public static void tearDownClient() {
-        mockClientForCheckpointing.close();
         mockClientForCheckpointing = null;
+        threadPool.close();
+        threadPool = null;
     }
 
     public void testCreateReadDeleteCheckpoint() throws InterruptedException {
@@ -270,7 +227,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint2, listener), true, null, null);
 
-        mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 20, 20, 20)));
+        mockClientForCheckpointing.setCheckpoints(createCheckPointMap(transformId, 20, 20, 20));
         TransformCheckpointingInfo checkpointInfo = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
@@ -286,7 +243,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             null
         );
 
-        mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 50, 33)));
+        mockClientForCheckpointing.setCheckpoints(createCheckPointMap(transformId, 10, 50, 33));
         checkpointInfo = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
@@ -302,7 +259,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         );
 
         // same as current
-        mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 10, 10)));
+        mockClientForCheckpointing.setCheckpoints(createCheckPointMap(transformId, 10, 10, 10));
         checkpointInfo = new TransformCheckpointingInfo(
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
@@ -327,47 +284,6 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         return Collections.singletonMap(index, new long[] { checkpointShard1, checkpointShard2, checkpointShard3 });
     }
 
-    private static ShardStats[] createShardStats(Map<String, long[]> checkpoints) {
-        List<ShardStats> shardStats = new ArrayList<>();
-
-        for (Entry<String, long[]> entry : checkpoints.entrySet()) {
-
-            for (int i = 0; i < entry.getValue().length; ++i) {
-                long checkpoint = entry.getValue()[i];
-                CommonStats stats = new CommonStats();
-                stats.fieldData = new FieldDataStats();
-                stats.queryCache = new QueryCacheStats();
-                stats.docs = new DocsStats();
-                stats.store = new StoreStats();
-                stats.indexing = new IndexingStats();
-                stats.search = new SearchStats();
-                stats.segments = new SegmentsStats();
-                stats.merge = new MergeStats();
-                stats.refresh = new RefreshStats();
-                stats.completion = new CompletionStats();
-                stats.requestCache = new RequestCacheStats();
-                stats.get = new GetStats();
-                stats.flush = new FlushStats();
-                stats.warmer = new WarmerStats();
-
-                SeqNoStats seqNoStats = new SeqNoStats(checkpoint, checkpoint, checkpoint);
-                Index index = new Index(entry.getKey(), UUIDs.randomBase64UUID(random()));
-                ShardId shardId = new ShardId(index, i);
-                ShardRouting shardRouting = ShardRouting.newUnassigned(
-                    shardId,
-                    true,
-                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-                );
-                Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
-
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, seqNoStats, null));
-            }
-
-        }
-        return shardStats.toArray(new ShardStats[0]);
-    }
-
     private static void getCheckpoint(
         TransformCheckpointService transformCheckpointService,
         String transformId,
@@ -376,12 +292,12 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         TransformProgress nextCheckpointProgress,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
-        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(
-            infoBuilder -> { listener.onResponse(infoBuilder.build()); },
-            listener::onFailure
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = listener.delegateFailureAndWrap(
+            (l, infoBuilder) -> l.onResponse(infoBuilder.build())
         );
         transformCheckpointService.getCheckpointingInfo(
-            mockClientForCheckpointing,
+            new ParentTaskAssigningClient(mockClientForCheckpointing, new TaskId("dummy-node:123456")),
+            TimeValue.timeValueSeconds(5),
             transformId,
             lastCheckpointNumber,
             nextCheckpointPosition,

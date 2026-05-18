@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.DocValueBits;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -43,10 +45,10 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final DocValueBits docsWithValue;
         if (valuesSource != null) {
-            docsWithValue = valuesSource.docsWithValue(ctx);
+            docsWithValue = valuesSource.docsWithValue(aggCtx.getLeafReaderContext());
         } else {
             docsWithValue = new DocValueBits() {
                 @Override
@@ -66,7 +68,7 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForSingleBucket(
             owningBucketOrds,
             (owningBucketOrd, subAggregationResults) -> new InternalMissing(

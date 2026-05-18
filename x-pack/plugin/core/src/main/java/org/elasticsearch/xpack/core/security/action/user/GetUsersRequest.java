@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,13 +19,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to retrieve a native user.
  */
-public class GetUsersRequest extends ActionRequest implements UserRequest {
+public class GetUsersRequest extends LegacyActionRequest implements UserRequest {
 
     private String[] usernames;
+    private boolean withProfileUid;
 
     public GetUsersRequest(StreamInput in) throws IOException {
         super(in);
         usernames = in.readStringArray();
+        withProfileUid = in.readBoolean();
     }
 
     public GetUsersRequest() {
@@ -50,10 +52,27 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
         return usernames;
     }
 
+    public String[] getUsernames() {
+        return usernames;
+    }
+
+    public void setUsernames(String[] usernames) {
+        this.usernames = usernames;
+    }
+
+    public boolean isWithProfileUid() {
+        return withProfileUid;
+    }
+
+    public void setWithProfileUid(boolean withProfileUid) {
+        this.withProfileUid = withProfileUid;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(usernames);
+        out.writeBoolean(withProfileUid);
     }
 
 }

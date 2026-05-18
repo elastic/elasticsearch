@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.allocation;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -27,9 +25,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
 
-    private final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
+    private static final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
 
     @Override
     protected int numberOfReplicas() {
@@ -65,7 +64,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         final List<String> indicesToClose = randomSubsetOf(Arrays.asList("test1", "test2"));
-        indicesToClose.forEach(indexToClose -> assertAcked(client().admin().indices().prepareClose(indexToClose).get()));
+        indicesToClose.forEach(indexToClose -> assertAcked(indicesAdmin().prepareClose(indexToClose).get()));
 
         logger.info("--> starting 1 node on a different rack");
         final String node3 = internalCluster().startNode(Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_2").build());
@@ -73,9 +72,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         // On slow machines the initial relocation might be delayed
         assertBusy(() -> {
             logger.info("--> waiting for no relocation");
-            ClusterHealthResponse clusterHealth = client().admin()
-                .cluster()
-                .prepareHealth()
+            ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setIndices("test1", "test2")
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForGreenStatus()
@@ -86,23 +83,16 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
             assertThat("Cluster health request timed out", clusterHealth.isTimedOut(), equalTo(false));
 
             logger.info("--> checking current state");
-            ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+            ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
             // check that closed indices are effectively closed
             final List<String> notClosedIndices = indicesToClose.stream()
-                .filter(index -> clusterState.metadata().index(index).getState() != State.CLOSE)
-                .collect(Collectors.toList());
+                .filter(index -> clusterState.metadata().getProject().index(index).getState() != State.CLOSE)
+                .toList();
             assertThat("Some indices not closed", notClosedIndices, empty());
 
             // verify that we have all the primaries on node3
-            ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
-            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                    }
-                }
-            }
+            Map<String, Integer> counts = computeShardCounts(clusterState);
             assertThat(counts.get(node3), equalTo(totalPrimaries));
         }, 10, TimeUnit.SECONDS);
     }
@@ -126,40 +116,27 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         String A_1 = nodes.get(3);
 
         logger.info("--> waiting for nodes to form a cluster");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        ClusterHealthResponse health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("4").get();
         assertThat(health.isTimedOut(), equalTo(false));
 
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex("test", 5, 1);
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
         logger.info("--> waiting for shards to be allocated");
-        health = client().admin()
-            .cluster()
-            .prepareHealth()
+        health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
 
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        Map<String, Integer> counts = computeShardCounts(clusterState);
 
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
         assertThat(counts.get(A_1), anyOf(equalTo(2), equalTo(3)));
         assertThat(counts.get(B_1), anyOf(equalTo(2), equalTo(3)));
         assertThat(counts.get(A_0), anyOf(equalTo(2), equalTo(3)));
@@ -180,151 +157,92 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
 
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex("test", 5, 1);
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
-        ClusterHealthResponse health = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("2")
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        Map<String, Integer> counts = computeShardCounts(clusterState);
 
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(5));
         logger.info("--> starting another node in zone 'b'");
 
         String B_1 = internalCluster().startNode(Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
-        health = client().admin()
-            .cluster()
-            .prepareHealth()
+        health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("3")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
-        client().admin().cluster().prepareReroute().get();
-        health = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterRerouteUtils.reroute(client());
+        health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("3")
             .setWaitForActiveShards(10)
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        counts = computeShardCounts(clusterState);
 
-        counts = new ObjectIntHashMap<>();
-
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
 
         String noZoneNode = internalCluster().startNode();
-        health = client().admin()
-            .cluster()
-            .prepareHealth()
+        health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("4")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(health.isTimedOut(), equalTo(false));
-        client().admin().cluster().prepareReroute().get();
-        health = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterRerouteUtils.reroute(client());
+        health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("4")
             .setWaitForActiveShards(10)
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-
-        counts = new ObjectIntHashMap<>();
-
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(5));
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
         assertThat(counts.containsKey(noZoneNode), equalTo(false));
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "").build())
-            .get();
-
-        health = client().admin()
-            .cluster()
-            .prepareHealth()
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", ""));
+        health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setIndices("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes("4")
             .setWaitForActiveShards(10)
             .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(health.isTimedOut(), equalTo(false));
-        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-
-        counts = new ObjectIntHashMap<>();
-
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).getName(), 1);
-                }
-            }
-        }
+        clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        counts = computeShardCounts(clusterState);
 
         assertThat(counts.get(A_0), equalTo(3));
         assertThat(counts.get(B_0), equalTo(3));
@@ -333,15 +251,13 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
     }
 
     public void testForceAwarenessSettingValidation() {
+        internalCluster().startNode();
         final String prefix = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey();
 
         final IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(Settings.builder().put(prefix + "nonsense", "foo"))
-                .get()
         );
         assertThat(illegalArgumentException.getMessage(), containsString("[cluster.routing.allocation.awareness.force.]"));
         assertThat(illegalArgumentException.getCause(), instanceOf(SettingsException.class));
@@ -350,11 +266,8 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(prefix + "attr.not_values", "foo"))
-                    .get()
             ).getMessage(),
             containsString("[cluster.routing.allocation.awareness.force.attr.not_values]")
         );
@@ -362,13 +275,24 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().put(prefix + "attr.values.junk", "foo"))
-                    .get()
             ).getMessage(),
             containsString("[cluster.routing.allocation.awareness.force.attr.values.junk]")
         );
+    }
+
+    Map<String, Integer> computeShardCounts(ClusterState clusterState) {
+        Map<String, Integer> counts = new HashMap<>();
+
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    counts.merge(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), 1, Integer::sum);
+                }
+            }
+        }
+        return counts;
     }
 }

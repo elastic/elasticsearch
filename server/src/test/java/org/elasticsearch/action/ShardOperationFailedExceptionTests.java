@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
@@ -62,6 +63,29 @@ public class ShardOperationFailedExceptionTests extends ESTestCase {
 
     public void testIndexIsNullable() {
         new Failure(null, randomInt(), randomAlphaOfLengthBetween(5, 10), randomFrom(RestStatus.values()), new IllegalArgumentException());
+    }
+
+    public void testGetMessageIncludesIndexAndShard() {
+        Failure failure = new Failure(
+            "books",
+            7,
+            randomAlphaOfLengthBetween(5, 10),
+            randomFrom(RestStatus.values()),
+            new IllegalArgumentException()
+        );
+        assertEquals("shard [books][7]", failure.getMessage());
+        assertEquals("org.elasticsearch.action.ShardOperationFailedExceptionTests$Failure: shard [books][7]", failure.toString());
+    }
+
+    public void testGetMessageWhenIndexIsNull() {
+        Failure failure = new Failure(
+            null,
+            -1,
+            randomAlphaOfLengthBetween(5, 10),
+            randomFrom(RestStatus.values()),
+            new IllegalArgumentException()
+        );
+        assertEquals("shard [_na][-1]", failure.getMessage());
     }
 
     private static class Failure extends ShardOperationFailedException {

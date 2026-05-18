@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,6 +30,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.rankeval.RankEvalMetricTestHelper.releaseRatedSearchHitsOnly;
+import static org.elasticsearch.index.rankeval.RankEvalMetricTestHelper.releaseScratchHits;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -83,14 +87,23 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
         int rankAtFirstRelevant = relevantAt + 1;
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(1.0 / rankAtFirstRelevant, evaluation.metricScore(), Double.MIN_VALUE);
-        assertEquals(rankAtFirstRelevant, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
+        try {
+            assertEquals(1.0 / rankAtFirstRelevant, evaluation.metricScore(), Double.MIN_VALUE);
+            assertEquals(rankAtFirstRelevant, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluation);
+        }
 
         // check that if we have fewer search hits than relevant doc position,
         // we don't find any result and get 0.0 score
         reciprocalRank = new MeanReciprocalRank();
         evaluation = reciprocalRank.evaluate("id", Arrays.copyOfRange(hits, 0, relevantAt), ratedDocs);
-        assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
+        try {
+            assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
+        } finally {
+            releaseRatedSearchHitsOnly(evaluation);
+            releaseScratchHits(hits);
+        }
     }
 
     public void testEvaluationOneRelevantInResults() {
@@ -108,8 +121,13 @@ public class MeanReciprocalRankTests extends ESTestCase {
         }
 
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(1.0 / (relevantAt + 1), evaluation.metricScore(), Double.MIN_VALUE);
-        assertEquals(relevantAt + 1, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
+        try {
+            assertEquals(1.0 / (relevantAt + 1), evaluation.metricScore(), Double.MIN_VALUE);
+            assertEquals(relevantAt + 1, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluation);
+            releaseScratchHits(hits);
+        }
     }
 
     /**
@@ -128,8 +146,13 @@ public class MeanReciprocalRankTests extends ESTestCase {
 
         MeanReciprocalRank reciprocalRank = new MeanReciprocalRank(2, 10);
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, rated);
-        assertEquals((double) 1 / 3, evaluation.metricScore(), 0.00001);
-        assertEquals(3, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
+        try {
+            assertEquals((double) 1 / 3, evaluation.metricScore(), 0.00001);
+            assertEquals(3, ((MeanReciprocalRank.Detail) evaluation.getMetricDetails()).getFirstRelevantRank());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluation);
+            releaseScratchHits(hits);
+        }
     }
 
     public void testCombine() {
@@ -146,12 +169,16 @@ public class MeanReciprocalRankTests extends ESTestCase {
         SearchHit[] hits = createSearchHits(0, 9, "test");
         List<RatedDocument> ratedDocs = new ArrayList<>();
         EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
-        assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
+        try {
+            assertEquals(0.0, evaluation.metricScore(), Double.MIN_VALUE);
+        } finally {
+            releaseRatedSearchHitsOnly(evaluation);
+            releaseScratchHits(hits);
+        }
     }
 
     public void testNoResults() throws Exception {
-        SearchHit[] hits = new SearchHit[0];
-        EvalQueryQuality evaluated = (new MeanReciprocalRank()).evaluate("id", hits, Collections.emptyList());
+        EvalQueryQuality evaluated = (new MeanReciprocalRank()).evaluate("id", SearchHits.EMPTY, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(-1, ((MeanReciprocalRank.Detail) evaluated.getMetricDetails()).getFirstRelevantRank());
     }
@@ -188,10 +215,12 @@ public class MeanReciprocalRankTests extends ESTestCase {
      * The search hits index also need to be provided
      */
     private static SearchHit[] createSearchHits(int from, int to, String index) {
-        SearchHit[] hits = new SearchHit[to + 1 - from];
-        for (int i = from; i <= to; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
+        int n = to + 1 - from;
+        SearchHit[] hits = new SearchHit[n];
+        for (int j = 0; j < n; j++) {
+            int docId = from + j;
+            hits[j] = new SearchHit(docId, docId + "");
+            hits[j].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         }
         return hits;
     }

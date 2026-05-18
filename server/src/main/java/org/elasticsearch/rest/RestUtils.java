@@ -1,22 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Map;
+import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
+import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
 
 public class RestUtils {
 
@@ -25,22 +37,23 @@ public class RestUtils {
      */
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
-    public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
-        @Override
-        public String decode(String value) {
-            return RestUtils.decodeComponent(value);
-        }
-    };
+    public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
-    public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
-        if (fromIndex < 0) {
-            return;
-        }
-        if (fromIndex >= s.length()) {
-            return;
+    /**
+     * Parses a URL-encoded query string into a multi-value map, preserving all values for
+     * repeated parameters (e.g. {@code match[]=foo&match[]=bar} -> {@code ["foo", "bar"]}).
+     *
+     * @param s         the full string containing the query string
+     * @param fromIndex the index at which the query string begins (i.e. one past the {@code ?})
+     * @return a {@link RequestParams} from parameter name to all its values, in encounter order
+     */
+    static RequestParams decodeQueryString(String s, int fromIndex) {
+        RequestParams params = RequestParams.empty();
+        if (fromIndex < 0 || fromIndex >= s.length()) {
+            return params;
         }
 
-        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
+        int queryStringLength = s.contains("#") ? s.indexOf('#') : s.length();
 
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region
@@ -76,14 +89,21 @@ public class RestUtils {
         } else if (name != null) {  // Have we seen a name without value?
             addParam(params, name, "");
         }
+
+        return params;
     }
 
     private static String decodeQueryStringParam(final String s) {
         return decodeComponent(s, StandardCharsets.UTF_8, true);
     }
 
-    private static void addParam(Map<String, String> params, String name, String value) {
-        params.put(name, value);
+    private static void addParam(RequestParams result, String name, String value) {
+        for (var reservedParameter : INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            if (reservedParameter.equalsIgnoreCase(name)) {
+                throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
+            }
+        }
+        result.addValue(name, value);
     }
 
     /**
@@ -141,17 +161,17 @@ public class RestUtils {
     }
 
     private static boolean decodingNeeded(String s, int size, boolean plusAsSpace) {
-        boolean decodingNeeded = false;
-        for (int i = 0; i < size; i++) {
+        if (Strings.isEmpty(s)) {
+            return false;
+        }
+        int num = Math.min(s.length(), size);
+        for (int i = 0; i < num; i++) {
             final char c = s.charAt(i);
-            if (c == '%') {
-                i++;  // We can skip at least one char, e.g. `%%'.
-                decodingNeeded = true;
-            } else if (plusAsSpace && c == '+') {
-                decodingNeeded = true;
+            if (c == '%' || (plusAsSpace && c == '+')) {
+                return true;
             }
         }
-        return decodingNeeded;
+        return false;
     }
 
     @SuppressWarnings("fallthrough")
@@ -241,6 +261,106 @@ public class RestUtils {
         if (Strings.isNullOrEmpty(corsSetting)) {
             return new String[0];
         }
-        return Arrays.asList(corsSetting.split(",")).stream().map(String::trim).toArray(size -> new String[size]);
+        return Arrays.stream(corsSetting.split(",")).map(String::trim).toArray(String[]::new);
+    }
+
+    /**
+     * Extract the trace id from the specified traceparent string.
+     * @see <a href="https://www.w3.org/TR/trace-context/#traceparent-header">W3 traceparent spec</a>
+     *
+     * @param traceparent   The value from the {@code traceparent} HTTP header
+     * @return  The trace id from the traceparent string, or {@code Optional.empty()} if it is not present.
+     */
+    public static Optional<String> extractTraceId(String traceparent) {
+        return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
+    }
+
+    /**
+     * The name of the common {@code ?master_timeout} query parameter.
+     */
+    public static final String REST_MASTER_TIMEOUT_PARAM = "master_timeout";
+
+    /**
+     * The default value for the common {@code ?master_timeout} query parameter.
+     */
+    public static final TimeValue REST_MASTER_TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(30);
+
+    /**
+     * The name of the common {@code ?timeout} query parameter.
+     */
+    public static final String REST_TIMEOUT_PARAM = "timeout";
+
+    /**
+     * The name of the common {@code ?include_source_on_error} query parameter.
+     * By default, the document source is included in the error response in case of parsing errors. This parameter allows to disable this.
+     */
+    public static final String INCLUDE_SOURCE_ON_ERROR_PARAMETER = "include_source_on_error";
+
+    /**
+     * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?master_timeout} parameter
+     * @return the timeout from the request, with a default of {@link #REST_MASTER_TIMEOUT_DEFAULT} ({@code 30s}) if the request does not
+     *         specify the parameter
+     */
+    public static TimeValue getMasterNodeTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_MASTER_TIMEOUT_PARAM, REST_MASTER_TIMEOUT_DEFAULT);
+    }
+
+    /**
+     * Extract the {@code ?timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@link AcknowledgedRequest#DEFAULT_ACK_TIMEOUT} ({@code 30s}) if the request
+     *         does not specify the parameter
+     */
+    public static TimeValue getAckTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, DEFAULT_ACK_TIMEOUT);
+    }
+
+    /**
+     * Extract the {@code ?timeout} parameter from the request, returning null in case the parameter is missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@code null} if the request does not specify the parameter
+     */
+    @Nullable
+    public static TimeValue getTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, null);
+    }
+
+    /**
+     * Extract the {@code ?include_source_on_error} parameter from the request, returning {@code true} in case the parameter is missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?include_source_on_error} parameter
+     * @return the value of the {@code ?include_source_on_error} parameter from the request, with a default of {@code true} if the request
+     */
+    public static boolean getIncludeSourceOnError(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsBoolean(INCLUDE_SOURCE_ON_ERROR_PARAMETER, true);
+    }
+
+    // Remove the BWC support for the deprecated ?local parameter.
+    // NOTE: ensure each usage of this method has been deprecated for long enough to remove it.
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
+    public static void consumeDeprecatedLocalParameter(RestRequest request) {
+        if (request.hasParam("local") == false) {
+            return;
+        }
+        // Consume this param just for validation when in BWC mode.
+        final var local = request.paramAsBoolean("local", false);
+        if (request.getRestApiVersion() != RestApiVersion.V_8) {
+            DeprecationLogger.getLogger(TransportLocalClusterStateAction.class)
+                .critical(
+                    DeprecationCategory.API,
+                    "TransportLocalClusterStateAction-local-parameter",
+                    "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
+                );
+        }
     }
 }

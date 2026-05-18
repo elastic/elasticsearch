@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -45,8 +46,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -67,6 +71,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -88,14 +93,13 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
@@ -142,7 +146,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-    private boolean forceExecute;
+    private TransportReplicationAction.PrimaryActionExecution primaryActionExecution;
     private ClusterService clusterService;
     private TransportService transportService;
     private CapturingTransport transport;
@@ -163,7 +167,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        forceExecute = randomBoolean();
+        primaryActionExecution = randomFrom(TransportReplicationAction.PrimaryActionExecution.values());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
         transportService = transport.createTransportService(
@@ -253,7 +257,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary("index", true, 0));
 
-        ShardId shardId = new ShardId(clusterService.state().metadata().index("index").getIndex(), 0);
+        ShardId shardId = new ShardId(clusterService.state().metadata().getProject().index("index").getIndex(), 0);
 
         {
             setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
@@ -276,7 +280,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request requestWithTimeout = (globalBlock ? new Request(shardId) : new Request(shardId)).timeout("5ms");
+            Request requestWithTimeout = new Request(shardId).timeout(TimeValue.timeValueMillis(5));
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -317,7 +321,8 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertIndexShardUninitialized();
         }
         {
-            Request requestWithTimeout = new Request(new ShardId("unknown", "_na_", 0)).index("unknown").timeout("5ms");
+            Request requestWithTimeout = new Request(new ShardId("unknown", "_na_", 0)).index("unknown")
+                .timeout(TimeValue.timeValueMillis(5));
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -392,7 +397,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         final ClusterState clusterState = clusterService.state();
         final String targetAllocationID = clusterState.getRoutingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
-        final long primaryTerm = clusterState.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = clusterState.metadata().getProject().index(index).primaryTerm(shardId.id());
         final Request request = new Request(shardId);
         final ReplicationTask task = maybeTask();
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
@@ -424,7 +429,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         logger.debug("--> using initial state:\n{}", clusterService.state());
 
-        Request request = new Request(shardId).timeout("1ms");
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1));
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
         reroutePhase.run();
@@ -449,7 +454,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             .get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
-        assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+        assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction[p]"));
         assertIndexShardCounter(0);
     }
 
@@ -464,7 +469,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
 
         final ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metadata().getProject().index(index).primaryTerm(shardId.id());
         final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest =
             new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm);
 
@@ -493,6 +498,85 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(e.getCause().getCause(), hasToString(containsString("shard is not in primary mode")));
     }
 
+    public void testRetryOnRelocationMarksRequestAsRetried() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(3)));
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final ReplicationTask task = maybeTask();
+        final TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        if (randomBoolean()) {
+            final var markAsRetry = randomBoolean();
+            transport.handleRemoteError(
+                capturedRequests[0].requestId(),
+                new ReplicationOperation.RetryOnPrimaryException(
+                    shardId,
+                    "shard is not in primary mode",
+                    new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED),
+                    markAsRetry
+                )
+            );
+            assertThat(request.isRetrySet.get(), equalTo(markAsRetry));
+        } else {
+            final var e = randomRetryPrimaryException(shardId);
+            transport.handleRemoteError(capturedRequests[0].requestId(), e);
+            assertTrue(request.isRetrySet.get());
+        }
+        assertFalse(listener.isDone());
+    }
+
+    public void testSubsequentRetryWithPossiblyExecutedFalseShouldNotClearRetryFlag() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(3)));
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final ReplicationTask task = maybeTask();
+        final TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        // First failure: ConnectTransportException — the op may have been executed, so the request must be marked as retry
+        transport.handleRemoteError(
+            capturedRequests[0].requestId(),
+            new ConnectTransportException(clusterService.state().nodes().getLocalNode(), "simulated disconnect")
+        );
+        assertTrue("request should be marked as retry after ConnectTransportException", request.isRetrySet.get());
+
+        // Trigger a cluster state change so the retry proceeds and re-sends the request
+        setState(clusterService, clusterService.state());
+
+        capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        // Second failure: RetryOnPrimaryException with possiblyExecutedOnPrimary=false (relocation case).
+        // This must NOT clear the retry flag that was set by the first failure.
+        transport.handleRemoteError(
+            capturedRequests[0].requestId(),
+            new ReplicationOperation.RetryOnPrimaryException(
+                shardId,
+                "shard is not in primary mode",
+                new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED),
+                false
+            )
+        );
+        assertTrue("retry flag must not be cleared by a subsequent retry with possiblyExecutedOnPrimary=false", request.isRetrySet.get());
+        assertFalse(listener.isDone());
+    }
+
     /**
      * When relocating a primary shard, there is a cluster state update at the end of relocation where the active primary is switched from
      * the relocation source to the relocation target. If relocation source receives and processes this cluster state
@@ -512,7 +596,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state);
         logger.debug("--> relocation ongoing state:\n{}", clusterService.state());
 
-        Request request = new Request(shardId).timeout("1ms").routedBasedOnClusterVersion(clusterService.state().version() + 1);
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1))
+            .routedBasedOnClusterVersion(clusterService.state().version() + 1);
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
@@ -544,7 +629,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             .get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
-        assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+        assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction[p]"));
         assertIndexShardCounter(0);
     }
 
@@ -554,7 +639,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state(index, true, randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
 
-        Request request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout("1ms");
+        Request request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout(TimeValue.timeValueMillis(1));
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 
@@ -566,7 +651,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         // try again with a request that is based on a newer cluster state, make sure we waited until that
         // cluster state for the index to appear
-        request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout("1ms");
+        request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout(TimeValue.timeValueMillis(1));
         request.routedBasedOnClusterVersion(clusterService.state().version() + 1);
         listener = new PlainActionFuture<>();
         task = maybeTask();
@@ -577,7 +662,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertPhase(task, "failed");
         assertTrue(request.isRetrySet.get());
 
-        request = new Request(new ShardId(index, "_na_", 10)).timeout("1ms");
+        request = new Request(new ShardId(index, "_na_", 10)).timeout(TimeValue.timeValueMillis(1));
         listener = new PlainActionFuture<>();
         reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
@@ -592,13 +677,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(
             clusterService,
             clusterStateChanges.closeIndices(
-                clusterStateChanges.createIndex(clusterService.state(), new CreateIndexRequest(index)),
+                clusterStateChanges.createIndex(
+                    clusterService.state(),
+                    new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.NONE)
+                ),
                 new CloseIndexRequest(index)
             )
         );
-        assertThat(clusterService.state().metadata().indices().get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(clusterService.state().metadata().getProject().indices().get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        Request request = new Request(new ShardId(clusterService.state().metadata().indices().get(index).getIndex(), 0)).timeout("1ms");
+        Request request = new Request(new ShardId(clusterService.state().metadata().getProject().indices().get(index).getIndex(), 0))
+            .timeout(TimeValue.timeValueMillis(1));
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 
@@ -627,9 +716,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         Request request = new Request(shardId);
         boolean timeout = randomBoolean();
         if (timeout) {
-            request.timeout("0s");
+            request.timeout(TimeValue.ZERO);
         } else {
-            request.timeout("1h");
+            request.timeout(TimeValue.timeValueHours(1));
         }
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
@@ -638,19 +727,19 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(1));
-        assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
         assertPhase(task, "waiting_on_primary");
         assertFalse(request.isRetrySet.get());
-        transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
+        transport.handleRemoteError(capturedRequests[0].requestId(), randomRetryPrimaryException(shardId));
 
         if (timeout) {
             // we always try at least one more time on timeout
             assertThat(listener.isDone(), equalTo(false));
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+            assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
             assertPhase(task, "waiting_on_primary");
-            transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
+            transport.handleRemoteError(capturedRequests[0].requestId(), randomRetryPrimaryException(shardId));
             assertListenerThrows("must throw index not found exception", listener, ElasticsearchException.class);
             assertPhase(task, "failed");
         } else {
@@ -659,7 +748,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             setState(clusterService, clusterService.state());
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+            assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
         }
     }
 
@@ -695,10 +784,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
         if (clusterService.state().nodes().getLocalNodeId().equals(primaryNodeId)) {
-            assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+            assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction[p]"));
             assertPhase(task, "waiting_on_primary");
         } else {
-            assertThat(capturedRequests.get(0).action, equalTo("internal:testAction"));
+            assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction"));
             assertPhase(task, "rerouted");
         }
         assertFalse(request.isRetrySet.get());
@@ -710,13 +799,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState state = stateWithActivePrimary(index, true, randomInt(5));
         setState(clusterService, state);
-        Request request = new Request(shardId).timeout("1ms");
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1));
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
 
         ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metadata().getProject().index(index).primaryTerm(shardId.id());
         boolean executeOnPrimary = true;
         // whether shard has been marked as relocated already (i.e. relocation completed)
         if (primaryShard.relocating() && randomBoolean()) {
@@ -754,15 +843,15 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertThat(requests.size(), equalTo(1));
             assertThat(
                 "primary request was not delegated to relocation target",
-                requests.get(0).action,
+                requests.get(0).action(),
                 equalTo("internal:testAction2[p]")
             );
             @SuppressWarnings("unchecked")
             final TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
-                (TransportReplicationAction.ConcreteShardRequest<Request>) requests.get(0).request;
+                (TransportReplicationAction.ConcreteShardRequest<Request>) requests.get(0).request();
             assertThat("primary term not properly set on primary delegation", concreteShardRequest.getPrimaryTerm(), equalTo(primaryTerm));
             assertPhase(task, "primary_delegation");
-            transport.handleResponse(requests.get(0).requestId, new TestResponse());
+            transport.handleResponse(requests.get(0).requestId(), new TestResponse());
             assertTrue(listener.isDone());
             listener.get();
             assertPhase(task, "finished");
@@ -775,12 +864,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState state = state(index, true, ShardRoutingState.RELOCATING);
         final ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metadata().getProject().index(index).primaryTerm(shardId.id());
         String primaryTargetNodeId = primaryShard.relocatingNodeId();
         // simulate execution of the primary phase on the relocation target node
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryTargetNodeId)).build();
         setState(clusterService, state);
-        Request request = new Request(shardId).timeout("1ms");
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1));
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
@@ -826,7 +915,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             primary.close();
 
             assertTrue(closed.get());
-        })), Assert::assertNotNull, null, null);
+        })), Assert::assertNotNull, null);
     }
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
@@ -835,7 +924,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         ClusterState state = stateWithActivePrimary(index, true, 1 + randomInt(3), randomInt(2));
         logger.info("using state: {}", state);
         setState(clusterService, state);
-        final long primaryTerm = state.metadata().index(index).primaryTerm(0);
+        final long primaryTerm = state.metadata().getProject().index(index).primaryTerm(0);
         ReplicationOperation.Replicas<Request> proxy = action.newReplicasProxy();
 
         // check that at unknown node fails
@@ -863,9 +952,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertListenerThrows("non existent node should throw a NoNodeAvailableException", listener, NoNodeAvailableException.class);
 
         final IndexShardRoutingTable shardRoutings = state.routingTable().shardRoutingTable(shardId);
-        final ShardRouting replica = randomFrom(
-            shardRoutings.replicaShards().stream().filter(ShardRouting::assignedToNode).collect(Collectors.toList())
-        );
+        final ShardRouting replica = randomFrom(shardRoutings.replicaShards().stream().filter(ShardRouting::assignedToNode).toList());
         listener = new PlainActionFuture<>();
         proxy.performOn(replica, new Request(NO_SHARD_ID), primaryTerm, randomNonNegativeLong(), randomNonNegativeLong(), listener);
         assertFalse(listener.isDone());
@@ -877,15 +964,15 @@ public class TransportReplicationActionTests extends ESTestCase {
                 randomLong(),
                 randomLong()
             );
-            transport.handleResponse(captures[0].requestId, response);
+            transport.handleResponse(captures[0].requestId(), response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));
         } else if (randomBoolean()) {
-            transport.handleRemoteError(captures[0].requestId, new ElasticsearchException("simulated"));
+            transport.handleRemoteError(captures[0].requestId(), new ElasticsearchException("simulated"));
             assertTrue(listener.isDone());
             assertListenerThrows("listener should reflect remote error", listener, ElasticsearchException.class);
         } else {
-            transport.handleError(captures[0].requestId, new TransportException("simulated"));
+            transport.handleError(captures[0].requestId(), new TransportException("simulated"));
             assertTrue(listener.isDone());
             assertListenerThrows("listener should reflect remote error", listener, TransportException.class);
         }
@@ -914,7 +1001,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
         final ShardRouting routingEntry = clusterService.state().getRoutingTable().index("test").shard(0).primaryShard();
-        final long primaryTerm = clusterService.state().metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = clusterService.state().metadata().getProject().index(index).primaryTerm(shardId.id());
         Request request = new Request(shardId);
         TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
             new TransportReplicationAction.ConcreteShardRequest<>(request, routingEntry.allocationId().getId(), primaryTerm);
@@ -927,8 +1014,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
         Set<String> inSyncIds = randomBoolean()
             ? singleton(routingEntry.allocationId().getId())
-            : clusterService.state().metadata().index(index).inSyncAllocationIds(0);
-        ReplicationGroup replicationGroup = new ReplicationGroup(shardRoutingTable, inSyncIds, shardRoutingTable.getAllAllocationIds(), 0);
+            : clusterService.state().metadata().getProject().index(index).inSyncAllocationIds(0);
+        ReplicationGroup replicationGroup = new ReplicationGroup(
+            shardRoutingTable,
+            inSyncIds,
+            shardRoutingTable.getPromotableAllocationIds(),
+            0
+        );
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         PendingReplicationActions replicationActions = new PendingReplicationActions(shardId, threadPool);
         replicationActions.accept(replicationGroup);
@@ -939,7 +1031,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             ActionListener<Releasable> argument = (ActionListener<Releasable>) invocation.getArguments()[0];
             argument.onResponse(count::decrementAndGet);
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any(), eq(forceExecute));
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class), eq(shouldForceAcquirePermit(primaryActionExecution)));
         when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
@@ -963,8 +1055,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(requestsToReplicas, arrayWithSize(1));
         @SuppressWarnings("unchecked")
         TransportReplicationAction.ConcreteShardRequest<Request> shardRequest = (TransportReplicationAction.ConcreteShardRequest<
-            Request>) requestsToReplicas[0].request;
+            Request>) requestsToReplicas[0].request();
         assertThat(shardRequest.getPrimaryTerm(), equalTo(primaryTerm));
+    }
+
+    private boolean shouldForceAcquirePermit(TransportReplicationAction.PrimaryActionExecution primaryActionExecution) {
+        return switch (primaryActionExecution) {
+            case Force -> true;
+            case RejectOnOverload -> false;
+        };
     }
 
     public void testCounterOnPrimary() throws Exception {
@@ -975,7 +1074,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
         final ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metadata().getProject().index(index).primaryTerm(shardId.id());
         Request request = new Request(shardId);
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
@@ -1084,7 +1183,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         int numReplicas = randomIntBetween(0, 5);
         int idxSettingWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
         ClusterState state = stateWithActivePrimary(indexName, randomBoolean(), numReplicas);
-        IndexMetadata indexMetadata = state.metadata().index(indexName);
+        IndexMetadata indexMetadata = state.metadata().getProject().index(indexName);
         Settings indexSettings = Settings.builder()
             .put(indexMetadata.getSettings())
             .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(idxSettingWaitForActiveShards))
@@ -1094,13 +1193,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         state = ClusterState.builder(state).metadata(metadataBuilder).build();
         setState(clusterService, state);
         Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.DEFAULT); // set to default so index settings are used
-        action.resolveRequest(state.metadata().index(indexName), request);
+        action.resolveRequest(state.metadata().getProject().index(indexName), request);
         assertEquals(ActiveShardCount.from(idxSettingWaitForActiveShards), request.waitForActiveShards());
 
         // test wait_for_active_shards when default not set on the request (request value should be honored over index setting)
         int requestWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
         request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(requestWaitForActiveShards));
-        action.resolveRequest(state.metadata().index(indexName), request);
+        action.resolveRequest(state.metadata().getProject().index(indexName), request);
         assertEquals(ActiveShardCount.from(requestWaitForActiveShards), request.waitForActiveShards());
     }
 
@@ -1110,11 +1209,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
         setState(clusterService, state(index, true, ShardRoutingState.STARTED));
         final ShardRouting primary = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
-        final long primaryTerm = clusterService.state().metadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
+        final long primaryTerm = clusterService.state().metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
         PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
         final boolean wrongAllocationId = randomBoolean();
         final long requestTerm = wrongAllocationId && randomBoolean() ? primaryTerm : primaryTerm + randomIntBetween(1, 10);
-        Request request = new Request(shardId).timeout("1ms");
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1));
         action.handlePrimaryRequest(
             new TransportReplicationAction.ConcreteShardRequest<>(
                 request,
@@ -1130,7 +1229,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         } catch (ExecutionException execException) {
             Throwable throwable = execException.getCause();
             logger.debug("got exception:", throwable);
-            assertTrue(throwable.getClass() + " is not a retry exception", action.retryPrimaryException(throwable));
+            assertTrue(throwable.getClass() + " is not a retry exception", TransportReplicationAction.retryPrimaryException(throwable));
             if (wrongAllocationId) {
                 assertThat(
                     throwable.getMessage(),
@@ -1164,7 +1263,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state);
 
         PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
-        Request request = new Request(shardId).timeout("1ms");
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMillis(1));
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(
                 request,
@@ -1181,7 +1280,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             fail("using a wrong aid didn't fail the operation");
         } catch (ExecutionException execException) {
             Throwable throwable = execException.getCause();
-            if (action.retryPrimaryException(throwable) == false) {
+            if (TransportReplicationAction.retryPrimaryException(throwable) == false) {
                 throw new AssertionError("thrown exception is not retriable", throwable);
             }
             assertThat(throwable.getMessage(), containsString("_not_a_valid_aid_"));
@@ -1196,7 +1295,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
         final ShardRouting replica = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
-        final long primaryTerm = state.metadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
+        final long primaryTerm = state.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
         // simulate execution of the node holding the replica
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(replica.currentNodeId())).build();
         setState(clusterService, state);
@@ -1254,24 +1353,24 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
         final CapturingTransport.CapturedRequest capturedRequest = capturedRequests.get(0);
-        assertThat(capturedRequest.action, equalTo("internal:testActionWithExceptions[r]"));
-        assertThat(capturedRequest.request, instanceOf(TransportReplicationAction.ConcreteReplicaRequest.class));
+        assertThat(capturedRequest.action(), equalTo("internal:testActionWithExceptions[r]"));
+        assertThat(capturedRequest.request(), instanceOf(TransportReplicationAction.ConcreteReplicaRequest.class));
         assertThat(
-            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getGlobalCheckpoint(),
+            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request()).getGlobalCheckpoint(),
             equalTo(checkpoint)
         );
         assertThat(
-            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getMaxSeqNoOfUpdatesOrDeletes(),
+            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request()).getMaxSeqNoOfUpdatesOrDeletes(),
             equalTo(maxSeqNoOfUpdatesOrDeletes)
         );
-        assertConcreteShardRequest(capturedRequest.request, request, replica.allocationId());
+        assertConcreteShardRequest(capturedRequest.request(), request, replica.allocationId());
     }
 
     public void testRetryOnReplicaWithRealTransport() throws Exception {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final ClusterState initialState = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
         final ShardRouting replica = initialState.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
-        final long primaryTerm = initialState.metadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
+        final long primaryTerm = initialState.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
         // simulate execution of the node holding the replica
         final ClusterState stateWithNodes = ClusterState.builder(initialState)
             .nodes(DiscoveryNodes.builder(initialState.nodes()).localNodeId(replica.currentNodeId()))
@@ -1282,7 +1381,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final Transport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -1297,7 +1396,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            clusterService.localNode().getId()
+
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -1362,7 +1463,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             shardStateAction,
             threadPool
         );
-        assertFalse(action.isRetryableClusterBlockException(randomRetryPrimaryException(new ShardId("index", "_na_", 0))));
+        assertFalse(
+            TransportReplicationAction.isRetryableClusterBlockException(randomRetryPrimaryException(new ShardId("index", "_na_", 0)))
+        );
 
         final boolean retryable = randomBoolean();
         ClusterBlock randomBlock = new ClusterBlock(
@@ -1374,7 +1477,10 @@ public class TransportReplicationActionTests extends ESTestCase {
             randomFrom(RestStatus.values()),
             EnumSet.of(randomFrom(ClusterBlockLevel.values()))
         );
-        assertEquals(retryable, action.isRetryableClusterBlockException(new ClusterBlockException(singleton(randomBlock))));
+        assertEquals(
+            retryable,
+            TransportReplicationAction.isRetryableClusterBlockException(new ClusterBlockException(singleton(randomBlock)))
+        );
     }
 
     private void assertConcreteShardRequest(TransportRequest capturedRequest, Request expectedRequest, AllocationId expectedAllocationId) {
@@ -1439,9 +1545,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        public void onRetry() {
-            super.onRetry();
-            isRetrySet.set(true);
+        public void onRetry(boolean possiblyExecuted) {
+            super.onRetry(possiblyExecuted);
+            if (possiblyExecuted) {
+                isRetrySet.set(true);
+            }
         }
 
         @Override
@@ -1456,7 +1564,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         TestResponse() {
-            setShardInfo(new ShardInfo());
+            setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
         }
     }
 
@@ -1493,9 +1601,10 @@ public class TransportReplicationActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME,
-                false,
-                forceExecute
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                SyncGlobalCheckpointAfterOperation.DoNotSync,
+                primaryActionExecution,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
         }
 
@@ -1527,14 +1636,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            final IndexMetadata indexSafe = state.metadata().getIndexSafe(index);
+            final IndexMetadata indexSafe = state.metadata().getProject().getIndexSafe(index);
             return mockIndexService(indexSafe, clusterService);
         });
         when(indicesService.indexService(any(Index.class))).then(invocation -> {
             Index index = (Index) invocation.getArguments()[0];
             final ClusterState state = clusterService.state();
-            if (state.metadata().hasIndex(index.getName())) {
-                return mockIndexService(clusterService.state().metadata().getIndexSafe(index), clusterService);
+            if (state.metadata().getProject().hasIndex(index.getName())) {
+                return mockIndexService(clusterService.state().metadata().getProject().getIndexSafe(index), clusterService);
             } else {
                 return null;
             }
@@ -1570,20 +1679,26 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), any(), eq(forceExecute));
+        }).when(indexShard)
+            .acquirePrimaryOperationPermit(
+                any(ActionListener.class),
+                any(Executor.class),
+                eq(shouldForceAcquirePermit(primaryActionExecution))
+            );
+        when(indexShard.isPrimaryMode()).thenAnswer(invocation -> isPrimaryMode.get());
         doAnswer(invocation -> {
             long term = (Long) invocation.getArguments()[0];
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[3];
             final long primaryTerm = indexShard.getPendingPrimaryTerm();
             if (term < primaryTerm) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
+                    Strings.format("%s operation term [%d] is too old (current [%d])", shardId, term, primaryTerm)
                 );
             }
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
             return null;
-        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), anyString(), any());
+        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), any(Executor.class));
         when(indexShard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
@@ -1598,7 +1713,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indexShard.isRelocatedPrimary()).thenAnswer(invocationOnMock -> isRelocated.get());
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(
-            i -> clusterService.state().metadata().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
+            i -> clusterService.state().metadata().getProject().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
         );
 
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
@@ -1613,4 +1728,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         return new TestTransportChannel(listener);
     }
 
+    public static long getRoutedBasedOnClusterVersion(ReplicationRequest<?> request) {
+        return request.routedBasedOnClusterVersion();
+    }
 }

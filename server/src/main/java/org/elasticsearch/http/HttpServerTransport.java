@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -15,8 +16,11 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.Map;
+
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
+    String HTTP_PROFILE_NAME = ".http";
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
 
     BoundTransportAddress boundAddress();
@@ -51,5 +55,8 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
+        default Map<String, HttpRouteStats> getStats() {
+            return Map.of();
+        }
     }
 }

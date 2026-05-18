@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -16,13 +17,21 @@ import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.ChangeType;
 import org.gradle.work.FileChange;
@@ -41,16 +50,26 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
+import javax.inject.Inject;
+
 /**
- * Incremental task to validate a set of JSON files against against a schema.
+ * Incremental task to validate a set of JSON files against a schema.
  */
+@CacheableTask
 public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     private File jsonSchema;
     private File report;
     private FileCollection inputFiles;
+    private final ProblemReporter problemReporter;
+
+    @Inject
+    public ValidateJsonAgainstSchemaTask(Problems problems) {
+        this.problemReporter = problems.getReporter();
+    }
 
     @Incremental
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getInputFiles() {
         return inputFiles;
     }
@@ -60,6 +79,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     }
 
     @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getJsonSchema() {
         return jsonSchema;
     }
@@ -118,11 +138,16 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
                 errors.values().stream().flatMap(Collection::stream).forEach(printWriter::println);
             }
             StringBuilder sb = new StringBuilder();
-            sb.append("Error validating JSON. See the report at: ");
+            sb.append("Verification failed. See the report at: ");
             sb.append(getReport().toURI().toASCIIString());
             sb.append(System.lineSeparator());
             sb.append(
-                String.format("Verification failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
+                String.format(
+                    "Error validating %s: %d files contained %d violations",
+                    getFileType(),
+                    errors.keySet().size(),
+                    errors.values().size()
+                )
             );
             throw new JsonSchemaException(sb.toString());
         }
@@ -141,6 +166,13 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             getLogger().error("[validate {}][ERROR][{}][{}]", fileType, file.getName(), message.toString());
             errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
                 .add(String.format("%s: %s", file.getAbsolutePath(), message.toString()));
+            problemReporter.report(
+                ProblemId.create("schema-violation", fileType + " schema violation", ElasticsearchBuildProblems.JSON_VALIDATION),
+                spec -> spec.contextualLabel(fileType + " validation error in " + file.getName() + ": " + message)
+                    .severity(Severity.ERROR)
+                    .fileLocation(file.getAbsolutePath())
+                    .solution("Fix the " + fileType + " file to conform to the schema at " + getJsonSchema().getAbsolutePath())
+            );
         }
     }
 }

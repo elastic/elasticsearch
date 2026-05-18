@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.searchafter;
@@ -12,21 +13,20 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -57,10 +57,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(sortValues.length);
-        for (Object fieldValue : sortValues) {
-            out.writeGenericValue(fieldValue);
-        }
+        out.writeArray(StreamOutput::writeGenericValue, sortValues);
     }
 
     public SearchAfterBuilder setSortValues(Object[] values) {
@@ -105,7 +102,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             );
         }
 
-        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+        if (collapseField != null && (sortFields.length > 1 || Objects.equals(sortFields[0].getField(), collapseField) == false)) {
             throw new IllegalArgumentException(
                 "Cannot use [collapse] in conjunction with ["
                     + SEARCH_AFTER.getPreferredName()
@@ -157,22 +154,28 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         try {
             switch (sortType) {
                 case DOC:
-                    if (value instanceof Number) {
-                        return ((Number) value).intValue();
+                    if (value instanceof Number valueNumber) {
+                        return (valueNumber).intValue();
                     }
                     return Integer.parseInt(value.toString());
 
-                case SCORE:
+                case INT:
+                    // As mixing INT and LONG sort in a single request is allowed,
+                    // we may get search_after values that are larger than Integer.MAX_VALUE
+                    // in this case convert them to Integer.MAX_VALUE
+                    if (value instanceof Number valueNumber) {
+                        if (valueNumber.longValue() > Integer.MAX_VALUE) {
+                            valueNumber = Integer.MAX_VALUE;
+                        }
+                        return (valueNumber).intValue();
+                    }
+                    return Integer.parseInt(value.toString());
+
+                case SCORE, FLOAT:
                     if (value instanceof Number) {
                         return ((Number) value).floatValue();
                     }
                     return Float.parseFloat(value.toString());
-
-                case INT:
-                    if (value instanceof Number) {
-                        return ((Number) value).intValue();
-                    }
-                    return Integer.parseInt(value.toString());
 
                 case DOUBLE:
                     if (value instanceof Number) {
@@ -191,15 +194,14 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                         () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); }
                     );
 
-                case FLOAT:
-                    if (value instanceof Number) {
-                        return ((Number) value).floatValue();
-                    }
-                    return Float.parseFloat(value.toString());
-
                 case STRING_VAL:
                 case STRING:
-                    return format.parseBytesRef(value.toString());
+                    if (value instanceof BytesRef bytesRef) {
+                        // _tsid is stored and ordered as BytesRef. We should not format it
+                        return bytesRef;
+                    } else {
+                        return format.parseBytesRef(value);
+                    }
 
                 default:
                     throw new IllegalArgumentException(
@@ -222,7 +224,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         return builder;
     }
 
-    void innerToXContent(XContentBuilder builder) throws IOException {
+    public void innerToXContent(XContentBuilder builder) throws IOException {
         builder.array(SEARCH_AFTER.getPreferredName(), sortValues);
     }
 
@@ -288,7 +290,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         if ((other instanceof SearchAfterBuilder) == false) {
             return false;
         }
-        return Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);
+        boolean value = Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);
+        return value;
     }
 
     @Override
@@ -298,13 +301,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to build xcontent.", e);
-        }
+        return Strings.toString(this, true, true);
     }
 }

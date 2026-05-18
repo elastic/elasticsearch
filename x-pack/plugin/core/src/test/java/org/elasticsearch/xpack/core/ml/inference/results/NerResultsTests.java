@@ -23,13 +23,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
-    @Override
-    protected Writeable.Reader<NerResults> instanceReader() {
-        return NerResults::new;
-    }
 
-    @Override
-    protected NerResults createTestInstance() {
+    public static NerResults createRandomResults() {
         int numEntities = randomIntBetween(0, 3);
 
         return new NerResults(
@@ -46,6 +41,21 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
             ).limit(numEntities).collect(Collectors.toList()),
             randomBoolean()
         );
+    }
+
+    @Override
+    protected Writeable.Reader<NerResults> instanceReader() {
+        return NerResults::new;
+    }
+
+    @Override
+    protected NerResults createTestInstance() {
+        return createRandomResults();
+    }
+
+    @Override
+    protected NerResults mutateInstance(NerResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @SuppressWarnings("unchecked")
@@ -82,15 +92,12 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
 
     @Override
     @SuppressWarnings("unchecked")
-    void assertFieldValues(NerResults createdInstance, IngestDocument document, String resultsField) {
-        assertThat(
-            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), String.class),
-            equalTo(createdInstance.getAnnotatedResult())
-        );
+    void assertFieldValues(NerResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertThat(document.getFieldValue(parentField + resultsField, String.class), equalTo(createdInstance.getAnnotatedResult()));
 
         if (createdInstance.getEntityGroups().size() > 0) {
             List<Map<String, Object>> resultList = (List<Map<String, Object>>) document.getFieldValue(
-                resultsField + "." + ENTITY_FIELD,
+                parentField + ENTITY_FIELD,
                 List.class
             );
             assertThat(resultList.size(), equalTo(createdInstance.getEntityGroups().size()));

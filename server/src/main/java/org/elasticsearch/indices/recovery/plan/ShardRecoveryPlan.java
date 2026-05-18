@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery.plan;
@@ -16,7 +17,6 @@ import org.elasticsearch.repositories.IndexId;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -68,11 +68,11 @@ public class ShardRecoveryPlan {
     }
 
     public List<String> getFilesPresentInTargetNames() {
-        return filesPresentInTarget.stream().map(StoreFileMetadata::name).collect(Collectors.toList());
+        return filesPresentInTarget.stream().map(StoreFileMetadata::name).toList();
     }
 
     public List<Long> getFilesPresentInTargetSizes() {
-        return filesPresentInTarget.stream().map(StoreFileMetadata::length).collect(Collectors.toList());
+        return filesPresentInTarget.stream().map(StoreFileMetadata::length).toList();
     }
 
     public List<StoreFileMetadata> getSourceFilesToRecover() {
@@ -80,11 +80,11 @@ public class ShardRecoveryPlan {
     }
 
     public List<String> getFilesToRecoverNames() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::name).collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::name).toList();
     }
 
     public List<Long> getFilesToRecoverSizes() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::length).collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::length).toList();
     }
 
     public SnapshotFilesToRecover getSnapshotFilesToRecover() {
@@ -127,26 +127,11 @@ public class ShardRecoveryPlan {
         );
     }
 
-    public static class SnapshotFilesToRecover implements Iterable<BlobStoreIndexShardSnapshot.FileInfo> {
+    public record SnapshotFilesToRecover(IndexId indexId, String repository, List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles)
+        implements
+            Iterable<BlobStoreIndexShardSnapshot.FileInfo> {
+
         public static final SnapshotFilesToRecover EMPTY = new SnapshotFilesToRecover(null, null, emptyList());
-
-        private final IndexId indexId;
-        private final String repository;
-        private final List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles;
-
-        public SnapshotFilesToRecover(IndexId indexId, String repository, List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles) {
-            this.indexId = indexId;
-            this.repository = repository;
-            this.snapshotFiles = snapshotFiles;
-        }
-
-        public IndexId getIndexId() {
-            return indexId;
-        }
-
-        public String getRepository() {
-            return repository;
-        }
 
         public int size() {
             return snapshotFiles.size();
@@ -154,10 +139,6 @@ public class ShardRecoveryPlan {
 
         public boolean isEmpty() {
             return snapshotFiles.isEmpty();
-        }
-
-        public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles() {
-            return snapshotFiles;
         }
 
         @Override

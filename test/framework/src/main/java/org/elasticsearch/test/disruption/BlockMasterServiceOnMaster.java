@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -43,27 +43,28 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.getMasterService()
+            .submitUnbatchedStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                started.countDown();
-                CountDownLatch latch = disruptionLatch.get();
-                if (latch != null) {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        Throwables.rethrow(e);
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    started.countDown();
+                    CountDownLatch latch = disruptionLatch.get();
+                    if (latch != null) {
+                        try {
+                            latch.await();
+                        } catch (InterruptedException e) {
+                            Throwables.rethrow(e);
+                        }
                     }
+                    return currentState;
                 }
-                return currentState;
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("unexpected error during disruption", e);
-            }
-        }, ClusterStateTaskExecutor.unbatched());
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error during disruption", e);
+                }
+            });
         try {
             started.await();
         } catch (InterruptedException e) {}

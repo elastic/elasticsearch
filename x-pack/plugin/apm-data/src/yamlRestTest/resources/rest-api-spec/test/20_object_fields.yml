@@ -1,0 +1,129 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test traces-apm-* unmapped object fields":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          # http.request.body should be mapped as an object without dynamic mapping,
+          # allowing differing types to be used in http.request.body.original, and
+          # to avoid creating arbitrarily many fields.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": "text"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": {"field": "value"}}}'
+
+          # http.request.cookies should be mapped as an object without dynamic mapping,
+          # to avoid creating arbitrarily many fields.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.cookies": {"a": "b"}}'
+
+          # span.stacktrace is a complex object whose structure may
+          # change over time, and which is always treated as an object.
+          # Moreover, stacktraces may contain dynamic "vars" whose
+          # types may change from one document to the next.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "span.stacktrace": [{"vars": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "span.stacktrace": [{"vars": {"a": "b"}}]}'
+
+          # transaction.custom is a complex object of fields with
+          # arbitrary field types that may change from one document
+          # to the next.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "transaction.custom": {"a": {"b": 123}}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "transaction.custom": {"a": "b"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields:
+            - "http.request.body"
+            - "http.request.cookies"
+            - "http.request.env"
+            - "span.stacktrace"
+            - "transaction.custom"
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0.fields: null }
+  - match: { hits.hits.1.fields: null }
+  - match: { hits.hits.2.fields: null }
+  - match: { hits.hits.3.fields: null }
+  - match: { hits.hits.4.fields: null }
+  - match: { hits.hits.5.fields: null }
+  - match: { hits.hits.6.fields: null }
+
+---
+"Test logs-apm.error-* unmapped object fields":
+  - do:
+      bulk:
+        index: logs-apm.error-testing
+        refresh: true
+        body:
+          # http.request.body has the same requirements as http.request.body
+          # in traces-apm-* data streams.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": "text"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.body": {"original": {"field": "value"}}}'
+
+          # http.request.cookies has the same requirements as http.request.bookies
+          # in traces-apm-* data streams.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "http.request.cookies": {"a": "b"}}'
+
+          # error.{exception,log}.stacktrace have the same requirements as span.stacktrace.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception.stacktrace": [{"vars": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception.stacktrace": [{"vars": {"a": "b"}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.log.stacktrace": [{"vars": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.log.stacktrace": [{"vars": {"a": "b"}}]}'
+
+          # error.exception.attributes is a complex object with arbitrary field types
+          # that may change from one document to the next, and should be mapped as an
+          # object without dynamic mapping to avoid creating arbitrarily many fields.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception": [{"attributes": {"a": 123}}]}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.exception": [{"attributes": {"a": "b"}}]}'
+
+          # error.custom has the same requirements as transaction.custom.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.custom": {"a": {"b": 123}}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "error.custom": {"a": "b"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-apm.error-testing
+        body:
+          size: 1000
+          fields:
+            - "http.*"
+            - "error.*"
+  - length: { hits.hits: 11 }
+  - match: { hits.hits.0.fields: null }
+  - match: { hits.hits.1.fields: null }
+  - match: { hits.hits.2.fields: null }
+  - match: { hits.hits.3.fields: null }
+  - match: { hits.hits.4.fields: null }
+  - match: { hits.hits.5.fields: null }
+  - match: { hits.hits.6.fields: null }
+  - match: { hits.hits.7.fields: null }
+  - match: { hits.hits.8.fields: null }
+  - match: { hits.hits.9.fields: null }
+  - match: { hits.hits.10.fields: null }

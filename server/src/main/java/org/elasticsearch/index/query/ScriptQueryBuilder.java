@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -17,9 +18,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
+public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
 
     private final Script script;
@@ -181,7 +184,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             return new ConstantScoreWeight(this, boost) {
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                     final FilterScript leafScript = filterScript.newInstance(new DocValuesDocReader(lookup, context));
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
@@ -198,7 +201,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                             return 1000f;
                         }
                     };
-                    return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                    Scorer scorer = new ConstantScoreScorer(score(), scoreMode, twoPhase);
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override
@@ -222,4 +226,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         return Objects.equals(script, other.script);
     }
 
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
 }

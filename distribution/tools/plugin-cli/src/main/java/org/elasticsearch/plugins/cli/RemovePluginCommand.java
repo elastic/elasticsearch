@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.cli;
@@ -11,7 +12,8 @@ package org.elasticsearch.plugins.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
 
@@ -33,10 +35,10 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
+    public void execute(final Terminal terminal, final OptionSet options, final Environment env, ProcessInfo processInfo) throws Exception {
         SyncPluginsAction.ensureNoConfigFile(env);
 
-        final List<PluginDescriptor> plugins = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());
+        final List<InstallablePlugin> plugins = arguments.values(options).stream().map(InstallablePlugin::new).collect(Collectors.toList());
 
         final RemovePluginAction action = new RemovePluginAction(terminal, env, options.has(purgeOption));
         action.execute(plugins);

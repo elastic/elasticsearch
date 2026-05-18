@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -71,13 +73,6 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
         return this;
     }
 
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);
@@ -96,7 +91,7 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
         if (bucketsPaths.length != 1) {
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
-        context.validateParentAggSequentiallyOrdered(NAME, name);
+        context.validateParentAggSequentiallyOrderedWithoutSkips(NAME, name);
     }
 
     @Override
@@ -124,5 +119,10 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

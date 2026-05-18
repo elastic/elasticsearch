@@ -1,0 +1,70 @@
+###########################################################
+# These tests were created specifically to satisfy the needs
+# of the docs, and the lookup-join.md file in particular.
+# Since those docs do not display output results, we only
+# need to ensure that the tests run without error.
+# This requires index mappings to be set up correctly,
+# but no data needs to be loaded into the indices.
+###########################################################
+
+# **IP Threat correlation**: This query would allow you to see if any source
+# IPs match known malicious addresses.
+
+lookupJoinSourceIp
+required_capability: join_lookup_v12
+
+// tag::lookupJoinSourceIp[]
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+// end::lookupJoinSourceIp[]
+;
+
+@timestamp:datetime | destination.IP:ip | message:keyword | source.IP:ip | threat_level:keyword
+;
+
+# To filter only for those rows that have a matching `threat_list` entry,
+# use `WHERE ... IS NOT NULL` with a field from the lookup index:
+
+lookupJoinSourceIpWhere
+required_capability: join_lookup_v12
+
+// tag::lookupJoinSourceIpWhere[]
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
+// end::lookupJoinSourceIpWhere[]
+;
+
+@timestamp:datetime | destination.IP:ip | message:keyword | source.IP:ip | threat_level:keyword
+;
+
+# **Host metadata correlation**: This query pulls in environment or
+# ownership details for each host to correlate with your metrics data.
+
+lookupJoinHostNameTwice
+required_capability: join_lookup_v12
+
+// tag::lookupJoinHostNameTwice[]
+FROM system_metrics
+| LOOKUP JOIN host_inventory ON host.name
+| LOOKUP JOIN ownerships ON host.name
+// end::lookupJoinHostNameTwice[]
+;
+
+count:long | details:keyword | host.name:keyword | description:keyword | host.os:keyword | host.version:keyword | owner.name:keyword
+;
+
+# **Service ownership mapping**: This query would show logs with the owning
+# team or escalation information for faster triage and incident response.
+
+lookupJoinIpServiceId
+required_capability: join_lookup_v12
+
+// tag::lookupJoinServiceId[]
+FROM app_logs
+| LOOKUP JOIN service_owners ON service_id
+// end::lookupJoinServiceId[]
+;
+
+@timestamp:datetime | message:keyword | service_id:keyword | owner:keyword
+;

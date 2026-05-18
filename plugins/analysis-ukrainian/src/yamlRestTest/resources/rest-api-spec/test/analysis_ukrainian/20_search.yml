@@ -15,7 +15,7 @@
     - do:
         index:
             index:  test
-            id:     1
+            id:     "1"
             body:   { "text": "Ця п'єса у свою чергу рухається по колу." }
     - do:
         indices.refresh: {}

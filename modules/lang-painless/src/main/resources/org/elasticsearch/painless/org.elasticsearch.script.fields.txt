@@ -1,9 +1,10 @@
 #
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
 # The whitelist for the fields api
@@ -92,9 +93,17 @@ class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
   ZonedDateTime get(int, ZonedDateTime)
 }
 
-class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.BaseKeywordDocValuesField @dynamic_type {
   String get(String)
   String get(int, String)
+}
+
+# subclass of BaseKeywordDocValuesField
+class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
+}
+
+# subclass of BaseKeywordDocValuesField
+class org.elasticsearch.script.field.FlattenedDocValuesField @dynamic_type {
 }
 
 class org.elasticsearch.script.field.GeoPointDocValuesField @dynamic_type {
@@ -121,4 +130,40 @@ class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {
 
 # subclass of AbstractLongDocValuesField
 class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {
+}
+
+class org.elasticsearch.script.field.vectors.RankVectors {
+    RankVectors EMPTY
+    float[] getMagnitudes()
+
+    Iterator getVectors()
+    boolean isEmpty()
+    int getDims()
+    int size()
+}
+
+class org.elasticsearch.script.field.vectors.RankVectorsDocValuesField {
+    RankVectors get()
+    RankVectors get(RankVectors)
+}
+
+class org.elasticsearch.script.field.vectors.DenseVector {
+    DenseVector EMPTY
+    float getMagnitude()
+
+    # handle List<Number>, float[], and byte[] arguments
+    double dotProduct(Object)
+    double l1Norm(Object)
+    double l2Norm(Object)
+    double cosineSimilarity(Object)
+
+    float[] getVector()
+    boolean isEmpty()
+    int getDims()
+    int size()
+}
+
+class org.elasticsearch.script.field.vectors.DenseVectorDocValuesField {
+    DenseVector get()
+    DenseVector get(DenseVector)
 }

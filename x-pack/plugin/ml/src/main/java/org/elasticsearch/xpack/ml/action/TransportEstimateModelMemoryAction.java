@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
@@ -42,7 +43,13 @@ public class TransportEstimateModelMemoryAction extends HandledTransportAction<
 
     @Inject
     public TransportEstimateModelMemoryAction(TransportService transportService, ActionFilters actionFilters) {
-        super(EstimateModelMemoryAction.NAME, transportService, actionFilters, EstimateModelMemoryAction.Request::new);
+        super(
+            EstimateModelMemoryAction.NAME,
+            transportService,
+            actionFilters,
+            EstimateModelMemoryAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     @Override

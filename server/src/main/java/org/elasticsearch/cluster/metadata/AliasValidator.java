@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -21,26 +22,31 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Optional;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 /**
  * Validator for an alias, to be used before adding an alias to the index metadata
  * and make sure the alias is valid
  */
 public class AliasValidator {
+
+    private AliasValidator() {
+        // utility class
+    }
+
     /**
      * Allows to validate an {@link org.elasticsearch.action.admin.indices.alias.Alias} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAlias(Alias alias, String index, Metadata metadata) {
-        validateAlias(alias.name(), index, alias.indexRouting(), lookup(metadata));
+    public static void validateAlias(Alias alias, String index, ProjectMetadata projectMetadata) {
+        validateAlias(alias.name(), index, alias.indexRouting(), lookup(projectMetadata));
     }
 
     /**
@@ -48,8 +54,8 @@ public class AliasValidator {
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAliasMetadata(AliasMetadata aliasMetadata, String index, Metadata metadata) {
-        validateAlias(aliasMetadata.alias(), index, aliasMetadata.indexRouting(), lookup(metadata));
+    public static void validateAliasMetadata(AliasMetadata aliasMetadata, String index, ProjectMetadata projectMetadata) {
+        validateAlias(aliasMetadata.alias(), index, aliasMetadata.indexRouting(), lookup(projectMetadata));
     }
 
     /**
@@ -59,7 +65,7 @@ public class AliasValidator {
      * without validating it as a filter though.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAliasStandalone(Alias alias) {
+    public static void validateAliasStandalone(Alias alias) {
         validateAliasStandalone(alias.name(), alias.indexRouting());
         if (Strings.hasLength(alias.filter())) {
             try {
@@ -73,7 +79,7 @@ public class AliasValidator {
     /**
      * Validate a proposed alias.
      */
-    public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, String> lookup) {
+    public static void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, String> lookup) {
         validateAliasStandalone(alias, indexRouting);
 
         if (Strings.hasText(index) == false) {
@@ -82,11 +88,18 @@ public class AliasValidator {
 
         String sameNameAsAlias = lookup.apply(alias);
         if (sameNameAsAlias != null) {
-            throw new InvalidAliasNameException(alias, "an index or data stream exists with the same name as the alias");
+            // The enumeration in this error message is gated by the ES|QL external data sources feature flag. When the
+            // flag is off, datasets are not user-visible (no CRUD API) and must not appear in messages users hit during
+            // ordinary index/alias/data-stream/view operations. Collision detection runs unconditionally because it
+            // depends on cluster-state contents, not on the flag; only the description string switches.
+            String message = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                ? "an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
+                : "an index, data stream, or ESQL view exists with the same name as the alias";
+            throw new InvalidAliasNameException(alias, message);
         }
     }
 
-    void validateAliasStandalone(String alias, String indexRouting) {
+    static void validateAliasStandalone(String alias, String indexRouting) {
         if (Strings.hasText(alias) == false) {
             throw new IllegalArgumentException("alias name is required");
         }
@@ -101,7 +114,7 @@ public class AliasValidator {
      * provided {@link SearchExecutionContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(
+    public static void validateAliasFilter(
         String alias,
         String filter,
         SearchExecutionContext searchExecutionContext,
@@ -110,7 +123,11 @@ public class AliasValidator {
         assert searchExecutionContext != null;
         try (
             XContentParser parser = XContentFactory.xContent(filter)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    filter
+                )
         ) {
             validateAliasFilter(parser, searchExecutionContext);
         } catch (Exception e) {
@@ -123,7 +140,7 @@ public class AliasValidator {
      * provided {@link SearchExecutionContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(
+    public static void validateAliasFilter(
         String alias,
         BytesReference filter,
         SearchExecutionContext searchExecutionContext,
@@ -132,10 +149,11 @@ public class AliasValidator {
         assert searchExecutionContext != null;
 
         try (
-            InputStream inputStream = filter.streamInput();
-            XContentParser parser = XContentFactory.xContentType(inputStream)
-                .xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter.streamInput())
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                filter,
+                XContentHelper.xContentType(filter)
+            )
         ) {
             validateAliasFilter(parser, searchExecutionContext);
         } catch (Exception e) {
@@ -144,13 +162,13 @@ public class AliasValidator {
     }
 
     private static void validateAliasFilter(XContentParser parser, SearchExecutionContext searchExecutionContext) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, searchExecutionContext, true);
         queryBuilder.toQuery(searchExecutionContext);
     }
 
-    private static Function<String, String> lookup(Metadata metadata) {
-        return name -> Optional.ofNullable(metadata.getIndicesLookup().get(name))
+    private static Function<String, String> lookup(ProjectMetadata projectMetadata) {
+        return name -> Optional.ofNullable(projectMetadata.getIndicesLookup().get(name))
             .filter(indexAbstraction -> indexAbstraction.getType() != IndexAbstraction.Type.ALIAS)
             .map(IndexAbstraction::getName)
             .orElse(null);

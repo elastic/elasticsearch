@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -20,20 +21,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 public class PeerFinderMessagesTests extends ESTestCase {
     private DiscoveryNode createNode(String id) {
-        return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(id);
     }
 
     public void testPeersRequestEqualsHashCodeSerialization() {
         final PeersRequest initialPeersRequest = new PeersRequest(
             createNode(randomAlphaOfLength(10)),
-            Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).collect(Collectors.toList())
+            Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).toList()
         );
 
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
@@ -60,7 +60,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
         } else {
             initialPeersResponse = new PeersResponse(
                 Optional.empty(),
-                Arrays.stream(generateRandomStringArray(10, 10, false, false)).map(this::createNode).collect(Collectors.toList()),
+                Arrays.stream(generateRandomStringArray(10, 10, false, false)).map(this::createNode).toList(),
                 initialTerm
             );
         }

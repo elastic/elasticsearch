@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cloud.gce;
@@ -16,9 +17,7 @@ import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 public interface GceInstancesService extends Closeable {
 
@@ -37,12 +36,7 @@ public interface GceInstancesService extends Closeable {
     /**
      * cloud.gce.zone: Google Compute Engine zones
      */
-    Setting<List<String>> ZONE_SETTING = Setting.listSetting(
-        "cloud.gce.zone",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    Setting<List<String>> ZONE_SETTING = Setting.stringListSetting("cloud.gce.zone", Property.NodeScope);
 
     /**
      * cloud.gce.refresh_interval: How long the list of hosts is cached to prevent further requests to the AWS API. 0 disables caching.

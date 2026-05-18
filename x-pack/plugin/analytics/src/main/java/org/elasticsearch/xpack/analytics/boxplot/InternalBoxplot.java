@@ -7,20 +7,21 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import com.tdunning.math.stats.Centroid;
-
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +30,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValue implements Boxplot {
+
+    private static final TransportVersion QUERYDSL_BOXPLOT_EXPONENTIAL_HISTOGRAM_SUPPORT = TransportVersion.fromName(
+        "query_dsl_boxplot_exponential_histogram_support"
+    );
 
     /**
      * This value is used in determining the width of the whiskers of the boxplot.  After the IQR value is calculated, it gets multiplied
@@ -45,7 +50,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState digestState) {
+            double value(HistogramUnionState digestState) {
                 return digestState == null ? Double.NEGATIVE_INFINITY : digestState.getMin();
             }
         },
@@ -56,7 +61,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState digestState) {
+            double value(HistogramUnionState digestState) {
                 return digestState == null ? Double.POSITIVE_INFINITY : digestState.getMax();
             }
         },
@@ -67,7 +72,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState digestState) {
+            double value(HistogramUnionState digestState) {
                 return digestState == null ? Double.NaN : digestState.quantile(0.25);
             }
         },
@@ -78,7 +83,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState digestState) {
+            double value(HistogramUnionState digestState) {
                 return digestState == null ? Double.NaN : digestState.quantile(0.5);
             }
         },
@@ -89,7 +94,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState digestState) {
+            double value(HistogramUnionState digestState) {
                 return digestState == null ? Double.NaN : digestState.quantile(0.75);
             }
         },
@@ -100,7 +105,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState digestState) {
+            double value(HistogramUnionState digestState) {
                 return whiskers(digestState)[0];
             }
         },
@@ -111,7 +116,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState digestState) {
+            double value(HistogramUnionState digestState) {
                 return whiskers(digestState)[1];
             }
         };
@@ -120,13 +125,22 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
         }
 
+        public static boolean hasMetric(String name) {
+            try {
+                InternalBoxplot.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
 
         abstract double value(InternalBoxplot boxplot);
 
-        abstract double value(TDigestState state);
+        abstract double value(HistogramUnionState state);
     }
 
     /**
@@ -134,10 +148,10 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
      * q3 + 1.5 * IQR and the lower whisker is (close to) the lowest observed value greater than q1 - 1.5 * IQR.  Since we don't track
      * observed values directly, this function returns the centroid according to the above logic.
      *
-     * @param state - an initialized TDigestState representing the observed data.
+     * @param state - an initialized HistogramUnionState representing the observed data.
      * @return - two doubles in an array, where whiskers[0] is the lower whisker and whiskers[1] is the upper whisker.
      */
-    public static double[] whiskers(TDigestState state) {
+    public static double[] whiskers(HistogramUnionState state) {
         double[] results = new double[2];
         results[0] = Double.NaN;
         results[1] = Double.NaN;
@@ -168,16 +182,31 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
+    static InternalBoxplot empty(
+        String name,
+        double compression,
+        TDigestExecutionHint executionHint,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalBoxplot(
+            name,
+            HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression),
+            format,
+            metadata
+        );
+    }
+
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
         Stream.of(Metrics.values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
     );
 
-    private final TDigestState state;
+    private final HistogramUnionState state;
 
-    InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+    InternalBoxplot(String name, HistogramUnionState state, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, formatter, metadata);
         this.state = state;
-        this.format = formatter;
+        this.state.compress();
     }
 
     /**
@@ -185,14 +214,22 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
      */
     public InternalBoxplot(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
-        state = TDigestState.read(in);
+        if (in.getTransportVersion().supports(QUERYDSL_BOXPLOT_EXPONENTIAL_HISTOGRAM_SUPPORT)) {
+            state = HistogramUnionState.read(HistogramUnionState.NOOP_BREAKER, in);
+        } else {
+            state = HistogramUnionState.readAsPureTDigest(HistogramUnionState.NOOP_BREAKER, in);
+        }
+        state.compress();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
-        TDigestState.write(state, out);
+        if (out.getTransportVersion().supports(QUERYDSL_BOXPLOT_EXPONENTIAL_HISTOGRAM_SUPPORT)) {
+            state.writeTo(out);
+        } else {
+            state.writeAsPureTDigestTo(out);
+        }
     }
 
     @Override
@@ -266,21 +303,29 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     }
 
     // for testing only
-    TDigestState state() {
+    HistogramUnionState state() {
         return state;
     }
 
     @Override
-    public InternalBoxplot reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        TDigestState merged = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
-            if (merged == null) {
-                merged = new TDigestState(percentiles.state.compression());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            HistogramUnionState merged = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
+                if (merged == null) {
+                    merged = HistogramUnionState.createUsingParamsFrom(percentiles.state);
+                }
+                merged.add(percentiles.state);
             }
-            merged.add(percentiles.state);
-        }
-        return new InternalBoxplot(name, merged, format, metadata);
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalBoxplot(name, merged, format, metadata);
+            }
+        };
     }
 
     @Override

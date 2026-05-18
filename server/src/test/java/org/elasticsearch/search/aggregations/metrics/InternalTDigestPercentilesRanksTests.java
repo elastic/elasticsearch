@@ -1,19 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
 
@@ -24,12 +30,15 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
-        final TDigestState state = new TDigestState(100);
+        if (empty) {
+            return new InternalTDigestPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
+        final HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, 100);
         Arrays.stream(values).forEach(state::add);
 
-        assertEquals(state.centroidCount(), values.length);
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
     }
 
@@ -41,7 +50,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         double max = Double.NEGATIVE_INFINITY;
         long totalCount = 0;
         for (InternalTDigestPercentileRanks ranks : inputs) {
-            if (ranks.state.centroidCount() == 0) {
+            if (ranks.state.centroids().isEmpty()) {
                 // quantiles would return NaN
                 continue;
             }
@@ -57,15 +66,28 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedTDigestPercentileRanks.class;
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(
+        InternalTDigestPercentileRanks sampled,
+        InternalTDigestPercentileRanks reduced,
+        SamplingContext samplingContext
+    ) {
+        Iterator<Percentile> it1 = sampled.iterator();
+        Iterator<Percentile> it2 = reduced.iterator();
+        while (it1.hasNext() && it2.hasNext()) {
+            assertThat(it1.next(), equalTo(it2.next()));
+        }
     }
 
     @Override
     protected InternalTDigestPercentileRanks mutateInstance(InternalTDigestPercentileRanks instance) {
         String name = instance.getName();
         double[] percents = instance.keys;
-        TDigestState state = instance.state;
+        HistogramUnionState state = instance.state;
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
@@ -77,7 +99,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = new TDigestState(state.compression());
+                HistogramUnionState newState = HistogramUnionState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());
@@ -87,7 +109,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
             case 3 -> keyed = keyed == false;
             case 4 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

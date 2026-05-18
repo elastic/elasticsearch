@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.util.concurrent;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -18,9 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -28,7 +28,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -63,10 +62,9 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
@@ -98,10 +96,9 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
@@ -133,10 +130,9 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
@@ -168,10 +164,9 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getTestName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            null
         );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
@@ -201,13 +196,14 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     }
 
     public void testTimeout() throws Exception {
-        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(EsExecutors.daemonThreadFactory(getTestName()));
+        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName())
+        );
         PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
-            timer,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            timer
         );
         final CountDownLatch invoked = new CountDownLatch(1);
         final CountDownLatch block = new CountDownLatch(1);
@@ -272,10 +268,9 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         final AtomicBoolean timeoutCalled = new AtomicBoolean();
         PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName()),
             holder,
-            timer,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            timer
         );
         final CountDownLatch invoked = new CountDownLatch(1);
         executor.execute(new Runnable() {
@@ -298,61 +293,6 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         assertThat(timeoutCalled.get(), equalTo(false));
         assertTrue(terminate(executor));
         assertTrue(terminate(threadPool));
-    }
-
-    public void testStarvationWatcherInteraction() throws Exception {
-        final AtomicInteger emptyQueueCount = new AtomicInteger();
-        final AtomicInteger nonemptyQueueCount = new AtomicInteger();
-
-        final ExecutorService executor = EsExecutors.newSinglePrioritizing(
-            getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
-            holder,
-            null,
-            new PrioritizedEsThreadPoolExecutor.StarvationWatcher() {
-                @Override
-                public void onEmptyQueue() {
-                    emptyQueueCount.incrementAndGet();
-                }
-
-                @Override
-                public void onNonemptyQueue() {
-                    nonemptyQueueCount.incrementAndGet();
-                }
-            }
-        );
-        final int jobCount = between(1, 10);
-        final List<Integer> results = new ArrayList<>(jobCount);
-        final CyclicBarrier awaitingBarrier = new CyclicBarrier(2);
-        final CountDownLatch finishedLatch = new CountDownLatch(jobCount);
-        executor.submit(() -> {
-            try {
-                awaitingBarrier.await();
-                awaitingBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new AssertionError("unexpected", e);
-            }
-        });
-        awaitingBarrier.await(); // ensure blocking job started and observed an empty queue first
-        for (int i = 0; i < jobCount; i++) {
-            executor.submit(new Job(i, Priority.NORMAL, results, finishedLatch));
-        }
-        awaitingBarrier.await(); // allow blocking job to complete
-        finishedLatch.await();
-
-        assertThat(results.size(), equalTo(jobCount));
-        for (int i = 0; i < jobCount; i++) {
-            assertThat(results.get(i), equalTo(i));
-        }
-
-        terminate(executor);
-
-        // queue was observed empty when the blocking job started and before and after the last numbered Job
-        assertThat(emptyQueueCount.get(), equalTo(3));
-
-        // queue was observed nonempty after the blocking job and all but the last numbered Job
-        // NB it was also nonempty before each Job but the last, but this doesn't result in notifications
-        assertThat(nonemptyQueueCount.get(), equalTo(jobCount));
     }
 
     static class AwaitingJob extends PrioritizedRunnable {

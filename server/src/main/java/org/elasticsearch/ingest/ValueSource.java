@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -46,7 +48,7 @@ public interface ValueSource {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<Object, Object> mapValue = (Map) value;
-            Map<ValueSource, ValueSource> valueTypeMap = new HashMap<>(mapValue.size());
+            Map<ValueSource, ValueSource> valueTypeMap = Maps.newMapWithExpectedSize(mapValue.size());
             for (Map.Entry<Object, Object> entry : mapValue.entrySet()) {
                 valueTypeMap.put(wrap(entry.getKey(), scriptService, scriptOptions), wrap(entry.getValue(), scriptService, scriptOptions));
             }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -46,7 +47,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @SuppressWarnings("HiddenField")
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name);
 
         // Sample Format for the type table:
         // $ => DIGIT
@@ -95,7 +96,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
-    public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
+    public static int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
         if (settings.getAsBoolean(key, defaultValue)) {
             return flag;
         }
@@ -103,7 +104,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     // source => type
-    private static Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
+    private static final Pattern typePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");
 
     /**
      * parses a list of MappingCharFilter style rules into a custom byte[] type table
@@ -124,10 +125,12 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
         // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
         byte types[] = new byte[Math.max(typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
-        for (int i = 0; i < types.length; i++)
+        for (int i = 0; i < types.length; i++) {
             types[i] = WordDelimiterIterator.getType(i);
-        for (Map.Entry<Character, Byte> mapping : typeMap.entrySet())
+        }
+        for (Map.Entry<Character, Byte> mapping : typeMap.entrySet()) {
             types[mapping.getKey()] = mapping.getValue();
+        }
         return types;
     }
 

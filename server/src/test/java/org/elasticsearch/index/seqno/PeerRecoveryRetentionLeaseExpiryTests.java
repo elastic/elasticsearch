@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -32,8 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTestCase {
-
-    private static final ActionListener<ReplicationResponse> EMPTY_LISTENER = ActionListener.wrap(() -> {});
 
     private ReplicationTracker replicationTracker;
     private AtomicLong currentTimeMillis;
@@ -86,7 +85,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         replicationTracker.addPeerRecoveryRetentionLease(
             routingTableWithReplica.getByAllocationId(replicaAllocationId.getId()).currentNodeId(),
             randomCheckpoint(),
-            EMPTY_LISTENER
+            ActionListener.noop()
         );
 
         replicationTracker.initiateTracking(replicaAllocationId.getId());
@@ -101,10 +100,10 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         final ShardRouting replicaShardRouting = replicationTracker.routingTable.replicaShards().get(0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(replicationTracker.routingTable);
         builder.removeShard(replicaShardRouting);
-        builder.addShard(replicaShardRouting.moveToStarted());
+        builder.addShard(replicaShardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         replicationTracker.updateFromMaster(
             replicationTracker.appliedClusterStateVersion + 1,
-            replicationTracker.routingTable.shards().stream().map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),
+            RoutingNodesHelper.asStream(replicationTracker.routingTable).map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),
             builder.build()
         );
     }
@@ -124,8 +123,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )
@@ -135,7 +133,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesDoNotExpireImmediatelyIfShardsNotAllStarted() {
         final String unknownNodeId = randomAlphaOfLength(10);
         final long globalCheckpoint = randomNonNegativeLong(); // not NO_OPS_PERFORMED since this always results in file-based recovery
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, ActionListener.noop());
 
         currentTimeMillis.set(
             currentTimeMillis.get() + randomLongBetween(
@@ -155,7 +153,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             equalTo(
                 Stream.concat(
                     Stream.of(ReplicationTracker.getPeerRecoveryRetentionLeaseId(unknownNodeId)),
-                    replicationTracker.routingTable.shards().stream().map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
+                    RoutingNodesHelper.asStream(replicationTracker.routingTable).map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                 ).collect(Collectors.toSet())
             )
         );
@@ -168,7 +166,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final String unknownNodeId = randomAlphaOfLength(10);
         final long globalCheckpoint = randomCheckpoint();
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, ActionListener.noop());
 
         currentTimeMillis.set(
             randomLongBetween(
@@ -186,8 +184,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )
@@ -196,7 +193,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesExpireImmediatelyIfShardsAllStarted() {
         final String unknownNodeId = randomAlphaOfLength(10);
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, randomCheckpoint(), EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, randomCheckpoint(), ActionListener.noop());
 
         startReplica();
 
@@ -214,8 +211,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )
@@ -229,7 +225,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final String unknownNodeId = randomAlphaOfLength(10);
         final long globalCheckpoint = randomValueOtherThan(SequenceNumbers.NO_OPS_PERFORMED, this::randomCheckpoint);
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, ActionListener.noop());
 
         safeCommitInfo = randomSafeCommitInfoSuitableForFileBasedRecovery(globalCheckpoint);
 
@@ -240,8 +236,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         assertThat(
             leaseIds,
             equalTo(
-                replicationTracker.routingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(replicationTracker.routingTable)
                     .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId)
                     .collect(Collectors.toSet())
             )

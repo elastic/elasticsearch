@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +34,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -74,10 +76,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
@@ -149,7 +153,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             Collections.emptySet(),
             Collections.emptySet(),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
@@ -207,7 +211,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             new TreeSet<>(Arrays.asList("item 1", "item 2")),
             new TreeSet<>(Collections.singletonList("item 3")),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
@@ -265,7 +269,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             new TreeSet<>(Arrays.asList("a", "b")),
             Collections.emptySet(),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; added items: ['a', 'b']");
@@ -302,7 +306,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             Collections.emptySet(),
             new TreeSet<>(Arrays.asList("a", "b")),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; removed items: ['a', 'b']");
@@ -325,22 +329,37 @@ public class JobManagerTests extends ESTestCase {
         // The search will not return any results
         mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), Collections.emptyList());
 
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        Client mockClient = mockClientBuilder.build();
+
+        // Mock UpdateProcessAction calls - calendar updates now bypass the queue and call client.execute directly
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<UpdateProcessAction.Response> listener = (ActionListener<UpdateProcessAction.Response>) invocation
+                .getArguments()[2];
+            listener.onResponse(new UpdateProcessAction.Response());
+            return null;
+        }).when(mockClient).execute(eq(UpdateProcessAction.INSTANCE), any(UpdateProcessAction.Request.class), any());
+
+        JobManager jobManager = createJobManager(mockClient);
 
         jobManager.updateProcessOnCalendarChanged(
             Arrays.asList("job-1", "job-3", "job-4"),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
+        // Verify that UpdateProcessAction is called directly for each open job
+        ArgumentCaptor<UpdateProcessAction.Request> requestCaptor = ArgumentCaptor.forClass(UpdateProcessAction.Request.class);
+        verify(mockClient, times(2)).execute(eq(UpdateProcessAction.INSTANCE), requestCaptor.capture(), any());
 
-        List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
-        assertThat(capturedUpdateParams.size(), equalTo(2));
-        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo("job-1"));
-        assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
-        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo("job-3"));
-        assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
+        List<UpdateProcessAction.Request> capturedRequests = requestCaptor.getAllValues();
+        assertThat(capturedRequests.size(), equalTo(2));
+        assertThat(capturedRequests.get(0).getJobId(), equalTo("job-1"));
+        assertThat(capturedRequests.get(0).isUpdateScheduledEvents(), is(true));
+        assertThat(capturedRequests.get(1).getJobId(), equalTo("job-3"));
+        assertThat(capturedRequests.get(1).isUpdateScheduledEvents(), is(true));
+
+        // Verify updateJobProcessNotifier is not called for calendar updates
+        verifyNoInteractions(updateJobProcessNotifier);
     }
 
     public void testUpdateProcessOnCalendarChanged_GivenGroups() {
@@ -372,22 +391,34 @@ public class JobManagerTests extends ESTestCase {
         );
 
         mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), fieldHits);
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        Client mockClient = mockClientBuilder.build();
 
-        jobManager.updateProcessOnCalendarChanged(
-            Collections.singletonList("group-1"),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
-        );
+        // Mock UpdateProcessAction calls - calendar updates now bypass the queue and call client.execute directly
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<UpdateProcessAction.Response> listener = (ActionListener<UpdateProcessAction.Response>) invocation
+                .getArguments()[2];
+            listener.onResponse(new UpdateProcessAction.Response());
+            return null;
+        }).when(mockClient).execute(eq(UpdateProcessAction.INSTANCE), any(UpdateProcessAction.Request.class), any());
 
-        ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
+        JobManager jobManager = createJobManager(mockClient);
 
-        List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
-        assertThat(capturedUpdateParams.size(), equalTo(2));
-        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo("job-1"));
-        assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
-        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo("job-2"));
-        assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
+        jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"), ActionTestUtils.assertNoFailureListener(r -> {}));
+
+        // Verify that UpdateProcessAction is called directly for each open job in the group
+        ArgumentCaptor<UpdateProcessAction.Request> requestCaptor = ArgumentCaptor.forClass(UpdateProcessAction.Request.class);
+        verify(mockClient, times(2)).execute(eq(UpdateProcessAction.INSTANCE), requestCaptor.capture(), any());
+
+        List<UpdateProcessAction.Request> capturedRequests = requestCaptor.getAllValues();
+        assertThat(capturedRequests.size(), equalTo(2));
+        assertThat(capturedRequests.get(0).getJobId(), equalTo("job-1"));
+        assertThat(capturedRequests.get(0).isUpdateScheduledEvents(), is(true));
+        assertThat(capturedRequests.get(1).getJobId(), equalTo("job-2"));
+        assertThat(capturedRequests.get(1).isUpdateScheduledEvents(), is(true));
+
+        // Verify updateJobProcessNotifier is not called for calendar updates
+        verifyNoInteractions(updateJobProcessNotifier);
     }
 
     public void testValidateCategorizationAnalyzer_GivenValid() throws IOException {
@@ -395,7 +426,7 @@ public class JobManagerTests extends ESTestCase {
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         CategorizationAnalyzerConfig c = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(categorizationFilters);
         Job.Builder jobBuilder = createCategorizationJob(c, null);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
 
         Job job = jobBuilder.build(new Date());
         assertThat(
@@ -410,7 +441,7 @@ public class JobManagerTests extends ESTestCase {
         Job.Builder jobBuilder = createCategorizationJob(c, null);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT)
+            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT)
         );
 
         assertThat(e.getMessage(), equalTo("Failed to find global analyzer [does_not_exist]"));
@@ -420,7 +451,7 @@ public class JobManagerTests extends ESTestCase {
 
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
 
         Job job = jobBuilder.build(new Date());
         assertThat(
@@ -445,17 +476,6 @@ public class JobManagerTests extends ESTestCase {
         return builder;
     }
 
-    private Job.Builder createJob() {
-        Detector.Builder d = new Detector.Builder("info_content", "domain").setOverFieldName("client");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-
-        Job.Builder builder = new Job.Builder();
-        builder.setId("foo");
-        builder.setAnalysisConfig(ac);
-        builder.setDataDescription(new DataDescription.Builder());
-        return builder;
-    }
-
     private JobManager createJobManager(Client client) {
         return new JobManager(
             jobResultsProvider,
@@ -469,12 +489,6 @@ public class JobManagerTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             () -> ByteSizeValue.ZERO
         );
-    }
-
-    private ClusterState createClusterState() {
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("_name"));
-        builder.metadata(Metadata.builder());
-        return builder.build();
     }
 
     private BytesReference toBytesReference(ToXContent content) throws IOException {

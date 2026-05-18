@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -17,6 +18,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
@@ -25,7 +27,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -94,7 +95,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     private static SSLContext buildServerSslContext() throws Exception {
-        final SSLContext sslContext = SSLContext.getInstance(isHttpsServerBrokenWithTLSv13() ? "TLSv1.2" : "TLS");
+        final SSLContext sslContext = SSLContext.getInstance("TLS");
         final char[] password = "http-password".toCharArray();
 
         final Path cert = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.crt").toURI());
@@ -112,17 +113,20 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        if (isHttpsServerBrokenWithTLSv13()) {
-            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
-        }
         final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-            expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+            if (inFipsJvm()) {
+                // Bouncy Castle throws a different exception
+                IOException exception = expectThrows(IOException.class, () -> client.performRequest(new Request("GET", "/")));
+                assertThat(exception.getCause(), Matchers.instanceOf(javax.net.ssl.SSLException.class));
+            } else {
+                expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+
+            }
         }
     }
 
@@ -132,9 +136,6 @@ public class ReindexRestClientSslTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
             .put("path.home", createTempDir())
             .putList("reindex.ssl.certificate_authorities", ca.toString());
-        if (isHttpsServerBrokenWithTLSv13()) {
-            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
-        }
         final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
@@ -148,9 +149,6 @@ public class ReindexRestClientSslTests extends ESTestCase {
         assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings.Builder builder = Settings.builder().put("path.home", createTempDir()).put("reindex.ssl.verification_mode", "NONE");
-        if (isHttpsServerBrokenWithTLSv13()) {
-            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
-        }
         final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
@@ -171,9 +169,6 @@ public class ReindexRestClientSslTests extends ESTestCase {
             .put("reindex.ssl.certificate", cert)
             .put("reindex.ssl.key", key)
             .put("reindex.ssl.key_passphrase", "client-password");
-        if (isHttpsServerBrokenWithTLSv13()) {
-            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
-        }
         final Settings settings = builder.build();
         AtomicReference<Certificate[]> clientCertificates = new AtomicReference<>();
         handler = https -> {
@@ -194,8 +189,8 @@ public class ReindexRestClientSslTests extends ESTestCase {
             assertThat(certs, Matchers.arrayWithSize(1));
             assertThat(certs[0], Matchers.instanceOf(X509Certificate.class));
             final X509Certificate clientCert = (X509Certificate) certs[0];
-            assertThat(clientCert.getSubjectDN().getName(), Matchers.is("CN=client"));
-            assertThat(clientCert.getIssuerDN().getName(), Matchers.is("CN=Elastic Certificate Tool Autogenerated CA"));
+            assertThat(clientCert.getSubjectX500Principal().getName(), Matchers.is("CN=client"));
+            assertThat(clientCert.getIssuerX500Principal().getName(), Matchers.is("CN=Elastic Certificate Tool Autogenerated CA"));
         }
     }
 
@@ -207,7 +202,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
             "/",
             new BytesArray("{\"match_all\":{}}"),
             "user",
-            "password",
+            new SecureString("password".toCharArray()),
             Collections.emptyMap(),
             RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
             RemoteInfo.DEFAULT_CONNECT_TIMEOUT
@@ -224,13 +219,5 @@ public class ReindexRestClientSslTests extends ESTestCase {
         public void configure(HttpsParameters params) {
             params.setWantClientAuth(true);
         }
-    }
-
-    /**
-     * Checks whether the JVM this test is run under is affected by JDK-8254967, which causes these
-     * tests to fail if a TLSv1.3 SSLContext is used.
-     */
-    private static boolean isHttpsServerBrokenWithTLSv13() {
-        return JavaVersion.current().compareTo(JavaVersion.parse("16.0.0")) < 0;
     }
 }

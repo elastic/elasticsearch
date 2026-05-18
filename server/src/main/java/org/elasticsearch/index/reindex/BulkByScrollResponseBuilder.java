@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask.StatusBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 
 import java.util.ArrayList;
@@ -23,9 +23,9 @@ import java.util.concurrent.TimeUnit;
  */
 class BulkByScrollResponseBuilder extends StatusBuilder {
     private TimeValue took;
-    private BulkByScrollTask.Status status;
+    private BulkByPaginatedSearchTask.Status status;
     private List<Failure> bulkFailures = new ArrayList<>();
-    private List<SearchFailure> searchFailures = new ArrayList<>();
+    private List<PaginatedSearchFailure> searchFailures = new ArrayList<>();
     private boolean timedOut;
 
     BulkByScrollResponseBuilder() {}
@@ -38,7 +38,7 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
         this.took = took;
     }
 
-    public void setStatus(BulkByScrollTask.Status status) {
+    public void setStatus(BulkByPaginatedSearchTask.Status status) {
         this.status = status;
     }
 
@@ -47,8 +47,8 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
             for (Object object : failures) {
                 if (object instanceof Failure) {
                     bulkFailures.add((Failure) object);
-                } else if (object instanceof SearchFailure) {
-                    searchFailures.add((SearchFailure) object);
+                } else if (object instanceof PaginatedSearchFailure) {
+                    searchFailures.add((PaginatedSearchFailure) object);
                 }
             }
         }

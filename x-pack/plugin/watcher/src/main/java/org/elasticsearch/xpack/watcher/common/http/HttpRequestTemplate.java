@@ -10,16 +10,18 @@ import io.netty.handler.codec.http.HttpHeaders;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
@@ -135,16 +137,16 @@ public class HttpRequestTemplate implements ToXContentObject {
             request.path(engine.render(path, model));
         }
         if (params != null && params.isEmpty() == false) {
-            MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+            Map<String, String> mapBuilder = Maps.newMapWithExpectedSize(params.size());
             for (Map.Entry<String, TextTemplate> entry : params.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
             }
-            request.setParams(mapBuilder.map());
+            request.setParams(mapBuilder);
         }
         if ((headers == null || headers.isEmpty()) && body != null && body.getContentType() != null) {
             request.setHeaders(singletonMap(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().mediaType()));
         } else if (headers != null && headers.isEmpty() == false) {
-            MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+            Map<String, String> mapBuilder = Maps.newMapWithExpectedSize(headers.size());
             if (body != null && body.getContentType() != null) {
                 // putting the content type first, so it can be overridden by custom headers
                 mapBuilder.put(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().mediaType());
@@ -152,7 +154,7 @@ public class HttpRequestTemplate implements ToXContentObject {
             for (Map.Entry<String, TextTemplate> entry : headers.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
             }
-            request.setHeaders(mapBuilder.map());
+            request.setHeaders(mapBuilder);
         }
         if (auth != null) {
             request.auth(auth);
@@ -192,7 +194,12 @@ public class HttpRequestTemplate implements ToXContentObject {
         if (headers != null) {
             builder.startObject(HttpRequest.Field.HEADERS.getPreferredName());
             for (Map.Entry<String, TextTemplate> entry : headers.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue(), params);
+                String key = entry.getKey();
+                if (WatcherParams.hideSecrets(params) && "Authorization".equalsIgnoreCase(key)) {
+                    builder.field(key, WatcherXContentParser.REDACTED_PASSWORD);
+                } else {
+                    builder.field(key, entry.getValue(), params);
+                }
             }
             builder.endObject();
         }
@@ -535,11 +542,7 @@ public class HttpRequestTemplate implements ToXContentObject {
 
                 String rawQuery = uri.getRawQuery();
                 if (Strings.hasLength(rawQuery)) {
-                    Map<String, String> stringParams = new HashMap<>();
-                    RestUtils.decodeQueryString(rawQuery, 0, stringParams);
-                    for (Map.Entry<String, String> entry : stringParams.entrySet()) {
-                        params.put(entry.getKey(), new TextTemplate(entry.getValue()));
-                    }
+                    RequestParams.fromQueryString(rawQuery).forEach((k, v) -> params.put(k, new TextTemplate(v)));
                 }
             } catch (URISyntaxException e) {
                 throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);

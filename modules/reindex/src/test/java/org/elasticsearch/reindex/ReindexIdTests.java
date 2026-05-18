@@ -1,0 +1,201 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.reindex;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Reindex tests for picking ids.
+ */
+public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<ReindexRequest, BulkByScrollResponse> {
+    public void testEmptyStateCopiesId() throws Exception {
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        assertThat(action(projectState).buildRequest(doc()).getId(), equalTo(doc().getId()));
+    }
+
+    public void testStandardIndexCopiesId() throws Exception {
+        assertThat(action(stateWithIndex(standardSettings())).buildRequest(doc()).getId(), equalTo(doc().getId()));
+    }
+
+    public void testTsdbIndexClearsId() throws Exception {
+        assertThat(action(stateWithIndex(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
+    }
+
+    public void testMissingIndexWithStandardTemplateCopiesId() throws Exception {
+        assertThat(action(stateWithTemplate(standardSettings())).buildRequest(doc()).getId(), equalTo(doc().getId()));
+    }
+
+    public void testMissingIndexWithTsdbTemplateClearsId() throws Exception {
+        assertThat(action(stateWithTemplate(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
+    }
+
+    public void testConversionErrorContainsDocId() {
+        final PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("source_index", "doc_123", -1).setSource(
+            new BytesArray("not valid json"),
+            XContentType.JSON
+        );
+        final ReindexRequest req = request();
+        req.getDestination().source(new BytesArray("{}"), XContentType.CBOR);
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final Reindexer.AsyncIndexBySearchAction action = new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            projectState,
+            null,
+            req,
+            listener(),
+            null,
+            randomTimeValue(),
+            null
+        );
+        expectThrows(
+            XContentParseException.class,
+            equalTo("[1:5] failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            () -> action.buildRequest(hit)
+        );
+    }
+
+    /**
+     * Simulates an I/O failure when opening the hit source stream so the {@link IOException} branch is exercised (not XContent parsing).
+     */
+    public void testConversionIoErrorContainsDocId() throws IOException {
+        final BytesReference source = mock(BytesReference.class);
+        when(source.hasArray()).thenReturn(false);
+        doThrow(new IOException(randomAlphaOfLength(8))).when(source).streamInput();
+        final PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("source_index", "doc_123", -1).setSource(
+            source,
+            XContentType.JSON
+        );
+        final ReindexRequest req = request();
+        req.getDestination().source(new BytesArray("{}"), XContentType.CBOR);
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final Reindexer.AsyncIndexBySearchAction action = new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            projectState,
+            null,
+            req,
+            listener(),
+            null,
+            randomTimeValue(),
+            null
+        );
+        expectThrows(
+            UncheckedIOException.class,
+            equalTo("failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            () -> action.buildRequest(hit)
+        );
+    }
+
+    private ProjectState stateWithTemplate(Settings.Builder settings) {
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        Template template = new Template(settings.build(), null, null);
+        if (randomBoolean()) {
+            projectBuilder.put("c", new ComponentTemplate(template, null, null));
+            projectBuilder.put(
+                "c",
+                ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).componentTemplates(List.of("c")).build()
+            );
+        } else {
+            projectBuilder.put("c", ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).template(template).build());
+        }
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectBuilder).build().projectState(projectId);
+    }
+
+    private ProjectState stateWithIndex(Settings.Builder settings) {
+        final var projectId = randomProjectIdOrDefault();
+        IndexMetadata.Builder meta = IndexMetadata.builder(request().getDestination().index())
+            .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfReplicas(0)
+            .numberOfShards(1);
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(meta))
+            .build()
+            .projectState(projectId);
+    }
+
+    private Settings.Builder standardSettings() {
+        if (randomBoolean()) {
+            return Settings.builder();
+        }
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD);
+    }
+
+    private Settings.Builder tsdbSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+    }
+
+    private PaginatedHitSource.BasicHit doc() {
+        return new PaginatedHitSource.BasicHit("index", "id", -1).setSource(new BytesArray("{}"), XContentType.JSON);
+    }
+
+    @Override
+    protected ReindexRequest request() {
+        return new ReindexRequest().setDestIndex("dest_index");
+    }
+
+    private Reindexer.AsyncIndexBySearchAction action(ProjectState state) {
+        return new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            state,
+            null,
+            request(),
+            listener(),
+            randomBoolean() ? null : Version.CURRENT,
+            randomPositiveTimeValue(),
+            null
+        );
+    }
+}

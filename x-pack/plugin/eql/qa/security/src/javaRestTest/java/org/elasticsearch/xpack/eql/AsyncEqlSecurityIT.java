@@ -7,23 +7,22 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.eql.SecurityUtils.secureClientSettings;
@@ -32,6 +31,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AsyncEqlSecurityIT extends ESRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     /**
      * All tests run as a superuser but use <code>es-security-runas-user</code> to become a less privileged user.
@@ -45,15 +52,15 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     public void indexDocuments() throws IOException {
         createIndex("index", Settings.EMPTY);
         index("index", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index");
+        refresh(adminClient(), "index");
 
         createIndex("index-user1", Settings.EMPTY);
         index("index-user1", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index-user1");
+        refresh(adminClient(), "index-user1");
 
         createIndex("index-user2", Settings.EMPTY);
         index("index-user2", "0", "event_type", "my_event", "@timestamp", "2020-04-09T12:35:48Z", "val", 0);
-        refresh("index-user2");
+        refresh(adminClient(), "index-user2");
     }
 
     public void testWithUsers() throws Exception {
@@ -96,7 +103,7 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
     }
 
     static String extractResponseId(Response response) throws IOException {
-        Map<String, Object> map = toMap(response);
+        var map = responseAsMap(response);
         return (String) map.get("id");
     }
 
@@ -109,10 +116,6 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
         assertOK(client().performRequest(request));
-    }
-
-    static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
     static Response get(String index, String id, String user) throws IOException {
@@ -148,11 +151,4 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    static Map<String, Object> toMap(String response) {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
 }

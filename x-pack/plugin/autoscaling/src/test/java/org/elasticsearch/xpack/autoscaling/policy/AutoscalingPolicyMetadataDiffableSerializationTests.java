@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.autoscaling.policy;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingPolicy;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicyOfName;
 
-public class AutoscalingPolicyMetadataDiffableSerializationTests extends AbstractDiffableSerializationTestCase<AutoscalingPolicyMetadata> {
+public class AutoscalingPolicyMetadataDiffableSerializationTests extends SimpleDiffableSerializationTestCase<AutoscalingPolicyMetadata> {
 
     private final String name = randomAlphaOfLength(8);
 
@@ -60,7 +60,7 @@ public class AutoscalingPolicyMetadataDiffableSerializationTests extends Abstrac
 
     @Override
     protected Writeable.Reader<Diff<AutoscalingPolicyMetadata>> diffReader() {
-        return in -> AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
+        return in -> SimpleDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
     }
 
 }

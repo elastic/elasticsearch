@@ -19,7 +19,6 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
@@ -173,8 +172,8 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
         assertThat(result.getRelayState(), equalTo("Hail Hydra"));
     }
 
-    private String urlEncode(String str) throws UnsupportedEncodingException {
-        return URLEncoder.encode(str, StandardCharsets.US_ASCII.name());
+    private String urlEncode(String str) {
+        return URLEncoder.encode(str, StandardCharsets.US_ASCII);
     }
 
     private String buildSignedQueryString(LogoutRequest logoutRequest) throws URISyntaxException {
@@ -206,7 +205,7 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
 
         final X509Credential spCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"), spCredential);
-        final SpConfiguration sp = new SpConfiguration(
+        final SpConfiguration sp = new SingleSamlSpConfiguration(
             "https://sp.test/",
             "https://sp.test/saml/asc",
             LOGOUT_URL,

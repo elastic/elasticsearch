@@ -8,22 +8,26 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -37,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -47,25 +50,42 @@ import static org.mockito.Mockito.when;
 
 public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testInterceptorThrowsWhenFLSDLSEnabled() {
+        checkInterceptorWithDlsFlsConfigured(
+            true,
+            "Alias requests are not allowed for users who have field or document level security enabled on one of the indices"
+        );
+    }
+
+    public void testInterceptorWorksAsNormalWhenFLSDLSDisabled() {
+        checkInterceptorWithDlsFlsConfigured(
+            false,
+            "Adding an alias is not allowed when the alias has more permissions than any of the indices"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void checkInterceptorWithDlsFlsConfigured(boolean dlsFlsFeatureEnabled, String expectedErrorMessage) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        Authentication authentication = new Authentication(
-            new User("john", "role"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
-        );
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED)));
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState, clusterService);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-john", "not-role"))
+            .realmRef(new RealmRef("auth_name", "auth_type", "node"))
+            .runAs()
+            .user(new User("john", "role"))
+            .realmRef(new RealmRef("look_name", "look_type", "node"))
+            .build();
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
         if (useFls) {
             fieldPermissions = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, null));
         } else {
-            fieldPermissions = new FieldPermissions();
+            fieldPermissions = FieldPermissions.DEFAULT;
         }
         final boolean useDls = (useFls == false) || randomBoolean();
         final Set<BytesReference> queries;
@@ -74,23 +94,25 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         } else {
             queries = null;
         }
-        final String action = IndicesAliasesAction.NAME;
+        final String action = TransportIndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(
             true,
             Collections.singletonMap(
                 "foo",
                 new IndicesAccessControl.IndexAccessControl(
-                    true,
                     fieldPermissions,
                     (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll()
                 )
             )
         );
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
+        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(
+            threadContext,
+            auditTrailService,
+            dlsFlsFeatureEnabled
+        );
 
-        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
-
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -108,13 +130,10 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         }).when(mockEngine)
             .validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(), anyActionListener());
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         });
-        assertEquals(
-            "Alias requests are not allowed for users who have field or document level security enabled on one of the indices",
-            securityException.getMessage()
-        );
+        assertEquals(expectedErrorMessage, securityException.getMessage());
     }
 
     @SuppressWarnings("unchecked")
@@ -122,20 +141,25 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        Authentication authentication = new Authentication(
-            new User("john", "role"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
+        var noopAuditClusterService = mock(ClusterService.class);
+        when(noopAuditClusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED))
         );
-        final String action = IndicesAliasesAction.NAME;
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState, noopAuditClusterService);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-john", "not-role"))
+            .realmRef(new RealmRef("auth_name", "auth_type", "node"))
+            .runAs()
+            .user(new User("john", "role"))
+            .realmRef(new RealmRef("look_name", "look_type", "node"))
+            .build();
+        final String action = TransportIndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
-        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
+        IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, auditTrailService, false);
 
-        final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -160,7 +184,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                     anyActionListener()
                 );
             ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-                interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+                interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
                 plainActionFuture.actionGet();
             });
             assertEquals(
@@ -170,7 +194,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         }
 
         // swap target and source for success
-        final IndicesAliasesRequest successRequest = new IndicesAliasesRequest();
+        final IndicesAliasesRequest successRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             successRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -193,7 +217,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                     any(Map.class),
                     anyActionListener()
                 );
-            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         }
     }

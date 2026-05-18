@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
@@ -56,22 +56,25 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
         boolean node = randomBoolean();
         boolean storage = randomBoolean();
-        boolean memory = randomBoolean() || storage == false;
-
-        AutoscalingCapacity large = randomCapacity(node, storage, memory, 1000, 2000);
+        boolean memory = randomBoolean();
+        boolean processor = randomBoolean() || (storage == false && memory == false);
+        AutoscalingCapacity large = randomCapacity(node, storage, memory, processor, 1000, 2000);
 
         List<AutoscalingCapacity> autoscalingCapacities = new ArrayList<>();
         autoscalingCapacities.add(large);
-        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, 0, 1000)).forEach(autoscalingCapacities::add);
+        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, processor, 1, 1000)).forEach(autoscalingCapacities::add);
 
         Randomness.shuffle(autoscalingCapacities);
         verifyRequiredCapacity(large, autoscalingCapacities.toArray(AutoscalingCapacity[]::new));
 
-        AutoscalingCapacity largerStorage = randomCapacity(node, true, false, 2000, 3000);
-        verifySingleMetricLarger(node, largerStorage, large, autoscalingCapacities, largerStorage);
+        AutoscalingCapacity largerStorage = randomCapacity(node, true, false, false, 2000, 3000);
+        verifySingleMetricLarger(node, largerStorage, large, large, autoscalingCapacities, largerStorage);
 
-        AutoscalingCapacity largerMemory = randomCapacity(node, false, true, 2000, 3000);
-        verifySingleMetricLarger(node, large, largerMemory, autoscalingCapacities, largerMemory);
+        AutoscalingCapacity largerMemory = randomCapacity(node, false, true, false, 2000, 3000);
+        verifySingleMetricLarger(node, large, largerMemory, large, autoscalingCapacities, largerMemory);
+
+        AutoscalingCapacity largerProcessor = randomCapacity(node, false, false, true, 2000, 3000);
+        verifySingleMetricLarger(node, large, large, largerProcessor, autoscalingCapacities, largerProcessor);
     }
 
     public void testToXContent() {
@@ -107,7 +110,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
             }
             try (
                 XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
             ) {
                 return parser.map();
             }
@@ -120,6 +123,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         boolean node,
         AutoscalingCapacity expectedStorage,
         AutoscalingCapacity expectedMemory,
+        AutoscalingCapacity expectedProcessor,
         List<AutoscalingCapacity> other,
         AutoscalingCapacity larger
     ) {
@@ -127,9 +131,9 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         autoscalingCapacities.add(larger);
         Randomness.shuffle(autoscalingCapacities);
         AutoscalingCapacity.Builder expectedBuilder = AutoscalingCapacity.builder()
-            .total(expectedStorage.total().storage(), expectedMemory.total().memory());
+            .total(expectedStorage.total().storage(), expectedMemory.total().memory(), expectedProcessor.total().processors());
         if (node) {
-            expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory());
+            expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory(), expectedProcessor.node().processors());
         }
         verifyRequiredCapacity(expectedBuilder.build(), autoscalingCapacities.toArray(AutoscalingCapacity[]::new));
     }
@@ -139,12 +143,9 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         SortedMap<String, AutoscalingDeciderResult> results = Arrays.stream(capacities)
             .map(AutoscalingDeciderResultsTests::randomAutoscalingDeciderResultWithCapacity)
             .collect(
-                Collectors.toMap(
-                    k -> randomAlphaOfLength(10) + "-" + uniqueGenerator.incrementAndGet(),
-                    Function.identity(),
-                    (a, b) -> { throw new UnsupportedOperationException(); },
-                    TreeMap::new
-                )
+                Collectors.toMap(k -> randomAlphaOfLength(10) + "-" + uniqueGenerator.incrementAndGet(), Function.identity(), (a, b) -> {
+                    throw new UnsupportedOperationException();
+                }, TreeMap::new)
             );
         assertThat(
             new AutoscalingDeciderResults(randomAutoscalingCapacity(), randomNodes(), results).requiredCapacity(),
@@ -152,11 +153,19 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         );
     }
 
-    private AutoscalingCapacity randomCapacity(boolean node, boolean storage, boolean memory, int lower, int upper) {
+    private AutoscalingCapacity randomCapacity(boolean node, boolean storage, boolean memory, boolean processor, int lower, int upper) {
         AutoscalingCapacity.Builder builder = AutoscalingCapacity.builder();
-        builder.total(storage ? randomLongBetween(lower, upper) : null, memory ? randomLongBetween(lower, upper) : null);
+        builder.total(
+            storage ? randomLongBetween(lower, upper) : null,
+            memory ? randomLongBetween(lower, upper) : null,
+            processor ? (double) randomIntBetween(lower, upper) : null
+        );
         if (node) {
-            builder.node(storage ? randomLongBetween(lower, upper) : null, memory ? randomLongBetween(lower, upper) : null);
+            builder.node(
+                storage ? randomLongBetween(lower, upper) : null,
+                memory ? randomLongBetween(lower, upper) : null,
+                processor ? (double) randomIntBetween(lower, upper) : null
+            );
         }
         return builder.build();
     }

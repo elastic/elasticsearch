@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -17,8 +18,6 @@ import org.elasticsearch.repositories.IndexId;
 import java.io.IOException;
 
 public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
-    private final long recoveryId;
-    private final ShardId shardId;
     private final String repository;
     private final IndexId indexId;
     private final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
@@ -31,9 +30,7 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
         IndexId indexId,
         BlobStoreIndexShardSnapshot.FileInfo fileInfo
     ) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
+        super(requestSeqNo, recoveryId, shardId);
         this.repository = repository;
         this.indexId = indexId;
         this.fileInfo = fileInfo;
@@ -41,8 +38,6 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
 
     public RecoverySnapshotFileRequest(StreamInput in) throws IOException {
         super(in);
-        this.recoveryId = in.readLong();
-        this.shardId = new ShardId(in);
         this.repository = in.readString();
         this.indexId = new IndexId(in);
         this.fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(in);
@@ -50,22 +45,10 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)
-            : "Unexpected serialization version " + out.getVersion();
         super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
         out.writeString(repository);
         indexId.writeTo(out);
         fileInfo.writeTo(out);
-    }
-
-    public long getRecoveryId() {
-        return recoveryId;
-    }
-
-    public ShardId getShardId() {
-        return shardId;
     }
 
     public String getRepository() {

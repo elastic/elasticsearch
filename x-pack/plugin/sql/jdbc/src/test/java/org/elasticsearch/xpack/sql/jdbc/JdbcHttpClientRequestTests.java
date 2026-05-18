@@ -13,8 +13,6 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -41,6 +39,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class JdbcHttpClientRequestTests extends ESTestCase {
 
@@ -70,7 +70,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
     }
 
     private void assertBinaryRequest(boolean isBinary, XContentType xContentType) throws Exception {
-        String url = JdbcConfiguration.URL_PREFIX + webServer.getHostName() + ":" + webServer.getPort();
+        String url = JdbcConfiguration.URL_PREFIX + webServer.getHttpAddress();
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
 
@@ -91,6 +91,14 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
         prepareMockResponse();
         try {
             httpClient.nextPage("", new RequestMeta(randomIntBetween(1, 100), randomNonNegativeLong(), randomNonNegativeLong()));
+        } catch (SQLException e) {
+            logger.info("Ignored SQLException", e);
+        }
+        assertValues(isBinary, xContentType);
+
+        prepareMockResponse();
+        try {
+            httpClient.queryClose("");
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
         }
@@ -153,14 +161,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to respond to request [{} {}]",
-                            s.getRequestMethod(),
-                            s.getRequestURI()
-                        ),
-                        e
-                    );
+                    logger.error(() -> format("failed to respond to request [%s %s]", s.getRequestMethod(), s.getRequestURI()), e);
                 } finally {
                     s.close();
                 }
@@ -183,6 +184,18 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
 
         int getPort() {
             return port;
+        }
+
+        /**
+         * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+         */
+        String getHttpAddress() {
+            String host = getHostName();
+            if (host.contains(":")) {
+                // IPv6 address needs brackets
+                host = "[" + host + "]";
+            }
+            return host + ":" + getPort();
         }
 
         void enqueue(Response response) {

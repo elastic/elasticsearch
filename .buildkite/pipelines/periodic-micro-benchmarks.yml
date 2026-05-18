@@ -1,0 +1,17 @@
+steps:
+  - label: periodic-micro-benchmarks
+    command: |
+      .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly -rf json -rff build/result.json'
+      if [[ "$BUILDKITE_BRANCH" == "main" ]]; then
+        .buildkite/scripts/index-micro-benchmark-results.sh
+      else
+        echo "Skipping result indexing on branch $BUILDKITE_BRANCH"
+      fi
+    env:
+      USE_PERF_CREDENTIALS: "true"
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

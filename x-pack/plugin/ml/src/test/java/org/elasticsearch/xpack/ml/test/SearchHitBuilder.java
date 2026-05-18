@@ -12,21 +12,19 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Utility class to build {@link SearchHit} in tests
+ * Utility class to build pooled {@link SearchHit} instances for tests. Callers must {@link SearchHit#decRef()} the
+ * result of {@link #build()} when finished, or rely on code paths that release {@link org.elasticsearch.search.SearchHits} (e.g. mock
+ * {@link org.elasticsearch.action.search.SearchResponse#decRef()} wired via {@link SearchHitTestUtil#stubSearchResponseDecRefsHits}).
  */
 public class SearchHitBuilder {
 
     private final SearchHit hit;
-    private final Map<String, DocumentField> fields;
 
     public SearchHitBuilder(int docId) {
-        fields = new HashMap<>();
-        hit = new SearchHit(docId, null, fields, null);
+        hit = new SearchHit(docId, null);
     }
 
     public SearchHitBuilder addField(String name, Object value) {
@@ -34,7 +32,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder addField(String name, List<Object> values) {
-        fields.put(name, new DocumentField(name, values));
+        hit.setDocumentField(new DocumentField(name, values));
         return this;
     }
 

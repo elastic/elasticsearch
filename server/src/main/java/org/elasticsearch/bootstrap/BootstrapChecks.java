@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -20,24 +22,24 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.ProcessLimits;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AllPermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -75,7 +77,11 @@ final class BootstrapChecks {
         combinedChecks.addAll(additionalChecks);
         check(
             context,
-            enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())),
+            enforceLimits(
+                boundTransportAddress,
+                DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings()),
+                Build.current()::isSnapshot
+            ),
             Collections.unmodifiableList(combinedChecks)
         );
     }
@@ -134,10 +140,11 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
+                final String message = result.getMessage() + "; for more information see [" + check.referenceDocs() + "]";
                 if (enforceLimits == false && enforceBootstrapChecks == false && check.alwaysEnforce() == false) {
-                    ignoredErrors.add(result.getMessage());
+                    ignoredErrors.add(message);
                 } else {
-                    errors.add(result.getMessage());
+                    errors.add(message);
                 }
             }
         }
@@ -153,7 +160,9 @@ final class BootstrapChecks {
                     + errors.size()
                     + "] bootstrap checks failed. You must address the points described in the following ["
                     + errors.size()
-                    + "] lines before starting Elasticsearch."
+                    + "] lines before starting Elasticsearch. For more information see ["
+                    + ReferenceDocs.BOOTSTRAP_CHECKS
+                    + "]"
             );
             for (int i = 0; i < errors.size(); i++) {
                 messages.add("bootstrap check failure [" + (i + 1) + "] of [" + errors.size() + "]: " + errors.get(i));
@@ -169,17 +178,23 @@ final class BootstrapChecks {
     }
 
     /**
-     * Tests if the checks should be enforced.
+     * Tests if the checks should be enforced. \
+     * Bootstrap checks are enforced (in production builds) if a non-loopback address is configured and a non-snapshot build is used.
      *
      * @param boundTransportAddress the node network bindings
      * @param discoveryType the discovery type
+     * @param isSnapshot provider to test if this build is snapshot or not
      * @return {@code true} if the checks should be enforced
      */
-    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
+    static boolean enforceLimits(
+        final BoundTransportAddress boundTransportAddress,
+        final String discoveryType,
+        final BooleanSupplier isSnapshot
+    ) {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound = (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress)
             && isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
-        return bound && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
+        return bound && isSnapshot.getAsBoolean() == false && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
     }
 
     // the list of checks to execute
@@ -207,9 +222,8 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new G1GCCheck());
-        checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
+        checks.add(new ByteOrderCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -243,6 +257,11 @@ final class BootstrapChecks {
             }
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_HEAP_SIZE;
+        }
+
         // visible for testing
         long getInitialHeapSize() {
             return JvmInfo.jvmInfo().getConfiguredInitialHeapSize();
@@ -254,7 +273,7 @@ final class BootstrapChecks {
         }
 
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
     }
@@ -301,9 +320,14 @@ final class BootstrapChecks {
             }
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_FILE_DESCRIPTOR;
+        }
+
         // visible for testing
         long getMaxFileDescriptorCount() {
-            return ProcessProbe.getInstance().getMaxFileDescriptorCount();
+            return ProcessProbe.getMaxFileDescriptorCount();
         }
 
     }
@@ -321,7 +345,12 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MEMORY_LOCK;
         }
 
     }
@@ -333,7 +362,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
+            if (getMaxNumberOfThreads() != ProcessLimits.UNKNOWN && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
@@ -349,16 +378,20 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxNumberOfThreads() {
-            return JNANatives.MAX_NUMBER_OF_THREADS;
+            return NativeAccess.instance().getProcessLimits().maxThreads();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_NUMBER_THREADS;
+        }
     }
 
     static class MaxSizeVirtualMemoryCheck implements BootstrapCheck {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != getRlimInfinity()) {
+            if (getMaxSizeVirtualMemory() != Long.MIN_VALUE && getMaxSizeVirtualMemory() != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max size virtual memory [%d] for user [%s] is too low, increase to [unlimited]",
@@ -372,15 +405,14 @@ final class BootstrapChecks {
         }
 
         // visible for testing
-        long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
-        }
-
-        // visible for testing
         long getMaxSizeVirtualMemory() {
-            return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_SIZE_VIRTUAL_MEMORY;
+        }
     }
 
     /**
@@ -390,12 +422,12 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            final long maxFileSize = getMaxFileSize();
-            if (maxFileSize != Long.MIN_VALUE && maxFileSize != getRlimInfinity()) {
+            final long maxFileSize = getProcessLimits().maxFileSize();
+            if (maxFileSize != Long.MIN_VALUE && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
-                    getMaxFileSize(),
+                    maxFileSize,
                     BootstrapInfo.getSystemProperties().get("user.name")
                 );
                 return BootstrapCheckResult.failure(message);
@@ -404,14 +436,14 @@ final class BootstrapChecks {
             }
         }
 
-        long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
+        protected ProcessLimits getProcessLimits() {
+            return NativeAccess.instance().getProcessLimits();
         }
 
-        long getMaxFileSize() {
-            return JNANatives.MAX_FILE_SIZE;
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_FILE_SIZE;
         }
-
     }
 
     static class MaxMapCountCheck implements BootstrapCheck {
@@ -452,17 +484,17 @@ final class BootstrapChecks {
                     try {
                         return parseProcSysVmMaxMapCount(rawProcSysVmMaxMapCount);
                     } catch (final NumberFormatException e) {
-                        logger.warn(() -> new ParameterizedMessage("unable to parse vm.max_map_count [{}]", rawProcSysVmMaxMapCount), e);
+                        logger.warn(() -> "unable to parse vm.max_map_count [" + rawProcSysVmMaxMapCount + "]", e);
                     }
                 }
             } catch (final IOException e) {
-                logger.warn(() -> new ParameterizedMessage("I/O exception while trying to read [{}]", path), e);
+                logger.warn(() -> "I/O exception while trying to read [" + path + "]", e);
             }
             return -1;
         }
 
         @SuppressForbidden(reason = "access /proc/sys/vm/max_map_count")
-        private Path getProcSysVmMaxMapCountPath() {
+        private static Path getProcSysVmMaxMapCountPath() {
             return PathUtils.get("/proc/sys/vm/max_map_count");
         }
 
@@ -472,15 +504,19 @@ final class BootstrapChecks {
         }
 
         // visible for testing
-        String readProcSysVmMaxMapCount(final BufferedReader bufferedReader) throws IOException {
+        static String readProcSysVmMaxMapCount(final BufferedReader bufferedReader) throws IOException {
             return bufferedReader.readLine();
         }
 
         // visible for testing
-        long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
+        static long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
             return Long.parseLong(procSysVmMaxMapCount);
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAXIMUM_MAP_COUNT;
+        }
     }
 
     static class ClientJvmCheck implements BootstrapCheck {
@@ -504,6 +540,10 @@ final class BootstrapChecks {
             return JvmInfo.jvmInfo().getVmName();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_CLIENT_JVM;
+        }
     }
 
     /**
@@ -532,6 +572,10 @@ final class BootstrapChecks {
             return JvmInfo.jvmInfo().useSerialGC();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_USE_SERIAL_COLLECTOR;
+        }
     }
 
     /**
@@ -551,9 +595,13 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_SYSTEM_CALL_FILTER;
+        }
     }
 
     abstract static class MightForkCheck implements BootstrapCheck {
@@ -571,7 +619,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         // visible for testing
@@ -580,6 +628,11 @@ final class BootstrapChecks {
         @Override
         public final boolean alwaysEnforce() {
             return true;
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_ONERROR_AND_ONOUTOFMEMORYERROR;
         }
 
     }
@@ -658,84 +711,12 @@ final class BootstrapChecks {
         }
 
         String javaVersion() {
-            return Constants.JAVA_VERSION;
+            return Runtime.version().toString();
         }
-
-    }
-
-    /**
-     * Bootstrap check for versions of HotSpot that are known to have issues that can lead to index corruption when G1GC is enabled.
-     */
-    static class G1GCCheck implements BootstrapCheck {
 
         @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if ("Oracle Corporation".equals(jvmVendor()) && isJava8() && isG1GCEnabled()) {
-                final String jvmVersion = jvmVersion();
-                // HotSpot versions on Java 8 match this regular expression; note that this changes with Java 9 after JEP-223
-                final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)-b\\d+");
-                final Matcher matcher = pattern.matcher(jvmVersion);
-                final boolean matches = matcher.matches();
-                assert matches : jvmVersion;
-                final int major = Integer.parseInt(matcher.group(1));
-                final int update = Integer.parseInt(matcher.group(2));
-                // HotSpot versions for Java 8 have major version 25, the bad versions are all versions prior to update 40
-                if (major == 25 && update < 40) {
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "JVM version [%s] can cause data corruption when used with G1GC; upgrade to at least Java 8u40",
-                        jvmVersion
-                    );
-                    return BootstrapCheckResult.failure(message);
-                }
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        // visible for testing
-        String jvmVendor() {
-            return Constants.JVM_VENDOR;
-        }
-
-        // visible for testing
-        boolean isG1GCEnabled() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return JvmInfo.jvmInfo().useG1GC().equals("true");
-        }
-
-        // visible for testing
-        String jvmVersion() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return Constants.JVM_VERSION;
-        }
-
-        // visible for testing
-        boolean isJava8() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return JavaVersion.current().equals(JavaVersion.parse("1.8"));
-        }
-
-    }
-
-    static class AllPermissionCheck implements BootstrapCheck {
-
-        @Override
-        public final BootstrapCheckResult check(BootstrapContext context) {
-            if (isAllPermissionGranted()) {
-                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        boolean isAllPermissionGranted() {
-            final SecurityManager sm = System.getSecurityManager();
-            assert sm != null;
-            try {
-                sm.checkPermission(new AllPermission());
-            } catch (final SecurityException e) {
-                return false;
-            }
-            return true;
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_EARLY_ACCESS;
         }
 
     }
@@ -759,6 +740,31 @@ final class BootstrapChecks {
                         .collect(Collectors.joining(", "))
                 )
             );
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_DISCOVERY_CONFIGURATION;
+        }
+    }
+
+    static class ByteOrderCheck implements BootstrapCheck {
+
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            if (nativeByteOrder() != ByteOrder.LITTLE_ENDIAN) {
+                return BootstrapCheckResult.failure("Little-endian native byte order is required to run Elasticsearch");
+            }
+            return BootstrapCheckResult.success();
+        }
+
+        ByteOrder nativeByteOrder() {
+            return ByteOrder.nativeOrder();
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECKS;
         }
     }
 }

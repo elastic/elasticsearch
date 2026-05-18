@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.plain;
@@ -14,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -26,15 +26,12 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-
-import java.util.Collection;
-import java.util.Collections;
 
 public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
@@ -43,23 +40,23 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final String constantValue;
         private final String name;
         private final ValuesSourceType valuesSourceType;
-        private final ToScriptField<SortedSetDocValues> toScriptField;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
         public Builder(
             String constantValue,
             String name,
             ValuesSourceType valuesSourceType,
-            ToScriptField<SortedSetDocValues> toScriptField
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
         ) {
             this.constantValue = constantValue;
             this.name = name;
             this.valuesSourceType = valuesSourceType;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new ConstantIndexFieldData(name, constantValue, valuesSourceType, toScriptField);
+            return new ConstantIndexFieldData(name, constantValue, valuesSourceType, toScriptFieldFactory);
         }
     }
 
@@ -67,19 +64,14 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         private final String value;
 
-        ConstantLeafFieldData(String value, ToScriptField<SortedSetDocValues> toScriptField) {
-            super(toScriptField);
+        ConstantLeafFieldData(String value, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+            super(toScriptFieldFactory);
             this.value = value;
         }
 
         @Override
         public long ramBytesUsed() {
             return 0;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
         }
 
         @Override
@@ -121,9 +113,6 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
             return DocValues.singleton(sortedValues);
         }
 
-        @Override
-        public void close() {}
-
     }
 
     private final ConstantLeafFieldData atomicFieldData;
@@ -132,10 +121,10 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         String name,
         String value,
         ValuesSourceType valuesSourceType,
-        ToScriptField<SortedSetDocValues> toScriptField
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(name, valuesSourceType, null, null, toScriptField);
-        atomicFieldData = new ConstantLeafFieldData(value, toScriptField);
+        super(name, valuesSourceType, null, null, toScriptFieldFactory);
+        atomicFieldData = new ConstantLeafFieldData(value, toScriptFieldFactory);
     }
 
     @Override

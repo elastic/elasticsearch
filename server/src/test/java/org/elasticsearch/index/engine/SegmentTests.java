@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -25,28 +26,39 @@ import java.util.Objects;
 
 public class SegmentTests extends ESTestCase {
     static SortField randomSortField() {
-        if (randomBoolean()) {
-            SortedNumericSortField field = new SortedNumericSortField(
-                randomAlphaOfLengthBetween(1, 10),
-                SortField.Type.INT,
-                randomBoolean(),
-                randomBoolean() ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
-            );
-            if (randomBoolean()) {
-                field.setMissingValue(randomInt());
+        return switch (between(0, 2)) {
+            case 0 -> {
+                SortedNumericSortField field = new SortedNumericSortField(
+                    randomAlphaOfLengthBetween(1, 10),
+                    SortField.Type.INT,
+                    randomBoolean(),
+                    randomBoolean() ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
+                );
+                if (randomBoolean()) {
+                    field.setMissingValue(randomInt());
+                }
+                yield field;
             }
-            return field;
-        } else {
-            SortedSetSortField field = new SortedSetSortField(
-                randomAlphaOfLengthBetween(1, 10),
-                randomBoolean(),
-                randomBoolean() ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
-            );
-            if (randomBoolean()) {
-                field.setMissingValue(randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+            case 1 -> {
+                SortedSetSortField field = new SortedSetSortField(
+                    randomAlphaOfLengthBetween(1, 10),
+                    randomBoolean(),
+                    randomBoolean() ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
+                );
+                if (randomBoolean()) {
+                    field.setMissingValue(randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+                }
+                yield field;
             }
-            return field;
-        }
+            case 2 -> {
+                SortField field = new SortField(randomAlphaOfLengthBetween(1, 10), SortField.Type.STRING, randomBoolean());
+                if (randomBoolean()) {
+                    field.setMissingValue(randomBoolean() ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+                }
+                yield field;
+            }
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     static Sort randomIndexSort() {
@@ -68,7 +80,7 @@ public class SegmentTests extends ESTestCase {
         segment.sizeInBytes = randomNonNegativeLong();
         segment.docCount = randomIntBetween(1, Integer.MAX_VALUE);
         segment.delDocCount = randomIntBetween(0, segment.docCount);
-        segment.version = Version.LUCENE_8_0_0;
+        segment.version = Version.LUCENE_9_0_0;
         segment.compound = randomBoolean();
         segment.mergeId = randomAlphaOfLengthBetween(1, 10);
         segment.segmentSort = randomIndexSort();

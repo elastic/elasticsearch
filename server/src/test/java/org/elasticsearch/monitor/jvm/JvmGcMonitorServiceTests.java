@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -34,14 +35,14 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
         final TimeValue totalCollectionTime = TimeValue.timeValueMillis(randomIntBetween(1, elapsedValue));
         final TimeValue currentCollectionTime = TimeValue.timeValueMillis(randomIntBetween(1, elapsedValue));
 
-        final ByteSizeValue lastHeapUsed = new ByteSizeValue(randomIntBetween(1, 1 << 10));
+        final ByteSizeValue lastHeapUsed = ByteSizeValue.ofBytes(randomIntBetween(1, 1 << 10));
         JvmStats lastJvmStats = mock(JvmStats.class);
         JvmStats.Mem lastMem = mock(JvmStats.Mem.class);
         when(lastMem.getHeapUsed()).thenReturn(lastHeapUsed);
         when(lastJvmStats.getMem()).thenReturn(lastMem);
         when(lastJvmStats.toString()).thenReturn("last");
 
-        final ByteSizeValue currentHeapUsed = new ByteSizeValue(randomIntBetween(1, 1 << 10));
+        final ByteSizeValue currentHeapUsed = ByteSizeValue.ofBytes(randomIntBetween(1, 1 << 10));
         JvmStats currentJvmStats = mock(JvmStats.class);
         JvmStats.Mem currentMem = mock(JvmStats.Mem.class);
         when(currentMem.getHeapUsed()).thenReturn(currentHeapUsed);
@@ -53,7 +54,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
         when(gc.getCollectionCount()).thenReturn(totalCollectionCount);
         when(gc.getCollectionTime()).thenReturn(totalCollectionTime);
 
-        final ByteSizeValue maxHeapUsed = new ByteSizeValue(Math.max(lastHeapUsed.getBytes(), currentHeapUsed.getBytes()) + 1 << 10);
+        final ByteSizeValue maxHeapUsed = ByteSizeValue.ofBytes(Math.max(lastHeapUsed.getBytes(), currentHeapUsed.getBytes()) + 1 << 10);
 
         JvmGcMonitorService.JvmMonitor.SlowGcEvent slowGcEvent = new JvmGcMonitorService.JvmMonitor.SlowGcEvent(
             gc,

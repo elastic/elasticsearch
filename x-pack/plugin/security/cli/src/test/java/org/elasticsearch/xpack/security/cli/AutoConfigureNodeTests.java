@@ -9,21 +9,23 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionParser;
 
-import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -31,7 +33,12 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
+import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG_HTTP_ALT_DN;
+import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG_TRANSPORT_ALT_DN;
+import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.anyRemoteHostNodeAddress;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
+import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class AutoConfigureNodeTests extends ESTestCase {
@@ -128,7 +135,22 @@ public class AutoConfigureNodeTests extends ESTestCase {
         assertEquals(file1, removePreviousAutoconfiguration(file2));
     }
 
-    public void testGeneratedHTTPCertificateSANs() throws Exception {
+    public void testSubjectAndIssuerForGeneratedCertificates() throws Exception {
+        // test no publish settings
+        Path tempDir = createTempDir();
+        try {
+            Files.createDirectory(tempDir.resolve("config"));
+            // empty yml file, it just has to exist
+            Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
+            Tuple<X509Certificate, X509Certificate> generatedCerts = runAutoConfigAndReturnCertificates(tempDir, Settings.EMPTY);
+            assertThat(checkSubjectAndIssuerDN(generatedCerts.v1(), "CN=dummy.test.hostname", AUTO_CONFIG_HTTP_ALT_DN), is(true));
+            assertThat(checkSubjectAndIssuerDN(generatedCerts.v2(), "CN=dummy.test.hostname", AUTO_CONFIG_TRANSPORT_ALT_DN), is(true));
+        } finally {
+            deleteDirectory(tempDir);
+        }
+    }
+
+    public void testGeneratedHTTPCertificateSANsAndKeyUsage() throws Exception {
         // test no publish settings
         Path tempDir = createTempDir();
         try {
@@ -159,6 +181,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(false));
+            verifyKeyUsageAndExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -180,6 +203,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(true));
+            verifyKeyUsageAndExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
@@ -205,9 +229,47 @@ public class AutoConfigureNodeTests extends ESTestCase {
             assertThat(checkGeneralNameSan(httpCertificate, "balkan.beast", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(false));
+            verifyKeyUsageAndExtendedKeyUsage(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
+    }
+
+    public void testAnyRemoteHostNodeAddress() throws Exception {
+        List<String> remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300");
+        InetAddress[] localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] {
+            InetAddress.getByName("192.168.0.1"),
+            InetAddress.getByName("127.0.0.1"),
+            InetAddress.getByName("10.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300", "[::1]:9300", "10.0.0.1:9301");
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(true));
+
+        remoteAddresses = List.of("127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("[::1]"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.2.3") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("1.2.3.4:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("[::1]"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(true));
+
+        remoteAddresses = List.of();
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
     }
 
     private boolean checkGeneralNameSan(X509Certificate certificate, String generalName, int generalNameTag) throws Exception {
@@ -219,29 +281,61 @@ public class AutoConfigureNodeTests extends ESTestCase {
         return false;
     }
 
+    private boolean checkSubjectAndIssuerDN(X509Certificate certificate, String subjectName, String issuerName) throws Exception {
+        if (certificate.getSubjectX500Principal().getName().equals(subjectName)
+            && certificate.getIssuerX500Principal().getName().equals(issuerName)) {
+            return true;
+        }
+        return false;
+    }
+
+    private void verifyKeyUsageAndExtendedKeyUsage(X509Certificate httpCertificate) throws Exception {
+        List<String> extendedKeyUsage = httpCertificate.getExtendedKeyUsage();
+        assertEquals("Only one extended key usage expected for HTTP certificate.", 1, extendedKeyUsage.size());
+        String expectedServerAuthUsage = KeyPurposeId.id_kp_serverAuth.toASN1Primitive().toString();
+        assertEquals("Expected serverAuth extended key usage.", expectedServerAuthUsage, extendedKeyUsage.get(0));
+        assertExpectedKeyUsage(httpCertificate, HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE);
+    }
+
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir, Settings settings) throws Exception {
+        Tuple<X509Certificate, X509Certificate> generatedCertificates = runAutoConfigAndReturnCertificates(configDir, settings);
+        return generatedCertificates.v1();
+    }
+
+    private Tuple<X509Certificate, X509Certificate> runAutoConfigAndReturnCertificates(Path configDir, Settings settings) throws Exception {
         final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", configDir).put(settings).build());
         // runs the command to auto-generate the config files and the keystore
-        new AutoConfigureNode().execute(new MockTerminal(), new OptionParser().parse(), env);
+        new AutoConfigureNode(false).execute(MockTerminal.create(), new OptionParser().parse(), env, null);
 
         KeyStoreWrapper nodeKeystore = KeyStoreWrapper.load(configDir.resolve("config"));
         nodeKeystore.decrypt(new char[0]); // the keystore is always bootstrapped with an empty password
 
         SecureString httpKeystorePassword = nodeKeystore.getString("xpack.security.http.ssl.keystore.secure_password");
+        SecureString transportKeystorePassword = nodeKeystore.getString("xpack.security.transport.ssl.keystore.secure_password");
 
-        final Settings newSettings = Settings.builder().loadFromPath(env.configFile().resolve("elasticsearch.yml")).build();
+        final Settings newSettings = Settings.builder().loadFromPath(env.configDir().resolve("elasticsearch.yml")).build();
         final String httpKeystorePath = newSettings.get("xpack.security.http.ssl.keystore.path");
+        final String transportKeystorePath = newSettings.get("xpack.security.transport.ssl.keystore.path");
 
         KeyStore httpKeystore = KeyStoreUtil.readKeyStore(
             configDir.resolve("config").resolve(httpKeystorePath),
             "PKCS12",
             httpKeystorePassword.getChars()
         );
-        return (X509Certificate) httpKeystore.getCertificate("http");
+
+        KeyStore transportKeystore = KeyStoreUtil.readKeyStore(
+            configDir.resolve("config").resolve(transportKeystorePath),
+            "PKCS12",
+            transportKeystorePassword.getChars()
+        );
+
+        X509Certificate httpCertificate = (X509Certificate) httpKeystore.getCertificate("http");
+        X509Certificate transportCertificate = (X509Certificate) transportKeystore.getCertificate("transport");
+
+        return new Tuple<>(httpCertificate, transportCertificate);
     }
 
-    @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")
     private void deleteDirectory(Path directory) throws IOException {
-        FileUtils.deleteDirectory(directory.toFile());
+        IOUtils.rm(directory);
     }
 }

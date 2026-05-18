@@ -6,31 +6,31 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Map;
 
 class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateMetricDouble valuesSource;
     private final DocValueFormat format;
 
     private DoubleArray sums;
@@ -44,29 +44,22 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues()
-            ? (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource()
-            : null;
-        if (valuesSource != null) {
-            sums = context.bigArrays().newDoubleArray(1, true);
-            compensations = context.bigArrays().newDoubleArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateMetricDouble) valuesSourceConfig.getValuesSource();
+        sums = context.bigArrays().newDoubleArray(1, true);
+        compensations = context.bigArrays().newDoubleArray(1, true);
         this.format = valuesSourceConfig.format();
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = bigArrays();
-        final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(ctx, Metric.sum);
+        final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.sum);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -95,7 +88,7 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= sums.size()) {
+        if (owningBucketOrd >= sums.size()) {
             return 0.0;
         }
         return sums.get(owningBucketOrd);
@@ -103,15 +96,15 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= sums.size()) {
+        if (bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalSum(name, sums.get(bucket), format, metadata());
+        return new Sum(name, sums.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, format, metadata());
+        return Sum.empty(name, format, metadata());
     }
 
     @Override

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.client;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 
-import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
@@ -31,8 +30,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.PrivilegedAction;
 import java.sql.SQLException;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -43,6 +43,24 @@ import static java.util.Collections.emptyList;
  * and follows a request-response flow.
  */
 public class HttpClient {
+
+    public static class ResponseWithWarnings<R> {
+        private final R response;
+        private final List<String> warnings;
+
+        ResponseWithWarnings(R response, List<String> warnings) {
+            this.response = response;
+            this.warnings = warnings;
+        }
+
+        public R response() {
+            return response;
+        }
+
+        public List<String> warnings() {
+            return warnings;
+        }
+    }
 
     private final ConnectionConfiguration cfg;
     private final ContentType requestBodyContentType;
@@ -61,8 +79,31 @@ public class HttpClient {
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
+        return basicQuery(query, fetchSize, CoreProtocol.FIELD_MULTI_VALUE_LENIENCY);
+    }
+
+    public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency) throws SQLException {
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, cfg.allowPartialSearchResults());
+    }
+
+    public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency, boolean allowPartialSearchResults)
+        throws SQLException {
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, allowPartialSearchResults, null);
+    }
+
+    public SqlQueryResponse basicQuery(
+        String query,
+        int fetchSize,
+        boolean fieldMultiValueLeniency,
+        boolean allowPartialSearchResults,
+        String projectRouting
+    ) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
+
+        if (projectRouting == null) {
+            projectRouting = cfg.projectRouting();
+        }
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
             query,
             emptyList(),
@@ -74,14 +115,17 @@ public class HttpClient {
             Boolean.FALSE,
             null,
             new RequestInfo(Mode.CLI, ClientVersion.CURRENT),
+            fieldMultiValueLeniency,
             false,
-            false,
-            cfg.binaryCommunication()
+            cfg.binaryCommunication(),
+            allowPartialSearchResults,
+            projectRouting
         );
-        return query(sqlRequest);
+
+        return query(sqlRequest).response();
     }
 
-    public SqlQueryResponse query(SqlQueryRequest sqlRequest) throws SQLException {
+    public ResponseWithWarnings<SqlQueryResponse> query(SqlQueryRequest sqlRequest) throws SQLException {
         return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse);
     }
 
@@ -92,45 +136,47 @@ public class HttpClient {
             TimeValue.timeValueMillis(cfg.queryTimeout()),
             TimeValue.timeValueMillis(cfg.pageTimeout()),
             new RequestInfo(Mode.CLI),
-            cfg.binaryCommunication()
+            cfg.binaryCommunication(),
+            cfg.allowPartialSearchResults(),
+            cfg.projectRouting()
         );
-        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse);
+        return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse).response();
     }
 
     public boolean queryClose(String cursor, Mode mode) throws SQLException {
-        SqlClearCursorResponse response = post(
+        ResponseWithWarnings<SqlClearCursorResponse> response = post(
             CoreProtocol.CLEAR_CURSOR_REST_ENDPOINT,
-            new SqlClearCursorRequest(cursor, new RequestInfo(mode)),
+            new SqlClearCursorRequest(cursor, new RequestInfo(mode), cfg.binaryCommunication()),
             Payloads::parseClearCursorResponse
         );
-        return response.isSucceeded();
+        return response.response().isSucceeded();
     }
 
-    @SuppressWarnings({ "removal" })
-    private <Request extends AbstractSqlRequest, Response> Response post(
+    private <Request extends AbstractSqlRequest, Response> ResponseWithWarnings<Response> post(
         String path,
         Request request,
         CheckedFunction<JsonParser, Response, IOException> responseParser
     ) throws SQLException {
         byte[] requestBytes = toContent(request);
         String query = "error_trace";
-        Tuple<ContentType, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<ContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
-                path,
-                query,
-                cfg,
-                con -> con.request(
-                    (out) -> out.write(requestBytes),
-                    this::readFrom,
-                    "POST",
-                    requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
-                )
+        Tuple<Function<String, List<String>>, byte[]> response = JreHttpUrlConnection.http(
+            path,
+            query,
+            cfg,
+            con -> con.request(
+                (out) -> out.write(requestBytes),
+                HttpClient::readFrom,
+                "POST",
+                requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
             )
         ).getResponseOrThrowException();
-        return fromContent(response.v1(), response.v2(), responseParser);
+        List<String> warnings = response.v1().apply("Warning");
+        return new ResponseWithWarnings<>(
+            fromContent(contentType(response.v1()), response.v2(), responseParser),
+            warnings == null ? Collections.emptyList() : warnings
+        );
     }
 
-    @SuppressWarnings({ "removal" })
     private boolean head(String path, long timeoutInMs) throws SQLException {
         ConnectionConfiguration pingCfg = new ConnectionConfiguration(
             cfg.baseUri(),
@@ -144,29 +190,27 @@ public class HttpClient {
             cfg.pageSize(),
             cfg.authUser(),
             cfg.authPass(),
+            cfg.apiKey(),
             cfg.sslConfig(),
-            cfg.proxyConfig()
+            cfg.proxyConfig(),
+            CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS,
+            cfg.projectRouting()
         );
         try {
-            return java.security.AccessController.doPrivileged(
-                (PrivilegedAction<Boolean>) () -> JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head)
-            );
+            return JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head);
         } catch (ClientException ex) {
             throw new SQLException("Cannot ping server", ex);
         }
     }
 
-    @SuppressWarnings({ "removal" })
     private <Response> Response get(String path, CheckedFunction<JsonParser, Response, IOException> responseParser) throws SQLException {
-        Tuple<ContentType, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<ContentType, byte[]>>>) () -> JreHttpUrlConnection.http(
-                path,
-                "error_trace",
-                cfg,
-                con -> con.request(null, this::readFrom, "GET")
-            )
+        Tuple<Function<String, List<String>>, byte[]> response = JreHttpUrlConnection.http(
+            path,
+            "error_trace",
+            cfg,
+            con -> con.request(null, HttpClient::readFrom, "GET")
         ).getResponseOrThrowException();
-        return fromContent(response.v1(), response.v2(), responseParser);
+        return fromContent(contentType(response.v1()), response.v2(), responseParser);
     }
 
     private <Request extends AbstractSqlRequest> byte[] toContent(Request request) {
@@ -180,31 +224,35 @@ public class HttpClient {
         }
     }
 
-    private Tuple<ContentType, byte[]> readFrom(InputStream inputStream, Function<String, String> headers) {
-        String contentType = headers.apply("Content-Type");
-        ContentType type = ContentFactory.parseMediaType(contentType);
-        if (type == null) {
-            throw new IllegalStateException("Unsupported Content-Type: " + contentType);
-        }
+    private static Tuple<Function<String, List<String>>, byte[]> readFrom(InputStream inputStream, Function<String, List<String>> headers) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             Streams.copy(inputStream, out);
         } catch (Exception ex) {
             throw new ClientException("Cannot deserialize response", ex);
         }
-        return new Tuple<>(type, out.toByteArray());
+        return new Tuple<>(headers, out.toByteArray());
 
     }
 
-    private <Response> Response fromContent(
-        ContentType contentType,
+    private static ContentType contentType(Function<String, List<String>> headers) {
+        List<String> contentTypeHeaders = headers.apply("Content-Type");
+
+        String contentType = contentTypeHeaders == null || contentTypeHeaders.isEmpty() ? null : contentTypeHeaders.get(0);
+        ContentType type = ContentFactory.parseMediaType(contentType);
+        if (type == null) {
+            throw new IllegalStateException("Unsupported Content-Type: " + contentType);
+        } else {
+            return type;
+        }
+    }
+
+    private static <Response> Response fromContent(
+        ContentType type,
         byte[] bytesReference,
         CheckedFunction<JsonParser, Response, IOException> responseParser
     ) {
-        try (
-            InputStream stream = new ByteArrayInputStream(bytesReference);
-            JsonParser parser = ContentFactory.parser(contentType, stream)
-        ) {
+        try (InputStream stream = new ByteArrayInputStream(bytesReference); JsonParser parser = ContentFactory.parser(type, stream)) {
             return responseParser.apply(parser);
         } catch (Exception ex) {
             throw new ClientException("Cannot parse response", ex);

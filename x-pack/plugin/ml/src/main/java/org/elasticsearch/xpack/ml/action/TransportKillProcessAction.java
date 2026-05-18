@@ -16,8 +16,9 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -56,8 +57,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
             actionFilters,
             KillProcessAction.Request::new,
             KillProcessAction.Response::new,
-            KillProcessAction.Response::new,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.auditor = auditor;
     }
@@ -70,16 +70,19 @@ public class TransportKillProcessAction extends TransportTasksAction<
         List<FailedNodeException> failedNodeExceptions
     ) {
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(
-            taskOperationFailures.stream()
-                .map(t -> org.elasticsearch.ExceptionsHelper.convertToElastic(t.getCause()))
-                .collect(Collectors.toList())
+            taskOperationFailures.stream().map(ExceptionsHelper::taskOperationFailureToStatusException).collect(Collectors.toList())
         );
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(failedNodeExceptions);
         return new KillProcessAction.Response(true);
     }
 
     @Override
-    protected void taskOperation(KillProcessAction.Request request, JobTask jobTask, ActionListener<KillProcessAction.Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        KillProcessAction.Request request,
+        JobTask jobTask,
+        ActionListener<KillProcessAction.Response> listener
+    ) {
         logger.info("[{}] Killing job", jobTask.getJobId());
         auditor.info(jobTask.getJobId(), Messages.JOB_AUDIT_KILLING);
         try {
@@ -93,7 +96,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
     @Override
     protected void doExecute(Task task, KillProcessAction.Request request, ActionListener<KillProcessAction.Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(clusterService.state().metadata().getDefaultProject());
         List<PersistentTasksCustomMetadata.PersistentTask<?>> jobTasks;
         if (Strings.isAllOrWildcard(request.getJobId())) {
             jobTasks = MlTasks.openJobTasks(tasks).stream().filter(t -> t.getExecutorNode() != null).collect(Collectors.toList());

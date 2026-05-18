@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.hamcrest;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -199,7 +200,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,
@@ -209,7 +210,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,
@@ -219,7 +220,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_BLOCK, IndexMetadata.INDEX_METADATA_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,
@@ -229,7 +230,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
 
         indexLevelBlocks.put("test", Set.of(IndexMetadata.INDEX_READ_ONLY_BLOCK, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
         assertBlocked(
-            new BroadcastResponse(
+            new BaseBroadcastResponse(
                 1,
                 0,
                 1,

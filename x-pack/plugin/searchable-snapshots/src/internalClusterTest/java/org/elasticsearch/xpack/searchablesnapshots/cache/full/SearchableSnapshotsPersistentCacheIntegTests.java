@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
@@ -78,7 +79,12 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .nodes();
         final String dataNode = randomFrom(discoveryNodes.getDataNodes().values()).getName();
 
         mountSnapshot(
@@ -93,14 +99,13 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        final Index restoredIndex = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 
@@ -180,13 +185,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         createRepository(fsRepoName, FsRepository.TYPE);
 
         final String indexName = prefix + "index";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-                .build()
-        );
+        createIndex(indexName, 3, randomIntBetween(0, 1));
         ensureGreen(indexName);
 
         final int numDocs = scaledRandomIntBetween(1_000, 5_000);
@@ -215,14 +214,12 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                 .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
         );
 
-        final ClusterStateResponse state = client().admin()
-            .cluster()
-            .prepareState()
+        final ClusterStateResponse state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(mountedIndexName)
             .get();
-        final Index mountedIndex = state.getState().metadata().index(mountedIndexName).getIndex();
+        final Index mountedIndex = state.getState().metadata().getProject().index(mountedIndexName).getIndex();
 
         final Set<DiscoveryNode> dataNodes = new HashSet<>();
         for (DiscoveryNode node : getDiscoveryNodes()) {
@@ -242,12 +239,9 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final DiscoveryNode excludedDataNode = randomFrom(dataNodes);
         logger.info("--> relocating mounted index {} away from {}", mountedIndex, excludedDataNode);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(mountedIndexName)
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()))
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()),
+            mountedIndexName
         );
 
         ensureGreen(mountedIndexName);
@@ -274,7 +268,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                     dataNode.equals(excludedDataNode) ? equalTo(0L) : greaterThan(0L)
                 );
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
 
         logger.info("--> deleting mounted index {}", mountedIndex);
         assertAcked(client().admin().indices().prepareDelete(mountedIndexName));

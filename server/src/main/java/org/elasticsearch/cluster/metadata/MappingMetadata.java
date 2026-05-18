@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +29,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
+public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
         MapperService.SINGLE_MAPPING_NAME,
@@ -49,7 +48,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "this-escape", "unchecked" })
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -60,11 +59,11 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "this-escape", "unchecked" })
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
         try {
-            this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping));
+            this.source = new CompressedXContent(mapping);
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }
@@ -75,14 +74,8 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routingRequired = routingRequired(withoutType);
     }
 
-    public static void writeMappingMetadata(StreamOutput out, ImmutableOpenMap<String, MappingMetadata> mappings) throws IOException {
-        out.writeMap(mappings, StreamOutput::writeString, out.getVersion().before(Version.V_8_0_0) ? (o, v) -> {
-            o.writeVInt(v == EMPTY_MAPPINGS ? 0 : 1);
-            if (v != EMPTY_MAPPINGS) {
-                o.writeString(MapperService.SINGLE_MAPPING_NAME);
-                v.writeTo(o);
-            }
-        } : (o, v) -> {
+    public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
+        out.writeMap(mappings, (o, v) -> {
             o.writeBoolean(v != EMPTY_MAPPINGS);
             if (v != EMPTY_MAPPINGS) {
                 v.writeTo(o);
@@ -141,6 +134,16 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         return sourceAsMap();
     }
 
+    /**
+     * Converts the serialized compressed form of the mappings into a parsed map.
+     * In contrast to {@link #sourceAsMap()}, this does not remove the type
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rawSourceAsMap() throws ElasticsearchParseException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+        return mapping;
+    }
+
     public boolean routingRequired() {
         return this.routingRequired;
     }
@@ -183,6 +186,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(MappingMetadata::new, in);
+        return SimpleDiffable.readDiffFrom(MappingMetadata::new, in);
     }
 }

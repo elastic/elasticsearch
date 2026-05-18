@@ -19,7 +19,17 @@ public class ActivateAutoFollowPatternActionRequestTests extends AbstractWireSer
 
     @Override
     protected ActivateAutoFollowPatternAction.Request createTestInstance() {
-        return new ActivateAutoFollowPatternAction.Request(randomAlphaOfLength(5), randomBoolean());
+        return new ActivateAutoFollowPatternAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            randomAlphaOfLength(5),
+            randomBoolean()
+        );
+    }
+
+    @Override
+    protected ActivateAutoFollowPatternAction.Request mutateInstance(ActivateAutoFollowPatternAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -28,12 +38,17 @@ public class ActivateAutoFollowPatternActionRequestTests extends AbstractWireSer
     }
 
     public void testValidate() {
-        ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(null, true);
+        ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            null,
+            true
+        );
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[name] is missing"));
 
-        request = new ActivateAutoFollowPatternAction.Request("name", true);
+        request = new ActivateAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "name", true);
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

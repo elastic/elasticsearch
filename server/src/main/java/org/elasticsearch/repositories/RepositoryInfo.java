@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -56,7 +57,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         this.ephemeralId = in.readString();
         this.name = in.readString();
         this.type = in.readString();
-        this.location = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.location = in.readMap(StreamInput::readString);
         this.startedAt = in.readLong();
         this.stoppedAt = in.readOptionalLong();
     }
@@ -76,7 +77,7 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         out.writeString(ephemeralId);
         out.writeString(name);
         out.writeString(type);
-        out.writeMap(location, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(location, StreamOutput::writeString);
         out.writeLong(startedAt);
         out.writeOptionalLong(stoppedAt);
     }

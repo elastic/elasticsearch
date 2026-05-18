@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
@@ -103,7 +104,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithExtendedStats;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithStats;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
@@ -143,6 +143,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -340,12 +341,6 @@ public class OptimizerTests extends ESTestCase {
 
     // Null folding
 
-    public void testNullFoldingIsNull() {
-        FoldNull foldNull = new FoldNull();
-        assertEquals(true, foldNull.rule(new IsNull(EMPTY, NULL)).fold());
-        assertEquals(false, foldNull.rule(new IsNull(EMPTY, TRUE)).fold());
-    }
-
     public void testNullFoldingIsNullWithCast() {
         FoldNull foldNull = new FoldNull();
 
@@ -354,11 +349,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNull isNullOpt = (IsNull) foldNull.rule(isNull);
         assertEquals(isNull, isNullOpt);
 
-        QlIllegalArgumentException sqlIAE = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> isNullOpt.asPipe().asProcessor().process(null)
-        );
-        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+        Exception e = expectThrows(InvalidArgumentException.class, () -> isNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", e.getMessage());
 
         isNull = new IsNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertTrue((Boolean) ((IsNull) foldNull.rule(isNull)).asPipe().asProcessor().process(null));
@@ -382,11 +374,8 @@ public class OptimizerTests extends ESTestCase {
         final IsNotNull isNotNullOpt = (IsNotNull) foldNull.rule(isNotNull);
         assertEquals(isNotNull, isNotNullOpt);
 
-        QlIllegalArgumentException sqlIAE = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> isNotNullOpt.asPipe().asProcessor().process(null)
-        );
-        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", sqlIAE.getMessage());
+        Exception e = expectThrows(InvalidArgumentException.class, () -> isNotNullOpt.asPipe().asProcessor().process(null));
+        assertEquals("cannot cast [foo] to [date]: Text 'foo' could not be parsed at index 0", e.getMessage());
 
         isNotNull = new IsNotNull(EMPTY, new Cast(EMPTY, NULL, randomFrom(DataTypes.types())));
         assertFalse((Boolean) ((IsNotNull) foldNull.rule(isNotNull)).asPipe().asProcessor().process(null));
@@ -419,20 +408,6 @@ public class OptimizerTests extends ESTestCase {
         cast = new Cast(EMPTY, L("foo"), DATE);
         assertEquals(Nullability.UNKNOWN, cast.nullable());
         assertEquals(cast, foldNull.rule(cast));
-    }
-
-    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
-        FoldNull rule = new FoldNull();
-
-        Or or = new Or(EMPTY, NULL, TRUE);
-        assertEquals(or, rule.rule(or));
-        or = new Or(EMPTY, NULL, NULL);
-        assertEquals(or, rule.rule(or));
-
-        And and = new And(EMPTY, NULL, TRUE);
-        assertEquals(and, rule.rule(and));
-        and = new And(EMPTY, NULL, NULL);
-        assertEquals(and, rule.rule(and));
     }
 
     @SuppressWarnings("unchecked")
@@ -873,60 +848,64 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testTranslateMinToFirst() {
-        Min min1 = new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", KEYWORD, emptyMap(), true)));
-        Min min2 = new Min(EMPTY, getFieldAttribute());
+        for (DataType dataType : List.of(KEYWORD, UNSIGNED_LONG)) {
+            Min min1 = new Min(EMPTY, new FieldAttribute(EMPTY, "field", new EsField("field", dataType, emptyMap(), true)));
+            Min min2 = new Min(EMPTY, getFieldAttribute());
 
-        OrderBy plan = new OrderBy(
-            EMPTY,
-            new Aggregate(EMPTY, FROM(), emptyList(), asList(a("min1", min1), a("min2", min2))),
-            asList(
-                new Order(EMPTY, min1, OrderDirection.ASC, Order.NullsPosition.LAST),
-                new Order(EMPTY, min2, OrderDirection.ASC, Order.NullsPosition.LAST)
-            )
-        );
-        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
-        assertTrue(result instanceof OrderBy);
-        List<Order> order = ((OrderBy) result).order();
-        assertEquals(2, order.size());
-        assertEquals(First.class, order.get(0).child().getClass());
-        assertEquals(min2, order.get(1).child());
-        First first = (First) order.get(0).child();
+            OrderBy plan = new OrderBy(
+                EMPTY,
+                new Aggregate(EMPTY, FROM(), emptyList(), asList(a("min1", min1), a("min2", min2))),
+                asList(
+                    new Order(EMPTY, min1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                    new Order(EMPTY, min2, OrderDirection.ASC, Order.NullsPosition.LAST)
+                )
+            );
+            LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+            assertTrue(result instanceof OrderBy);
+            List<Order> order = ((OrderBy) result).order();
+            assertEquals(2, order.size());
+            assertEquals(First.class, order.get(0).child().getClass());
+            assertEquals(min2, order.get(1).child());
+            First first = (First) order.get(0).child();
 
-        assertTrue(((OrderBy) result).child() instanceof Aggregate);
-        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
-        assertEquals(2, aggregates.size());
-        assertEquals(Alias.class, aggregates.get(0).getClass());
-        assertEquals(Alias.class, aggregates.get(1).getClass());
-        assertSame(first, ((Alias) aggregates.get(0)).child());
-        assertEquals(min2, ((Alias) aggregates.get(1)).child());
+            assertTrue(((OrderBy) result).child() instanceof Aggregate);
+            List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+            assertEquals(2, aggregates.size());
+            assertEquals(Alias.class, aggregates.get(0).getClass());
+            assertEquals(Alias.class, aggregates.get(1).getClass());
+            assertSame(first, ((Alias) aggregates.get(0)).child());
+            assertEquals(min2, ((Alias) aggregates.get(1)).child());
+        }
     }
 
     public void testTranslateMaxToLast() {
-        Max max1 = new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", KEYWORD, emptyMap(), true)));
-        Max max2 = new Max(EMPTY, getFieldAttribute());
+        for (DataType dataType : List.of(KEYWORD, UNSIGNED_LONG)) {
+            Max max1 = new Max(EMPTY, new FieldAttribute(EMPTY, "field", new EsField("field", dataType, emptyMap(), true)));
+            Max max2 = new Max(EMPTY, getFieldAttribute());
 
-        OrderBy plan = new OrderBy(
-            EMPTY,
-            new Aggregate(EMPTY, FROM(), emptyList(), asList(a("max1", max1), a("max2", max2))),
-            asList(
-                new Order(EMPTY, max1, OrderDirection.ASC, Order.NullsPosition.LAST),
-                new Order(EMPTY, max2, OrderDirection.ASC, Order.NullsPosition.LAST)
-            )
-        );
-        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
-        assertTrue(result instanceof OrderBy);
-        List<Order> order = ((OrderBy) result).order();
-        assertEquals(Last.class, order.get(0).child().getClass());
-        assertEquals(max2, order.get(1).child());
-        Last last = (Last) order.get(0).child();
+            OrderBy plan = new OrderBy(
+                EMPTY,
+                new Aggregate(EMPTY, FROM(), emptyList(), asList(a("max1", max1), a("max2", max2))),
+                asList(
+                    new Order(EMPTY, max1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                    new Order(EMPTY, max2, OrderDirection.ASC, Order.NullsPosition.LAST)
+                )
+            );
+            LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+            assertTrue(result instanceof OrderBy);
+            List<Order> order = ((OrderBy) result).order();
+            assertEquals(Last.class, order.get(0).child().getClass());
+            assertEquals(max2, order.get(1).child());
+            Last last = (Last) order.get(0).child();
 
-        assertTrue(((OrderBy) result).child() instanceof Aggregate);
-        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
-        assertEquals(2, aggregates.size());
-        assertEquals(Alias.class, aggregates.get(0).getClass());
-        assertEquals(Alias.class, aggregates.get(1).getClass());
-        assertSame(last, ((Alias) aggregates.get(0)).child());
-        assertEquals(max2, ((Alias) aggregates.get(1)).child());
+            assertTrue(((OrderBy) result).child() instanceof Aggregate);
+            List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+            assertEquals(2, aggregates.size());
+            assertEquals(Alias.class, aggregates.get(0).getClass());
+            assertEquals(Alias.class, aggregates.get(1).getClass());
+            assertSame(last, ((Alias) aggregates.get(0)).child());
+            assertEquals(max2, ((Alias) aggregates.get(1)).child());
+        }
     }
 
     public void testSortAggregateOnOrderByWithTwoFields() {
@@ -1217,5 +1196,4 @@ public class OptimizerTests extends ESTestCase {
 
         optimized.forEachDown(LeafPlan.class, l -> { assertEquals(EsRelation.class, l.getClass()); });
     }
-
 }

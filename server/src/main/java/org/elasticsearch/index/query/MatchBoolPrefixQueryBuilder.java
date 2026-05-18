@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -100,19 +103,9 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         out.writeOptionalString(fuzzyRewrite);
     }
 
-    /** Returns the field name used in this query. */
-    public String fieldName() {
-        return this.fieldName;
-    }
-
     /** Returns the value used in this query. */
     public Object value() {
         return this.value;
-    }
-
-    /** Get the analyzer to use, if previously set, otherwise {@code null} */
-    public String analyzer() {
-        return this.analyzer;
     }
 
     /**
@@ -131,11 +124,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         }
         this.operator = operator;
         return this;
-    }
-
-    /** Returns the operator to use in a boolean query.*/
-    public Operator operator() {
-        return this.operator;
     }
 
     /** Sets optional minimumShouldMatch value to apply to the query */
@@ -192,13 +180,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     /**
-     * Get the (optional) number of term expansions when using fuzzy or prefix type query.
-     */
-    public int maxExpansions() {
-        return this.maxExpansions;
-    }
-
-    /**
      * Sets whether transpositions are supported in fuzzy queries.<p>
      * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
      * distance formula which supports transpositions. Setting transposition to false will
@@ -221,14 +202,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         return this;
     }
 
-    /**
-     * Get the fuzzy_rewrite parameter
-     * @see #fuzzyRewrite(String)
-     */
-    public String fuzzyRewrite() {
-        return this.fuzzyRewrite;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -237,20 +210,28 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         if (analyzer != null) {
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (operator != DEFAULT_OPERATOR) {
+            builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        }
         if (minimumShouldMatch != null) {
             builder.field(MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
-        builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
-        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        if (prefixLength != FuzzyQuery.defaultPrefixLength) {
+            builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        }
+        if (maxExpansions != FuzzyQuery.defaultMaxExpansions) {
+            builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        }
+        if (fuzzyTranspositions != FuzzyQuery.defaultTranspositions) {
+            builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        }
         if (fuzzyRewrite != null) {
             builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -339,12 +320,12 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         if (analyzer != null && context.getIndexAnalyzers().get(analyzer) == null) {
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        final MatchQueryParser queryParser = new MatchQueryParser(context);
+        final MatchQueryParser queryParser = new MatchQueryParser(context, queryVisitor);
         if (analyzer != null) {
             queryParser.setAnalyzer(analyzer);
         }
@@ -392,5 +373,10 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

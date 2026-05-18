@@ -33,6 +33,15 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.To
 /**
  * Tests the {@link ToCharFormatter} against actual PostgreSQL output.
  *
+ * <p>
+ *     Note: Recreating the data set has some complexities,
+ *     as modern Postgres versions (+12) don't have some of the configured timezones,
+ *     and they also may generate different results for dates before 1900.
+ * </p>
+ * <p>
+ *     Consider if it's worth changing the dataset for this test.
+ * </p>
+ *
  * Process to (re)generate the test data:
  * <ol>
  *     <li>Run the @{link {@link ToCharTestScript#main(String[])}} class</li>
@@ -49,7 +58,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.To
  *     </li>
  * </ol>
  *
- * In case you need to mute any of the tests, mute all tests by adding {@link org.apache.lucene.util.LuceneTestCase.AwaitsFix}
+ * In case you need to mute any of the tests, mute all tests by adding {@link org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix}
  * on the class level.
  */
 public class DateTimeToCharProcessorTests extends ESTestCase {
@@ -163,7 +172,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         int fractions = b.remainder(BigDecimal.ONE).movePointRight(9).intValueExact();
         int adjustment = 0;
         if (fractions < 0) {
-            fractions += 1e9;
+            fractions += (int) 1e9;
             adjustment = -1;
         }
         return dateTime((seconds + adjustment) * 1000).withNano(fractions);

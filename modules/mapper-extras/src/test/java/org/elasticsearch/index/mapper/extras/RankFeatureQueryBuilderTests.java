@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -19,7 +20,6 @@ import org.elasticsearch.index.mapper.extras.RankFeatureQueryBuilder.ScoreFuncti
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +54,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(MapperExtrasPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(MapperExtrasPlugin.class);
     }
 
     @Override
@@ -112,12 +112,12 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testIllegalField() {
-        String query = """
+        String query = Strings.format("""
             {
                 "rank_feature" : {
                     "field": "%s"
                 }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())
@@ -146,5 +146,22 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
             e.getMessage()
         );
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "rank_feature" : {
+                "field": "foo",
+                "boost": 1,
+                "saturation": {}
+              }
+            }""";
+        checkGeneratedJson("""
+            {
+              "rank_feature": {
+                "field": "foo"
+              }
+            }""", parseQuery(json));
     }
 }

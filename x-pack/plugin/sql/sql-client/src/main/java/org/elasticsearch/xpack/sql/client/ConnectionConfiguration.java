@@ -64,10 +64,18 @@ public class ConnectionConfiguration {
     public static final String AUTH_USER = "user";
     // NB: this is password instead of pass since that's what JDBC DriverManager/tools use
     public static final String AUTH_PASS = "password";
+    public static final String AUTH_API_KEY = "apiKey";
 
     // Default catalog
 
     private static final String CATALOG = "catalog";
+
+    // Allow shard failures
+    public static final String ALLOW_PARTIAL_SEARCH_RESULTS = "allow.partial.search.results";
+    public static final String ALLOW_PARTIAL_SEARCH_RESULTS_DEFAULT = "false";
+
+    // CPS project routing
+    public static final String PROJECT_ROUTING = "project.routing";
 
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
         Arrays.asList(
@@ -80,7 +88,10 @@ public class ConnectionConfiguration {
             PAGE_SIZE,
             AUTH_USER,
             AUTH_PASS,
-            CATALOG
+            AUTH_API_KEY,
+            CATALOG,
+            ALLOW_PARTIAL_SEARCH_RESULTS,
+            PROJECT_ROUTING
         )
     );
 
@@ -105,10 +116,16 @@ public class ConnectionConfiguration {
     private final int pageSize;
 
     private final String user, pass;
+    private final String apiKey;
 
     private final SslConfig sslConfig;
     private final ProxyConfig proxyConfig;
 
+    private final boolean allowPartialSearchResults;
+
+    private final String projectRouting;
+
+    @SuppressWarnings("this-escape")
     public ConnectionConfiguration(URI baseURI, String connectionString, Properties props) throws ClientException {
         this.connectionString = connectionString;
         Properties settings = props != null ? props : new Properties();
@@ -138,11 +155,27 @@ public class ConnectionConfiguration {
         // auth
         user = settings.getProperty(AUTH_USER);
         pass = settings.getProperty(AUTH_PASS);
+        apiKey = settings.getProperty(AUTH_API_KEY);
+
+        // validate that only one authentication method is specified
+        if (StringUtils.hasText(apiKey) && StringUtils.hasText(user)) {
+            throw new ClientException(
+                "Cannot use both API key and basic authentication. Please specify either [" + AUTH_API_KEY + "] or [" + AUTH_USER + "]."
+            );
+        }
 
         sslConfig = new SslConfig(settings, baseURI);
         proxyConfig = new ProxyConfig(settings);
 
         this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
+
+        allowPartialSearchResults = parseValue(
+            ALLOW_PARTIAL_SEARCH_RESULTS,
+            settings.getProperty(ALLOW_PARTIAL_SEARCH_RESULTS, ALLOW_PARTIAL_SEARCH_RESULTS_DEFAULT),
+            Boolean::parseBoolean
+        );
+
+        projectRouting = settings.getProperty(PROJECT_ROUTING);
     }
 
     public ConnectionConfiguration(
@@ -157,8 +190,11 @@ public class ConnectionConfiguration {
         int pageSize,
         String user,
         String pass,
+        String apiKey,
         SslConfig sslConfig,
-        ProxyConfig proxyConfig
+        ProxyConfig proxyConfig,
+        boolean allowPartialSearchResults,
+        String projectRouting
     ) throws ClientException {
         this.validateProperties = validateProperties;
         this.binaryCommunication = binaryCommunication;
@@ -173,10 +209,21 @@ public class ConnectionConfiguration {
         // auth
         this.user = user;
         this.pass = pass;
+        this.apiKey = apiKey;
+
+        // validate that only one authentication method is specified
+        if (StringUtils.hasText(apiKey) && StringUtils.hasText(user)) {
+            throw new ClientException(
+                "Cannot use both API key and basic authentication. Please specify either [" + AUTH_API_KEY + "] or [" + AUTH_USER + "]."
+            );
+        }
 
         this.sslConfig = sslConfig;
         this.proxyConfig = proxyConfig;
         this.baseURI = baseURI;
+
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        this.projectRouting = projectRouting;
     }
 
     private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled) {
@@ -280,6 +327,10 @@ public class ConnectionConfiguration {
         return pass;
     }
 
+    public String apiKey() {
+        return apiKey;
+    }
+
     public URI baseUri() {
         return baseURI;
     }
@@ -291,4 +342,11 @@ public class ConnectionConfiguration {
         return connectionString;
     }
 
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.kuromoji;
@@ -37,6 +38,9 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
         extra.put("kuromoji_stemmer", KuromojiKatakanaStemmerFactory::new);
         extra.put("ja_stop", JapaneseStopTokenFilterFactory::new);
         extra.put("kuromoji_number", KuromojiNumberFilterFactory::new);
+        extra.put("kuromoji_completion", KuromojiCompletionFilterFactory::new);
+        extra.put("hiragana_uppercase", HiraganaUppercaseFilterFactory::new);
+        extra.put("katakana_uppercase", KatakanaUppercaseFilterFactory::new);
         return extra;
     }
 
@@ -47,6 +51,9 @@ public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
 
     @Override
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
-        return singletonMap("kuromoji", KuromojiAnalyzerProvider::new);
+        Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> extra = new HashMap<>();
+        extra.put("kuromoji", KuromojiAnalyzerProvider::new);
+        extra.put("kuromoji_completion", KuromojiCompletionAnalyzerProvider::new);
+        return extra;
     }
 }

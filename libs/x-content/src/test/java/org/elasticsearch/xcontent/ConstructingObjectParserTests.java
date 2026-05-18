@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -102,22 +103,24 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingAllConstructorArgs() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }");
-        ConstructingObjectParser<HasCtorArguments, Void> objectParser = randomBoolean()
-            ? HasCtorArguments.PARSER
-            : HasCtorArguments.PARSER_VEGETABLE_OPTIONAL;
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-        if (objectParser == HasCtorArguments.PARSER) {
-            assertEquals("Required [animal, vegetable]", e.getMessage());
-        } else {
-            assertEquals("Required [animal]", e.getMessage());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }")) {
+            ConstructingObjectParser<HasCtorArguments, Void> objectParser = randomBoolean()
+                ? HasCtorArguments.PARSER
+                : HasCtorArguments.PARSER_VEGETABLE_OPTIONAL;
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
+            if (objectParser == HasCtorArguments.PARSER) {
+                assertEquals("Required [animal, vegetable]", e.getMessage());
+            } else {
+                assertEquals("Required [animal]", e.getMessage());
+            }
         }
     }
 
     public void testMissingAllConstructorArgsButNotRequired() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }");
-        HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
-        assertEquals(1, parsed.mineral);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }")) {
+            HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
+            assertEquals(1, parsed.mineral);
+        }
     }
 
     public void testMissingSecondConstructorArg() throws IOException {

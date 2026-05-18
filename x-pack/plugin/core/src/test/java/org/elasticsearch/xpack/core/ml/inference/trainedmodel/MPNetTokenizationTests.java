@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -18,6 +18,10 @@ import java.io.IOException;
 public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPNetTokenization> {
 
     private boolean lenient;
+
+    static MPNetTokenization mutateForVersion(MPNetTokenization instance, TransportVersion version) {
+        return instance;
+    }
 
     @Before
     public void chooseStrictOrLenient() {
@@ -40,8 +44,13 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
     }
 
     @Override
-    protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, Version version) {
-        return instance;
+    protected MPNetTokenization mutateInstance(MPNetTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
     }
 
     public static MPNetTokenization createRandom() {
@@ -49,7 +58,20 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 1024),
-            randomBoolean() ? null : randomFrom(Tokenization.Truncate.values())
+            randomBoolean() ? null : randomFrom(Tokenization.Truncate.values()),
+            null
+        );
+    }
+
+    public static MPNetTokenization createRandomWithSpan() {
+        Tokenization.Truncate truncate = randomBoolean() ? null : randomFrom(Tokenization.Truncate.values());
+        Integer maxSeq = randomBoolean() ? null : randomIntBetween(1, 1024);
+        return new MPNetTokenization(
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            maxSeq,
+            truncate,
+            Tokenization.Truncate.NONE.equals(truncate) && randomBoolean() ? randomIntBetween(0, maxSeq != null ? maxSeq - 1 : 100) : null
         );
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -17,7 +18,6 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
@@ -73,6 +73,24 @@ public final class PemUtils {
     private static final String PBES2_OID = "1.2.840.113549.1.5.13";
     private static final String AES_OID = "2.16.840.1.101.3.4.1";
 
+    /**
+     * <a href="https://docs.oracle.com/en/java/javase/17/docs/specs/security/standard-names.html">Standard Name</a> for the
+     * DES (<a href="https://en.wikipedia.org/wiki/Data_Encryption_Standard">Data Encryption Standard</a>)
+     * encryption algorithm.
+     * This algorithm is obsolete and should not be used, <em>however</em> many historical versions of OpenSSL would default to using
+     * DES (or {@link #DEPRECATED_DES_EDE_ALGORITHM DESede}) encryption, so we continue to support reading PEM files that are encrypted
+     * using this algorithm
+     */
+    private static final String DEPRECATED_DES_ALGORITHM = "DES";
+    /**
+     * <a href="https://docs.oracle.com/en/java/javase/17/docs/specs/security/standard-names.html">Standard Name</a> for the DES encryption
+     * algorithm in Encrypt-Decrypt-Encrypt mode (that is, <a href="https://en.wikipedia.org/wiki/Triple_DES">Triple DES</a>).
+     * This algorithm is obsolete and should not be used, <em>however</em> many historical versions of OpenSSL would default to using
+     * DESede (specified in PEM as {@code DES-EDE3-CBC}), so we continue to support reading PEM files that are encrypted using this
+     * algorithm.
+     */
+    private static final String DEPRECATED_DES_EDE_ALGORITHM = "DESede";
+
     private PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
@@ -91,7 +109,7 @@ public final class PemUtils {
                 throw new SslConfigException("could not load ssl private key file [" + path + "]");
             }
             return privateKey;
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
         } catch (IOException e) {
             throw SslFileUtil.ioException("PEM private key", List.of(path), e);
@@ -497,10 +515,10 @@ public final class PemUtils {
         }
         if ("DES-CBC".equals(algorithm)) {
             byte[] key = generateOpenSslKey(password, iv, 8);
-            encryptionKey = new SecretKeySpec(key, "DES");
+            encryptionKey = new SecretKeySpec(key, DEPRECATED_DES_ALGORITHM);
         } else if ("DES-EDE3-CBC".equals(algorithm)) {
             byte[] key = generateOpenSslKey(password, iv, 24);
-            encryptionKey = new SecretKeySpec(key, "DESede");
+            encryptionKey = new SecretKeySpec(key, DEPRECATED_DES_EDE_ALGORITHM);
         } else if ("AES-128-CBC".equals(algorithm)) {
             byte[] key = generateOpenSslKey(password, iv, 16);
             encryptionKey = new SecretKeySpec(key, "AES");

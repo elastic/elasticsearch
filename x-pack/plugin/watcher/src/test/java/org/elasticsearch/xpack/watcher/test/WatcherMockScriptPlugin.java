@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -70,10 +72,10 @@ public abstract class WatcherMockScriptPlugin extends MockScriptPlugin {
         return CONTEXT_COMPILERS;
     }
 
-    public static ScriptService newMockScriptService(Map<String, Function<Map<String, Object>, Object>> scripts) {
+    public static ScriptService newMockScriptService(Map<String, Function<Map<String, Object>, Object>> scripts, ProjectId projectId) {
         Map<String, ScriptEngine> engines = new HashMap<>();
         engines.put(MockScriptEngine.NAME, new MockScriptEngine(MockScriptEngine.NAME, scripts, CONTEXT_COMPILERS));
         Map<String, ScriptContext<?>> contexts = CONTEXTS.stream().collect(Collectors.toMap(o -> o.name, Function.identity()));
-        return new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
+        return new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L, TestProjectResolvers.singleProject(projectId));
     }
 }

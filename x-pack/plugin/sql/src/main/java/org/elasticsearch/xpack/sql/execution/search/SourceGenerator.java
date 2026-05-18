@@ -13,7 +13,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -71,7 +70,7 @@ public abstract class SourceGenerator {
         // set page size
         if (size != null) {
             int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
-            // now take into account the the minimum page (if set)
+            // now take into account the minimum page (if set)
             // that is, return the multiple of the minimum page size closer to the set size
             int minSize = container.minPageSize();
             sz = minSize > 0 ? (Math.max(sz / minSize, 1) * minSize) : sz;
@@ -142,10 +141,7 @@ public abstract class SourceGenerator {
                     }
                 }
             } else if (sortable instanceof ScriptSort ss) {
-                sortBuilder = scriptSort(
-                    ss.script().toPainless(),
-                    ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING
-                );
+                sortBuilder = scriptSort(ss.script().toPainless(), ss.script().outputType().scriptSortType());
             } else if (sortable instanceof ScoreSort) {
                 sortBuilder = scoreSort();
             }
@@ -165,6 +161,8 @@ public abstract class SourceGenerator {
         }
         if (query.shouldTrackHits()) {
             builder.trackTotalHits(true);
+        } else {
+            builder.trackTotalHits(false);
         }
         builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -12,11 +13,12 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -42,7 +44,7 @@ public class NamedXContentRegistry {
         /** A name for the entry which is unique within the {@link #categoryClass}. */
         public final ParseField name;
 
-        public final Function<RestApiVersion, Boolean> restApiCompatibility;
+        public final Predicate<RestApiVersion> restApiCompatibility;
 
         /** A parser capability of parser the entry's class. */
         private final ContextParser<Object, ?> parser;
@@ -58,7 +60,7 @@ public class NamedXContentRegistry {
             Class<T> categoryClass,
             ParseField name,
             CheckedFunction<XContentParser, ? extends T, IOException> parser,
-            Function<RestApiVersion, Boolean> restApiCompatibility
+            Predicate<RestApiVersion> restApiCompatibility
         ) {
             this(categoryClass, name, (p, c) -> parser.apply(p), restApiCompatibility);
         }
@@ -75,7 +77,7 @@ public class NamedXContentRegistry {
             Class<T> categoryClass,
             ParseField name,
             ContextParser<Object, ? extends T> parser,
-            Function<RestApiVersion, Boolean> restApiCompatibility
+            Predicate<RestApiVersion> restApiCompatibility
         ) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
@@ -90,12 +92,12 @@ public class NamedXContentRegistry {
         this.registry = unmodifiableMap(createRegistry(entries));
     }
 
-    private Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries) {
+    private static Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries) {
         if (entries.isEmpty()) {
             return emptyMap();
         }
 
-        Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry = new HashMap<>();
+        Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry = new EnumMap<>(RestApiVersion.class);
         for (Entry entry : entries) {
             for (String name : entry.name.getAllNamesIncludedDeprecated()) {
                 if (RestApiVersion.minimumSupported().matches(entry.restApiCompatibility)) {
@@ -109,7 +111,7 @@ public class NamedXContentRegistry {
         return newRegistry;
     }
 
-    private void registerParsers(
+    private static void registerParsers(
         Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry,
         Entry entry,
         String name,
@@ -145,6 +147,19 @@ public class NamedXContentRegistry {
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
         Entry entry = lookupParser(categoryClass, name, parser);
         return categoryClass.cast(entry.parser.parse(parser, context));
+    }
+
+    /**
+     * Returns {@code true} if this registry is able to {@link #parseNamedObject parse} the referenced object, false otherwise.
+     * Note: This method does not throw exceptions, even if the {@link RestApiVersion} or {@code categoryClass} are unknown.
+     */
+    public boolean hasParser(Class<?> categoryClass, String name, RestApiVersion apiVersion) {
+        final Map<Class<?>, Map<String, Entry>> versionMap = registry.get(apiVersion);
+        if (versionMap == null) {
+            return false;
+        }
+        final Map<String, Entry> parsers = versionMap.get(categoryClass);
+        return parsers != null && parsers.containsKey(name);
     }
 
     // scope for testing

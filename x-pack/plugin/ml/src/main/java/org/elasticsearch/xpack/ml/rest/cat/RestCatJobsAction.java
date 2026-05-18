@@ -12,10 +12,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
@@ -32,9 +33,8 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
-import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatJobsAction extends AbstractCatAction {
 
     @Override
@@ -54,14 +54,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             jobId = Metadata.ALL;
         }
         Request request = new Request(jobId);
-        checkAndSetDeprecatedParam(
-            DEPRECATED_ALLOW_NO_JOBS_PARAM,
-            Request.ALLOW_NO_MATCH,
-            RestApiVersion.V_7,
-            restRequest,
-            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
-            request::setAllowNoMatch
-        );
+        request.setAllowNoMatch(restRequest.paramAsBoolean(Request.ALLOW_NO_MATCH, request.allowNoMatch()));
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(Response getJobStatsResponse) throws Exception {
@@ -208,6 +201,12 @@ public class RestCatJobsAction extends AbstractCatAction {
             "model.bucket_allocation_failures",
             TableColumnAttributeBuilder.builder("number of bucket allocation failures", false)
                 .setAliases("mbaf", "modelBucketAllocationFailures")
+                .build()
+        );
+        table.addCell(
+            "model.output_memory_allocator_bytes",
+            TableColumnAttributeBuilder.builder("how many bytes have been used to output the model documents", false)
+                .setAliases("momab", "modelOutputMemoryAllocatorBytes")
                 .build()
         );
         table.addCell(
@@ -413,6 +412,11 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
+            table.addCell(
+                modelSizeStats == null || modelSizeStats.getOutputMemmoryAllocatorBytes() == null
+                    ? null
+                    : ByteSizeValue.ofBytes(modelSizeStats.getOutputMemmoryAllocatorBytes())
+            );
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());

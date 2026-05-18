@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.xcontent;
 
@@ -762,16 +763,19 @@ public class ObjectParserTests extends ESTestCase {
 
         assertEquals("i", parser.parse(createParser(JsonXContent.jsonXContent, "{\"body\": \"i\"}"), null).get());
         Exception garbageException = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> parser.parse(createParser(JsonXContent.jsonXContent, """
                 {"noop": {"garbage": "shouldn't"}}
                 """), null)
         );
-        assertEquals("parser for [noop] did not end on END_OBJECT", garbageException.getMessage());
-        Exception sneakyException = expectThrows(IllegalStateException.class, () -> parser.parse(createParser(JsonXContent.jsonXContent, """
-            {"noop": {"body": "shouldn't"}}
-            """), null));
-        assertEquals("parser for [noop] did not end on END_OBJECT", sneakyException.getMessage());
+        assertThat(garbageException.getMessage(), containsString("parser for [noop] did not end on END_OBJECT"));
+        Exception sneakyException = expectThrows(
+            XContentParseException.class,
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, """
+                {"noop": {"body": "shouldn't"}}
+                """), null)
+        );
+        assertThat(sneakyException.getMessage(), containsString("parser for [noop] did not end on END_OBJECT"));
     }
 
     public void testNoopDeclareField() throws IOException {
@@ -781,10 +785,10 @@ public class ObjectParserTests extends ESTestCase {
 
         assertEquals("i", parser.parse(createParser(JsonXContent.jsonXContent, "{\"body\": \"i\"}"), null).get());
         Exception e = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": [\"ignored\"]}"), null)
         );
-        assertEquals("parser for [noop] did not end on END_ARRAY", e.getMessage());
+        assertThat(e.getMessage(), containsString("parser for [noop] did not end on END_ARRAY"));
     }
 
     public void testNoopDeclareObjectArray() {
@@ -1003,7 +1007,7 @@ public class ObjectParserTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
         assertThat(
             e.getMessage(),
-            equalTo("Required one of fields [a, b], but none were specified. " + "Required one of fields [c, d], but none were specified. ")
+            equalTo("Required one of fields [a, b], but none were specified. " + "Required one of fields [c, d], but none were specified.")
         );
     }
 

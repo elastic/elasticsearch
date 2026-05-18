@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.iterable;
@@ -15,7 +16,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
@@ -84,7 +84,7 @@ public class IterablesTests extends ESTestCase {
         final List<String> list = Stream.generate(() -> randomAlphaOfLengthBetween(3, 9))
             .limit(randomIntBetween(10, 30))
             .distinct()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         for (int i = 0; i < list.size(); i++) {
             final String val = list.get(i);
             assertThat(Iterables.indexOf(list, val::equals), is(i));

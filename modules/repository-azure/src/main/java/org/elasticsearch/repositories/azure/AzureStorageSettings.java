@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
@@ -22,11 +23,15 @@ import org.elasticsearch.core.TimeValue;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 final class AzureStorageSettings {
 
@@ -73,10 +78,31 @@ final class AzureStorageSettings {
         () -> ACCOUNT_SETTING
     );
 
+    public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "endpoint",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
+    public static final AffixSetting<String> SECONDARY_ENDPOINT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "secondary_endpoint",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
+    public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "read_timeout",
+        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.NodeScope),
         () -> ACCOUNT_SETTING
     );
 
@@ -108,11 +134,15 @@ final class AzureStorageSettings {
     );
 
     private final String account;
+    private final String sasToken;
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;
+    private final TimeValue readTimeout;
     private final int maxRetries;
     private final Proxy proxy;
+    private final boolean hasCredentials;
+    private final Set<String> credentialsUsageFeatures;
 
     private AzureStorageSettings(
         String account,
@@ -120,16 +150,27 @@ final class AzureStorageSettings {
         String sasToken,
         String endpointSuffix,
         TimeValue timeout,
+        TimeValue readTimeout,
         int maxRetries,
         Proxy.Type proxyType,
         String proxyHost,
-        Integer proxyPort
+        Integer proxyPort,
+        String endpoint,
+        String secondaryEndpoint
     ) {
         this.account = account;
-        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
+        this.sasToken = sasToken;
+        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
+        this.hasCredentials = Strings.hasText(key) || Strings.hasText(sasToken);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
+        this.readTimeout = readTimeout;
         this.maxRetries = maxRetries;
+        this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
+            : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
+            : System.getenv("AZURE_FEDERATED_TOKEN_FILE") == null ? Set.of("uses_default_credentials", "uses_managed_identity")
+            : Set.of("uses_default_credentials", "uses_workload_identity");
+
         // Register the proxy if we have any
         // Validate proxy settings
         if (proxyType.equals(Proxy.Type.DIRECT) && ((proxyPort != 0) || Strings.hasText(proxyHost))) {
@@ -158,6 +199,10 @@ final class AzureStorageSettings {
         return timeout;
     }
 
+    public TimeValue getReadTimeout() {
+        return readTimeout;
+    }
+
     public int getMaxRetries() {
         return maxRetries;
     }
@@ -166,29 +211,64 @@ final class AzureStorageSettings {
         return proxy;
     }
 
+    public String getSasToken() {
+        return sasToken;
+    }
+
     public String getConnectString() {
         return connectString;
     }
 
-    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix) {
+    private static String buildConnectString(
+        String account,
+        @Nullable String key,
+        @Nullable String sasToken,
+        String endpointSuffix,
+        @Nullable String endpoint,
+        @Nullable String secondaryEndpoint
+    ) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
-        if (hasSasToken == false && hasKey == false) {
-            throw new SettingsException("Neither a secret key nor a shared access token was set.");
-        }
         if (hasSasToken && hasKey) {
-            throw new SettingsException("Both a secret as well as a shared access token were set.");
+            throw new SettingsException("Both a secret as well as a shared access token were set for account [" + account + "]");
         }
         final StringBuilder connectionStringBuilder = new StringBuilder();
         connectionStringBuilder.append("DefaultEndpointsProtocol=https").append(";AccountName=").append(account);
         if (hasKey) {
             connectionStringBuilder.append(";AccountKey=").append(key);
-        } else {
+        } else if (hasSasToken) {
             connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
+        } else {
+            connectionStringBuilder.append(";AccountKey=none"); // required for validation, but ignored
         }
-        if (Strings.hasText(endpointSuffix)) {
+        final boolean hasEndpointSuffix = Strings.hasText(endpointSuffix);
+        final boolean hasEndpoint = Strings.hasText(endpoint);
+        final boolean hasSecondaryEndpoint = Strings.hasText(secondaryEndpoint);
+
+        if (hasEndpointSuffix && hasEndpoint) {
+            throw new SettingsException("Both an endpoint suffix as well as a primary endpoint were set for account [" + account + "]");
+        }
+
+        if (hasEndpointSuffix && hasSecondaryEndpoint) {
+            throw new SettingsException("Both an endpoint suffix as well as a secondary endpoint were set for account [" + account + "]");
+        }
+
+        if (hasEndpoint == false && hasSecondaryEndpoint) {
+            throw new SettingsException("A primary endpoint is required when setting a secondary endpoint for account [" + account + "]");
+        }
+
+        if (hasEndpointSuffix) {
             connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
         }
+
+        if (hasEndpoint) {
+            connectionStringBuilder.append(";BlobEndpoint=").append(endpoint);
+        }
+
+        if (hasSecondaryEndpoint) {
+            connectionStringBuilder.append(";BlobSecondaryEndpoint=").append(secondaryEndpoint);
+        }
+
         return connectionStringBuilder.toString();
     }
 
@@ -197,6 +277,7 @@ final class AzureStorageSettings {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
         sb.append("account='").append(account).append('\'');
         sb.append(", timeout=").append(timeout);
+        sb.append(", readTimeout=").append(readTimeout);
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
@@ -239,10 +320,13 @@ final class AzureStorageSettings {
                 sasToken.toString(),
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
+                getValue(settings, clientName, READ_TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
-                getValue(settings, clientName, PROXY_PORT_SETTING)
+                getValue(settings, clientName, PROXY_PORT_SETTING),
+                getValue(settings, clientName, ENDPOINT_SETTING),
+                getValue(settings, clientName, SECONDARY_ENDPOINT_SETTING)
             );
         }
     }
@@ -254,7 +338,97 @@ final class AzureStorageSettings {
 
     private static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
         final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
-        final String fullKey = k.toConcreteKey(groupName).toString();
+        final String fullKey = k.toConcreteKey(groupName);
         return setting.getConcreteSetting(fullKey).get(settings);
+    }
+
+    private static final String BLOB_ENDPOINT_NAME = "BlobEndpoint";
+    private static final String BLOB_SECONDARY_ENDPOINT_NAME = "BlobSecondaryEndpoint";
+
+    public boolean hasCredentials() {
+        return hasCredentials;
+    }
+
+    record StorageEndpoint(String primaryURI, @Nullable String secondaryURI) {}
+
+    StorageEndpoint getStorageEndpoint() {
+        String primaryURI = getProperty(BLOB_ENDPOINT_NAME);
+        String secondaryURI = getProperty(BLOB_SECONDARY_ENDPOINT_NAME);
+        if (primaryURI != null) {
+            return new StorageEndpoint(primaryURI, secondaryURI);
+        }
+        return new StorageEndpoint(deriveURIFromSettings(true), deriveURIFromSettings(false));
+    }
+
+    /**
+     * Returns the value for the given property name, or null if not configured.
+     * @throws IllegalArgumentException if the connectionString is malformed
+     */
+    private String getProperty(String propertyName) {
+        final String[] settings = getConnectString().split(";");
+        for (int i = 0; i < settings.length; i++) {
+            String setting = settings[i].trim();
+            if (setting.length() > 0) {
+                final int idx = setting.indexOf('=');
+                if (idx == -1 || idx == 0 || idx == settings[i].length() - 1) {
+                    new IllegalArgumentException("Invalid connection string: " + getConnectString());
+                }
+                if (propertyName.equals(setting.substring(0, idx))) {
+                    return setting.substring(idx + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static final String DEFAULT_DNS = "core.windows.net";
+
+    /** Derives the primary or secondary endpoint from the settings. */
+    private String deriveURIFromSettings(boolean isPrimary) {
+        String uriString = new StringBuilder().append("https://")
+            .append(account)
+            .append(isPrimary ? "" : "-secondary")
+            .append(".blob.")
+            .append(Strings.isNullOrEmpty(endpointSuffix) ? DEFAULT_DNS : endpointSuffix)
+            .toString();
+        try {
+            return new URI(uriString).toString();  // validates the URI
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    public Set<String> credentialsUsageFeatures() {
+        return credentialsUsageFeatures;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        AzureStorageSettings that = (AzureStorageSettings) o;
+        return maxRetries == that.maxRetries
+            && hasCredentials == that.hasCredentials
+            && Objects.equals(account, that.account)
+            && Objects.equals(connectString, that.connectString)
+            && Objects.equals(endpointSuffix, that.endpointSuffix)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(proxy, that.proxy)
+            && Objects.equals(credentialsUsageFeatures, that.credentialsUsageFeatures);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            account,
+            connectString,
+            endpointSuffix,
+            timeout,
+            readTimeout,
+            maxRetries,
+            proxy,
+            hasCredentials,
+            credentialsUsageFeatures
+        );
     }
 }

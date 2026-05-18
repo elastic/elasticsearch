@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -63,7 +64,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -372,7 +372,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             protected void doRun() throws Exception {
                 while (context.hasMoreOperationsToExecute()) {
-                    assert task == null || task instanceof CancellableTask;
+                    assert task == null || task instanceof ReplicationTask;
+                    if (task != null && ((ReplicationTask) task).isCancelled()) {
+                        cancelExecuteBulkItemRequest((ReplicationTask) task, context);
+                        continue;
+                    }
 
                     if (executeBulkItemRequest(
                         context,
@@ -442,6 +446,52 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 );
             }
         }.run();
+    }
+
+    static void cancelExecuteBulkItemRequest(ReplicationTask replicationTask, BulkPrimaryExecutionContext context) {
+        final DocWriteRequest.OpType opType = context.getCurrent().opType();
+
+        if (opType == DocWriteRequest.OpType.UPDATE) {
+            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
+            final Engine.Result result = new Engine.IndexResult(
+                replicationTask.getTaskCancelledException(),
+                updateRequest.version(),
+                updateRequest.id()
+            );
+            context.setRequestToExecute(updateRequest);
+            context.markOperationAsExecuted(result);
+            context.markAsCompleted(context.getExecutionResult());
+            return;
+        } else {
+            context.setRequestToExecute(context.getCurrent());
+        }
+
+        assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
+
+        final IndexShard primary = context.getPrimary();
+        final long version = context.getRequestToExecute().version();
+        final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
+        final Engine.Result result;
+
+        if (isDelete) {
+            final DeleteRequest request = context.getRequestToExecute();
+            result = new Engine.DeleteResult(
+                replicationTask.getTaskCancelledException(),
+                version,
+                primary.getOperationPrimaryTerm(),
+                request.id()
+            );
+        } else {
+            final IndexRequest request = context.getRequestToExecute();
+            result = new Engine.IndexResult(
+                replicationTask.getTaskCancelledException(),
+                version,
+                primary.getOperationPrimaryTerm(),
+                request.ifSeqNo(),
+                request.id()
+            );
+        }
+        onComplete(result, context, null);
     }
 
     /**

@@ -560,3 +560,6 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149256
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testPitRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/149271

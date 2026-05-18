@@ -11,6 +11,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,8 +23,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -95,6 +99,56 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         }
 
         return emptyStatus();
+    }
+
+    @Override
+    public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
+        var cause = error instanceof ElasticsearchException elasticsearchException
+            ? elasticsearchException.getCause()
+            : ExceptionsHelper.unwrapCause(error);
+        if (cause instanceof TaskCancelledException taskCancelledException) {
+            TaskInfo taskInfo = taskInfo(node.getId(), true);
+            // task might not actually be cancelled at this point, but rather be in the process of cancelling
+            // make sure the task result is indeed serialized as cancelled
+            BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) taskInfo.status();
+            BulkByPaginatedSearchTask.Status cancelledStatus = new BulkByPaginatedSearchTask.Status(
+                status.sliceId,
+                status.total,
+                status.updated,
+                status.created,
+                status.deleted,
+                status.batches,
+                status.versionConflicts,
+                status.noops,
+                status.bulkRetries,
+                status.searchRetries,
+                status.throttled,
+                status.requestsPerSecond,
+                // warning: the {@link TaskCancelledException#getMessage} is different from the {@code reason} parameter passed to
+                // {@link org.elasticsearch.tasks.TaskManager#cancel}
+                taskCancelledException.getMessage(),
+                status.throttledUntil
+            );
+            TaskInfo cancelledTaskInfo = new TaskInfo(
+                taskInfo.taskId(),
+                taskInfo.type(),
+                taskInfo.node(),
+                taskInfo.action(),
+                taskInfo.description(),
+                cancelledStatus,
+                taskInfo.startTime(),
+                taskInfo.runningTimeNanos(),
+                true,
+                true,
+                taskInfo.parentTaskId(),
+                taskInfo.headers(),
+                taskInfo.originalTaskId(),
+                taskInfo.originalStartTimeMillis()
+            );
+            return new TaskResult(cancelledTaskInfo, error);
+        } else {
+            return super.result(node, error);
+        }
     }
 
     /**

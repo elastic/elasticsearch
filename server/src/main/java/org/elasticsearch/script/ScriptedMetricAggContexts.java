@@ -31,9 +31,25 @@ public class ScriptedMetricAggContexts {
         private final Map<String, Object> params;
         private final Map<String, Object> state;
 
+        private Runnable cancellationCheck = null;
+
         public InitScript(Map<String, Object> params, Map<String, Object> state) {
             this.params = params;
             this.state = state;
+        }
+
+        /**
+         * Stores a runnable invoked between loop iterations by the painless engine to check for
+         * search timeout or task cancellation. The runnable throws when execution should abort;
+         * {@code null} disables the check.
+         */
+        public void _setCancellationCheck(Runnable cancellationCheck) {
+            this.cancellationCheck = cancellationCheck;
+        }
+
+        /** Returns the runnable set by {@link #_setCancellationCheck}, or {@code null}. */
+        public Runnable _getCancellationCheck() {
+            return cancellationCheck;
         }
 
         public Map<String, Object> getParams() {
@@ -88,6 +104,22 @@ public class ScriptedMetricAggContexts {
         private final Map<String, Object> params;
         private final Map<String, Object> state;
         private Scorable scorer;
+
+        private Runnable cancellationCheck = null;
+
+        /**
+         * Stores a runnable invoked between loop iterations by the painless engine to check for
+         * search timeout or task cancellation. The runnable throws when execution should abort;
+         * {@code null} disables the check.
+         */
+        public void _setCancellationCheck(Runnable cancellationCheck) {
+            this.cancellationCheck = cancellationCheck;
+        }
+
+        /** Returns the runnable set by {@link #_setCancellationCheck}, or {@code null}. */
+        public Runnable _getCancellationCheck() {
+            return cancellationCheck;
+        }
 
         public MapScript(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup, LeafReaderContext leafContext) {
             this(params, state, leafContext == null ? null : new DocValuesDocReader(lookup, leafContext));
@@ -150,6 +182,22 @@ public class ScriptedMetricAggContexts {
     public abstract static class CombineScript {
         private final Map<String, Object> params;
         private final Map<String, Object> state;
+
+        private Runnable cancellationCheck = null;
+
+        /**
+         * Stores a runnable invoked between loop iterations by the painless engine to check for
+         * search timeout or task cancellation. The runnable throws when execution should abort;
+         * {@code null} disables the check.
+         */
+        public void _setCancellationCheck(Runnable cancellationCheck) {
+            this.cancellationCheck = cancellationCheck;
+        }
+
+        /** Returns the runnable set by {@link #_setCancellationCheck}, or {@code null}. */
+        public Runnable _getCancellationCheck() {
+            return cancellationCheck;
+        }
 
         public CombineScript(Map<String, Object> params, Map<String, Object> state) {
             this.params = params;

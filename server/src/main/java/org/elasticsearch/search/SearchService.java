@@ -813,6 +813,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     CanMatchContext canMatchContext = createCanMatchContext(clone);
                     CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
                     if (canMatchResp.canMatch() == false) {
+                        logger.info(
+                            "---> canReturnNullResponseIfMatchNoDocs: returning nullInstance for shard [{}]",
+                            orig.shardId()
+                        );
                         l.onResponse(QuerySearchResult.nullInstance());
                         return;
                     }
@@ -1496,6 +1500,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 ReaderContext readerContext = null;
                 // don't handle contexts originating from the current SearchService session, they get added as normal temporary contexts
                 if (pitRelocationEnabled && sessionId.equals(contextId.getSessionId()) == false) {
+                    logger.info("creating new reader context for [id: {}] on [node: {}]", contextId, clusterService.localNode().getId());
                     readerContext = createAndPutRelocatedPitContext(
                         contextId,
                         indexService,

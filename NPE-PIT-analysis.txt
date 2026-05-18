@@ -1,0 +1,93 @@
+NPE in PIT Search After Node Restart — Root Cause Analysis
+===========================================================
+
+Symptom
+-------
+NullPointerException at TransportSearchAction.getLocalShardsIteratorFromPointInTime:
+  "Cannot invoke ShardSearchContextId.isRetryable() because shardSearchContextId is null"
+
+This occurs when a PIT search thread uses a PIT id that contains null ShardSearchContextId
+entries for some shards. The null entries are written into the PIT id by
+maybeReEncodeNodeIds in AbstractSearchAsyncAction during a prior successful search.
+
+
+Root Cause
+----------
+The null context IDs originate from QuerySearchResult.nullInstance(), which is returned
+by the canReturnNullResponseIfMatchNoDocs optimization in SearchService.
+
+Chain of events:
+
+1. A PIT search runs against multiple indices. Some shards contain no documents matching
+   the query (e.g., index1 has only January 2025 dates, but the query is for >= Feb 15).
+
+2. After the first shard responds, AbstractSearchAsyncAction sets
+   canReturnNullResponseIfMatchNoDocs=true on subsequent ShardSearchRequests (line 841).
+
+3. On the data node (batch query path), SearchService.executeQueryPhaseLocal checks
+   canReturnNullResponseIfMatchNoDocs. If canMatch() returns false for the shard, it
+   short-circuits with QuerySearchResult.nullInstance() (SearchService.java:815-817).
+   NO PIT reader context is created for this shard.
+
+4. nullInstance() has contextId=null by construction (the private constructor never sets it).
+
+5. SearchActionListener.onResponse sets searchShardTarget and shardIndex on the null
+   instance, so it looks like a valid result with a target node but no context.
+
+6. maybeFreeContext is skipped because q.getContextId() != null fails (it's already null).
+
+7. The result is serialized (writeTo writes isNull=true and nothing else) and sent to
+   the coordinator. The coordinator deserializes it with contextId=null.
+
+8. On the coordinator, maybeReEncodeNodeIds processes the result. For a shard whose
+   hosting node has changed (after a restart, the node gets a new ID), it enters the
+   update branch and writes:
+     new SearchContextIdForNode(clusterAlias, nodeId, result.getContextId())
+   where result.getContextId() is null. This corrupts the PIT id.
+
+9. The search thread saves this corrupted PIT id. On the next search attempt,
+   TransportSearchAction.getLocalShardsIteratorFromPointInTime calls
+   shardSearchContextId.isRetryable() on the null entry, causing the NPE.
+
+
+Conditions Required
+-------------------
+All of the following must be true simultaneously:
+
+- PIT relocation is enabled (feature flag + cluster setting)
+- The batch query phase is active (search.batched_query_phase=true, the default)
+- At least one shard has already returned a response (so canReturnNullResponseIfMatchNoDocs
+  is set to true for subsequent shards)
+- A shard's query rewrites to match_no_docs (canMatch returns false)
+- That shard is hosted on a node whose node ID has changed since the PIT was opened
+  (typically after a node restart during rolling restart / relocation)
+
+
+Why It Only Affects Specific Shards
+-----------------------------------
+Only shards where the query matches NO documents are affected. In the test scenario:
+- index1 has January 2025 data only
+- The range query is finished >= 2025-02-15
+- index1 shards return nullInstance() because canMatch() is false
+- After a node restart, their node IDs change, triggering the update in maybeReEncodeNodeIds
+
+The other indices (index2-index5) have matching documents, so they go through normal
+query execution, create PIT reader contexts, and get valid context IDs.
+
+
+Fix Direction
+-------------
+maybeReEncodeNodeIds should handle null context IDs gracefully. When a result has
+getContextId() == null (from a nullInstance), the original PIT entry for that shard
+should be preserved unchanged rather than being overwritten with a null context.
+Alternatively, the canReturnNullResponseIfMatchNoDocs optimization should be disabled
+for PIT searches (since the PIT context needs to be maintained even for empty shards).
+
+
+Affected Code Locations
+-----------------------
+- SearchService.java:810-817 (canReturnNullResponseIfMatchNoDocs short-circuit)
+- QuerySearchResult.java:128-132,137-139 (nullInstance construction)
+- AbstractSearchAsyncAction.java:841 (setting canReturnNullResponseIfMatchNoDocs)
+- AbstractSearchAsyncAction.java:669-696 (maybeReEncodeNodeIds writing null into PIT)
+- TransportSearchAction.java:2521 (NPE site: isRetryable on null)

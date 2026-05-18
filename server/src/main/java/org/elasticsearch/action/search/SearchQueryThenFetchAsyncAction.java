@@ -1053,6 +1053,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 && searchRequest.searchRequest.scroll() == null
                 && isPartOfPIT(searchRequest.searchRequest, q.getContextId(), namedWriteableRegistry) == false) {
                 if (dependencies.searchService.freeReaderContext(q.getContextId())) {
+                    logger.info("---> clearContextId nulling out context [{}] for search result", q.getContextId());
                     q.clearContextId();
                 }
             }

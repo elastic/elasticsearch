@@ -661,7 +661,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // only create the following two collections if we detect an id change
         Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
         Collection<SearchContextIdForNode> contextsToClose = null;
-        logger.debug("checking search result shards to detect PIT node changes");
+        logger.debug("checking [{}] search result shards to detect PIT node changes", results.size());
         for (Result result : results) {
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
             ShardId shardId = searchShardTarget.getShardId();
@@ -676,13 +676,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         updatedShardMap = new HashMap<>(original.shards());
                         contextsToClose = new ArrayList<>();
                     }
+                    if (result.getContextId() == null) {
+                        logger.info(
+                            "--->  we shouldnt get here, but result is targeting "
+                                + result.getSearchShardTarget()
+                                + ", "
+                                + result.getContextId()
+                                + ", "
+                                + result.getClass()
+                        );
+                    }
                     SearchContextIdForNode updatedId = new SearchContextIdForNode(
                         searchShardTarget.getClusterAlias(),
                         searchShardTarget.getNodeId(),
-                        result.getContextId()
+                        originalShard.getSearchContextId()
                     );
 
-                    logger.debug("changing node for PIT shard id from [{}] to [{}]", originalShard, updatedId);
+                    logger.debug(
+                        "PIT id - changing node for shard id [{}] from [{}] to [{}]",
+                        searchShardTarget.getShardId(),
+                        originalShard,
+                        updatedId
+                    );
                     updatedShardMap.put(shardId, updatedId);
                     contextsToClose.add(original.shards().get(shardId));
 

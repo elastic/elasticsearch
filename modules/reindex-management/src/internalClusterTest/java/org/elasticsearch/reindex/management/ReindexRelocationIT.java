@@ -910,6 +910,11 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         plugin.collect();
         assertThat(plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER), is(empty()));
         assertThat(plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM), is(empty()));
+        assertThat(
+            "relocation started metric should not be updated on the node the reindex moved from " + nodeName,
+            plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_STARTED_COUNTER),
+            is(empty())
+        );
         final var relocationCounter = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
         assertThat("relocation metric updated", relocationCounter.size(), equalTo(1));
         assertThat("relocation metric updated", relocationCounter.getFirst().getLong(), equalTo(1L));
@@ -951,6 +956,10 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
+        final var relocationStartedCounter = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_STARTED_COUNTER);
+        assertThat(relocationStartedCounter.size(), equalTo(1));
+        assertThat(relocationStartedCounter.getFirst().getLong(), equalTo(1L));
+        assertThat(relocationStartedCounter.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE), is(nullValue()));
         assertThat("no relocation metric", plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER).size(), equalTo(0));
     }
 

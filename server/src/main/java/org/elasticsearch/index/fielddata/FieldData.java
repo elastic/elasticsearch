@@ -161,24 +161,24 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
     public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
-        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
-        if (singleton != null) {
-            return singleton(new DoubleCastedValues(singleton));
-        } else {
-            return new SortedDoubleCastedValues(values);
-        }
+        return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
+            @Override
+            public double nextValue() throws IOException {
+                return values.nextValue();
+            }
+        };
     }
 
     /**
      * Wrap the provided {@link SortedNumericDoubleValues} instance to cast all values to longs.
      */
     public static SortedNumericLongValues castToLong(final SortedNumericDoubleValues values) {
-        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
-        if (singleton != null) {
-            return SortedNumericLongValues.singleton(new LongCastedValues(singleton));
-        } else {
-            return new SortedLongCastedValues(values);
-        }
+        return new SortedNumericLongValues.SortedNumericDoubleWrapper(values) {
+            @Override
+            public long nextValue() throws IOException {
+                return (long) values.nextValue();
+            }
+        };
     }
 
     /**
@@ -473,95 +473,6 @@ public enum FieldData {
 
         /** return the {@link CharSequence} for the current document. */
         CharSequence get() throws IOException;
-
-    }
-
-    private static class DoubleCastedValues extends DoubleValues {
-
-        private final LongValues values;
-
-        DoubleCastedValues(LongValues values) {
-            this.values = values;
-        }
-
-        @Override
-        public double doubleValue() throws IOException {
-            return values.longValue();
-        }
-
-        @Override
-        public boolean advanceExact(int doc) throws IOException {
-            return values.advanceExact(doc);
-        }
-
-    }
-
-    private static class SortedDoubleCastedValues extends SortedNumericDoubleValues {
-
-        private final SortedNumericLongValues values;
-
-        SortedDoubleCastedValues(SortedNumericLongValues in) {
-            this.values = in;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public double nextValue() throws IOException {
-            return values.nextValue();
-        }
-
-        @Override
-        public int docValueCount() {
-            return values.docValueCount();
-        }
-
-    }
-
-    private static class LongCastedValues extends LongValues {
-
-        private final DoubleValues values;
-
-        LongCastedValues(DoubleValues values) {
-            this.values = values;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public long longValue() throws IOException {
-            return (long) values.doubleValue();
-        }
-    }
-
-    private static class SortedLongCastedValues extends SortedNumericLongValues {
-
-        private final SortedNumericDoubleValues values;
-
-        SortedLongCastedValues(SortedNumericDoubleValues in) {
-            this.values = in;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return values.advanceExact(target);
-        }
-
-        @Override
-        public int docValueCount() {
-            return values.docValueCount();
-        }
-
-        @Override
-        public long nextValue() throws IOException {
-            return (long) values.nextValue();
-        }
 
     }
 

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FIX_SUM_AGG_LONG_OVERFLOW;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CERTIFIED_COLUMN_PREFIX;
@@ -70,6 +71,10 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         try {
             // Subqueries use FORK under the hood, hence have the same restrictions as FORK tests.
             GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            assumeTrue(
+                "Subqueries in approximation require inline stats capability",
+                APPROXIMATION_INLINE_STATS_V2.isEnabled()
+            );
             assumeTrue("Subquery must start with FROM", testCase.query.toUpperCase(Locale.ROOT).startsWith("FROM "));
             executeQuery("""
                 SET approximation={"rows":2000000000};

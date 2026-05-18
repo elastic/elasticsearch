@@ -52,8 +52,8 @@ public class OpenAiEmbeddingsResponseEntity {
      *
      * <p>Example happy-path response (base64 shape):
      *
-     * <code>
      * <pre>
+     * <code>
      * {
      *  "object": "list",
      *  "data": [
@@ -66,8 +66,8 @@ public class OpenAiEmbeddingsResponseEntity {
      *  "model": "text-embedding-3-large",
      *  "usage": { "prompt_tokens": 8, "total_tokens": 8 }
      * }
-     * </pre>
      * </code>
+     * </pre>
      */
     public static EmbeddingFloatResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {

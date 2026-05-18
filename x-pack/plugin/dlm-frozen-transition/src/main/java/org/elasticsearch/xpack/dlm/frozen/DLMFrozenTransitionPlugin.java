@@ -72,21 +72,20 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             components.add(transitionSettings);
 
             ThreadPool.Info threadPoolInfo = services.threadPool().info(EXECUTOR_NAME);
-            if (threadPoolInfo == null || threadPoolInfo.getQueueSize() == null) {
+            if (threadPoolInfo == null) {
                 throw new RuntimeException("Failed to get thread pool info for " + EXECUTOR_NAME + " thread pool.");
+            } else if (threadPoolInfo.getQueueSize() == null) {
+                throw new RuntimeException("Queue size for " + EXECUTOR_NAME + " must be set");
             } else if (threadPoolInfo.getQueueSize() > Integer.MAX_VALUE) {
                 // This should never happen as queue size is an int in the implementation, but this guards against future changes
-                throw new RuntimeException("Queue size for " + EXECUTOR_NAME + " thread pool is too large.");
-            }
-
-            int maxSubmitted;
-            if (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize() <= Integer.MAX_VALUE) {
-                maxSubmitted = (int) (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize());
-            } else {
+                throw new RuntimeException("Queue size for " + EXECUTOR_NAME + " thread pool is larger than Integer.MAX_VALUE");
+            } else if (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize() > Integer.MAX_VALUE) {
                 throw new RuntimeException(
                     "Queue size + thread pool size for " + EXECUTOR_NAME + " must equal less than Integer.MAX_VALUE"
                 );
             }
+
+            int maxSubmitted = (int) (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize());
 
             DLMFrozenTransitionExecutor dlmFrozenTransitionExecutor = new DLMFrozenTransitionExecutor(
                 services.clusterService(),

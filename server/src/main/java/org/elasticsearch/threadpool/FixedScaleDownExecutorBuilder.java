@@ -66,7 +66,7 @@ public final class FixedScaleDownExecutorBuilder extends FixedExecutorBuilder {
             0,
             size,
             scaleDownDelay,
-            queueSize < 0 ? 0L : (long) queueSize
+            queueSize < 0 ? null : (long) queueSize
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }

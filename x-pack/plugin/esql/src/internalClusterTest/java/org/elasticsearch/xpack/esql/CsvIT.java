@@ -129,6 +129,63 @@ public class CsvIT extends ESTestCase {
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
 
+    /**
+     * Hook for tests that want to load datasets with a transformed mapping and/or transformed source documents,
+     * and/or to rewrite the csv-spec query before it is sent to the cluster &mdash; for example to exercise
+     * ES|QL behavior with a different field type than the dataset's mapping declares.
+     */
+    public interface IndexLoadStrategy {
+        /**
+         * Returns the mapping JSON to use when creating the index for {@code dataset}.
+         * The {@code originalMapping} is the mapping after {@link CsvTestsDataLoader#readMappingFile(CsvTestsDataLoader.TestDataset)}
+         * has applied {@code TestDataset}-level overrides (e.g. {@code withTypeMapping}, {@code withDynamic}).
+         */
+        String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) throws IOException;
+
+        /**
+         * Returns the document source JSON to bulk-index for {@code dataset}. Called once per CSV row.
+         */
+        String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException;
+
+        /**
+         * Returns the ES|QL query to send to the cluster. The default {@link #IDENTITY_INDEX_LOAD_STRATEGY}
+         * returns the original query unchanged.
+         * <p>
+         * Implementations may throw {@link org.junit.AssumptionViolatedException} (typically via
+         * {@code assumeTrue} / {@code assumeFalse}) to skip the test under this variant when the original
+         * query is not relevant for the variant &mdash; for example, when no field that this variant rewrites
+         * appears in the query and so re-running the spec would only re-test the unmodified behavior.
+         */
+        String transformQuery(String originalQuery);
+    }
+
+    public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
+        @Override
+        public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) {
+            return originalMapping;
+        }
+
+        @Override
+        public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) {
+            return originalDocumentJson;
+        }
+
+        @Override
+        public String transformQuery(String originalQuery) {
+            return originalQuery;
+        }
+    };
+
+    /**
+     * Strategy for transforming mappings and documents before they are sent to the test cluster.
+     * Defaults to the identity strategy (no transformation). Subclasses can replace this in their
+     * own {@link BeforeClass} method, which by JUnit's contract runs after the parent's {@link #setupCluster()}.
+     * <p>
+     * {@link #setupCluster()} resets the field to {@link #IDENTITY_INDEX_LOAD_STRATEGY} on every run so that
+     * a stale subclass strategy from a prior class in the same JVM never leaks into a sibling test class.
+     */
+    protected static IndexLoadStrategy indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
+
     private final String fileName;
     private final String groupName;
     private final String testName;
@@ -161,6 +218,7 @@ public class CsvIT extends ESTestCase {
 
     @BeforeClass
     public static void setupCluster() throws Exception {
+        indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         var nodeDirectory = createTempDir();
@@ -240,7 +298,8 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        var request = syncEsqlQueryRequest(testCase.query);
+        String queryToRun = indexLoadStrategy.transformQuery(testCase.query);
+        var request = syncEsqlQueryRequest(queryToRun);
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
@@ -433,23 +492,20 @@ public class CsvIT extends ESTestCase {
             for (String inferenceId : dataset.inferenceEndpoints()) {
                 inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
             }
+            String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
             assertAcked(
                 cluster.client()
                     .admin()
                     .indices()
                     .prepareCreate(dataset.indexName())
-                    .setMapping(CsvTestsDataLoader.readMappingFile(dataset))
+                    .setMapping(mapping)
                     .setSettings(dataset.loadSettings())
             );
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
-                    bulk.add(
-                        cluster.client()
-                            .prepareIndex(dataset.indexName())
-                            .setId(document.id())
-                            .setSource(document.json().toString(), XContentType.JSON)
-                    );
+                    String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
+                    bulk.add(cluster.client().prepareIndex(dataset.indexName()).setId(document.id()).setSource(source, XContentType.JSON));
                     if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
                         var result = bulk.get();
                         assertFalse(

@@ -93,6 +93,19 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
     }
 
     private RuleQueryBuilder(
+        RuleQueryBuilder other,
+        QueryBuilder organicQuery,
+        Map<String, Object> matchCriteria,
+        List<String> rulesetIds,
+        Supplier<List<SpecifiedDocument>> pinnedDocsSupplier,
+        Supplier<List<SpecifiedDocument>> excludedDocsSupplier
+    ) {
+        this(organicQuery, matchCriteria, rulesetIds, pinnedDocsSupplier, excludedDocsSupplier);
+        this.boost = other.boost;
+        this.queryName = other.queryName;
+    }
+
+    private RuleQueryBuilder(
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
         List<String> rulesetIds,
@@ -178,7 +191,8 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrittenOrganicQuery = organicQuery.rewrite(queryRewriteContext);
 
         if (pinnedDocsSupplier != null && excludedDocsSupplier != null) {
             List<SpecifiedDocument> identifiedPinnedDocs = pinnedDocsSupplier.get();
@@ -186,27 +200,38 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
 
             if (identifiedPinnedDocs == null || identifiedExcludedDocs == null) {
                 // Not executed yet
-                return this;
+                if (rewrittenOrganicQuery != organicQuery) {
+                    return new RuleQueryBuilder(
+                        this,
+                        rewrittenOrganicQuery,
+                        matchCriteria,
+                        rulesetIds,
+                        pinnedDocsSupplier,
+                        excludedDocsSupplier
+                    );
+                } else {
+                    return this;
+                }
             }
 
             if (identifiedPinnedDocs.isEmpty() && identifiedExcludedDocs.isEmpty()) {
                 // Nothing to do, just return the organic query
-                return organicQuery;
+                return rewrittenOrganicQuery;
             }
 
             if (identifiedPinnedDocs.isEmpty() == false && identifiedExcludedDocs.isEmpty()) {
                 // We have pinned IDs but nothing to exclude
-                return new PinnedQueryBuilder(organicQuery, truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0]));
+                return new PinnedQueryBuilder(rewrittenOrganicQuery, truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0]));
             }
 
             if (identifiedPinnedDocs.isEmpty()) {
                 // We have excluded IDs but nothing to pin
                 QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
-                return new BoolQueryBuilder().must(organicQuery).mustNot(excludedDocsQueryBuilder);
+                return new BoolQueryBuilder().must(rewrittenOrganicQuery).mustNot(excludedDocsQueryBuilder);
             } else {
                 // We have documents to both pin and exclude
                 QueryBuilder pinnedQuery = new PinnedQueryBuilder(
-                    organicQuery,
+                    rewrittenOrganicQuery,
                     truncateList(identifiedPinnedDocs).toArray(new SpecifiedDocument[0])
                 );
                 QueryBuilder excludedDocsQueryBuilder = buildExcludedDocsQuery(identifiedExcludedDocs);
@@ -270,9 +295,14 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
             );
         });
 
-        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetIds, pinnedDocsSetOnce::get, excludedDocsSetOnce::get).boost(
-            this.boost
-        ).queryName(this.queryName);
+        return new RuleQueryBuilder(
+            this,
+            rewrittenOrganicQuery,
+            matchCriteria,
+            this.rulesetIds,
+            pinnedDocsSetOnce::get,
+            excludedDocsSetOnce::get
+        );
     }
 
     private QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {

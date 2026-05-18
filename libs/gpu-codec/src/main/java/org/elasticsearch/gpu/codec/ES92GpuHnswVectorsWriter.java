@@ -284,24 +284,25 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset, fieldInfo);
             try {
                 assert index != null : "GPU index should be built for field: " + fieldInfo.name;
-                var deviceGraph = index.getGraph();
-                var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
-                if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
-                    // Graph is small enough to copy to host, allowing us to free GPU resources
-                    // before the (relatively slow) disk write. Order matters: copy the graph,
-                    // close the index (frees device memory), then release the resource to the
-                    // pool so another thread can use it. Reversing this order causes a race:
-                    // CagraIndex.close() calls cuvsCagraIndexDestroy using the CuVSResources
-                    // context, which another thread may already be using if the resource was
-                    // returned to the pool first.
-                    try (var hostGraph = deviceGraph.toHost()) {
-                        index.close();
-                        index = null;
-                        resourcesHolder.close();
-                        graph = writeGraph(hostGraph, graphLevelNodeOffsets);
+                try (var deviceGraph = index.getGraph();) {
+                    var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
+                    if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
+                        // Graph is small enough to copy to host, allowing us to free GPU resources
+                        // before the (relatively slow) disk write. Order matters: copy the graph,
+                        // close the index (frees device memory), then release the resource to the
+                        // pool so another thread can use it. Reversing this order causes a race:
+                        // CagraIndex.close() calls cuvsCagraIndexDestroy using the CuVSResources
+                        // context, which another thread may already be using if the resource was
+                        // returned to the pool first.
+                        try (var hostGraph = deviceGraph.toHost()) {
+                            index.close();
+                            index = null;
+                            resourcesHolder.close();
+                            graph = writeGraph(hostGraph, graphLevelNodeOffsets);
+                        }
+                    } else {
+                        graph = writeGraph(deviceGraph, graphLevelNodeOffsets);
                     }
-                } else {
-                    graph = writeGraph(deviceGraph, graphLevelNodeOffsets);
                 }
             } finally {
                 if (index != null) {

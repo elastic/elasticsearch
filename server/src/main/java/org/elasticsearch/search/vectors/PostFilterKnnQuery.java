@@ -136,7 +136,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 vectorOps
             );
 
-            int[] seenDocs = trackedDocs(delegate, topDocs);
+            int[] seenDocs = trackedDocs((PostFilterableKnnQuery) delegate, topDocs);
             int remaining = k - scoreDocs.length;
             Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), sortedDocIds(scoreDocs), seenDocs, remaining);
             TopDocs retryDocs = searcher.search(retry, remaining);
@@ -197,16 +197,8 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
     }
 
-    /**
-     * Returns round-0's collected docs as a sorted docId array (used as both excludedDocs and
-     * seedDocs source for the retry round). Prefers the per-leaf trackers exposed by
-     * {@link DocTrackingKnnQuery}; otherwise - and for non-tracked delegates such as IVF - falls
-     * back to {@code topDocs.scoreDocs} (round-0's global top-K). The fallback gives IVF retry a
-     * non-empty {@code excludedDocs} so the {@code ExcludeDocsQuery} branch in IVF
-     * {@code createRetryQuery} actually fires.
-     */
-    private static int[] trackedDocs(Query delegate, TopDocs topDocs) {
-        int[] roundDocs = delegate instanceof DocTrackingKnnQuery<?> dtq ? dtq.getTrackedDocs() : new int[0];
+    private static int[] trackedDocs(PostFilterableKnnQuery delegate, TopDocs topDocs) {
+        int[] roundDocs = delegate.getTrackedDocs();
         if (roundDocs.length == 0) {
             roundDocs = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < roundDocs.length; i++) {

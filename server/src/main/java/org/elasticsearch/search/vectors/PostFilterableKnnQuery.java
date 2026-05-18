@@ -115,4 +115,11 @@ public interface PostFilterableKnnQuery {
      * Used by {@link PostFilterKnnQuery} to compute retry-round numCands scaling.
      */
     int numCands();
+
+    /**
+     * Per-leaf docs collected during first round of post-filtering, used by the retry round.
+     */
+    default int[] getTrackedDocs() {
+        return new int[0];
+    }
 }

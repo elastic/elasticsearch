@@ -35,7 +35,7 @@ import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-public class KnnQueryUtils {
+public final class KnnQueryUtils {
 
     public static float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {
         long filterCost = 0;
@@ -136,12 +136,18 @@ public class KnnQueryUtils {
             return docs;
         }
         List<LeafReaderContext> leaves = reader.leaves();
+        BitSet[] bitSetByLeaf = new BitSet[leaves.size()];
+        boolean[] resolved = new boolean[leaves.size()];
         IntHashSet seenParents = new IntHashSet();
         List<ScoreDoc> deduped = new ArrayList<>();
         for (ScoreDoc sd : docs) {
             int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
             LeafReaderContext ctx = leaves.get(leafOrd);
-            BitSet parentBitSet = parentsFilter.getBitSet(ctx);
+            if (resolved[leafOrd] == false) {
+                bitSetByLeaf[leafOrd] = parentsFilter.getBitSet(ctx);
+                resolved[leafOrd] = true;
+            }
+            BitSet parentBitSet = bitSetByLeaf[leafOrd];
             if (parentBitSet == null) continue;
             int localDoc = sd.doc - ctx.docBase;
             int parentDoc = parentBitSet.nextSetBit(localDoc);

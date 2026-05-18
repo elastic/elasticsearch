@@ -27,8 +27,8 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
      * to determine if the request needs to be executed on a split shard not yet seen by the
      * coordinator that sent the request)
      */
-    public ShardFlushRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
-        super(shardId, reshardSplitShardCountSummary);
+    public ShardFlushRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary splitShardCountSummary) {
+        super(shardId, splitShardCountSummary);
         this.request = request;
         this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
     }

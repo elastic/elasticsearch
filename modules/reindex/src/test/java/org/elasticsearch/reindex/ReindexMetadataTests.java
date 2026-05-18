@@ -12,6 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
@@ -82,7 +83,9 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID),
                 null,
                 request(),
-                listener()
+                listener(),
+                new ReindexSettings(),
+                new NoopCircuitBreaker("test")
             );
         }
 

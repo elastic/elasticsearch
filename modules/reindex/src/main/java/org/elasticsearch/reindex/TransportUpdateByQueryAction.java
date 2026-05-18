@@ -16,8 +16,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -26,6 +26,7 @@ import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Script;
@@ -37,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -48,6 +50,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final UpdateByQueryMetrics updateByQueryMetrics;
+    private final ReindexSettings reindexSettings;
+    private final CircuitBreaker requestBreaker;
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -57,7 +61,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
-        @Nullable UpdateByQueryMetrics updateByQueryMetrics
+        @Nullable UpdateByQueryMetrics updateByQueryMetrics,
+        ReindexSettings reindexSettings,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -65,6 +71,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.updateByQueryMetrics = updateByQueryMetrics;
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
+        this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
     }
 
     @Override
@@ -79,7 +87,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             client,
             clusterService.localNode(),
             () -> {
-                ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
@@ -92,13 +99,14 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     threadPool,
                     scriptService,
                     request,
-                    state,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (updateByQueryMetrics != null) {
                             updateByQueryMetrics.recordTookTime(elapsedTime);
                         }
-                    })
+                    }),
+                    reindexSettings,
+                    requestBreaker
                 ).start();
             }
         );
@@ -116,8 +124,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            ClusterState clusterState,
-            ActionListener<BulkByScrollResponse> listener
+            ActionListener<BulkByScrollResponse> listener,
+            ReindexSettings reindexSettings,
+            CircuitBreaker requestBreaker
         ) {
             super(
                 task,
@@ -131,7 +140,10 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 request,
                 listener,
                 scriptService,
-                null
+                null,
+                reindexSettings,
+                requestBreaker,
+                "update_by_query_bulk_batch"
             );
         }
 

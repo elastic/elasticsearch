@@ -9,7 +9,7 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
@@ -54,8 +54,9 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByScrollActionMe
                 UpdateByQueryVersionTests.this.threadPool,
                 null,
                 request(),
-                ClusterState.EMPTY_STATE,
-                listener()
+                listener(),
+                new ReindexSettings(),
+                new NoopCircuitBreaker("test")
             );
         }
 

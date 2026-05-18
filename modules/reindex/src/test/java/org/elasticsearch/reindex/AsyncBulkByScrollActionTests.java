@@ -47,6 +47,9 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -97,6 +100,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -624,14 +628,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
-            action.sendBulkRequest(request, Assert::fail);
+            action.sendBulkRequest(request, () -> {}, Assert::fail);
             BulkByScrollResponse response = listener.get();
             assertThat(response.getBulkFailures(), hasSize(1));
             assertEquals(response.getBulkFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
             assertThat(response.getSearchFailures(), empty());
             assertNull(response.getReasonCancelled());
         } else {
-            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, onSuccess));
+            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, () -> {}, onSuccess));
         }
     }
 
@@ -700,7 +704,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), Assert::fail));
+        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), () -> {}, Assert::fail));
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {
@@ -955,6 +959,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAbstractBulkByScrollRequest,
         DummyTransportAsyncBulkByScrollAction> {
         DummyAsyncBulkByScrollAction() {
+            this(new NoopCircuitBreaker("test"), "test_bulk_batch");
+        }
+
+        DummyAsyncBulkByScrollAction(CircuitBreaker circuitBreaker, String breakerLabel) {
             super(
                 testTask,
                 randomBoolean(),
@@ -966,7 +974,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 testRequest,
                 listener,
                 null,
-                null
+                null,
+                new ReindexSettings(),
+                circuitBreaker,
+                breakerLabel
             );
         }
 

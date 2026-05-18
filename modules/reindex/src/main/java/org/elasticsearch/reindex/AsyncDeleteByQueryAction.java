@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -32,9 +33,26 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ThreadPool threadPool,
         DeleteByQueryRequest request,
         ScriptService scriptService,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByScrollResponse> listener,
+        ReindexSettings reindexSettings,
+        CircuitBreaker requestBreaker
     ) {
-        super(task, false, true, false, logger, client, threadPool, request, listener, scriptService, null);
+        super(
+            task,
+            false,
+            true,
+            false,
+            logger,
+            client,
+            threadPool,
+            request,
+            listener,
+            scriptService,
+            null,
+            reindexSettings,
+            requestBreaker,
+            "delete_by_query_bulk_batch"
+        );
     }
 
     @Override

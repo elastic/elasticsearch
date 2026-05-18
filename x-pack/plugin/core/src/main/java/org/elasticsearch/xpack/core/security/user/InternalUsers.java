@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -158,7 +159,7 @@ public class InternalUsers {
         UsernamesField.DATA_STREAM_LIFECYCLE_NAME,
         new RoleDescriptor(
             UsernamesField.DATA_STREAM_LIFECYCLE_ROLE,
-            new String[] {},
+            new String[] { "manage" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
@@ -173,7 +174,9 @@ public class InternalUsers {
                             IndicesStatsAction.NAME + "*",
                             TransportUpdateSettingsAction.TYPE.name(),
                             DownsampleAction.NAME,
-                            TransportAddIndexBlockAction.TYPE.name()
+                            TransportAddIndexBlockAction.TYPE.name(),
+                            IndicesSegmentsAction.NAME,
+                            ModifyDataStreamsAction.NAME
                         )
                     )
                     .allowRestrictedIndices(false)

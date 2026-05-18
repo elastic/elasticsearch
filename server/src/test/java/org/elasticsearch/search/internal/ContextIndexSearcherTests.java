@@ -280,7 +280,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
-    public void testConcurrentCollectionDoesNotDoubleCountWorkerBytesOnCallerThread() throws Exception {
+    public void testConcurrentCollectionTracksAllLeafBytesInWorkerAccumulator() throws Exception {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         final long bytesPerLeaf = 1000L;
         ThreadLocal<AtomicLong> threadCumulativeBytes = ThreadLocal.withInitial(AtomicLong::new);
@@ -336,11 +336,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
                 int numLeaves = directoryReader.getContext().leaves().size();
                 long totalSimulatedBytes = numLeaves * bytesPerLeaf;
-                long callerBytes = threadCumulativeBytes.get().get();
                 long workerBytes = searcher.getWorkerDirectoryBytesRead();
 
-                assertEquals(totalSimulatedBytes, callerBytes + workerBytes);
-                assertThat(callerBytes, greaterThanOrEqualTo(bytesPerLeaf));
+                assertEquals(totalSimulatedBytes, workerBytes);
             }
         } finally {
             terminate(executor);

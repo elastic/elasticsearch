@@ -409,20 +409,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
                 }
             }
-            // skip accounting in the task itself when it runs on the calling thread, which we don't know upfront
-            final Thread callingThread = Thread.currentThread();
             final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
                 final C collector = collectors.get(i);
                 listTasks.add(() -> {
-                    final boolean trackBytes = threadBytesRead != null && Thread.currentThread() != callingThread;
-                    final long before = trackBytes ? threadBytesRead.getAsLong() : -1;
+                    final long before = threadBytesRead != null ? threadBytesRead.getAsLong() : -1;
                     try {
                         search(leaves, weight, collector);
                         return collector;
                     } finally {
-                        if (trackBytes) {
+                        if (before >= 0) {
                             workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
                         }
                     }

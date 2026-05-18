@@ -320,11 +320,9 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(out.config().get("format"), equalTo((Object) "parquet"));
     }
 
-    public void testSecretSettingsForwardedAsRawCarrier() {
-        // Secret values pass through mergeSettings as their raw encrypted-carrier shape — String for
-        // legacy plaintext entries (this test), EncryptedData for encrypted entries, or a Map for the
-        // parsed-from-XContent encrypted-object form. The connector decrypts at its entry; the
-        // coordinator never materializes plaintext.
+    public void testSecretSettingsForwardedAsPlaintextString() {
+        // Plaintext-stored secrets (the no-encryption-service producer path) pass through mergeSettings
+        // as their original String. The connector receives the String directly — no decrypt needed.
         DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting("AKIAEXAMPLE_SECRET_VALUE", true)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -333,10 +331,25 @@ public class DatasetRewriterTests extends ESTestCase {
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         Object accessKey = out.config().get("access_key");
-        // Legacy / plaintext-stored entry comes through as the original String; encrypted entries
-        // would arrive as an EncryptedData GenericNamedWriteable instead.
         assertThat(accessKey, instanceOf(String.class));
         assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
+    }
+
+    public void testSecretSettingsForwardedAsEncryptedByteBlob() {
+        // Encrypted secrets (master-side encrypt step produced the byte[] blob) pass through
+        // mergeSettings as the same byte[] reference — the decrypt seam at the connector boundary
+        // (DataSourceCredentials.decryptInPlace) materialises plaintext just before the SDK call.
+        byte[] blob = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting(blob, true)));
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        Object accessKey = out.config().get("access_key");
+        assertThat(accessKey, instanceOf(byte[].class));
+        assertSame("blob travels through mergeSettings as the same byte[] reference", blob, accessKey);
     }
 
     public void testFastPathSkipsResolverWhenNoPatternCouldMatchDataset() {

@@ -36,11 +36,11 @@ public interface TableCatalog extends ExternalSourceFactory, Closeable {
     boolean canHandle(String path);
 
     /**
-     * @param config configuration map. Values are typed as {@code Object}: secret values may arrive
-     * as {@link org.elasticsearch.common.settings.SecureString}, non-secrets retain their underlying
-     * type ({@code String}, {@code Integer}, {@code Long}, {@code Boolean}). Use
-     * {@code Objects.toString(config.get(key), null)} or pattern-match on type — casting directly
-     * to {@code String} will throw {@link ClassCastException} on non-String values.
+     * @param config configuration map. Values are typed as {@code Object}. Secret values arrive as
+     * plaintext {@code String} — the data-node decrypt seam materialises them before they reach the
+     * catalog. Non-secrets retain their underlying type ({@code String}, {@code Integer},
+     * {@code Long}, {@code Boolean}). Use {@code Objects.toString(config.get(key), null)} or
+     * pattern-match on type for non-string non-secret values.
      */
     SourceMetadata metadata(String tablePath, Map<String, Object> config) throws IOException;
 

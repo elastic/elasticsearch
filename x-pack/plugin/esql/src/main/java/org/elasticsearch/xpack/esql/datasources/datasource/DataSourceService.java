@@ -64,7 +64,14 @@ public class DataSourceService {
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
-    /** CAS-guarded so the "encryption unavailable" warning logs at most once per cluster lifetime. */
+    /**
+     * CAS-guarded so the "encryption unavailable" warning logs at most once per master-instance
+     * lifetime. The flag is per-{@code DataSourceService}, which is per-node; the warning body runs
+     * inside the CAS task body, which only executes on the elected master. After a master failover
+     * the new master's flag starts at {@code false} and the warning re-fires on its first plaintext
+     * PUT — which is the right shape for an audit signal (operators see it every time a fresh master
+     * takes over a non-encrypting cluster).
+     */
     private final AtomicBoolean plaintextWarningLogged = new AtomicBoolean(false);
 
     private volatile int maxDataSourcesCount;
@@ -101,7 +108,8 @@ public class DataSourceService {
      * Create or replace a data source. When {@code encryptionService} is bound, every secret value is
      * encrypted master-side before being committed to cluster state. When it is not bound (e.g. the
      * cluster runs without {@code xpack.security.enabled} or with the PEK feature flag off), secret
-     * values are committed as plaintext and a single loud warning is logged once per cluster lifetime.
+     * values are committed as plaintext and a single loud warning is logged at most once per
+     * master-instance lifetime (re-fires after a master failover; see {@link #plaintextWarningLogged}).
      * The decrypt seam ({@code DataSourceCredentials.decryptInPlace}) still refuses to hand the
      * connector an encrypted blob without a key, so the only asymmetric mode is "unbound at PUT, then
      * plaintext at FROM" — which is what you'd expect on a dev / no-security cluster.
@@ -134,7 +142,7 @@ public class DataSourceService {
                         logger.warn(
                             "data-source secrets are being stored as PLAINTEXT in cluster state because "
                                 + "no encryption service is bound on this node. To encrypt at rest, enable xpack.security "
-                                + "and the primary-encryption-key feature flag. This message is logged once per node lifetime."
+                                + "and the primary-encryption-key feature flag. This message is logged at most once per master-instance lifetime."
                         );
                     }
                     stored = validated.settings();

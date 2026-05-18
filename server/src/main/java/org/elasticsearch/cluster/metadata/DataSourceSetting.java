@@ -15,10 +15,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -35,7 +38,7 @@ import java.util.Objects;
  * Access values via {@link #rawValue()} (always returns the raw value) or {@link #nonSecretValue()}
  * (asserts {@code !secret}).
  */
-public final class DataSourceSetting implements Writeable, org.elasticsearch.xcontent.ToXContentObject {
+public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     static final String MASK_SENTINEL = "::es_redacted::";
 
@@ -119,7 +122,7 @@ public final class DataSourceSetting implements Writeable, org.elasticsearch.xco
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, org.elasticsearch.xcontent.ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         if (value instanceof byte[] bytes) {
             // Renders as base64 in JSON, embedded-object token in SMILE — the SMILE form is what
@@ -140,14 +143,14 @@ public final class DataSourceSetting implements Writeable, org.elasticsearch.xco
         DataSourceSetting that = (DataSourceSetting) o;
         if (secret != that.secret) return false;
         if (value instanceof byte[] lhs && that.value instanceof byte[] rhs) {
-            return java.util.Arrays.equals(lhs, rhs);
+            return Arrays.equals(lhs, rhs);
         }
         return Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        int v = value instanceof byte[] bytes ? java.util.Arrays.hashCode(bytes) : Objects.hashCode(value);
+        int v = value instanceof byte[] bytes ? Arrays.hashCode(bytes) : Objects.hashCode(value);
         return Objects.hash(v, secret);
     }
 

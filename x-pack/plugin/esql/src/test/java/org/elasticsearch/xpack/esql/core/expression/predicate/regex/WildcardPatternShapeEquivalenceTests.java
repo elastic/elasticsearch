@@ -113,13 +113,6 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
         }
     }
 
-    /**
-     * Seeded randomized property pin. Each iteration picks a shape (prefix / suffix / contains),
-     * a random literal (mostly ASCII, sometimes multi-byte UTF-8 including supplementary planes),
-     * and a random value built either to satisfy the shape or to dodge it. Asserts routed-path
-     * vs automaton agreement. 10 000 iterations gives the SIMD path enough adversarial coverage
-     * to catch regressions the hand-picked set would miss; the cost is ~100 ms per run.
-     */
     public void testFastPathEquivalentToAutomatonRandomized() {
         int iterations = 10_000;
         for (int i = 0; i < iterations; i++) {

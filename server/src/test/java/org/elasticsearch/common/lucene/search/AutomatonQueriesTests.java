@@ -9,12 +9,15 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;
@@ -203,4 +206,84 @@ public class AutomatonQueriesTests extends ESTestCase {
         return '?';
     }
 
+    // ------------------------------------------------------------------
+    // Pre-flight reservation sizing for the CompiledAutomaton blind window (#147428)
+    // ------------------------------------------------------------------
+
+    public void testCompiledAutomatonReservationBytesScalesWithDfa() {
+        // Pick inputs that comfortably exceed the floor so we exercise the multiplier path,
+        // not the floor.
+        long mediumDfa = AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES;
+        long largeDfa = mediumDfa * 100;
+        assertEquals(
+            mediumDfa * AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER,
+            AutomatonQueries.compiledAutomatonReservationBytes(mediumDfa)
+        );
+        assertEquals(
+            largeDfa * AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER,
+            AutomatonQueries.compiledAutomatonReservationBytes(largeDfa)
+        );
+    }
+
+    public void testCompiledAutomatonReservationBytesAppliesFloorForSmallDfa() {
+        // A tiny DFA's K-multiplied size is below the floor; the floor must dominate.
+        long tinyDfa = 100L;
+        long reservation = AutomatonQueries.compiledAutomatonReservationBytes(tinyDfa);
+        assertEquals(AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES, reservation);
+        assertTrue(
+            "reservation must not regress below the floor",
+            reservation >= AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES
+        );
+    }
+
+    public void testCompiledAutomatonReservationBytesIsZeroSafe() {
+        // Defensive: a 0-byte DFA shouldn't yield a 0 reservation; the floor still applies.
+        assertEquals(AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES, AutomatonQueries.compiledAutomatonReservationBytes(0));
+    }
+
+    /**
+     * Verifies that the pre-flight CB reservation covers the post-construction query size for each
+     * known pattern family. {@code reservation / actual} ratios are logged so they can be used to
+     * tune {@link AutomatonQueries#COMPILED_AUTOMATON_PEAK_MULTIPLIER} and
+     * {@link AutomatonQueries#COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES} over time.
+     * <p>
+     * Note: {@code actual} is the final retained size from {@code query.ramBytesUsed()}, not the
+     * construction peak. The reservation must cover the peak; this test only verifies the final
+     * state as a lower bound.
+     */
+    public void testCompiledAutomatonReservationCoversActualSize() {
+        NoopCircuitBreaker breaker = new NoopCircuitBreaker("test");
+        String[][] patterns = {
+            { "simple_ascii", "foo*bar" },
+            { "many_wildcards", "a*b?c*d?e*f?g*h" },
+            { "multibyte_utf8", "日".repeat(60) + "*" },
+            { "adversarial_question", "?".repeat(1000) },
+            { "long_literal", "a".repeat(50) + "*" + "b".repeat(50) }, };
+        for (String[] entry : patterns) {
+            String name = entry[0];
+            String pattern = entry[1];
+            Term term = new Term("field", pattern);
+            Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, breaker);
+            long reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
+            long actual = new WildcardQuery(term).ramBytesUsed();
+            logger.info(
+                "CB reservation ratio [{}]: dfa={} B  reservation={} B  actual={} B  ratio={}",
+                name,
+                dfa.ramBytesUsed(),
+                reservation,
+                actual,
+                String.format(java.util.Locale.ROOT, "%.1f", (double) reservation / actual)
+            );
+            assertTrue("reservation must cover actual size for pattern [" + name + "]", reservation >= actual);
+        }
+    }
+
+    public void testCompiledAutomatonReservationBytesSaturatesOnOverflow() {
+        // A DFA so large that ramBytes * multiplier would overflow long arithmetic must saturate
+        // to Long.MAX_VALUE rather than wrap to a small positive (or negative) value that would
+        // silently under-reserve.
+        long overflowingDfa = Long.MAX_VALUE / AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER + 1;
+        assertEquals(Long.MAX_VALUE, AutomatonQueries.compiledAutomatonReservationBytes(overflowingDfa));
+        assertEquals(Long.MAX_VALUE, AutomatonQueries.compiledAutomatonReservationBytes(Long.MAX_VALUE));
+    }
 }

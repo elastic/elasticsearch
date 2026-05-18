@@ -33,6 +33,8 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.Rule;
@@ -59,6 +61,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESO
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
@@ -120,10 +123,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             MappedFieldType.FieldExtractPreference.STORED
         )) {
             for (IndexMode indexMode : IndexMode.values()) {
-                // TODO: Support COLUMNAR and COLUMNAR_LOGSDB modes in BWC tests
+                // TODO: Support COLUMNAR and LOGSDB_COLUMNAR modes in BWC tests
                 // These modes are currently skipped to avoid "No enum constant" errors in mixed-version clusters
                 // where older nodes don't have these enum values yet.
-                if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB) {
+                if (indexMode.isStrictColumnar()) {
                     continue;
                 }
                 args.add(new Object[] { extractPreference, indexMode });
@@ -199,6 +202,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
+    }
+
+    private static Boolean flattenedDatatypeSortedKeysSupported;
+
+    private boolean flattenedDatatypeSortedKeysSupported() throws IOException {
+        if (flattenedDatatypeSortedKeysSupported == null) {
+            flattenedDatatypeSortedKeysSupported = fetchFlattenedDatatypeSortedKeysSupported();
+        }
+        return flattenedDatatypeSortedKeysSupported;
+    }
+
+    protected boolean fetchFlattenedDatatypeSortedKeysSupported() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of("FLATTENED_DATATYPE_SORTED_KEYS")).orElse(false);
     }
 
     protected boolean lookupJoinOnAllIndicesSupported() throws IOException {
@@ -454,7 +470,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         boolean expectMetadataFields,
         boolean expectNonEnrichableFields,
         String indexName
-    ) {
+    ) throws IOException {
+        boolean flattenedSortedKeys = flattenedDatatypeSortedKeysSupported();
         MapMatcher expectedValues = matchesMap();
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
@@ -466,7 +483,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             expectedValues = expectedValues.entry(
                 fieldName(type),
-                expectedValue(type, coordinatorVersion, minimumVersionAcrossInvolvedNodes, indexMode, extractPreference)
+                expectedValue(
+                    type,
+                    coordinatorVersion,
+                    minimumVersionAcrossInvolvedNodes,
+                    indexMode,
+                    extractPreference,
+                    flattenedSortedKeys
+                )
             );
         }
         if (expectMetadataFields) {
@@ -940,7 +964,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 case TDIGEST -> createTDigestValue(doc);
                 case FLATTENED -> {
                     doc.startObject();
-                    doc.field("a", "foo");
+                    doc.field("d", "baz");
+                    doc.field("b", "foo");
+                    doc.startObject("a").field("c", "bar").endObject();
+                    doc.field("e", "qux");
+                    doc.field("j", "bleh");
                     doc.endObject();
                 }
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
@@ -1032,7 +1060,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersion,
         IndexMode indexMode,
-        MappedFieldType.FieldExtractPreference extractPreference
+        MappedFieldType.FieldExtractPreference extractPreference,
+        boolean flattenedSortedKeys
     ) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
@@ -1108,12 +1137,63 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case FLATTENED -> {
                 if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
-                    yield anyOf(nullValue(), equalTo(Map.of("a", "foo")));
+                    MapMatcher values = matchesMap().entry("a.c", "bar")
+                        .entry("b", "foo")
+                        .entry("d", "baz")
+                        .entry("e", "qux")
+                        .entry("j", "bleh");
+                    if (extractPreference == MappedFieldType.FieldExtractPreference.STORED && flattenedSortedKeys == false) {
+                        /*
+                         * Old nodes use the raw source fetcher for STORED preference, which
+                         * returns nested objects rather than dot-notation keys. Accept either
+                         * format during rolling upgrades.
+                         */
+                        yield anyOf(
+                            values,
+                            matchesMap().entry("a", Map.of("c", "bar"))
+                                .entry("b", "foo")
+                                .entry("d", "baz")
+                                .entry("e", "qux")
+                                .entry("j", "bleh")
+                        );
+                    }
+                    if (isSingleNodeSnapshot()) {
+                        /*
+                         * Only assert that keys come back in sorted order because
+                         * this was added after the first release of flattened. We
+                         * *did* do this while it was under snapshot, so we should
+                         * be able to enable this if all versions have the flattened
+                         * field released. But we'll worry about that when we release it.
+                         */
+                        yield allOf(values, hasKeys("a.c", "b", "d", "e", "j"));
+                    }
+                    yield values;
                 }
                 yield nullValue();
             }
 
             default -> throw new AssertionError("unsupported field type [" + type + "]");
+        };
+    }
+
+    /**
+     * Matcher that verifies a Map's keys appear in the given iteration order.
+     * Requires the map to be order-preserving (e.g. from {@link #responseAsOrderedMap}).
+     */
+    private static Matcher<Map<?, ?>> hasKeys(String... expectedKeys) {
+        return new BaseMatcher<>() {
+            @Override
+            public boolean matches(Object item) {
+                if (item instanceof Map<?, ?> actual) {
+                    return new ArrayList<>(actual.keySet()).equals(List.of(expectedKeys));
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("map with keys in order ").appendValue(Arrays.asList(expectedKeys));
+            }
         };
     }
 
@@ -1287,7 +1367,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB, COLUMNAR, COLUMNAR_LOGSDB -> true;
+            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
             case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
@@ -1418,7 +1498,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
             case EXPONENTIAL_HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.ExponentialHistogram");
-            case FLATTENED -> matchesList().item("column_at_a_time:");
+            case FLATTENED -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : matchesList().item("column_at_a_time:");
             case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")

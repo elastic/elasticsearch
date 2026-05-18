@@ -34,7 +34,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
+import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -108,18 +110,29 @@ final class ParquetPushedExpressions {
     private final IdentityHashMap<WildcardLike, CompiledWildcard> automatonCache = new IdentityHashMap<>();
 
     /**
-     * Compiled form of a {@link WildcardLike}: the runnable matcher and a flag indicating that the
-     * source automaton accepts every input. The flag is computed against the case-aware automaton
-     * (the same one passed to {@link ByteRunAutomaton}), so the {@link #matchesAll} fast path in
-     * {@link #evaluateWildcardLike} is consistent with the runtime case-sensitivity setting — it
-     * does not silently fall through to the per-row loop just because the pattern's internal
-     * case-insensitive cache disagrees with the requested flag.
+     * Compiled form of a {@link WildcardLike}: the runnable matcher, a flag indicating that the
+     * source automaton accepts every input, and an optional shape decomposition extracted from
+     * case-sensitive patterns of the affix-contains family (see {@link WildcardLikeShape}). The
+     * {@link #matchesAll} flag is computed against the case-aware automaton (the same one passed
+     * to {@link ByteRunAutomaton}), so the fast path in {@link #evaluateWildcardLike} is
+     * consistent with the runtime case-sensitivity setting — it does not silently fall through
+     * to the per-row loop just because the pattern's internal case-insensitive cache disagrees
+     * with the requested flag.
      *
      * <p>{@code matcher} is {@code null} when the pattern failed to determinize; the caller treats
      * that as "fall back to FilterExec" (return {@code null} from evaluateWildcardLike).
+     *
+     * <p>{@code shape} is non-null only for case-sensitive patterns of the form
+     * {@code prefix*literal*suffix} (and all degenerate forms — {@code prefix*}, {@code *suffix},
+     * {@code *literal*}, {@code prefix*suffix}, {@code prefix*literal*}, {@code *literal*suffix}).
+     * When present, {@link #evaluateWildcardLike} dispatches to
+     * {@link ByteMatchers#affixContains} instead of the per-byte automaton: short JDK-intrinsified
+     * affix equality checks reject the bulk of non-matching values cheaply, and the SIMD-backed
+     * substring scan handles the literal middle. Byte-substring against UTF-8 is codepoint-correct
+     * because UTF-8 is self-synchronizing on valid inputs (the KEYWORD contract).
      */
-    private record CompiledWildcard(ByteRunAutomaton matcher, boolean matchesAll) {
-        static final CompiledWildcard FAILED = new CompiledWildcard(null, false);
+    private record CompiledWildcard(ByteRunAutomaton matcher, boolean matchesAll, @Nullable WildcardLikeShape shape) {
+        static final CompiledWildcard FAILED = new CompiledWildcard(null, false, null);
     }
 
     ParquetPushedExpressions(List<Expression> expressions) {
@@ -382,7 +395,12 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
             case LONG -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
-            case DOUBLE -> orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+            case DOUBLE -> {
+                if (isPhysicalDouble(schema, columnName)) {
+                    yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+                }
+                yield null;
+            }
             case KEYWORD -> orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op);
             case BOOLEAN -> {
                 var col = FilterApi.booleanColumn(columnName);
@@ -396,6 +414,17 @@ final class ParquetPushedExpressions {
             case DATETIME -> buildDatetimePredicate(columnName, value, op, schema);
             default -> null;
         };
+    }
+
+    /**
+     * Returns {@code true} when the file's physical primitive for {@code columnName} is
+     * {@link PrimitiveType.PrimitiveTypeName#DOUBLE}.
+     */
+    private static boolean isPhysicalDouble(MessageType schema, String columnName) {
+        if (schema.containsField(columnName) == false) {
+            return false;
+        }
+        return schema.getType(columnName).asPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE;
     }
 
     private static FilterPredicate buildDatetimePredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
@@ -479,7 +508,12 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
             case LONG -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
-            case DOUBLE -> inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+            case DOUBLE -> {
+                if (isPhysicalDouble(schema, columnName)) {
+                    yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+                }
+                yield null;
+            }
             case KEYWORD -> inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary);
             case BOOLEAN -> inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v);
             case DATETIME -> translateDatetimeIn(columnName, rawValues, schema);
@@ -917,18 +951,15 @@ final class ParquetPushedExpressions {
             // provided — typically reducing dictSize * batchCount predicate calls to dictSize
             // per row group.
             BytesRef val = toByteRef(literal);
-            boolean[] dictMatches = memoizedDictionaryMatches(
-                dictCache,
-                bc,
-                obb.getDictionaryVector(),
-                entry -> compareResult(entry.compareTo(val), bc)
-            );
+            Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, bc, obb.getDictionaryVector(), matcher);
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             BytesRef val = toByteRef(literal);
+            Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && compareResult(bb.getBytesRef(i, scratch).compareTo(val), bc)) {
+                if (block.isNull(i) == false && matcher.test(bb.getBytesRef(i, scratch))) {
                     mask.set(i);
                 }
             }
@@ -943,6 +974,25 @@ final class ParquetPushedExpressions {
             return null;
         }
         return mask;
+    }
+
+    /**
+     * Returns the per-entry predicate for comparing a {@link BytesRef} block value to {@code val}.
+     * For {@link Equals}/{@link NotEquals} this is {@link ByteMatchers#equals}, which routes
+     * through the JDK's vectorized {@code Arrays#equals} intrinsic — the length pre-check rejects
+     * the bulk of non-matching values without touching the byte content. For lexicographic
+     * comparisons (LT, LE, GT, GE) the predicate falls back to {@link BytesRef#compareTo}, which
+     * is the only correct semantic on UTF-8 byte order; the JDK still vectorizes the underlying
+     * mismatch-finding step.
+     */
+    private static Predicate<BytesRef> bytesRefComparisonMatcher(EsqlBinaryComparison bc, BytesRef val) {
+        if (bc instanceof Equals) {
+            return entry -> ByteMatchers.equals(entry, val);
+        }
+        if (bc instanceof NotEquals) {
+            return entry -> ByteMatchers.equals(entry, val) == false;
+        }
+        return entry -> compareResult(entry.compareTo(val), bc);
     }
 
     private static boolean compareResult(int cmp, EsqlBinaryComparison bc) {
@@ -1139,6 +1189,10 @@ final class ParquetPushedExpressions {
             return null;
         }
         BytesRef prefix = toByteRef(prefixValue);
+        // ByteMatchers#startsWith routes through Arrays#equals, which HotSpot intrinsifies on
+        // x86 (AVX2/AVX-512) and ARM (NEON) with partial-inlining for sizes <= 64 bytes — typical
+        // URL/path prefixes ("https://", "https://www.") fit comfortably in that fast path. The
+        // helper performs the length pre-check internally.
         if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
             WordMask mask = new WordMask();
             mask.reset(rowCount);
@@ -1146,7 +1200,7 @@ final class ParquetPushedExpressions {
                 dictCache,
                 sw,
                 obb.getDictionaryVector(),
-                entry -> entry.length >= prefix.length && startsWith(entry, prefix)
+                entry -> ByteMatchers.startsWith(entry, prefix)
             );
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
             return mask;
@@ -1161,7 +1215,7 @@ final class ParquetPushedExpressions {
                 }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
-                    if (val.length >= prefix.length && startsWith(val, prefix)) {
+                    if (ByteMatchers.startsWith(val, prefix)) {
                         mask.set(i);
                     }
                 }
@@ -1169,15 +1223,6 @@ final class ParquetPushedExpressions {
             return mask;
         }
         return null;
-    }
-
-    private static boolean startsWith(BytesRef value, BytesRef prefix) {
-        for (int j = 0; j < prefix.length; j++) {
-            if (value.bytes[value.offset + j] != prefix.bytes[prefix.offset + j]) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
@@ -1234,16 +1279,12 @@ final class ParquetPushedExpressions {
         if (compiled.matchesAll) {
             return maskNonNullRows(block, rowCount);
         }
-        ByteRunAutomaton runner = compiled.matcher;
+        // Use the affix-contains dispatch when the pattern matches that shape; see CompiledWildcard.
+        Predicate<BytesRef> matcher = matcherFor(compiled);
         if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
             WordMask mask = new WordMask();
             mask.reset(rowCount);
-            boolean[] dictMatches = memoizedDictionaryMatches(
-                dictCache,
-                wl,
-                obb.getDictionaryVector(),
-                entry -> runner.run(entry.bytes, entry.offset, entry.length)
-            );
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, wl, obb.getDictionaryVector(), matcher);
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
             return mask;
         }
@@ -1257,7 +1298,7 @@ final class ParquetPushedExpressions {
                 }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
-                    if (runner.run(val.bytes, val.offset, val.length)) {
+                    if (matcher.test(val)) {
                         mask.set(i);
                     }
                 }
@@ -1265,6 +1306,18 @@ final class ParquetPushedExpressions {
             return mask;
         }
         return null;
+    }
+
+    private static Predicate<BytesRef> matcherFor(CompiledWildcard compiled) {
+        WildcardLikeShape shape = compiled.shape();
+        if (shape != null) {
+            BytesRef prefix = shape.prefix();
+            BytesRef literal = shape.literal();
+            BytesRef suffix = shape.suffix();
+            return entry -> ByteMatchers.affixContains(entry, prefix, literal, suffix);
+        }
+        ByteRunAutomaton runner = compiled.matcher;
+        return entry -> runner.run(entry.bytes, entry.offset, entry.length);
     }
 
     /**
@@ -1391,7 +1444,11 @@ final class ParquetPushedExpressions {
                 // (For invalid UTF-8 — outside the KEYWORD contract — the byte-level automaton would
                 // simply reject the malformed prefix, matching the per-row scalar path's behavior.)
                 boolean matchesAll = Operations.isTotal(automaton);
-                compiled = new CompiledWildcard(new ByteRunAutomaton(automaton), matchesAll);
+                // Affix-contains shape detection is opt-in for case-sensitive patterns. Skip the
+                // matchesAll case (already handled by an upstream shortcut) so the shape only
+                // exists on the SIMD-eligible path; this keeps the dispatcher contract trivial.
+                WildcardLikeShape shape = (wl.caseInsensitive() || matchesAll) ? null : WildcardLikeShape.of(wl.pattern().pattern());
+                compiled = new CompiledWildcard(new ByteRunAutomaton(automaton), matchesAll, shape);
             } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
                 logger.debug(
                     "Cannot push WildcardLike pattern [{}] to Parquet late materialization, falling back to FilterExec",

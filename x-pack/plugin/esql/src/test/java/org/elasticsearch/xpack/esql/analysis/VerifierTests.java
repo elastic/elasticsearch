@@ -1701,6 +1701,13 @@ public class VerifierTests extends ESTestCase {
             "TS test  | STATS COUNT(*)",
             equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
         );
+
+        tsdb().error(
+            "TS test  | STATS SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")",
+            equalTo(
+                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")]" + " can't be used with TS command"
+            )
+        );
     }
 
     public void testWeightedAvg() {
@@ -2439,8 +2446,8 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, geo_point, geo_shape, "
-                    + "geohash, geohex, geotile, integer, ip, keyword, "
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, flattened, geo_point, "
+                    + "geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
                     + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
             )
         );

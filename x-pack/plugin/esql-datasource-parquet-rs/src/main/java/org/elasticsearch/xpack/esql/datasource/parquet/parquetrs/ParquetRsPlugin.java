@@ -33,7 +33,7 @@ public class ParquetRsPlugin extends Plugin implements DataSourcePlugin {
         if (Build.current().isSnapshot() == false) {
             return Set.of();
         }
-        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET_RS, Set.of()));
+        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET_RS, Set.of(), Set.of()));
     }
 
     @Override

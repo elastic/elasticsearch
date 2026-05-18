@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -165,8 +166,8 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 args,
                 timestampType == DataType.DATE_NANOS
-                    ? Matchers.startsWith("AddDateNanosEvaluator[")
-                    : Matchers.startsWith("AddDatetimesEvaluator["),
+                    ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
+                    : Matchers.startsWith("DateTruncDatetimeEvaluator["),
                 timestampType,
                 matcher(args, step.toMillis(), now)
             ).withConfiguration(
@@ -204,8 +205,8 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                     return new TestCaseSupplier.TestCase(
                         args,
                         timestampType == DataType.DATE_NANOS
-                            ? Matchers.startsWith("AddDateNanosEvaluator[")
-                            : Matchers.startsWith("AddDatetimesEvaluator["),
+                            ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
+                            : Matchers.startsWith("DateTruncDatetimeEvaluator["),
                         timestampType,
                         equalTo(encodedTimestamp(expectedMillis, timestampType))
                     ).withConfiguration(
@@ -240,8 +241,8 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                         return new TestCaseSupplier.TestCase(
                             args,
                             timestampType == DataType.DATE_NANOS
-                                ? Matchers.startsWith("AddDateNanosEvaluator[")
-                                : Matchers.startsWith("AddDatetimesEvaluator["),
+                                ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
+                                : Matchers.startsWith("DateTruncDatetimeEvaluator["),
                             timestampType,
                             equalTo(encodedTimestamp(expectedBucket.toEpochMilli(), timestampType))
                         ).withConfiguration(
@@ -344,7 +345,8 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             null,
             null,
             ConfigurationAware.CONFIGURATION_MARKER,
-            0L
+            0L,
+            Rounding.RoundingConvention.DOWN
         );
         long tbucketBucket = tbucket.getDateRounding(FoldContext.small(), null, null).round(timestamp.toEpochMilli());
 

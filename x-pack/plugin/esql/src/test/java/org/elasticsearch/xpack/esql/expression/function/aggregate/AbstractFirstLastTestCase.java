@@ -46,7 +46,8 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             DataType.GEO_SHAPE,
             DataType.GEOHASH,
             DataType.GEOTILE,
-            DataType.GEOHEX
+            DataType.GEOHEX,
+            DataType.UNSIGNED_LONG
         );
 
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);
@@ -80,7 +81,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 Set<Object> expected = new HashSet<>();
                 TestCaseSupplier.TypedData values = valueSupplier.get();
                 TestCaseSupplier.TypedData sorts = sortSupplier.get();
-                List<?> valuesList = (List<?>) values.data();
+                List<?> valuesList = (List<?>) values.originalData();
 
                 if (sorts.type() == DataType.NULL) {
                     evaluatorStr = standardAggregatorNameAllBytesTheSame("Any", values.type());

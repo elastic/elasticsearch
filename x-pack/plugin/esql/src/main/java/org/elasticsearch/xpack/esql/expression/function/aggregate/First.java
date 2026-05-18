@@ -75,6 +75,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         description = """
             This function calculates the earliest occurrence of the search field
@@ -118,6 +119,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 "ip",
                 "keyword",
                 "long",
+                "unsigned_long",
                 "text",
                 "version" },
             description = "The search field"
@@ -184,7 +186,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || (dt.isNumeric())
                 || dt == DataType.VERSION
                 || dt == DataType.CARTESIAN_POINT
                 || dt == DataType.CARTESIAN_SHAPE
@@ -219,7 +221,7 @@ public class First extends AggregateFunction implements ToAggregator {
         if (sortFieldType == DataType.NULL || sort().foldable()) {
             return switch (searchFieldType) {
                 // Any value from the search field will do, so just pick the first one we encounter while still accounting for the type.
-                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX -> new AnyLongAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG -> new AnyLongAggregatorFunctionSupplier();
                 case INTEGER -> new AnyIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
                 case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
@@ -232,7 +234,8 @@ public class First extends AggregateFunction implements ToAggregator {
 
         if (sortFieldType == DataType.LONG || sortFieldType == DataType.DATETIME || sortFieldType == DataType.DATE_NANOS) {
             return switch (searchFieldType) {
-                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX -> new AllFirstLongByLongAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG ->
+                    new AllFirstLongByLongAggregatorFunctionSupplier();
                 case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
                 case FLOAT -> new AllFirstFloatByLongAggregatorFunctionSupplier();
@@ -245,7 +248,8 @@ public class First extends AggregateFunction implements ToAggregator {
 
         if (sortFieldType == DataType.INTEGER) {
             return switch (searchFieldType) {
-                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX -> new AllFirstLongByIntAggregatorFunctionSupplier();
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG ->
+                    new AllFirstLongByIntAggregatorFunctionSupplier();
                 case INTEGER -> new AllFirstIntByIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AllFirstDoubleByIntAggregatorFunctionSupplier();
                 case FLOAT -> new AllFirstFloatByIntAggregatorFunctionSupplier();

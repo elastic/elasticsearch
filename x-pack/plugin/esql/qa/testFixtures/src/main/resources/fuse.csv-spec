@@ -960,3 +960,46 @@ language_code:integer | language_name:keyword | label:keyword | my_score:double
 2                     | French                | label2        | 0.01613
 3                     | Spanish               | label2        | 0.01587
 ;
+
+fuseWithKnnVectorFails                                                                              
+required_capability: fork_v9                                                                        
+required_capability: fuse_v6                                                                        
+required_capability: match_operator_colon                                                           
+required_capability: knn_function_v5                                                                
+                                                                                                
+FROM colors METADATA _id, _index, _score                                                            
+| FORK (WHERE color:"red")
+     (WHERE knn(rgb_vector, [1, 2, 3]))                                                           
+| FUSE                                                                                              
+;                                                                                                   
+                                                                                                  
+color:text | rgb_vector:dense_vector                                                              
+;      
+
+fuseWithKnnVectorFailsWithDrop                                                                              
+required_capability: fork_v9                                                                        
+required_capability: fuse_v6                                                                        
+required_capability: match_operator_colon                                                           
+required_capability: knn_function_v5                                                                
+                                                                                                
+FROM colors METADATA _id, _index, _score                                                            
+| FORK  (WHERE color:"red" | SORT _score DESC | LIMIT 10 )
+        (WHERE knn(rgb_vector, [1, 2, 3]) | SORT _score DESC | LIMIT 10)                                                           
+| DROP rgb_byte_vector, rgb_vector
+| FUSE                                                                                              
+| KEEP _score, color, hex_code, id, primary, _index, _fork                                                  
+;                                                                                                   
+                                                                                                  
+_score:double | color:keyword | hex_code:keyword | id:integer | primary:boolean | _index:keyword | _fork:keyword
+0.01639344262295082 |red            |#FF0000        |4              |true           |colors         |fork1          
+0.01639344262295082 |black          |#000000        |54             |true           |colors         |fork2          
+0.016129032258064516|navy           |#000080        |21             |false          |colors         |fork2          
+0.015873015873015872|green          |#008000        |15             |true           |colors         |fork2          
+0.015625            |maroon         |#800000        |0              |false          |colors         |fork2          
+0.015384615384615385|indigo         |#4B0082        |23             |false          |colors         |fork2          
+0.015151515151515152|brown          |#A52A2A        |1              |false          |colors         |fork2          
+0.014925373134328358|teal           |#008080        |17             |false          |colors         |fork2          
+0.014705882352941176|purple         |#800080        |24             |false          |colors         |fork2          
+0.014492753623188406|olive          |#808000        |12             |false          |colors         |fork2          
+0.014285714285714285|firebrick      |#B22222        |2              |false          |colors         |fork2          
+;      

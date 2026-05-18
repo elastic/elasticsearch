@@ -68,6 +68,10 @@
 | text | date_nanos | keyword |
 | text | integer | keyword |
 | text | long | keyword |
+| unsigned_long | date | unsigned_long |
+| unsigned_long | date_nanos | unsigned_long |
+| unsigned_long | integer | unsigned_long |
+| unsigned_long | long | unsigned_long |
 | version | date | version |
 | version | date_nanos | version |
 | version | integer | version |

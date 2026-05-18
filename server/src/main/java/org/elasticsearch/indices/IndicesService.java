@@ -146,6 +146,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.ThrottledInboundRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -293,6 +294,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MergeMetrics mergeMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
+    private final ThrottledInboundRecoveryService throttledInboundRecoveryService;
 
     @Override
     protected void doStart() {
@@ -418,6 +420,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
+        this.throttledInboundRecoveryService = new ThrottledInboundRecoveryService(threadPool, ThrottledInboundRecoveryService.DEFAULT);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -990,28 +993,31 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        projectResolver.executeOnProject(
-            projectId,
-            () -> indexShard.startRecovery(
-                recoveryState,
-                recoveryTargetService,
-                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
-                repositoriesService,
-                (mapping, listener) -> {
-                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                        : "mapping update consumer only required by local shards recovery";
-                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                        // concrete index - no name clash, it uses uuid
-                        .setConcreteIndex(shardRouting.index())
-                        .source(mapping.source().string(), XContentType.JSON);
-                    client.execute(
-                        TransportAutoPutMappingAction.TYPE,
-                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
-                    );
-                },
-                this,
-                clusterStateVersion
+        throttledInboundRecoveryService.enqueue(
+            recoveryListener,
+            (recoveryListener1) -> projectResolver.executeOnProject(
+                projectId,
+                () -> indexShard.startRecovery(
+                    recoveryState,
+                    recoveryTargetService,
+                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener1),
+                    repositoriesService,
+                    (mapping, listener) -> {
+                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                            : "mapping update consumer only required by local shards recovery";
+                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                            // concrete index - no name clash, it uses uuid
+                            .setConcreteIndex(shardRouting.index())
+                            .source(mapping.source().string(), XContentType.JSON);
+                        client.execute(
+                            TransportAutoPutMappingAction.TYPE,
+                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                        );
+                    },
+                    this,
+                    clusterStateVersion
+                )
             )
         );
     }

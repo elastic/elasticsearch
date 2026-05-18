@@ -64,6 +64,14 @@ sourceSets {
   }
 }
 
+// log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
+tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(
+    "-processor",
+    "org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor",
+  )
+}
+
 // the main files are actually test files, so use the appropriate forbidden api sigs
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'

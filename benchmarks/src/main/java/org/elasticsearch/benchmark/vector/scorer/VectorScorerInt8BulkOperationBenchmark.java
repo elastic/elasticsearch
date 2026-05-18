@@ -84,6 +84,7 @@ public class VectorScorerInt8BulkOperationBenchmark {
 
     private Arena arena;
 
+    private byte[][] vectors;
     // Dataset: numVectors vectors laid out contiguously in native memory, each `dims * Byte.BYTES` bytes.
     private MemorySegment dataset;
     // Query vector in native memory.
@@ -104,6 +105,7 @@ public class VectorScorerInt8BulkOperationBenchmark {
     private MethodHandle bulkImpl;
     private MethodHandle bulkOffsetsImpl;
     private MethodHandle bulkSparseImpl;
+    private MethodHandle bulk8Impl;
 
     // although this is not a directory-based BulkBenchmark, we can still use some bits in the VectorData impl
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
@@ -135,6 +137,7 @@ public class VectorScorerInt8BulkOperationBenchmark {
 
         numVectorsToScore = vectorData.numVectorsToScore;
 
+        vectors = vectorData.vectors;
         // Allocate contiguous dataset in native memory
         dataset = arena.allocate((long) numVectors * dims);
         for (int v = 0; v < numVectors; v++) {
@@ -181,6 +184,11 @@ public class VectorScorerInt8BulkOperationBenchmark {
             nativeFunc,
             VectorSimilarityFunctions.DataType.INT8,
             VectorSimilarityFunctions.Operation.BULK_SPARSE
+        );
+        bulk8Impl = vectorSimilarityFunctions.getHandle(
+            nativeFunc,
+            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.Operation.BULK8
         );
     }
 
@@ -266,6 +274,41 @@ public class VectorScorerInt8BulkOperationBenchmark {
                     addressesSeg.set(ValueLayout.JAVA_LONG, (long) j * Long.BYTES, addr);
                 }
                 bulkSparseImpl.invokeExact(addressesSeg, query, dims, count, resultsSeg);
+            }
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+        MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
+        return scores;
+    }
+
+    /** BULK8: score batches of 8 vectors at a time. */
+    @Benchmark
+    public float[] scoreBulk8() {
+        // round down to nearest 8
+        int numVectors = numVectorsToScore & ~7;
+        try {
+            MemorySegment[] segments = new MemorySegment[8];
+            for (int i = 0; i < numVectors; i += bulkSize) {
+                for (int b = 0; b < bulkSize; b += 8) {
+                    for (int s = 0; s < 8; s++) {
+                        // use ofArray rather than asSlice, as this method is meant for arrays only
+                        segments[s] = MemorySegment.ofArray(vectors[ordinals[i + b + s]]);
+                    }
+                    bulk8Impl.invokeExact(
+                        segments[0],
+                        segments[1],
+                        segments[2],
+                        segments[3],
+                        segments[4],
+                        segments[5],
+                        segments[6],
+                        segments[7],
+                        query,
+                        dims,
+                        resultsSeg.asSlice((long) b * Float.BYTES)
+                    );
+                }
             }
         } catch (Throwable t) {
             throw rethrow(t);

@@ -145,7 +145,7 @@ public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluat
       if (spunClassOpt.isPresent()) {
         Class<? extends DivDoublesByConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (DivDoublesByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (DivDoublesByConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for DivDoublesByConstantEvaluator", e);
         }

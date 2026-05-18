@@ -147,7 +147,7 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
       if (spunClassOpt.isPresent()) {
         Class<? extends JsonExtractConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (JsonExtractConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), context);
+          return (JsonExtractConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for JsonExtractConstantEvaluator", e);
         }

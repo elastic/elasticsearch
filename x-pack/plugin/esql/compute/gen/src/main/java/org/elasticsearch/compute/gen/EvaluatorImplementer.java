@@ -548,7 +548,7 @@ public class EvaluatorImplementer {
             builder.addStatement("$T<? extends $T> spunClass = spunClassOpt.get()", ClassName.get(Class.class), implementation);
             builder.beginControlFlow("try");
             builder.addStatement(
-                "return ($T) spunClass.getDeclaredConstructors()[0].newInstance($L)",
+                "return ($T) spunClass.getConstructors()[0].newInstance($L)",
                 implementation,
                 String.join(", ", ctorArgs)
             );

@@ -139,7 +139,7 @@ public abstract class EndsWithConstantEvaluator implements ExpressionEvaluator {
       if (spunClassOpt.isPresent()) {
         Class<? extends EndsWithConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (EndsWithConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), context);
+          return (EndsWithConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for EndsWithConstantEvaluator", e);
         }

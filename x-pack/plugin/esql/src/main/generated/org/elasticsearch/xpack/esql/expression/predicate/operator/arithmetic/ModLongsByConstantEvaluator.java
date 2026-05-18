@@ -134,7 +134,7 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
       if (spunClassOpt.isPresent()) {
         Class<? extends ModLongsByConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (ModLongsByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (ModLongsByConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for ModLongsByConstantEvaluator", e);
         }

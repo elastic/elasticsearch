@@ -139,7 +139,7 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
       if (spunClassOpt.isPresent()) {
         Class<? extends StartsWithConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (StartsWithConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, str.get(context), context);
+          return (StartsWithConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for StartsWithConstantEvaluator", e);
         }

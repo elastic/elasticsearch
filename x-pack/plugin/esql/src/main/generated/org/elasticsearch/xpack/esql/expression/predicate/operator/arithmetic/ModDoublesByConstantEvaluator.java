@@ -145,7 +145,7 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
       if (spunClassOpt.isPresent()) {
         Class<? extends ModDoublesByConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (ModDoublesByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (ModDoublesByConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for ModDoublesByConstantEvaluator", e);
         }

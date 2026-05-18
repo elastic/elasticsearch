@@ -134,7 +134,7 @@ public abstract class ModIntsByConstantEvaluator implements ExpressionEvaluator 
       if (spunClassOpt.isPresent()) {
         Class<? extends ModIntsByConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (ModIntsByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (ModIntsByConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for ModIntsByConstantEvaluator", e);
         }

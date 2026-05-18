@@ -134,7 +134,7 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
       if (spunClassOpt.isPresent()) {
         Class<? extends DivIntsByConstantEvaluator> spunClass = spunClassOpt.get();
         try {
-          return (DivIntsByConstantEvaluator) spunClass.getDeclaredConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (DivIntsByConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct JIT-spun evaluator for DivIntsByConstantEvaluator", e);
         }

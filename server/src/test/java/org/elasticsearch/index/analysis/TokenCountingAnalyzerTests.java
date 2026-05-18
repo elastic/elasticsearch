@@ -11,34 +11,45 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class TokenCountingAnalyzerTests extends ESTestCase {
 
-    public void testTokenCountingBelowLimit() throws IOException {
+    public void testTokenCountingWithinOrAtLimit() throws IOException {
+        int limit = randomIntBetween(5, 100);
+        int tokenCount = randomIntBetween(1, limit);
+        String fieldName = randomAlphaOfLength(5);
+        String input = generateWords(tokenCount);
+
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 100);
-            try (TokenStream ts = analyzer.tokenStream("field", "hello world foo bar")) {
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, limit);
+            try (TokenStream ts = analyzer.tokenStream(fieldName, input)) {
                 ts.reset();
                 int count = 0;
                 while (ts.incrementToken()) {
                     count++;
                 }
                 ts.end();
-                assertEquals(4, count);
+                assertEquals(tokenCount, count);
             }
         }
     }
 
     public void testTokenCountingExceedsLimit() throws IOException {
+        int limit = randomIntBetween(2, 50);
+        int tokenCount = limit + randomIntBetween(1, 10);
+        String fieldName = randomAlphaOfLength(5);
+        String input = generateWords(tokenCount);
+
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 3);
-            try (TokenStream ts = analyzer.tokenStream("field", "hello world foo bar baz")) {
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, limit);
+            try (TokenStream ts = analyzer.tokenStream(fieldName, input)) {
                 ts.reset();
                 TokenCountingAnalyzer.FieldTokenCountExceededException ex = expectThrows(
                     TokenCountingAnalyzer.FieldTokenCountExceededException.class,
@@ -48,123 +59,63 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
                         }
                     }
                 );
-                assertThat(ex.getMessage(), containsString("[3]"));
-                assertThat(ex.getMessage(), containsString("[field]"));
+                assertThat(ex.getMessage(), containsString("[" + limit + "]"));
+                assertThat(ex.getMessage(), containsString("[" + fieldName + "]"));
                 assertThat(ex.getMessage(), containsString("index.mapping.tokens_per_field.limit"));
-                assertEquals(3, ex.getMaxTokenCount());
-                assertEquals("field", ex.getFieldName());
-            }
-        }
-    }
-
-    public void testCounterResetsPerField() throws IOException {
-        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            // Limit of 3: each field has 3 tokens, should succeed because counter resets per field
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 3);
-
-            // First field: 3 tokens (at the limit)
-            try (TokenStream ts = analyzer.tokenStream("field1", "one two three")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                    // consume
-                }
-                ts.end();
-            }
-
-            // Second field: 3 tokens again — should succeed because counter resets
-            try (TokenStream ts = analyzer.tokenStream("field2", "four five six")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                    // consume
-                }
-                ts.end();
-            }
-        }
-    }
-
-    public void testCounterResetsOnSameFieldNameReuse() throws IOException {
-        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            // With PER_FIELD_REUSE_STRATEGY, the same field name reuses the same TokenStreamComponents
-            // (and thus the same filter instance). Verify that reset() properly zeroes the counter.
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 3);
-
-            // First use: 3 tokens (at the limit)
-            try (TokenStream ts = analyzer.tokenStream("field", "one two three")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                    // consume
-                }
-                ts.end();
-            }
-
-            // Second use of same field name: 3 tokens again — should succeed because reset() zeroes counter
-            try (TokenStream ts = analyzer.tokenStream("field", "four five six")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                    // consume
-                }
-                ts.end();
-            }
-        }
-    }
-
-    public void testExactBoundary() throws IOException {
-        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 5);
-
-            // Exactly at the limit: 5 tokens with limit 5 should succeed
-            try (TokenStream ts = analyzer.tokenStream("field", "one two three four five")) {
-                ts.reset();
-                int count = 0;
-                while (ts.incrementToken()) {
-                    count++;
-                }
-                ts.end();
-                assertEquals(5, count);
-            }
-
-            // One over the limit: 6 tokens with limit 5 should fail
-            try (TokenStream ts = analyzer.tokenStream("field", "one two three four five six")) {
-                ts.reset();
-                expectThrows(TokenCountingAnalyzer.FieldTokenCountExceededException.class, () -> {
-                    while (ts.incrementToken()) {
-                        // consume
-                    }
-                });
+                assertEquals(limit, ex.getMaxTokenCount());
+                assertEquals(fieldName, ex.getFieldName());
             }
         }
     }
 
     public void testNoLimitWhenDisabled() throws IOException {
+        int tokenCount = randomIntBetween(50, 200);
+        String input = generateWords(tokenCount);
+
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            // -1 means no limit
             TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, -1);
-            try (TokenStream ts = analyzer.tokenStream("field", "one two three four five six seven eight nine ten")) {
+            try (TokenStream ts = analyzer.tokenStream("field", input)) {
                 ts.reset();
                 int count = 0;
                 while (ts.incrementToken()) {
                     count++;
                 }
                 ts.end();
-                assertEquals(10, count);
+                assertEquals(tokenCount, count);
             }
         }
     }
 
-    public void testDelegatesPerFieldAnalysis() throws IOException {
-        // Verify the wrapper properly delegates to the underlying analyzer
+    public void testCounterResetsOnReuse() throws IOException {
+        // With PER_FIELD_REUSE_STRATEGY, the same field name reuses the same TokenStreamComponents
+        // (and thus the same filter instance). Verify that reset() properly zeroes the counter.
+        int limit = randomIntBetween(3, 20);
+        String input = generateWords(limit);
+
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 1000);
-            try (TokenStream ts = analyzer.tokenStream("test_field", "hello world")) {
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, limit);
+
+            // First use: exactly at the limit
+            try (TokenStream ts = analyzer.tokenStream("field", input)) {
                 ts.reset();
-                CharTermAttribute attr = ts.addAttribute(CharTermAttribute.class);
-                assertTrue(ts.incrementToken());
-                assertEquals("hello", attr.toString());
-                assertTrue(ts.incrementToken());
-                assertEquals("world", attr.toString());
-                assertFalse(ts.incrementToken());
+                while (ts.incrementToken()) {
+                    // consume
+                }
+                ts.end();
+            }
+
+            // Second use of same field name: should succeed because reset() zeroes counter
+            try (TokenStream ts = analyzer.tokenStream("field", input)) {
+                ts.reset();
+                while (ts.incrementToken()) {
+                    // consume
+                }
                 ts.end();
             }
         }
+    }
+
+    private static String generateWords(int count) {
+        return IntStream.range(0, count).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
     }
 }

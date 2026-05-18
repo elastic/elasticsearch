@@ -56,12 +56,12 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_lookupJoin() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         verify("FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()");
     }
 
     public void testVerify_lookupJoin_oldDataNodes() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         assertError(
             "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
             TransportVersion.zero(),
@@ -72,7 +72,7 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_lookupJoin_disabled() {
-        assumeTrue("needs approximation lookup join disabled", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled() == false);
+        assumeTrue("needs approximation lookup join disabled", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled() == false);
         assertError(
             "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
             equalTo("line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")

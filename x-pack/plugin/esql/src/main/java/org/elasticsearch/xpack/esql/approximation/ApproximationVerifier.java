@@ -140,7 +140,7 @@ public class ApproximationVerifier {
                 new AbstractMap.SimpleImmutableEntry<>(ViewUnionAll.class, TransportVersion.zero())
             )
         );
-        if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled()) {
+        if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled()) {
             BUILDER.put(Join.class, TRANSPORT_VERSION_LOOKUP_JOIN);
         }
         if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled()) {

@@ -90,7 +90,7 @@ public class ApproximationGoldenTests extends GoldenTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         runGoldenTest("""
             SET approximation=true;
             FROM many_numbers

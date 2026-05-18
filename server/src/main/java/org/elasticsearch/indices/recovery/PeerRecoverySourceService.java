@@ -20,9 +20,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Nullable;
@@ -57,6 +60,16 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
+    // This setting is intentionally not registered; it is only used in tests.
+    // In production the default value mirrors the master-side throttle
+    // (cluster.routing.allocation.node_concurrent_recoveries).
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING = Setting.intSetting(
+        "indices.recovery.max_concurrent_outbound_recoveries",
+        ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES,
+        1,
+        Property.NodeScope
+    );
+
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
         public static final String REESTABLISH_RECOVERY = "internal:index/shard/recovery/reestablish_recovery";
@@ -67,6 +80,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
+
+    // TODO: make this dynamic?
+    private final int maxConcurrentOutboundRecoveries;
 
     // visible for testing
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
@@ -87,6 +103,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
+        this.maxConcurrentOutboundRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING.get(
+            clusterService.getSettings()
+        );
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
@@ -212,9 +231,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     final class OngoingRecoveries {
 
-        // TODO: replace with a dynamic node-level setting (indices.recovery.max_concurrent_outbound_recoveries)
-        static final int MAX_CONCURRENT_OUTBOUND_RECOVERIES = 2;
-
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
 
         private final Map<DiscoveryNode, Collection<RemoteRecoveryTargetHandler>> nodeToHandlers = new HashMap<>();
@@ -222,18 +238,18 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // TODO: should we do some smarter aggregation by shard?
         private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
 
-        private volatile int activeRecoveryHandlersCount = 0;
+        private int activeRecoveryHandlersCount = 0;
 
         @Nullable
         private List<ActionListener<Void>> emptyListeners;
 
         // visible for testing
-        int activeRecoveryCount() {
+        synchronized int activeRecoveryCount() {
             return activeRecoveryHandlersCount;
         }
 
         // visible for testing
-        int pendingRecoveriesCount() {
+        synchronized int pendingRecoveriesCount() {
             return pendingRecoveries.size();
         }
 
@@ -247,7 +263,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ) {
             assert lifecycle.started();
             ensureNoDuplicateAllocationId(request.targetAllocationId());
-            if (activeRecoveryHandlersCount < MAX_CONCURRENT_OUTBOUND_RECOVERIES) {
+            if (activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries) {
                 return addNewRecovery(request, task, shard);
             }
             shard.recoveryStats().incCurrentQueuedAsSource();
@@ -258,7 +274,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
             assert lifecycle.started();
-            assert activeRecoveryHandlersCount < MAX_CONCURRENT_OUTBOUND_RECOVERIES;
+            assert activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries;
             activeRecoveryHandlersCount++;
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
             final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, task, shard);
@@ -301,8 +317,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final RecoverySourceHandler nextHandler;
             synchronized (this) {
                 remove(shard, handler);
-                if (activeRecoveryHandlersCount < MAX_CONCURRENT_OUTBOUND_RECOVERIES && pendingRecoveries.isEmpty() == false) {
-                    assert activeRecoveryHandlersCount == MAX_CONCURRENT_OUTBOUND_RECOVERIES - 1;
+                if (activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries && pendingRecoveries.isEmpty() == false) {
+                    assert activeRecoveryHandlersCount == maxConcurrentOutboundRecoveries - 1;
                     nextRecovery = pendingRecoveries.poll();
                     nextRecovery.shard().recoveryStats().decCurrentQueuedAsSource();
                     nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());

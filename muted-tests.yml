@@ -291,6 +291,12 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.isNotNullFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/149291
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:tdigest.isNotNullFilter (timeseries mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/149292
 
 # Examples:
 #

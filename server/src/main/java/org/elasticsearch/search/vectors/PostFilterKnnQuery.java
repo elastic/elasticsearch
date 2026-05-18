@@ -28,8 +28,8 @@ import java.util.Objects;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.applyFilter;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.computeSelectivity;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
-import static org.elasticsearch.search.vectors.KnnQueryUtils.deduplicateByParent;
-import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeResults;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.dedupAndSelectTopK;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays;
 
 /**
  * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with up to two
@@ -114,10 +114,8 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         int delegateK = postFilterQuery.k();
         TopDocs topDocs = searcher.search(delegate, delegateK);
         long vectorOps = postFilterQuery.totalVectorOps();
-        ScoreDoc[] scoreDocs = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
-        if (parentsFilter != null) {
-            scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
-        }
+        ScoreDoc[] passingDocs = applyFilter(topDocs.scoreDocs, filterWeight, searcher);
+        ScoreDoc[] scoreDocs = dedupAndSelectTopK(passingDocs, searcher.getIndexReader(), parentsFilter, k);
 
         // exit early if we have found no results at all; this would probably imply a negatively correlated filter with the
         // knn search so post-filtering is unlikely to generate enough results even after retrying
@@ -142,11 +140,8 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             TopDocs retryDocs = searcher.search(retry, remaining);
             if (retryDocs.scoreDocs.length > 0) {
                 vectorOps += ((PostFilterableKnnQuery) retry).totalVectorOps();
-                ScoreDoc[] retryFiltered = applyFilter(retryDocs.scoreDocs, filterWeight, searcher);
-                scoreDocs = mergeResults(scoreDocs, retryFiltered);
-                if (parentsFilter != null) {
-                    scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
-                }
+                ScoreDoc[] retryPassing = applyFilter(retryDocs.scoreDocs, filterWeight, searcher);
+                scoreDocs = dedupAndSelectTopK(mergeScoreDocArrays(scoreDocs, retryPassing), searcher.getIndexReader(), parentsFilter, k);
             }
         }
 
@@ -173,11 +168,12 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             TopDocs fallbackDocs = searcher.search(fallback, remaining);
             vectorOps += ((PostFilterableKnnQuery) fallback).totalVectorOps();
             // No applyFilter() - the fallback already pre-filtered with the original filter.
-            ScoreDoc[] fallbackScoreDocs = fallbackDocs.scoreDocs;
-            scoreDocs = mergeResults(scoreDocs, fallbackScoreDocs);
-            if (parentsFilter != null) {
-                scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
-            }
+            scoreDocs = dedupAndSelectTopK(
+                mergeScoreDocArrays(scoreDocs, fallbackDocs.scoreDocs),
+                searcher.getIndexReader(),
+                parentsFilter,
+                k
+            );
         }
 
         // Accumulate the post-filter attempt's vector ops regardless of outcome so the profile
@@ -191,8 +187,6 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 k
             );
             return null;
-        } else if (k < scoreDocs.length) {
-            scoreDocs = Arrays.copyOf(scoreDocs, k);
         }
         return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());
     }

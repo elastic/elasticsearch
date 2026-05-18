@@ -38,45 +38,128 @@ import java.io.IOException;
 
 public class KnnQueryUtilsTests extends ESTestCase {
 
-    public void testMergeResults() {
-        {
-            ScoreDoc[] result = KnnQueryUtils.mergeResults(new ScoreDoc[0], new ScoreDoc[0]);
-            assertEquals(0, result.length);
+    public void testMergeScoreDocArrays() {
+        ScoreDoc a = new ScoreDoc(1, 0.9f);
+        ScoreDoc b = new ScoreDoc(2, 0.8f);
+        ScoreDoc c = new ScoreDoc(3, 0.7f);
+
+        assertEquals(0, KnnQueryUtils.mergeScoreDocArrays(new ScoreDoc[0], new ScoreDoc[0]).length);
+
+        ScoreDoc[] leftOnly = KnnQueryUtils.mergeScoreDocArrays(new ScoreDoc[] { a, b }, new ScoreDoc[0]);
+        assertEquals(2, leftOnly.length);
+        assertSame(a, leftOnly[0]);
+        assertSame(b, leftOnly[1]);
+
+        ScoreDoc[] rightOnly = KnnQueryUtils.mergeScoreDocArrays(new ScoreDoc[0], new ScoreDoc[] { a, b });
+        assertEquals(2, rightOnly.length);
+        assertSame(a, rightOnly[0]);
+        assertSame(b, rightOnly[1]);
+
+        ScoreDoc[] both = KnnQueryUtils.mergeScoreDocArrays(new ScoreDoc[] { a }, new ScoreDoc[] { b, c });
+        assertEquals(3, both.length);
+        assertSame(a, both[0]);
+        assertSame(b, both[1]);
+        assertSame(c, both[2]);
+    }
+
+    public void testDedupAndSelectTopKWithoutParentsDeduplicatesByDocId() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 5; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                ScoreDoc[] input = new ScoreDoc[] {
+                    new ScoreDoc(1, 0.9f),
+                    new ScoreDoc(3, 0.7f),
+                    new ScoreDoc(2, 0.8f),
+                    new ScoreDoc(4, 0.6f) };
+                ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(input, reader, null, 4);
+                assertEquals(4, result.length);
+                assertEquals(1, result[0].doc);
+                assertEquals(0.9f, result[0].score, 0.001f);
+                assertEquals(2, result[1].doc);
+                assertEquals(0.8f, result[1].score, 0.001f);
+                assertEquals(3, result[2].doc);
+                assertEquals(0.7f, result[2].score, 0.001f);
+                assertEquals(4, result[3].doc);
+                assertEquals(0.6f, result[3].score, 0.001f);
+            }
         }
-        {
-            ScoreDoc[] input = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.8f) };
-            ScoreDoc[] result = KnnQueryUtils.mergeResults(new ScoreDoc[0], input);
-            assertEquals(2, result.length);
-            assertEquals(1, result[0].doc);
-            assertEquals(2, result[1].doc);
+    }
+
+    public void testDedupAndSelectTopKDocIdCollisionKeepsHighestScore() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 5; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                // doc 2 appears twice with scores 0.7 and 0.8; the higher must win
+                ScoreDoc[] input = new ScoreDoc[] {
+                    new ScoreDoc(1, 0.9f),
+                    new ScoreDoc(2, 0.7f),
+                    new ScoreDoc(4, 0.7f),
+                    new ScoreDoc(2, 0.8f),
+                    new ScoreDoc(3, 0.6f) };
+                ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(input, reader, null, 5);
+                assertEquals(4, result.length);
+                assertEquals(1, result[0].doc);
+                assertEquals(0.9f, result[0].score, 0.001f);
+                assertEquals(2, result[1].doc);
+                assertEquals(0.8f, result[1].score, 0.001f);
+                // docs 3 and 4 both have 0.7 (order between them is unspecified after dedup)
+                assertEquals(0.7f, result[2].score, 0.001f);
+                assertEquals(0.6f, result[3].score, 0.001f);
+                assertEquals(3, result[3].doc);
+            }
         }
-        {
-            ScoreDoc[] existing = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(3, 0.7f) };
-            ScoreDoc[] incoming = new ScoreDoc[] { new ScoreDoc(2, 0.8f), new ScoreDoc(4, 0.6f) };
-            ScoreDoc[] result = KnnQueryUtils.mergeResults(existing, incoming);
-            assertEquals(4, result.length);
-            assertEquals(1, result[0].doc);
-            assertEquals(0.9f, result[0].score, 0.001f);
-            assertEquals(2, result[1].doc);
-            assertEquals(0.8f, result[1].score, 0.001f);
-            assertEquals(3, result[2].doc);
-            assertEquals(0.7f, result[2].score, 0.001f);
-            assertEquals(4, result[3].doc);
-            assertEquals(0.6f, result[3].score, 0.001f);
+    }
+
+    public void testDedupAndSelectTopKPartialSelectionKeepsTopK() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 10; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                // Scores intentionally out of order — partial selection must still find the top-k.
+                ScoreDoc[] input = new ScoreDoc[] {
+                    new ScoreDoc(0, 0.1f),
+                    new ScoreDoc(1, 0.9f),
+                    new ScoreDoc(2, 0.4f),
+                    new ScoreDoc(3, 0.8f),
+                    new ScoreDoc(4, 0.2f),
+                    new ScoreDoc(5, 0.7f),
+                    new ScoreDoc(6, 0.3f),
+                    new ScoreDoc(7, 0.6f),
+                    new ScoreDoc(8, 0.5f),
+                    new ScoreDoc(9, 0.95f) };
+                ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(input, reader, null, 3);
+                assertEquals(3, result.length);
+                // Top 3 scores: 0.95 (doc 9), 0.9 (doc 1), 0.8 (doc 3), in descending order.
+                assertEquals(9, result[0].doc);
+                assertEquals(0.95f, result[0].score, 0.001f);
+                assertEquals(1, result[1].doc);
+                assertEquals(0.9f, result[1].score, 0.001f);
+                assertEquals(3, result[2].doc);
+                assertEquals(0.8f, result[2].score, 0.001f);
+            }
         }
-        {
-            ScoreDoc[] existing = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(2, 0.7f), new ScoreDoc(4, 0.7f) };
-            ScoreDoc[] incoming = new ScoreDoc[] { new ScoreDoc(2, 0.8f), new ScoreDoc(3, 0.6f) };
-            ScoreDoc[] result = KnnQueryUtils.mergeResults(existing, incoming);
-            // doc 2 appears in both; the higher-ranked one (0.8 from incoming) wins
-            // Merge order: 1(0.9) from existing, 2(0.8) from incoming, 2(0.7) from existing (dup skipped), 3(0.6)
-            assertEquals(4, result.length);
-            assertEquals(1, result[0].doc);
-            assertEquals(0.9f, result[0].score, 0.001f);
-            assertEquals(2, result[1].doc);
-            assertEquals(0.8f, result[1].score, 0.001f);
-            assertEquals(4, result[2].doc);
-            assertEquals(0.7f, result[2].score, 0.001f);
+    }
+
+    public void testDedupAndSelectTopKEmptyInputOrZeroK() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            writer.addDocument(new Document());
+            writer.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertEquals(0, KnnQueryUtils.dedupAndSelectTopK(new ScoreDoc[0], reader, null, 5).length);
+                ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(new ScoreDoc[] { new ScoreDoc(0, 1f) }, reader, null, 0);
+                assertEquals(0, result.length);
+            }
         }
     }
 
@@ -106,15 +189,28 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     new ScoreDoc(4, 0.5f) };
 
                 ScoreDoc[] result = KnnQueryUtils.applyFilter(candidates, filterWeight, searcher);
-                // Even docs (0, 2, 4) pass, sorted by score descending
+                // Even docs (0, 2, 4) pass; output order is unspecified, only set membership matters
+                // since dedupAndSelectTopK is the step that imposes ordering downstream.
                 assertEquals(3, result.length);
-                assertEquals(0, result[0].doc);
-                assertEquals(0.9f, result[0].score, 0.001f);
-                assertEquals(2, result[1].doc);
-                assertEquals(0.7f, result[1].score, 0.001f);
-                assertEquals(4, result[2].doc);
-                assertEquals(0.5f, result[2].score, 0.001f);
+                assertPassingDocsMatch(result, new int[] { 0, 2, 4 }, new float[] { 0.9f, 0.7f, 0.5f });
             }
+        }
+    }
+
+    private static void assertPassingDocsMatch(ScoreDoc[] actual, int[] expectedDocs, float[] expectedScores) {
+        assertEquals("doc count", expectedDocs.length, actual.length);
+        for (int i = 0; i < expectedDocs.length; i++) {
+            int doc = expectedDocs[i];
+            float score = expectedScores[i];
+            boolean found = false;
+            for (ScoreDoc sd : actual) {
+                if (sd.doc == doc) {
+                    assertEquals("score for doc " + doc, score, sd.score, 0.001f);
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("missing doc " + doc, found);
         }
     }
 
@@ -139,7 +235,7 @@ public class KnnQueryUtilsTests extends ESTestCase {
         }
     }
 
-    public void testDeduplicateByParentKeepsHighestScoring() throws IOException {
+    public void testDedupAndSelectTopKByParentKeepsHighestScoringChild() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             // 6 docs: children 0,1 under parent 2; children 3,4 under parent 5
             for (int i = 0; i < 6; i++) {
@@ -156,15 +252,15 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     return bits;
                 };
 
-                // Sorted by score descending
+                // Input order intentionally jumbled — max-score per parent should still win.
                 ScoreDoc[] docs = new ScoreDoc[] {
-                    new ScoreDoc(1, 0.9f),  // child → parent 2
-                    new ScoreDoc(0, 0.8f),  // child → parent 2 (dup)
-                    new ScoreDoc(4, 0.7f),  // child → parent 5
-                    new ScoreDoc(3, 0.6f),  // child → parent 5 (dup)
+                    new ScoreDoc(0, 0.8f),  // child → parent 2
+                    new ScoreDoc(3, 0.6f),  // child → parent 5
+                    new ScoreDoc(1, 0.9f),  // child → parent 2 (higher than 0.8)
+                    new ScoreDoc(4, 0.7f),  // child → parent 5 (higher than 0.6)
                 };
 
-                ScoreDoc[] result = KnnQueryUtils.deduplicateByParent(docs, reader, parentsFilter);
+                ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(docs, reader, parentsFilter, 5);
                 assertEquals(2, result.length);
                 assertEquals(1, result[0].doc);
                 assertEquals(0.9f, result[0].score, 0.001f);
@@ -174,7 +270,7 @@ public class KnnQueryUtilsTests extends ESTestCase {
         }
     }
 
-    public void testDeduplicateByParentNoParents() throws IOException {
+    public void testDedupAndSelectTopKEmptyParentBitsetDropsAllDocs() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < 3; i++) {
                 writer.addDocument(new Document());
@@ -183,13 +279,50 @@ public class KnnQueryUtilsTests extends ESTestCase {
             writer.commit();
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                // No parent bits set → all docs filtered out (no parent found)
+                // No parent bits set → every child resolves to NO_MORE_DOCS and is dropped.
                 BitSetProducer parentsFilter = context -> new FixedBitSet(context.reader().maxDoc());
 
                 ScoreDoc[] docs = new ScoreDoc[] { new ScoreDoc(0, 0.9f), new ScoreDoc(1, 0.8f) };
-                ScoreDoc[] result = KnnQueryUtils.deduplicateByParent(docs, reader, parentsFilter);
-                // nextSetBit returns NO_MORE_DOCS for empty bitset, so all are filtered
+                ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(docs, reader, parentsFilter, 5);
                 assertEquals(0, result.length);
+            }
+        }
+    }
+
+    public void testDedupAndSelectTopKByParentRespectsTopK() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            // 9 docs: children 0,1 → parent 2; child 3 → parent 4; children 5,6,7 → parent 8
+            for (int i = 0; i < 9; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                BitSetProducer parentsFilter = context -> {
+                    FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    bits.set(2);
+                    bits.set(4);
+                    bits.set(8);
+                    return bits;
+                };
+
+                ScoreDoc[] docs = new ScoreDoc[] {
+                    new ScoreDoc(0, 0.8f), // → parent 2
+                    new ScoreDoc(1, 0.95f), // → parent 2 (winning child)
+                    new ScoreDoc(3, 0.7f), // → parent 4
+                    new ScoreDoc(5, 0.5f), // → parent 8
+                    new ScoreDoc(6, 0.9f), // → parent 8 (winning child)
+                    new ScoreDoc(7, 0.4f), // → parent 8
+                };
+
+                // 3 unique parents available; ask for only 2 — top 2 by winning-child score.
+                ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(docs, reader, parentsFilter, 2);
+                assertEquals(2, result.length);
+                assertEquals(1, result[0].doc);
+                assertEquals(0.95f, result[0].score, 0.001f);
+                assertEquals(6, result[1].doc);
+                assertEquals(0.9f, result[1].score, 0.001f);
             }
         }
     }
@@ -220,8 +353,8 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     1f
                 );
 
-                // Scores are intentionally not monotonic with docId so we also exercise the
-                // "sort back by score descending" tail of applyFilter.
+                // Scores intentionally non-monotonic with docId — applyFilter only reports the
+                // passing-set, regardless of order.
                 ScoreDoc[] candidates = new ScoreDoc[] {
                     new ScoreDoc(0, 0.5f),   // seg 0, pass
                     new ScoreDoc(1, 0.95f),  // seg 0, fail
@@ -230,27 +363,7 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     new ScoreDoc(5, 0.7f),   // seg 1, fail
                 };
                 ScoreDoc[] result = KnnQueryUtils.applyFilter(candidates, filterWeight, searcher);
-                assertEquals(3, result.length);
-                assertEquals(4, result[0].doc);
-                assertEquals(0.9f, result[0].score, 0.001f);
-                assertEquals(2, result[1].doc);
-                assertEquals(0.6f, result[1].score, 0.001f);
-                assertEquals(0, result[2].doc);
-                assertEquals(0.5f, result[2].score, 0.001f);
-            }
-        }
-    }
-
-    public void testDeduplicateByParentNullFilterReturnsInputUnchanged() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            for (int i = 0; i < 3; i++) {
-                writer.addDocument(new Document());
-            }
-            writer.commit();
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                ScoreDoc[] docs = new ScoreDoc[] { new ScoreDoc(0, 0.9f), new ScoreDoc(1, 0.8f) };
-                ScoreDoc[] result = KnnQueryUtils.deduplicateByParent(docs, reader, null);
-                assertSame(docs, result);
+                assertPassingDocsMatch(result, new int[] { 0, 2, 4 }, new float[] { 0.5f, 0.6f, 0.9f });
             }
         }
     }

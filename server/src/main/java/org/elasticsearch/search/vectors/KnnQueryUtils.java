@@ -9,11 +9,10 @@
 
 package org.elasticsearch.search.vectors;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -26,10 +25,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -81,7 +82,9 @@ public final class KnnQueryUtils {
 
     /**
      * Applies the filter to ScoreDocs with global doc IDs. Groups docs by leaf for efficient
-     * filter iterator advancement, then returns passing docs sorted by score descending.
+     * filter iterator advancement and returns passing docs in an unspecified order. Order is
+     * imposed downstream by {@link #dedupAndSelectTopK} via partial selection, so we deliberately
+     * avoid a full sort here.
      */
     public static ScoreDoc[] applyFilter(ScoreDoc[] scoreDocs, Weight filterWeight, IndexSearcher searcher) throws IOException {
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
@@ -122,24 +125,33 @@ public final class KnnQueryUtils {
             }
         }
 
-        // srot back by score descending
-        passingDocs.sort((a, b) -> Float.compare(b.score, a.score));
         return passingDocs.toArray(new ScoreDoc[0]);
     }
 
     /**
-     * Deduplicates results by parent document, keeping only the highest-scoring child per parent.
-     * Input must be sorted by score descending (first child seen per parent wins).
+     * Deduplicates {@code docs} and returns the top {@code k} hits sorted by score descending.
+     * When {@code parentsFilter} is non-null, dedup is by parent doc (highest-scoring child per
+     * parent wins); otherwise it is by global doc id (highest-scoring duplicate wins). Top-k is
+     * found via {@link ArrayUtil#select} (introselect), so only the chosen k are sorted at the end
+     * rather than the full deduplicated array.
+     *
+     * <p>Input order is irrelevant — both the dedup pass and the partition pass treat candidates
+     * symmetrically.
      */
-    public static ScoreDoc[] deduplicateByParent(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
-        if (parentsFilter == null) {
-            return docs;
+    public static ScoreDoc[] dedupAndSelectTopK(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter, int k)
+        throws IOException {
+        if (docs.length == 0 || k == 0) {
+            return new ScoreDoc[0];
         }
+        ScoreDoc[] deduped = parentsFilter != null ? dedupByParent(docs, reader, parentsFilter) : dedupByDocId(docs);
+        return selectTopK(deduped, k);
+    }
+
+    private static ScoreDoc[] dedupByParent(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
         List<LeafReaderContext> leaves = reader.leaves();
         BitSet[] bitSetByLeaf = new BitSet[leaves.size()];
         boolean[] resolved = new boolean[leaves.size()];
-        IntHashSet seenParents = new IntHashSet();
-        List<ScoreDoc> deduped = new ArrayList<>();
+        IntObjectHashMap<ScoreDoc> bestByParent = new IntObjectHashMap<>(docs.length);
         for (ScoreDoc sd : docs) {
             int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
             LeafReaderContext ctx = leaves.get(leafOrd);
@@ -153,44 +165,54 @@ public final class KnnQueryUtils {
             int parentDoc = parentBitSet.nextSetBit(localDoc);
             if (parentDoc == DocIdSetIterator.NO_MORE_DOCS) continue;
             int globalParent = parentDoc + ctx.docBase;
-            if (seenParents.add(globalParent)) {
-                deduped.add(sd);
+            ScoreDoc existing = bestByParent.get(globalParent);
+            if (existing == null || sd.score > existing.score) {
+                bestByParent.put(globalParent, sd);
             }
         }
-        return deduped.toArray(new ScoreDoc[0]);
+        return toArray(bestByParent);
     }
 
-    public static ScoreDoc[] mergeResults(ScoreDoc[] existing, ScoreDoc[] newResults) {
-        if (existing.length == 0) return newResults;
-        if (newResults.length == 0) return existing;
+    private static ScoreDoc[] dedupByDocId(ScoreDoc[] docs) {
+        IntObjectHashMap<ScoreDoc> bestByDoc = new IntObjectHashMap<>(docs.length);
+        for (ScoreDoc sd : docs) {
+            ScoreDoc existing = bestByDoc.get(sd.doc);
+            if (existing == null || sd.score > existing.score) {
+                bestByDoc.put(sd.doc, sd);
+            }
+        }
+        return toArray(bestByDoc);
+    }
 
-        IntHashSet seen = new IntHashSet(existing.length + newResults.length);
-        List<ScoreDoc> merged = new ArrayList<>(existing.length + newResults.length);
-        int i = 0, j = 0;
-        while (i < existing.length && j < newResults.length) {
-            ScoreDoc next;
-            if (existing[i].score >= newResults[j].score) {
-                next = existing[i++];
-            } else {
-                next = newResults[j++];
-            }
-            if (seen.add(next.doc)) {
-                merged.add(next);
-            }
+    private static ScoreDoc[] toArray(IntObjectHashMap<ScoreDoc> map) {
+        ScoreDoc[] out = new ScoreDoc[map.size()];
+        int i = 0;
+        for (IntObjectHashMap.IntObjectCursor<ScoreDoc> cursor : map) {
+            out[i++] = cursor.value;
         }
-        while (i < existing.length) {
-            if (seen.add(existing[i].doc)) {
-                merged.add(existing[i]);
-            }
-            i++;
+        return out;
+    }
+
+    private static ScoreDoc[] selectTopK(ScoreDoc[] docs, int k) {
+        Comparator<ScoreDoc> byScoreDesc = (a, b) -> Float.compare(b.score, a.score);
+        if (docs.length <= k) {
+            ArrayUtil.introSort(docs, byScoreDesc);
+            return docs;
         }
-        while (j < newResults.length) {
-            if (seen.add(newResults[j].doc)) {
-                merged.add(newResults[j]);
-            }
-            j++;
-        }
-        return merged.toArray(new ScoreDoc[0]);
+        // Partition around the kth-best so docs[0..k) holds the k highest-scoring entries
+        // (in unspecified order), then sort just those k in place.
+        ArrayUtil.select(docs, 0, docs.length, k - 1, byScoreDesc);
+        ArrayUtil.introSort(docs, 0, k, byScoreDesc);
+        return Arrays.copyOf(docs, k);
+    }
+
+    public static ScoreDoc[] mergeScoreDocArrays(ScoreDoc[] left, ScoreDoc[] right) {
+        if (left.length == 0) return right.length == 0 ? left : Arrays.copyOf(right, right.length);
+        if (right.length == 0) return Arrays.copyOf(left, left.length);
+        ScoreDoc[] out = new ScoreDoc[left.length + right.length];
+        System.arraycopy(left, 0, out, 0, left.length);
+        System.arraycopy(right, 0, out, left.length, right.length);
+        return out;
     }
 
 }

@@ -83,6 +83,11 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue(extensions.contains(".orc"));
     }
 
+    public void testDoesNotSupportWholeFileCompression() {
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
+    }
+
     public void testReadSchemaFromSimpleOrc() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())

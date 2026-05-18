@@ -38,7 +38,15 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             DataType.IP,
             DataType.BOOLEAN,
             DataType.DATETIME,
-            DataType.DATE_NANOS
+            DataType.DATE_NANOS,
+            DataType.VERSION,
+            DataType.CARTESIAN_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEO_POINT,
+            DataType.GEO_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX
         );
 
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);

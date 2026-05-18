@@ -597,7 +597,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         assert currentShardRouting.initializing() : currentShardRouting; // see above if clause
                         assert newTerm > existingTerm
                             : Strings.format(
-                                "replica-to-primary promotion must bump primary term: newTerm {}, existingTerm: {}, newRouting {}, currentRouting {}",
+                                "replica-to-primary promotion must bump primary term: newTerm {}, existingTerm: {}, "
+                                    + "newRouting {}, currentRouting {}",
                                 newTerm,
                                 existingTerm,
                                 newShardRouting,

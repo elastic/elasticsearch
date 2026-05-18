@@ -283,7 +283,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
@@ -441,7 +441,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, readOptionsBuilder().build());
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
@@ -519,7 +519,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -650,7 +650,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int batchSize = context.batchSize();
         List<Attribute> resolvedAttributes = context.resolvedAttributes();
 
-        InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
+        InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart, blockFactory.arrowAllocator());
         ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
         ParquetFileReader reader;
         if (context.fileContext() instanceof ParquetMetadata cachedFooter) {

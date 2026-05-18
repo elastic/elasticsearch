@@ -368,7 +368,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         {
-            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(1000)), this.blockFactory.bigArrays());
+            // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the limit
+            // must be large enough to accommodate the window plus leave headroom to trip on page allocation.
+            var limitedFactory = new BlockFactory(
+                new LimitedBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1000)),
+                this.blockFactory.bigArrays()
+            );
             var reader = new ParquetFormatReader(limitedFactory);
 
             // Read the schema is now ok
@@ -450,7 +455,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // 2. Breaker fits the footer but cannot accommodate the prefetcher reservation →
         // iterator falls back to sync I/O, still produces all rows, releases all bytes on close.
         {
-            var smallBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(32));
+            // The window buffer is now tracked by the circuit breaker; add DEFAULT_WINDOW_SIZE so the
+            // window fits and the remaining 32 KB budget still cannot accommodate the prefetcher reservation.
+            var smallBreaker = new LimitedBreaker(
+                "test",
+                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 32 * 1024)
+            );
             var smallFactory = new BlockFactory(smallBreaker, this.blockFactory.bigArrays());
             var pageCount = new AtomicInteger();
             int totalRows = 0;

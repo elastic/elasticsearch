@@ -57,6 +57,11 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /parquet-.*/, to: 'parquet'

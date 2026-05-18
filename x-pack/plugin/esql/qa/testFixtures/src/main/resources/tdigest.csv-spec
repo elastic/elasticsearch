@@ -801,3 +801,24 @@ TS tdigest_timeseries_index
 time:datetime            | first_count:long | last_count:long
 2025-09-25T00:00:00.000Z | 135              | 142
 ;
+
+// -------------------------------------------------------------------------------
+
+isNotNullFilter (timeseries mode)
+required_capability: ts_command_v0
+required_capability: fix_histogram_blockloaders_isnull
+
+TS tdigest_timeseries_index
+ | WHERE caseTestPlaceholder IS NOT NULL
+ | STATS cnt = COUNT(caseTestPlaceholder) BY instance
+ | KEEP instance, cnt
+ | SORT instance
+;
+
+instance:keyword  | cnt:long
+hand-rolled       | 28
+hand-rolled-empty | 40
+instance-0        | 0
+instance-1        | 0
+instance-2        | 0
+;

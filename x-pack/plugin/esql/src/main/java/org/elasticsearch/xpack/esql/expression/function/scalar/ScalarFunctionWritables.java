@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.FilterUnsupportedTemporality;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
@@ -141,6 +142,7 @@ public class ScalarFunctionWritables {
         entries.add(ToUpper.ENTRY);
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
+        entries.add(FilterUnsupportedTemporality.ENTRY);
         entries.add(WindowFilter.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());

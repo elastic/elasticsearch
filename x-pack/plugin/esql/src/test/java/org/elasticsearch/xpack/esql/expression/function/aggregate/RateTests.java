@@ -38,7 +38,7 @@ public class RateTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    enum TemporalityParameter {
+    public enum TemporalityParameter {
         NULL_TEMPORALITY(null),
         CUMULATIVE(Temporality.CUMULATIVE.bytesRef()),
         DELTA(Temporality.DELTA.bytesRef()),
@@ -50,7 +50,7 @@ public class RateTests extends AbstractAggregationTestCase {
             this.byteValue = byteValue;
         }
 
-        BytesRef byteValue() {
+        public BytesRef byteValue() {
             return byteValue;
         }
     }

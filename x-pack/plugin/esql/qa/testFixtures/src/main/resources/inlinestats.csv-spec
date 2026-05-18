@@ -5817,3 +5817,16 @@ a:long | y:integer | total:long
 3      | 58715     | 100
 4      | 67492     | 100
 ;
+
+inlineStatsSumExpressionWithConstantMultipleClauses
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+| WHERE emp_no == 10001
+| KEEP s1, s2
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;

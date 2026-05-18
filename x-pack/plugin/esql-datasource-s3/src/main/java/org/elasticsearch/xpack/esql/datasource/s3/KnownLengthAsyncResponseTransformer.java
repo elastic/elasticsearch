@@ -135,10 +135,16 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             int remaining = chunk.remaining();
-            if (offset + remaining > destination.length) {
+            // Overflow-safe form of `offset + remaining > destination.length`. `offset` is always
+            // in [0, destination.length] thanks to this same guard on prior iterations, so the
+            // subtraction never underflows.
+            if (remaining > destination.length - offset) {
                 failed = true;
                 IOException error = new IOException(
-                    "S3 response body exceeded expected length: cumulative=" + (offset + remaining) + ", expected=" + destination.length
+                    "S3 response body exceeded expected length: cumulative="
+                        + ((long) offset + remaining)
+                        + ", expected="
+                        + destination.length
                 );
                 subscription.cancel();
                 resultFuture.completeExceptionally(error);

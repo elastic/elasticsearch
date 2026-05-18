@@ -117,6 +117,9 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertThat(ex.getCause(), instanceOf(IOException.class));
         assertThat(ex.getCause().getMessage(), containsString("exceeded expected length"));
         assertTrue("subscription should be cancelled on overflow", cancelled.get());
+        // The subscriber requests unbounded demand on subscribe (Reactive Streams §3.4); guard
+        // against a future regression that adds backpressure without considering this contract.
+        assertThat(requested.get(), equalTo(Long.MAX_VALUE));
     }
 
     public void testUnderflowOnCompleteFails() {

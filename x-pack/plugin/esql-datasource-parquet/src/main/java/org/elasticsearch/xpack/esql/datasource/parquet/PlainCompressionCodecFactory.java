@@ -176,8 +176,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
             // allocation and one System.arraycopy that the JNI Snappy binding does not need.
             ByteBuffer input = bytes.toByteBuffer();
             if (input.hasArray()) {
-                int compressedSize = (int) bytes.size();
-                Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), compressedSize, out, 0);
+                Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);
             } else {
                 // Off-heap inputs (rare on this path) fall back to a single byte[] copy via
                 // toByteArray(). The byte[] overload is preferred over the ByteBuffer overload

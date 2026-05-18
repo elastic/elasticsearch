@@ -486,7 +486,7 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     public void testCountFieldNotPushedWhenMergedNullCountPoisoned() {
-        // Defensive end-to-end check for the present-but-statless poison path:
+        // Defensive end-to-end check for the present-but-stats-less poison path:
         // mergeStatistics drops null_count for `bonus` when any present file lacks it, so the
         // sourceMetadata reaching the optimizer has no _stats.columns.bonus.null_count entry,
         // even though _stats.columns.bonus.size_bytes is set (column is physically present

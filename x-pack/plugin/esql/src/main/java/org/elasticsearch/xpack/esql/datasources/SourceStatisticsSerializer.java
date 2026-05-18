@@ -225,10 +225,11 @@ public final class SourceStatisticsSerializer {
         Set<String> poisonedNullCounts = new HashSet<>();
         // Tracks (per per-file map) the row count and the set of columns physically present in
         // that file so we can fold absent-column rows into implicit nulls in a second pass.
-        List<long[]> perFileRowCounts = new ArrayList<>(splitStats.size());
+        long[] perFileRowCounts = new long[splitStats.size()];
         List<Set<String>> perFileColumns = new ArrayList<>(splitStats.size());
         Set<String> allColumns = new LinkedHashSet<>();
 
+        int fileIndex = 0;
         for (Map<String, Object> stats : splitStats) {
             if (stats == null || stats.containsKey(STATS_ROW_COUNT) == false) {
                 return null;
@@ -248,7 +249,7 @@ public final class SourceStatisticsSerializer {
             // any _stats.columns.<col>.* key is in the map (matches SplitStats.of's logic).
             Set<String> columnsInThisFile = new HashSet<>();
             // Track which present columns of this file emitted a null_count value, so we can
-            // detect the rare present-but-statless case after the column-family scan.
+            // detect the rare present-but-stats-less case after the column-family scan.
             Set<String> nullCountSeenInThisFile = new HashSet<>();
             for (Map.Entry<String, Object> entry : stats.entrySet()) {
                 String key = entry.getKey();
@@ -307,7 +308,7 @@ public final class SourceStatisticsSerializer {
                     poisonedNullCounts.add(present);
                 }
             }
-            perFileRowCounts.add(new long[] { fileRowCount });
+            perFileRowCounts[fileIndex++] = fileRowCount;
             perFileColumns.add(columnsInThisFile);
             allColumns.addAll(columnsInThisFile);
         }
@@ -320,7 +321,7 @@ public final class SourceStatisticsSerializer {
             String key = columnNullCountKey(colName);
             for (int i = 0; i < perFileColumns.size(); i++) {
                 if (perFileColumns.get(i).contains(colName) == false) {
-                    long fileRowCount = perFileRowCounts.get(i)[0];
+                    long fileRowCount = perFileRowCounts[i];
                     nullCounts.merge(key, new long[] { fileRowCount }, (a, b) -> {
                         a[0] += b[0];
                         return a;

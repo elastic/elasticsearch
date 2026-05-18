@@ -189,7 +189,7 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(-1L, stats.columnSizeBytes("bonus"));
     }
 
-    public void testColumnNullCountReturnsMinusOneWhenColumnPresentButStatless() {
+    public void testColumnNullCountReturnsMinusOneWhenColumnPresentButStatsLess() {
         // Defensive: a column physically present but with an unknown null count must keep
         // returning -1 (callers bail out rather than fabricate). This mirrors the rare
         // Parquet path where stats were not written.
@@ -197,7 +197,7 @@ public class SplitStatsTests extends ESTestCase {
         b.addColumn("bonus");
         SplitStats stats = b.build();
 
-        assertEquals("present-but-statless column must keep -1 sentinel", -1L, stats.columnNullCount("bonus"));
+        assertEquals("present-but-stats-less column must keep -1 sentinel", -1L, stats.columnNullCount("bonus"));
     }
 
     public void testFindColumn() {

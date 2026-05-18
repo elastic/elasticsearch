@@ -111,7 +111,7 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(90, merged.columnMax("bonus"));
     }
 
-    public void testColumnMinPoisonedByPresentButStatlessChild() {
+    public void testColumnMinPoisonedByPresentButStatsLessChild() {
         // Child A: has bonus with full stats. Child B: column physically present (column added)
         // but null count is unknown (-1). Defensive: poison rather than fabricate.
         SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
@@ -119,8 +119,8 @@ public class MergedSplitStatsTests extends ESTestCase {
         bb.addColumn("bonus", -1L, null, null, 200);
         SplitStats b = bb.build();
         MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
-        assertNull("present-but-statless child must poison the min", merged.columnMin("bonus"));
-        assertNull("present-but-statless child must poison the max", merged.columnMax("bonus"));
+        assertNull("present-but-stats-less child must poison the min", merged.columnMin("bonus"));
+        assertNull("present-but-stats-less child must poison the max", merged.columnMax("bonus"));
     }
 
     // -- columnMin --

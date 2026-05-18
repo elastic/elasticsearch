@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -99,7 +100,6 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(1, service.ongoingRecoveries.pendingRecoveriesCount());
 
         // primary1's slot is freed
-        // TODO: intercept recoverToTarget
         service.ongoingRecoveries.onRecoveryComplete(primary1, handler1);
         assertEquals(0, service.ongoingRecoveries.pendingRecoveriesCount());
         assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
@@ -365,6 +365,101 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(1, service.ongoingRecoveries.pendingRecoveriesCount());
 
         closeShards(primary, primary2);
+    }
+
+    public void testReestablishActiveRecovery() throws IOException {
+        final IndexShard primary = newStartedShard(true);
+        final var service = newPeerRecoverySourceService();
+        service.start();
+        final var task = recoveryTask();
+
+        final var request = newStartRecoveryRequest(primary);
+        final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(request, task, primary, ActionListener.noop());
+        assertNotNull(handler);
+
+        // Reestablish with the correct recovery ID and allocation ID succeeds.
+        final var reestablishRequest = new ReestablishRecoveryRequest(
+            request.recoveryId(),
+            request.shardId(),
+            request.targetAllocationId()
+        );
+        service.ongoingRecoveries.reestablishRecovery(reestablishRequest, primary, ActionListener.noop());
+
+        // Wrong recovery ID throws ResourceNotFoundException (active shard context exists but handler not found).
+        final var wrongIdRequest = new ReestablishRecoveryRequest(
+            request.recoveryId() + 1,
+            request.shardId(),
+            request.targetAllocationId()
+        );
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> service.ongoingRecoveries.reestablishRecovery(wrongIdRequest, primary, ActionListener.noop())
+        );
+
+        service.ongoingRecoveries.onRecoveryComplete(primary, handler);
+        closeShards(primary);
+    }
+
+    public void testReestablishPendingRecovery() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final var service = newPeerRecoverySourceService();
+        service.start();
+        final var task = recoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+
+        // Capture the original listener to verify it is never called.
+        final var request3 = newStartRecoveryRequest(primary3);
+        final var oldListener = new AtomicReference<Exception>();
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            request3,
+            task,
+            primary3,
+            ActionListener.wrap(r -> fail("unexpected success"), oldListener::set)
+        );
+        assertEquals(1, service.ongoingRecoveries.pendingRecoveriesCount());
+        assertEquals(1, primary3.recoveryStats().currentAsSourceQueued());
+
+        // Reestablish the pending recovery with a fresh listener.
+        final var newListener = new AtomicReference<Exception>();
+        final var reestablishRequest = new ReestablishRecoveryRequest(
+            request3.recoveryId(),
+            request3.shardId(),
+            request3.targetAllocationId()
+        );
+        service.ongoingRecoveries.reestablishRecovery(
+            reestablishRequest,
+            primary3,
+            ActionListener.wrap(r -> fail("unexpected success"), newListener::set)
+        );
+
+        // Queue depth and stats are unchanged.
+        assertEquals(1, service.ongoingRecoveries.pendingRecoveriesCount());
+        assertEquals(1, primary3.recoveryStats().currentAsSourceQueued());
+
+        assertNull(oldListener.get());
+        assertNull(newListener.get());
+
+        // Both the old and new listener are notified on completion (here cancellation).
+        service.ongoingRecoveries.cancelAllPendingRecoveries();
+        assertEquals(0, service.ongoingRecoveries.pendingRecoveriesCount());
+        assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
+        assertNotNull("old listener must have been called on cancel", oldListener.get());
+        assertThat(oldListener.get(), instanceOf(DelayRecoveryException.class));
+        assertThat(oldListener.get().getMessage(), containsString("node is closing"));
+        assertThat(newListener.get(), instanceOf(DelayRecoveryException.class));
+        assertThat(newListener.get().getMessage(), containsString("node is closing"));
+
+        // Reestablishing when no matching entry exists throws PeerRecoveryNotFound.
+        expectThrows(
+            PeerRecoveryNotFound.class,
+            () -> service.ongoingRecoveries.reestablishRecovery(reestablishRequest, primary3, ActionListener.noop())
+        );
+
+        closeShards(primary1, primary2, primary3);
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService() {

@@ -16,6 +16,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,6 +48,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -84,10 +86,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     // visible for testing
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
-
-    final int numberOfOngoingRecoveries() {
-        return ongoingRecoveries.ongoingRecoveries.size();
-    }
 
     public PeerRecoverySourceService(
         TransportService transportService,
@@ -283,17 +281,29 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             return handlers.v1();
         }
 
-        synchronized void cancelOnNodeLeft(DiscoveryNode node) {
-            final Collection<RemoteRecoveryTargetHandler> handlers = nodeToHandlers.get(node);
-            if (handlers != null) {
-                for (RemoteRecoveryTargetHandler handler : handlers) {
-                    handler.cancel();
+        void cancelOnNodeLeft(DiscoveryNode node) {
+            final List<PendingRecovery> cancelled;
+            synchronized (this) {
+                final Collection<RemoteRecoveryTargetHandler> handlers = nodeToHandlers.get(node);
+                if (handlers != null) {
+                    for (RemoteRecoveryTargetHandler handler : handlers) {
+                        handler.cancel();
+                    }
                 }
+                cancelled = removePendingRecoveries(pendingRecovery -> pendingRecovery.request().targetNode().equals(node));
             }
-            cancelPendingRecoveries(
-                pendingRecovery -> pendingRecovery.request().targetNode().equals(node),
-                "target node left during queued recovery"
-            );
+            for (PendingRecovery cancelledRecovery : cancelled) {
+                cancelledRecovery.listener()
+                    .onFailure(
+                        new DelayRecoveryException(
+                            Strings.format(
+                                "cancelled pending recovery for shard %s, with target node %s: target node left during queued recovery",
+                                cancelledRecovery.shard().shardId(),
+                                cancelledRecovery.request().targetNode()
+                            )
+                        )
+                    );
+            }
         }
 
         synchronized void reestablishRecovery(
@@ -303,10 +313,26 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ) {
             assert lifecycle.started();
             final ShardRecoveryContext shardContext = ongoingRecoveries.get(shard);
-            if (shardContext == null) {
-                throw new PeerRecoveryNotFound(request.recoveryId(), request.shardId(), request.targetAllocationId());
+            if (shardContext != null) {
+                shardContext.reestablishRecovery(request, listener);
+                return;
             }
-            shardContext.reestablishRecovery(request, listener);
+            // The recovery may still be pending. Stack the new listener onto the existing one so both
+            // channels are notified when the recovery eventually starts and completes or is cancelled.
+            final Iterator<PendingRecovery> iterator = pendingRecoveries.iterator();
+            while (iterator.hasNext()) {
+                final PendingRecovery pending = iterator.next();
+                if (pending.request().targetAllocationId().equals(request.targetAllocationId())) {
+                    iterator.remove();
+                    final var combined = new SubscribableListener<RecoveryResponse>();
+                    combined.addListener(pending.listener());
+                    combined.addListener(listener);
+                    // TODO: this isn't really fair, but does it matter?
+                    pendingRecoveries.addLast(new PendingRecovery(pending.request(), pending.task(), pending.shard(), combined));
+                    return;
+                }
+            }
+            throw new PeerRecoveryNotFound(request.recoveryId(), request.shardId(), request.targetAllocationId());
         }
 
         /// Called when an active recovery completes (successfully or not).
@@ -317,6 +343,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             synchronized (this) {
                 remove(shard, handler);
                 if (activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries && pendingRecoveries.isEmpty() == false) {
+                    // TODO: switch to < once we have made maxConcurrentOutboundRecoveries dynamic
                     assert activeRecoveryHandlersCount == maxConcurrentOutboundRecoveries - 1;
                     nextRecovery = pendingRecoveries.poll();
                     nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
@@ -339,8 +366,23 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        synchronized void cancelAllPendingRecoveries() {
-            cancelPendingRecoveries(ignored -> true, "source node is closing");
+        void cancelAllPendingRecoveries() {
+            final List<PendingRecovery> cancelled;
+            synchronized (this) {
+                cancelled = removePendingRecoveries(ignored -> true);
+            }
+            for (PendingRecovery cancelledRecovery : cancelled) {
+                cancelledRecovery.listener()
+                    .onFailure(
+                        new DelayRecoveryException(
+                            Strings.format(
+                                "cancelled pending recovery for shard %s, with target node %s: source node is closing",
+                                cancelledRecovery.shard().shardId(),
+                                cancelledRecovery.request().targetNode()
+                            )
+                        )
+                    );
+            }
         }
 
         synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
@@ -374,22 +416,37 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        synchronized void cancel(IndexShard shard) {
-            final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);
-            if (shardRecoveryContext != null) {
-                final List<Exception> failures = new ArrayList<>();
-                for (RecoverySourceHandler handlers : shardRecoveryContext.recoveryHandlers.keySet()) {
-                    try {
-                        handlers.cancel("shard is closed");
-                    } catch (Exception ex) {
-                        failures.add(ex);
-                    } finally {
-                        shard.recoveryStats().decCurrentAsSource();
+        void cancel(IndexShard shard) {
+            final List<PendingRecovery> cancelled;
+            synchronized (this) {
+                final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);
+                if (shardRecoveryContext != null) {
+                    final List<Exception> failures = new ArrayList<>();
+                    for (RecoverySourceHandler handlers : shardRecoveryContext.recoveryHandlers.keySet()) {
+                        try {
+                            handlers.cancel("shard is closed");
+                        } catch (Exception ex) {
+                            failures.add(ex);
+                        } finally {
+                            shard.recoveryStats().decCurrentAsSource();
+                        }
                     }
+                    ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);
                 }
-                ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);
+                cancelled = removePendingRecoveries(pendingRecovery -> pendingRecovery.shard() == shard);
             }
-            cancelPendingRecoveries(pendingRecovery -> pendingRecovery.shard() == shard, "index shard closed");
+            for (PendingRecovery cancelledRecovery : cancelled) {
+                cancelledRecovery.listener()
+                    .onFailure(
+                        new DelayRecoveryException(
+                            Strings.format(
+                                "cancelled pending recovery for shard %s, with target node %s: index shard closed",
+                                cancelledRecovery.shard().shardId(),
+                                cancelledRecovery.request().targetNode()
+                            )
+                        )
+                    );
+            }
         }
 
         void awaitEmpty() {
@@ -429,24 +486,19 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        private void cancelPendingRecoveries(Predicate<PendingRecovery> predicate, String reason) {
+        private List<PendingRecovery> removePendingRecoveries(Predicate<PendingRecovery> predicate) {
+            assert Thread.holdsLock(this);
             final List<PendingRecovery> cancelled = new ArrayList<>();
             pendingRecoveries.removeIf(pendingRecovery -> {
                 if (predicate.test(pendingRecovery)) {
+                    pendingRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
                     cancelled.add(pendingRecovery);
                     return true;
                 }
                 return false;
             });
-            cancelled.forEach(pendingRecovery -> {
-                final String cancellationMsg = Strings.format(
-                    "cancelled pending recovery for shard {}, with target node {}",
-                    pendingRecovery.shard.shardId(),
-                    pendingRecovery.request.targetNode()
-                );
-                pendingRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
-                pendingRecovery.listener().onFailure(new DelayRecoveryException(cancellationMsg + " : " + reason));
-            });
+            // immutable
+            return List.copyOf(cancelled);
         }
 
         private record PendingRecovery(

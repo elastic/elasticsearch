@@ -1674,7 +1674,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertAcked(indicesAdmin().prepareDelete("test")); // cancel recoveries
         assertBusy(() -> {
             for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
-                assertThat(recoveryService.numberOfOngoingRecoveries(), equalTo(0));
+                assertThat(recoveryService.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
             }
         });
     }
@@ -1912,7 +1912,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertTrue(deleteListener.get(20, TimeUnit.SECONDS).isAcknowledged());
 
         final var peerRecoverySourceService = internalCluster().getInstance(PeerRecoverySourceService.class, primaryNode);
-        assertBusy(() -> assertEquals(0, peerRecoverySourceService.numberOfOngoingRecoveries()));
+        assertBusy(() -> assertEquals(0, peerRecoverySourceService.ongoingRecoveries.activeRecoveryCount()));
         recoveryCompleteListener.onResponse(null);
     }
 

@@ -16,7 +16,10 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -32,19 +35,49 @@ import java.util.NoSuchElementException;
  * <p>
  * This keeps format readers simple — they read only the columns their file has —
  * and centralizes NULL-filling and type-casting in one place.
+ *
+ * <h2>{@link ColumnExtractorProducer} forwarding</h2>
+ * The adapter unconditionally declares the {@link ColumnExtractorProducer} capability and forwards
+ * {@link #createColumnExtractor()} / {@link #setExtractorId(int)} to its delegate. Whether those
+ * calls actually succeed depends on the delegate: a non-producer delegate makes
+ * {@code instanceof ColumnExtractorProducer} a necessary-but-not-sufficient guard at consumer
+ * sites — the dispatch into the delegate fails loud (see {@link #innerProducer()}). Today the only
+ * consumer is the deferred-extraction wiring in
+ * {@code AsyncExternalSourceOperatorFactory#wrapWithEncoderIfNeeded}, which only reaches this
+ * iterator when the factory has already arranged for {@code _rowPosition} (and therefore a
+ * producer-capable delegate) on the read path; the unconditional declaration lets the dispatch
+ * site stay a single {@code instanceof} check rather than threading a capability flag through the
+ * adapter constructor.
  */
-final class SchemaAdaptingIterator implements CloseableIterator<Page> {
+final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
 
     private final CloseableIterator<Page> delegate;
     private final List<Attribute> unifiedSchema;
     private final SchemaReconciliation.ColumnMapping mapping;
     private final BlockFactory blockFactory;
+    /**
+     * Index in the delegate's input page of the synthetic
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN}, or {@code -1} when the file is not emitting it.
+     * When non-negative, the adapter copies the block as-is into the trailing slot of the output
+     * page so deferred extraction continues to work after schema reconciliation.
+     */
+    private final int rowPositionInputIndex;
 
     SchemaAdaptingIterator(
         CloseableIterator<Page> delegate,
         List<Attribute> unifiedSchema,
         SchemaReconciliation.ColumnMapping mapping,
         BlockFactory blockFactory
+    ) {
+        this(delegate, unifiedSchema, mapping, blockFactory, -1);
+    }
+
+    SchemaAdaptingIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> unifiedSchema,
+        SchemaReconciliation.ColumnMapping mapping,
+        BlockFactory blockFactory,
+        int rowPositionInputIndex
     ) {
         if (unifiedSchema.size() != mapping.columnCount()) {
             throw new IllegalArgumentException(
@@ -60,6 +93,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page> {
         this.unifiedSchema = unifiedSchema;
         this.mapping = mapping;
         this.blockFactory = blockFactory;
+        this.rowPositionInputIndex = rowPositionInputIndex;
     }
 
     @Override
@@ -76,8 +110,9 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page> {
         try {
             int positions = filePage.getPositionCount();
             int unifiedSize = unifiedSchema.size();
+            int outputSize = unifiedSize + (rowPositionInputIndex >= 0 ? 1 : 0);
 
-            Block[] unifiedBlocks = new Block[unifiedSize];
+            Block[] unifiedBlocks = new Block[outputSize];
             try {
                 for (int i = 0; i < unifiedSize; i++) {
                     int localIndex = mapping.localIndex(i);
@@ -94,6 +129,11 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page> {
                         }
                     }
                 }
+                if (rowPositionInputIndex >= 0) {
+                    Block rowPos = filePage.getBlock(rowPositionInputIndex);
+                    rowPos.incRef();
+                    unifiedBlocks[unifiedSize] = rowPos;
+                }
                 return new Page(positions, unifiedBlocks);
             } catch (Exception e) {
                 Releasables.closeExpectNoException(unifiedBlocks);
@@ -102,6 +142,31 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page> {
         } finally {
             filePage.releaseBlocks();
         }
+    }
+
+    @Override
+    public ColumnExtractor createColumnExtractor() throws IOException {
+        return innerProducer().createColumnExtractor();
+    }
+
+    @Override
+    public void setExtractorId(int id) {
+        innerProducer().setExtractorId(id);
+    }
+
+    /**
+     * Pass-through capability: the producer is the inner iterator that owns the row-group scope
+     * and pre-encodes {@code _rowPosition}. If the wrapped iterator is not a producer, deferred
+     * extraction was wired to a reader that does not support it — fail loudly so callers don't
+     * silently lose data.
+     */
+    private ColumnExtractorProducer innerProducer() {
+        if (delegate instanceof ColumnExtractorProducer producer) {
+            return producer;
+        }
+        throw new IllegalStateException(
+            "deferred extraction requested but underlying iterator [" + delegate.getClass().getName() + "] is not a ColumnExtractorProducer"
+        );
     }
 
     @Override

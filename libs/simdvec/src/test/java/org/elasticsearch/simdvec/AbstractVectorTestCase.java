@@ -9,8 +9,8 @@
 
 package org.elasticsearch.simdvec;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayOutputStream;
@@ -18,15 +18,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
-    static Optional<VectorScorerFactory> factory;
+    static VectorScorerFactory factory;
 
     protected static final float DELTA = 1e-6f;
 
@@ -37,42 +36,33 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
     protected static final float BULK_DELTA = 2e-5f;
 
     @BeforeClass
-    public static void checkWindows() {
-        assumeFalse("Windows is not supported", Constants.WINDOWS);
-    }
-
-    @BeforeClass
     public static void getVectorScorerFactory() {
-        // the default factory just returns Optional.empty for everything, so filter that out
-        factory = Optional.of(ESVectorizationProvider.getInstance().getVectorScorerFactory())
-            .filter(f -> f instanceof DefaultVectorScorerFactory == false);
+        factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+
+        // check the factory is resolved as expected on the arches we expect
+        var arch = System.getProperty("os.arch");
+        var osName = System.getProperty("os.name");
+
+        if ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
+            || arch.equals("amd64") && osName.equals("Linux"))) {
+            assertThat(factory, not(instanceOf(DefaultVectorScorerFactory.class)));
+        } else {
+            // not an expected arch, so should be the default one
+            // and there are no tests to run in that case
+            assertThat(factory, instanceOf(DefaultVectorScorerFactory.class));
+            throw new AssumptionViolatedException(notSupportedMsg());
+        }
     }
 
     protected AbstractVectorTestCase() {
         logger.info(platformMsg());
     }
 
-    public static boolean supported() {
-        var jdkVersion = Runtime.version().feature();
-        var arch = System.getProperty("os.arch");
-        var osName = System.getProperty("os.name");
-
-        if (jdkVersion >= 21
-            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
-                || arch.equals("amd64") && osName.equals("Linux"))) {
-            assertThat(factory, isPresent());
-            return true;
-        } else {
-            assertThat(factory, not(isPresent()));
-            return false;
-        }
-    }
-
-    public static String notSupportedMsg() {
+    private static String notSupportedMsg() {
         return "Not supported on [" + platformMsg() + "]";
     }
 
-    public static String platformMsg() {
+    private static String platformMsg() {
         var jdkVersion = Runtime.version().feature();
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");

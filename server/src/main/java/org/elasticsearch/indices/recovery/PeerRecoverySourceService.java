@@ -267,7 +267,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             if (activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries) {
                 return addNewRecovery(request, task, shard);
             }
-            shard.recoveryStats().incCurrentQueuedAsSource();
+            shard.recoveryStats().incCurrentAsSourceQueued();
             // TODO: should we add a limit to the queuing as well? After which we just straight up reject?
             pendingRecoveries.add(new PendingRecovery(request, task, shard, listener));
             return null;
@@ -321,7 +321,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 if (activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries && pendingRecoveries.isEmpty() == false) {
                     assert activeRecoveryHandlersCount == maxConcurrentOutboundRecoveries - 1;
                     nextRecovery = pendingRecoveries.poll();
-                    nextRecovery.shard().recoveryStats().decCurrentQueuedAsSource();
+                    nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
                     nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
                 } else {
                     nextHandler = null;
@@ -447,7 +447,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     pendingRecovery.shard.shardId(),
                     pendingRecovery.request.targetNode()
                 );
-                pendingRecovery.shard().recoveryStats().decCurrentQueuedAsSource();
+                pendingRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
                 pendingRecovery.listener().onFailure(new DelayRecoveryException(cancellationMsg + " : " + reason));
             });
         }

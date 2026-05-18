@@ -72,7 +72,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         );
         assertNull(queued);
         assertEquals(1, service.ongoingRecoveries.pendingRecoveriesCount());
-        assertEquals(1, primary3.recoveryStats().currentQueuedAsSource());
+        assertEquals(1, primary3.recoveryStats().currentAsSourceQueued());
 
         closeShards(primary1, primary2, primary3);
     }
@@ -102,7 +102,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         // TODO: intercept recoverToTarget
         service.ongoingRecoveries.onRecoveryComplete(primary1, handler1);
         assertEquals(0, service.ongoingRecoveries.pendingRecoveriesCount());
-        assertEquals(0, primary3.recoveryStats().currentQueuedAsSource());
+        assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
 
         closeShards(primary1, primary2, primary3);
     }
@@ -132,7 +132,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         // Simulate shard close, pending entry fail
         service.ongoingRecoveries.cancel(primary3);
         assertEquals(0, service.ongoingRecoveries.pendingRecoveriesCount());
-        assertEquals(0, primary3.recoveryStats().currentQueuedAsSource());
+        assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
         assertNotNull(capturedFailure.get());
         assertThat(capturedFailure.get(), instanceOf(DelayRecoveryException.class));
         assertThat(capturedFailure.get().getMessage(), containsString("index shard closed"));
@@ -178,7 +178,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         // Simulate node departure, pending entry should fail
         service.ongoingRecoveries.cancelOnNodeLeft(departedNode);
         assertEquals(0, service.ongoingRecoveries.pendingRecoveriesCount());
-        assertEquals(0, primary3.recoveryStats().currentQueuedAsSource());
+        assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
         assertNotNull(capturedFailure.get());
         assertThat(capturedFailure.get(), instanceOf(DelayRecoveryException.class));
         assertThat(capturedFailure.get().getMessage(), containsString("target node left"));
@@ -211,7 +211,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         // Drain the queue as node shutdown would
         service.ongoingRecoveries.cancelAllPendingRecoveries();
         assertEquals(0, service.ongoingRecoveries.pendingRecoveriesCount());
-        assertEquals(0, primary3.recoveryStats().currentQueuedAsSource());
+        assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
         assertNotNull(capturedFailure.get());
         assertThat(capturedFailure.get().getMessage(), containsString("node is closing"));
 

@@ -27,11 +27,11 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class RecoveryStats implements ToXContentFragment, Writeable {
 
-    private static final TransportVersion QUEUED_AS_SOURCE_STATS = TransportVersion.fromName("recovery_queued_as_source_stats");
+    private static final TransportVersion SOURCE_QUEUED_STATS = TransportVersion.fromName("recovery_source_queued_stats");
 
     private final AtomicInteger currentAsSource = new AtomicInteger();
     private final AtomicInteger currentAsTarget = new AtomicInteger();
-    private final AtomicInteger currentQueuedAsSource = new AtomicInteger();
+    private final AtomicInteger currentAsSourceQueued = new AtomicInteger();
     private final AtomicLong throttleTimeInNanos = new AtomicLong();
 
     public RecoveryStats() {}
@@ -40,8 +40,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         currentAsSource.set(in.readVInt());
         currentAsTarget.set(in.readVInt());
         throttleTimeInNanos.set(in.readLong());
-        if (in.getTransportVersion().supports(QUEUED_AS_SOURCE_STATS)) {
-            currentQueuedAsSource.set(in.readVInt());
+        if (in.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
+            currentAsSourceQueued.set(in.readVInt());
         }
     }
 
@@ -49,7 +49,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         if (recoveryStats != null) {
             this.currentAsSource.addAndGet(recoveryStats.currentAsSource());
             this.currentAsTarget.addAndGet(recoveryStats.currentAsTarget());
-            this.currentQueuedAsSource.addAndGet(recoveryStats.currentQueuedAsSource());
+            this.currentAsSourceQueued.addAndGet(recoveryStats.currentAsSourceQueued());
         }
         addTotals(recoveryStats);
     }
@@ -75,6 +75,13 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     }
 
     /**
+     * Number of queued recoveries for which a shard serves as a source
+     */
+    public int currentAsSourceQueued() {
+        return currentAsSourceQueued.get();
+    }
+
+    /**
      * Total time recoveries waited due to throttling
      */
     public TimeValue throttleTime() {
@@ -97,16 +104,12 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         currentAsSource.decrementAndGet();
     }
 
-    public void incCurrentQueuedAsSource() {
-        currentQueuedAsSource.incrementAndGet();
+    public void incCurrentAsSourceQueued() {
+        currentAsSourceQueued.incrementAndGet();
     }
 
-    public void decCurrentQueuedAsSource() {
-        currentQueuedAsSource.decrementAndGet();
-    }
-
-    public int currentQueuedAsSource() {
-        return currentQueuedAsSource.get();
+    public void decCurrentAsSourceQueued() {
+        currentAsSourceQueued.decrementAndGet();
     }
 
     public void addThrottleTime(long nanos) {
@@ -118,7 +121,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         builder.startObject(Fields.RECOVERY);
         builder.field(Fields.CURRENT_AS_SOURCE, currentAsSource());
         builder.field(Fields.CURRENT_AS_TARGET, currentAsTarget());
-        builder.field(Fields.CURRENT_AS_QUEUED_SOURCE, currentQueuedAsSource());
+        builder.field(Fields.CURRENT_AS_QUEUED_SOURCE, currentAsSourceQueued());
         builder.humanReadableField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
         return builder;
@@ -138,8 +141,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         out.writeVInt(currentAsSource.get());
         out.writeVInt(currentAsTarget.get());
         out.writeLong(throttleTimeInNanos.get());
-        if (out.getTransportVersion().supports(QUEUED_AS_SOURCE_STATS)) {
-            out.writeVInt(currentQueuedAsSource.get());
+        if (out.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
+            out.writeVInt(currentAsSourceQueued.get());
         }
     }
 
@@ -150,13 +153,13 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         RecoveryStats that = (RecoveryStats) o;
         return currentAsSource() == that.currentAsSource()
             && currentAsTarget() == that.currentAsTarget()
-            && currentQueuedAsSource() == that.currentQueuedAsSource()
+            && currentAsSourceQueued() == that.currentAsSourceQueued()
             && Objects.equals(throttleTime(), that.throttleTime());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(currentAsSource(), currentAsTarget(), currentQueuedAsSource(), throttleTime());
+        return Objects.hash(currentAsSource(), currentAsTarget(), currentAsSourceQueued(), throttleTime());
     }
 
     @Override
@@ -165,8 +168,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
             + currentAsSource()
             + "],currentAsTarget ["
             + currentAsTarget()
-            + "],currentQueuedAsSource ["
-            + currentQueuedAsSource()
+            + "],currentAsSourceQueued ["
+            + currentAsSourceQueued()
             + "], throttle ["
             + throttleTime()
             + "]";

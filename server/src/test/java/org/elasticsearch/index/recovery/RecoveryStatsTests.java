@@ -33,7 +33,7 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
             stats.incCurrentAsTarget();
         }
         for (int i = 0; i < randomIntBetween(0, 3); i++) {
-            stats.incCurrentQueuedAsSource();
+            stats.incCurrentAsSourceQueued();
         }
         stats.addThrottleTime(randomNonNegativeLong());
         return stats;
@@ -61,10 +61,10 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
                 yield mutated;
             }
             case 2 -> {
-                if (randomBoolean() && mutated.currentQueuedAsSource() > 0) {
-                    mutated.decCurrentQueuedAsSource();
+                if (randomBoolean() && mutated.currentAsSourceQueued() > 0) {
+                    mutated.decCurrentAsSourceQueued();
                 } else {
-                    mutated.incCurrentQueuedAsSource();
+                    mutated.incCurrentAsSourceQueued();
                 }
                 yield mutated;
             }
@@ -76,14 +76,14 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
     }
 
     public void testBwcBeforeQueuedAsSourceStats() throws IOException {
-        final TransportVersion queuedAsSourceVersion = TransportVersion.fromName("recovery_queued_as_source_stats");
+        final TransportVersion queuedAsSourceVersion = TransportVersion.fromName("recovery_source_queued_stats");
         final TransportVersion beforeQueuedAsSource = TransportVersionUtils.randomVersionNotSupporting(queuedAsSourceVersion);
         final TransportVersion atOrAfterQueuedAsSource = TransportVersionUtils.randomVersionSupporting(queuedAsSourceVersion);
 
         final var stats = new RecoveryStats();
         stats.incCurrentAsSource();
         stats.incCurrentAsTarget();
-        stats.incCurrentQueuedAsSource();
+        stats.incCurrentAsSourceQueued();
         stats.addThrottleTime(randomNonNegativeLong());
 
         try (var out = new BytesStreamOutput()) {
@@ -95,7 +95,7 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
                 assertEquals(stats.currentAsSource(), deserialized.currentAsSource());
                 assertEquals(stats.currentAsTarget(), deserialized.currentAsTarget());
                 assertEquals(stats.throttleTime(), deserialized.throttleTime());
-                assertEquals(0, deserialized.currentQueuedAsSource());
+                assertEquals(0, deserialized.currentAsSourceQueued());
             }
         }
 
@@ -108,7 +108,7 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
                 assertEquals(stats.currentAsSource(), deserialized.currentAsSource());
                 assertEquals(stats.currentAsTarget(), deserialized.currentAsTarget());
                 assertEquals(stats.throttleTime(), deserialized.throttleTime());
-                assertEquals(stats.currentQueuedAsSource(), deserialized.currentQueuedAsSource());
+                assertEquals(stats.currentAsSourceQueued(), deserialized.currentAsSourceQueued());
             }
         }
     }

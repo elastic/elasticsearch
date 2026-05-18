@@ -2059,7 +2059,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// Verifies that the source node queues peer recovery requests that exceed
     /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING], and that all queued recoveries
     /// eventually complete successfully once slots become free.
-    public void testSourceNodeQueuesExcessRecoveriesWhenAtLimit() throws Exception {
+    public void testSourceNodeQueuesRecoveriesPastConcurrencyLimit() throws Exception {
         internalCluster().startMasterOnlyNode();
         final int sourceConcurrentRecoveryLimit = 1;
         final String sourceNode = internalCluster().startDataOnlyNode(
@@ -2108,7 +2108,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .getFirst()
                 .getIndices()
                 .getRecoveryStats();
-            assertThat("expected one queued recovery request", recoveryStats.currentQueuedAsSource(), equalTo(1));
+            assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
             assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
         });
 

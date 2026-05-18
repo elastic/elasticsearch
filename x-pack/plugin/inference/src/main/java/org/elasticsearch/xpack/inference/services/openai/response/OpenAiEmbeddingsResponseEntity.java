@@ -52,8 +52,8 @@ public class OpenAiEmbeddingsResponseEntity {
      *
      * <p>Example happy-path response (base64 shape):
      *
-     * <pre>
      * <code>
+     * <pre>
      * {
      *  "object": "list",
      *  "data": [
@@ -66,8 +66,8 @@ public class OpenAiEmbeddingsResponseEntity {
      *  "model": "text-embedding-3-large",
      *  "usage": { "prompt_tokens": 8, "total_tokens": 8 }
      * }
-     * </code>
      * </pre>
+     * </code>
      */
     public static EmbeddingFloatResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
@@ -187,7 +187,7 @@ public class OpenAiEmbeddingsResponseEntity {
             // The base64 payload packs 4-byte float32 lanes, matching the dtype="float32"
             // the OpenAI Python SDK uses when reinterpreting the same bytes:
             // https://github.com/openai/openai-python/blob/38d75d7/src/openai/resources/embeddings.py#L131
-            // The decoded byte length must therefore be a whole number of lanes. Fail
+            // The decoded byte length must therefore be a multiple of 4. Fail
             // loudly on any other length rather than silently truncate to a partial vector.
             if ((raw.length & 0x3) != 0) {
                 throw new XContentParseException(

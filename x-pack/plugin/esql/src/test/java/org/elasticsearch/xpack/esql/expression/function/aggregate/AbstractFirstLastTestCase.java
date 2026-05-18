@@ -29,7 +29,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        List<DataType> searchFieldTypes = List.of(
+        List<DataType> searchFieldTypes = new ArrayList<>(List.of(
             DataType.INTEGER,
             DataType.LONG,
             DataType.DOUBLE,
@@ -38,17 +38,24 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             DataType.IP,
             DataType.BOOLEAN,
             DataType.DATETIME,
-            DataType.DATE_NANOS,
-            DataType.VERSION,
-            DataType.CARTESIAN_POINT,
-            DataType.CARTESIAN_SHAPE,
-            DataType.GEO_POINT,
-            DataType.GEO_SHAPE,
-            DataType.GEOHASH,
-            DataType.GEOTILE,
-            DataType.GEOHEX,
-            DataType.UNSIGNED_LONG
-        );
+            DataType.DATE_NANOS
+        ));
+
+        if (isFirst) {
+            searchFieldTypes.addAll(
+                List.of(
+                    DataType.VERSION,
+                    DataType.CARTESIAN_POINT,
+                    DataType.CARTESIAN_SHAPE,
+                    DataType.GEO_POINT,
+                    DataType.GEO_SHAPE,
+                    DataType.GEOHASH,
+                    DataType.GEOTILE,
+                    DataType.GEOHEX,
+                    DataType.UNSIGNED_LONG
+                )
+            );
+        }
 
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);
 

@@ -16,6 +16,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -33,7 +34,14 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
-    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
+    public static final TypeParser PARSER = new FixedTypeParser(mappingParserContext -> {
+        var indexMode = mappingParserContext.getIndexSettings().getMode();
+        if (indexMode == IndexMode.TIME_SERIES) {
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        } else {
+            return ProvidedIdFieldMapper.INSTANCE;
+        }
+    });
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 

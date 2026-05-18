@@ -22,16 +22,12 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
-import org.elasticsearch.simdvec.MultiVectorsSource;
-import org.elasticsearch.simdvec.internal.Similarities;
 
-import java.lang.foreign.MemorySegment;
+import java.nio.ByteOrder;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -39,19 +35,16 @@ import static jdk.incubator.vector.VectorOperators.LSHL;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
 import static jdk.incubator.vector.VectorOperators.OR;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
-public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
+public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport permits Panama22ESVectorUtilSupport {
 
     static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
-    private static final DefaultESVectorUtilSupport DEFAULT = new DefaultESVectorUtilSupport();
 
-    private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
-    private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
+    static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
-
-    static final boolean SUPPORTS_NATIVE_VECTORS = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
@@ -70,17 +63,23 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfloats, int bfloatOffset, int count, ByteOrder byteOrder) {
+        DefaultESVectorUtilSupport.floatToBFloat16Impl(floats, floatOffset, bfloats, bfloatOffset, count, byteOrder);
+    }
+
+    @Override
+    public void bFloat16ToFloat(byte[] bfloats, int bfloatOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
+        DefaultESVectorUtilSupport.bFloat16ToFloatImpl(bfloats, bfloatOffset, floats, floatOffset, count, byteOrder);
+    }
+
+    @Override
     public float dotProduct(float[] a, float[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.dotProduct(a, b);
+        return VectorUtil.dotProduct(a, b);
     }
 
     @Override
     public float squareDistance(float[] a, float[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.squareDistance(a, b);
+        return VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -108,92 +107,32 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float cosine(byte[] a, byte[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.cosine(a, b);
+        return VectorUtil.cosine(a, b);
     }
 
     @Override
     public float dotProduct(byte[] a, byte[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.dotProduct(a, b);
+        return VectorUtil.dotProduct(a, b);
     }
 
     @Override
     public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
-        if (canUseF32BulkPath(source)) {
-            final BytesRef vectors = source.vectorBytes();
-            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
-                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
-            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
-            float sum = 0f;
-            for (float[] floats : query) {
-                Similarities.dotProductF32Bulk(
-                    vectorsSegment,
-                    MemorySegment.ofArray(floats),
-                    source.vectorDims(),
-                    source.vectorCount(),
-                    scoresSegment
-                );
-                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
-            }
-            return sum;
-        }
-        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
+        return DefaultESVectorUtilSupport.maxSimDotProductImpl(source, query, scoresScratch);
     }
 
     @Override
     public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
-        if (canUseBFloat16Path(source)) {
-            final BytesRef vectors = source.vectorBytes();
-            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
-                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
-            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
-            float sum = 0f;
-            for (float[] floats : query) {
-                Similarities.dotProductDBF16QF32Bulk(
-                    vectorsSegment,
-                    MemorySegment.ofArray(floats),
-                    source.vectorDims(),
-                    source.vectorCount(),
-                    scoresSegment
-                );
-                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
-            }
-            return sum;
-        }
-        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
+        return DefaultESVectorUtilSupport.maxSimDotProductImpl(source, query, scoresScratch);
     }
 
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
-        if (canUseI8BulkPath(source)) {
-            final BytesRef vectors = source.vectorBytes();
-            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
-                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
-            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
-            float sum = 0f;
-            for (byte[] bytes : query) {
-                Similarities.dotProductI8Bulk(
-                    vectorsSegment,
-                    MemorySegment.ofArray(bytes),
-                    source.vectorDims(),
-                    source.vectorCount(),
-                    scoresSegment
-                );
-                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
-            }
-            return sum;
-        }
-        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
+        return DefaultESVectorUtilSupport.maxSimDotProductImpl(source, query, scoresScratch);
     }
 
     @Override
     public float squareDistance(byte[] a, byte[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.squareDistance(a, b);
+        return VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -1539,24 +1478,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return m.mul(powerOf2).max(0.0f);
     }
 
-    private static boolean canUseBulkPath(MultiVectorsSource<?> source) {
-        return SUPPORTS_NATIVE_VECTORS
-            && SUPPORTS_HEAP_SEGMENTS
-            && source.vectorBytes() != null
-            && source.vectorCount() > 0
-            && source.vectorBytes().length == source.vectorCount() * source.vectorByteSize();
+    @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        // values.length is a multiple of 8, and lane counts (2, 4, 8) all divide it,
+        // so no scalar prefix or tail is ever needed.
+        // Each aligned chunk of laneCount longs produces a laneCount-bit mask that fits cleanly
+        // within one matches word.
+        int laneCount = LONG_SPECIES.length();
+        LongVector lowerVec = LongVector.broadcast(LONG_SPECIES, lowerValue);
+        LongVector upperVec = LongVector.broadcast(LONG_SPECIES, upperValue);
+        for (int i = 0; i < values.length; i += laneCount) {
+            LongVector vec = LongVector.fromArray(LONG_SPECIES, values, i);
+            long mask = vec.compare(VectorOperators.GE, lowerVec).and(vec.compare(VectorOperators.LE, upperVec)).toLong();
+            matches[i >>> 6] |= mask << i;
+        }
     }
-
-    private static boolean canUseF32BulkPath(MultiFloatVectorsSource source) {
-        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims() * Float.BYTES;
-    }
-
-    private static boolean canUseBFloat16Path(MultiBFloat16VectorsSource source) {
-        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims() * Short.BYTES;
-    }
-
-    private static boolean canUseI8BulkPath(MultiByteVectorsSource source) {
-        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims();
-    }
-
 }

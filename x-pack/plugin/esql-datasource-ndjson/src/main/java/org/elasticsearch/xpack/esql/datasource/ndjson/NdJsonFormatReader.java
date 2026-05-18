@@ -12,8 +12,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -29,12 +32,15 @@ import java.io.PushbackInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * FormatReader implementation for NDJSON files.
  * Implements {@link SegmentableFormatReader} for intra-file parallel parsing.
  */
 public class NdJsonFormatReader implements SegmentableFormatReader {
+
+    private static final Logger logger = LogManager.getLogger(NdJsonFormatReader.class);
 
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
@@ -62,6 +68,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
     private static final int SCAN_BUFFER_SIZE = 8 * 1024;
+
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    static final String CONFIG_SEGMENT_SIZE = "segment_size";
+
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE);
 
     private final BlockFactory blockFactory;
     private final Settings settings;
@@ -97,17 +109,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            return this;
+            return Configured.empty(this);
         }
-        int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
-        long newSegmentSize = parseSegmentSize(config.get("segment_size"), segmentSizeBytes);
-        if (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes) {
-            return this;
-        }
-        return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
+        long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
+        FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
+            ? this
+            : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
@@ -193,6 +205,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Resolve the effective schema when the planner has bound a read schema. When the
+     * coordinator-side projection ({@code resolvedSchema}) is unavailable, the bound schema is used
+     * as-is. Otherwise the bound schema's column order is preserved and projection types/nullability
+     * overlay matching names — same semantics as {@link #mergeInferredWithPreferred}, just with the
+     * planner-supplied schema standing in for the per-file inference result.
+     */
+    private static List<Attribute> mergeBoundWithProjection(List<Attribute> bound, List<Attribute> projection) {
+        if (projection == null || projection.isEmpty()) {
+            return bound;
+        }
+        return mergeInferredWithPreferred(bound, projection);
+    }
+
+    /**
      * Union by column name: inferred file order first, then overlay coordinator types/nullability for matching names.
      */
     private static List<Attribute> mergeInferredWithPreferred(List<Attribute> inferred, List<Attribute> preferred) {
@@ -234,9 +260,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (value == null) {
             return defaultValueBytes;
         }
-        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), "segment_size");
+        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
         long bytes = parsed.getBytes();
-        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), "segment_size must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), CONFIG_SEGMENT_SIZE + " must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
         return bytes;
     }
 
@@ -249,6 +275,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
 
+    /**
+     * Convenience overload that builds a minimal {@link FormatReadContext} without a planner-resolved
+     * {@code readSchema}. Safe for single-file reads (reader falls back to per-file inference); do
+     * NOT use to iterate the files of a multi-file glob — cross-file type drift will not be prevented.
+     *
+     * @deprecated use {@link #read(StorageObject, FormatReadContext)} so callers express
+     *             {@code readSchema} intent (or {@code null}) explicitly.
+     */
+    @Deprecated
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         return read(
@@ -259,9 +294,29 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        boolean skipFirstLine = context.firstSplit() == false;
-        boolean trimLastPartialLine = context.lastSplit() == false;
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "NDJSON read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
+                object.path(),
+                context.readSchema() == null ? "null" : "present(" + context.readSchema().size() + ")",
+                context.firstSplit(),
+                context.recordAligned(),
+                context.projectedColumns() == null ? "null" : context.projectedColumns().size()
+            );
+        }
+        // Mirror {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}: parallel byte-range
+        // splits from {@link org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator} set
+        // {@code recordAligned=true}, signalling segment boundaries already fall on {@code \n}. Do not drop the
+        // first complete row or trim a trailing partial row in that mode — doing so mis-handles aligned segments
+        // (skipped rows, or truncated JSON when trim interacts with bounded range streams).
+        boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
+        boolean trimLastPartialLine = context.lastSplit() == false && context.recordAligned() == false;
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
+        // Bound read schema wins when non-null; null falls through to per-file inference.
+        // Prevents cross-file type drift on multi-file globs (e.g. y:LONG vs file-with-1.5 y:DOUBLE).
+        List<Attribute> effectiveSchema = context.readSchema() == null
+            ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
+            : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
@@ -270,7 +325,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine),
+            effectiveSchema,
             errorPolicy
         );
     }
@@ -283,6 +338,22 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // Wrap cold streams to restore the 8 KB fast path; if already buffered, pass through.
         InputStream buffered = stream instanceof BufferedInputStream ? stream : new BufferedInputStream(stream, SCAN_BUFFER_SIZE);
         return scanForTerminator(buffered).consumed();
+    }
+
+    /**
+     * NDJSON records never contain embedded newlines, so a backward scan for a line terminator
+     * is always correct and O(1) from the end of the buffer — no per-record allocations needed.
+     * Matches the LF / CRLF / lone-CR contract of {@link #scanForTerminator}.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) {
+        for (int i = length - 1; i >= 0; i--) {
+            byte b = buf[i];
+            if (b == '\n' || b == '\r') {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Outcome of a single scan for the next record terminator. */

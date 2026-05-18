@@ -71,11 +71,7 @@ public class ExternalFieldExtractExec extends UnaryExec {
     public List<Attribute> output() {
         if (lazyOutput == null) {
             List<Attribute> childOutput = child().output();
-            int outputSize = childOutput.size() + attributesToExtract.size();
-            if (childOutput.contains(rowPositionAttribute)) {
-                outputSize--;
-            }
-            List<Attribute> out = new ArrayList<>(outputSize);
+            List<Attribute> out = new ArrayList<>(Math.max(0, childOutput.size() - 1) + attributesToExtract.size());
             for (Attribute a : childOutput) {
                 // Strip _rowPosition: it served as the late-materialization key and is not a user
                 // column. Equality is by NameId so this is safe even if a user column happens to

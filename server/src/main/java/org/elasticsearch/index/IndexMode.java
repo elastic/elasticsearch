@@ -479,6 +479,11 @@ public enum IndexMode {
         public boolean isColumnar() {
             return true;
         }
+
+        @Override
+        public boolean isStrictColumnar() {
+            return true;
+        }
     },
     LOGSDB_COLUMNAR("logsdb_columnar") {
         @Override
@@ -564,6 +569,11 @@ public enum IndexMode {
 
         @Override
         public boolean isColumnar() {
+            return true;
+        }
+
+        @Override
+        public boolean isStrictColumnar() {
             return true;
         }
     },
@@ -806,6 +816,14 @@ public enum IndexMode {
      * Columnar modes use specialized codecs for better compression and performance.
      */
     public boolean isColumnar() {
+        return false;
+    }
+
+    /**
+     * Whether this index mode is a strict columnar mode, regardless of index version.
+     * In addition to codecs, this includes mappings, e.g., indexing and subobjects configuration.
+     */
+    public boolean isStrictColumnar() {
         return false;
     }
 

@@ -66,7 +66,6 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
     }
 
-
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");

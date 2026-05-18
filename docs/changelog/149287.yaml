@@ -1,0 +1,5 @@
+area: GeoIP database
+issues: []
+pr: 149287
+summary: Close `GeoIp` `configDatabases` to release open file locks
+type: bug

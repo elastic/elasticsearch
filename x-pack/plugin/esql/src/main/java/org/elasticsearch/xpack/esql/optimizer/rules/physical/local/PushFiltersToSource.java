@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -257,11 +260,35 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // Split filter condition by AND and reorder by estimated selectivity
         List<Expression> filters = splitAnd(filterExec.condition());
+
+        // Conjuncts that reference partition columns are evaluated against the constant blocks
+        // injected by VirtualColumnInjector (and used as L1 pruning hints in FileSplitProvider).
+        // Pushing them into the format reader would translate them against file column data,
+        // but partition columns are not present in the file payload -- the reader would then
+        // either drop all rows (parquet) or behave format-specifically. Keep these conjuncts in
+        // the FilterExec so the post-injection evaluator handles them.
+        Set<String> partitionColumnNames = partitionColumnNames(externalExec);
+        List<Expression> partitionConjuncts = new ArrayList<>();
+        List<Expression> pushableCandidates = new ArrayList<>();
+        if (partitionColumnNames.isEmpty()) {
+            pushableCandidates = filters;
+        } else {
+            for (Expression filter : filters) {
+                if (referencesAnyColumn(filter, partitionColumnNames)) {
+                    partitionConjuncts.add(filter);
+                } else {
+                    pushableCandidates.add(filter);
+                }
+            }
+        }
+
         var effectiveStats = SplitStats.resolveEffectiveStats(externalExec.splits(), externalExec.sourceMetadata());
-        filters = FilterEvaluationOrderEstimator.orderByEstimatedCost(filters, effectiveStats);
+        pushableCandidates = FilterEvaluationOrderEstimator.orderByEstimatedCost(pushableCandidates, effectiveStats);
 
         // Use the SPI to push filters
-        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(filters);
+        FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
+            ? FilterPushdownSupport.PushdownResult.none(List.of())
+            : pushdownSupport.pushFilters(pushableCandidates);
 
         if (result.hasPushedFilter()) {
             // Create new ExternalSourceExec with pushed filter and the original ESQL expressions
@@ -270,17 +297,35 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 result.pushedExpressions()
             );
 
-            // If there are non-pushable filters, keep FilterExec
+            // Combine partition conjuncts (always kept) with the SPI's remainder, if any.
+            List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
-                return new FilterExec(filterExec.source(), newExternalExec, Predicates.combineAnd(result.remainder()));
-            } else {
-                // All filters pushed down - remove FilterExec
+                remainder.addAll(result.remainder());
+            }
+            if (remainder.isEmpty()) {
                 return newExternalExec;
             }
+            return new FilterExec(filterExec.source(), newExternalExec, Predicates.combineAnd(remainder));
         }
 
         // No pushable filters - return original plan
         return filterExec;
+    }
+
+    private static Set<String> partitionColumnNames(ExternalSourceExec externalExec) {
+        FileList fileList = externalExec.fileList();
+        if (fileList == null) {
+            return Set.of();
+        }
+        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
+            return Set.of();
+        }
+        return partitionMetadata.partitionColumns().keySet();
+    }
+
+    private static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+        return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 
     static String resolveFormatName(Map<String, Object> config, String sourcePath) {

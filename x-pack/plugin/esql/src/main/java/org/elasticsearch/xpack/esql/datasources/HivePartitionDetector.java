@@ -37,7 +37,7 @@ public final class HivePartitionDetector implements PartitionDetector {
      * NULL rather than the literal string, otherwise {@code WHERE col IS NULL} silently misses rows and
      * {@code STATS BY col} buckets them under a phantom string key.
      */
-    static final String HIVE_DEFAULT_PARTITION = "__HIVE_DEFAULT_PARTITION__";
+    public static final String HIVE_DEFAULT_PARTITION = "__HIVE_DEFAULT_PARTITION__";
 
     HivePartitionDetector() {}
 

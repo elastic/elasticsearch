@@ -591,8 +591,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // Partition columns are ReferenceAttributes, not FieldAttributes
         assertThat(schema.get(2), instanceOf(ReferenceAttribute.class));
         assertThat(schema.get(3), instanceOf(ReferenceAttribute.class));
-        assertTrue(schema.get(2).synthetic());
-        assertTrue(schema.get(3).synthetic());
+        // Partition columns are user-addressable, so they must NOT be synthetic; otherwise
+        // AnalyzerRules.maybeResolveAgainstList skips them during name resolution.
+        assertFalse(schema.get(2).synthetic());
+        assertFalse(schema.get(3).synthetic());
     }
 
     public void testSchemaWithFieldAttributeFailsValidation() throws Exception {

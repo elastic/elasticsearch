@@ -35,6 +35,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -985,6 +988,9 @@ public class FileSplitProvider implements SplitProvider {
                     yield null;
                 }
                 Object partitionValue = partitionValues.get(columnName);
+                if (partitionValue == null) {
+                    yield null;
+                }
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
@@ -998,8 +1004,49 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 yield found;
             }
+            case IsNull isNull -> {
+                String columnName = extractColumnName(isNull.field());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
+                }
+                yield partitionValues.get(columnName) == null;
+            }
+            case IsNotNull isNotNull -> {
+                String columnName = extractColumnName(isNotNull.field());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
+                }
+                yield partitionValues.get(columnName) != null;
+            }
+            case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
+            case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
+            case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
             default -> null;
         };
+    }
+
+    private static Boolean nullableAnd(Boolean a, Boolean b) {
+        if (Boolean.FALSE.equals(a) || Boolean.FALSE.equals(b)) {
+            return false;
+        }
+        if (a == null || b == null) {
+            return null;
+        }
+        return a && b;
+    }
+
+    private static Boolean nullableOr(Boolean a, Boolean b) {
+        if (Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b)) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return null;
+        }
+        return false;
+    }
+
+    private static Boolean nullableNot(Boolean a) {
+        return a == null ? null : a == false;
     }
 
     private static Boolean evaluateComparison(

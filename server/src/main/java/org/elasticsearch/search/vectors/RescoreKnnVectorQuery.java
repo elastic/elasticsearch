@@ -32,11 +32,13 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 
 /**
  * A Lucene {@link Query} that applies vector-based rescoring to an inner query's results.
@@ -229,7 +231,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
             List<ScoreDoc> results = new ArrayList<>(10);
-            List<CheckedRunnable<IOException>> buffer = new LinkedList<>();
+            Queue<CheckedRunnable<IOException>> buffer = new ArrayDeque<>(PREFETCH_BUFFER_SIZE);
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
                 if (knnVectorValues == null) {
@@ -285,7 +287,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         private void rescoreIndividually(
             int docBase,
             FloatVectorValues knnVectorValues,
-            List<CheckedRunnable<IOException>> buffer,
+            Queue<CheckedRunnable<IOException>> buffer,
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
@@ -304,10 +306,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 final int ord = vectorIter.index();
 
                 if (buffer.size() == PREFETCH_BUFFER_SIZE) {
-                    for (var runnable : buffer) {
-                        runnable.run();
-                    }
-                    buffer.clear();
+                    buffer.poll().run();
                 }
 
                 if (input != null) {

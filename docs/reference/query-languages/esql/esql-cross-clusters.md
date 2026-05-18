@@ -76,14 +76,14 @@ POST /_security/role/remote1
 ```
 
 1. The `cross_cluster_search` cluster privilege is required for the *local* cluster.
-2. Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
+2. Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to *only* search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
 3. The indices allowed read access to the remote cluster. The configured [cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) must also allow this index to be read.
 4. The `read_cross_cluster` privilege is always required when using {{esql}} across clusters with the API key based security model.
 5. The remote clusters to which these privileges apply. This remote cluster must be configured with a [cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and connected to the remote cluster before the remote index can be queried. Verify connection using the [Remote cluster info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-remote-info) API.
 6. Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the remote cluster. The `remote_cluster` security privilege was introduced in version **8.15.0**.
 
 
-You will then need a user or API key with the permissions you created above. The following example API call creates a user with the `remote1` role.
+You will then need a user or API key with the permissions you just created. The following example API call creates a user with the `remote1` role.
 
 ```console
 POST /_security/user/remote_user
@@ -93,10 +93,10 @@ POST /_security/user/remote_user
 }
 ```
 
-Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges, which are controlled by the remote cluster’s administrator.
+All cross-cluster requests from the local cluster are bound by the cross-cluster API key’s privileges, which are controlled by the remote cluster’s administrator.
 
 ::::{tip}
-Cross cluster API keys created in versions prior to 8.15.0 will need to be replaced or updated to add the new permissions required for {{esql}} with ENRICH.
+Cross-cluster API keys created in versions prior to 8.15.0 will need to be replaced or updated to add the new permissions required for {{esql}} with ENRICH.
 
 ::::
 
@@ -301,7 +301,11 @@ For more on partial results and how cluster status is determined when failures o
 Enrich in {{esql}} across clusters operates similarly to [local enrich](commands/enrich.md). If the enrich policy and its enrich indices are consistent across all clusters, simply write the enrich command as you would without remote clusters. In this default mode, {{esql}} can execute the enrich command on either the local cluster or the remote clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that the policy exists with consistent data on both the local cluster and the remote clusters is critical for ES|QL to produce a consistent query result.
 
 ::::{tip}
-Enrich in {{esql}} across clusters using the API key based security model was introduced in version **8.15.0**. Cross cluster API keys created in versions prior to 8.15.0 will need to be replaced or updated to use the new required permissions. Refer to the example in the [API key authentication](#esql-ccs-security-model-api-key) section.
+```{applies_to}
+stack: ga 8.15+
+```
+
+Cross-cluster API keys created in versions prior to 8.15 will need to be replaced or updated to use the new required permissions for {{esql}} cross-cluster enrich with the API key based security model. Refer to the example in the [API key authentication](#esql-ccs-security-model-api-key) section.
 
 ::::
 
@@ -314,7 +318,7 @@ FROM my-index-000001,cluster_one:my-index-000001
 | LIMIT 10
 ```
 
-Enrich with an {{esql}} query against remote clusters only can also happen on the local cluster. This means the below query requires the `hosts` enrich policy to exist on the local cluster as well.
+Enrich with an {{esql}} query against remote clusters only can also happen on the local cluster. This means the following query requires the `hosts` enrich policy to exist on the local cluster as well.
 
 ```esql
 FROM cluster_one:my-index-000001,cluster_two:my-index-000001
@@ -345,7 +349,7 @@ Enrich with the `_coordinator` mode usually increases inter-cluster data transfe
 
 {{esql}} also provides the enrich `_remote` mode to force {{esql}} to execute the enrich command independently on each remote cluster where the target indices reside. This mode is useful for managing different enrich data on each cluster, such as detailed information of hosts for each region where the target (main) indices contain log events from these hosts.
 
-In the below example, the `hosts` enrich policy is required to exist on all remote clusters: the `querying` cluster (as local indices are included), the remote cluster `cluster_one`, and `cluster_two`.
+In the following example, the `hosts` enrich policy is required to exist on all remote clusters: the `querying` cluster (as local indices are included), the remote cluster `cluster_one`, and `cluster_two`.
 
 ```esql
 FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
@@ -367,7 +371,7 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 
 ### Multiple enrich commands [esql-multi-enrich]
 
-You can include multiple enrich commands in the same query with different modes. {{esql}} will attempt to execute them accordingly. For example, this query performs two enriches, first with the `hosts` policy on any cluster and then with the `vendors` policy on the local cluster.
+You can include multiple enrich commands in the same query with different modes. {{esql}} will attempt to execute them accordingly. For example, this query performs two enrich commands, first with the `hosts` policy on any cluster and then with the `vendors` policy on the local cluster.
 
 ```esql
 FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001

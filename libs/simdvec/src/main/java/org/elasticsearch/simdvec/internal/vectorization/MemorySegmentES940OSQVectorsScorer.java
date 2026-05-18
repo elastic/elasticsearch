@@ -78,9 +78,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             bulkSize,
             int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding
         );
-        SymmetricInt4Encoding resolvedInt4 = int4Encoding == null
-            ? SymmetricInt4Encoding.STRIPED
-            : int4Encoding;
+        SymmetricInt4Encoding resolvedInt4 = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
         QuantEncoding enc = QuantEncoding.of(queryBits, indexBits, resolvedInt4);
         if (enc == QuantEncoding.D1Q1) {
             this.scorer = createPanamaScorer(enc, in, dimensions, dataLength, bulkSize);
@@ -258,7 +256,9 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    abstract static sealed class MemorySegmentScorer permits MSBitToBitESNextOSQVectorsScorer, MSBitToInt4ES940OSQVectorsScorer, MSD7Q7ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer, MSPackedInt4ES940OSQVectorsScorer, NativeMemorySegmentScorer {
+    abstract static sealed class MemorySegmentScorer permits MSBitToBitESNextOSQVectorsScorer, MSBitToInt4ES940OSQVectorsScorer,
+        MSD7Q7ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
+        MSPackedInt4ES940OSQVectorsScorer, NativeMemorySegmentScorer {
 
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 

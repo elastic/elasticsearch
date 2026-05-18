@@ -98,7 +98,7 @@ You can use this suffix to use a different analysis method for exact matches. Se
 The `simple_query_string` query supports the following operators:
 
 * `+` signifies AND operation
-* `|` signifies OR operation
+* `` signifies OR operation
 * `-` negates a single token
 * `"` wraps a number of tokens to signify a phrase for searching
 * `*` at the end of a term signifies a prefix query
@@ -129,7 +129,7 @@ This search is intended to only return documents containing `foo` or `bar` that 
 
 You can use the `flags` parameter to limit the supported operators for the simple query string syntax.
 
-To explicitly enable only specific operators, use a `|` separator. For example, a `flags` value of `OR|AND|PREFIX` disables all operators except `OR`, `AND`, and `PREFIX`.
+To explicitly enable only specific operators, use a `` separator. For example, a `flags` value of `ORANDPREFIX` disables all operators except `OR`, `AND`, and `PREFIX`.
 
 ```console
 GET /_search
@@ -169,7 +169,7 @@ The available flags are:
 :   Enables the `-` NOT operator.
 
 `OR`
-:   Enables the `\|` OR operator.
+:   Enables the `|` OR operator.
 
 `PHRASE`
 :   Enables the `"` quotes operator used to search for phrases.

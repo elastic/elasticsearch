@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -46,12 +45,16 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlSecurityIT extends ESRestTestCase {
+    private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
+    private static final String INDEX_FULL_MAPPING = "index-full-mapping";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -65,6 +68,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
+        .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
+        .user("fls_no_source_no_value_user", "x-pack-test-password", "fls_no_source_no_value_user", false)
+        .user("fls_deny_value_org_user", "x-pack-test-password", "fls_deny_value_org_user", false)
         .user("fls_user2", "x-pack-test-password", "fls_user2", false)
         .user("fls_user2_alias", "x-pack-test-password", "fls_user2_alias", false)
         .user("fls_user3", "x-pack-test-password", "fls_user3", false)
@@ -83,7 +90,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
         .user("user_without_monitor_privileges", "x-pack-test-password", "user_without_monitor_privileges", false)
         .user("user_with_monitor_privileges", "x-pack-test-password", "user_with_monitor_privileges", false)
-        .feature(FeatureFlag.ESQL_VIEWS)
+        .user("view_dls_user", "x-pack-test-password", "view_dls_user", false)
+        .user("view_index_dls_user", "x-pack-test-password", "view_index_dls_user", false)
+        .user("view_dls_nested_view_user", "x-pack-test-password", "view_dls_nested_view_user", false)
+        .user("view_fls_user", "x-pack-test-password", "view_fls_user", false)
+        .user("view_dls_fls_user", "x-pack-test-password", "view_dls_fls_user", false)
         .build();
 
     @Override
@@ -103,6 +114,25 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("value", value);
         builder.field("org", org);
         builder.field("partial", org + value);
+        indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
+        client().performRequest(indexDoc);
+    }
+
+    /**
+     * Indexes a document with the shared FLS-test shape into either {@link #INDEX_PARTIAL_MAPPING} (where most fields
+     * end up unmapped via {@code dynamic:false}) or {@link #INDEX_FULL_MAPPING} (where every field is mapped with its
+     * proper type). The variety of value types ({@code double}, {@code keyword}, {@code long}, {@code date}, {@code ip})
+     * exercises the different source-loader / valuesource paths under {@code unmapped_fields="load"}.
+     */
+    private void indexFlsTestDocument(String index, int id, double value, String org, long salary, String hireDate, String ipAddr)
+        throws IOException {
+        Request indexDoc = new Request("PUT", index + "/_doc/" + id);
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.field("value", value);
+        builder.field("org", org);
+        builder.field("salary", salary);
+        builder.field("hire_date", hireDate);
+        builder.field("ip_addr", ipAddr);
         indexDoc.setJsonEntity(Strings.toString(builder.endObject()));
         client().performRequest(indexDoc);
     }
@@ -133,6 +163,30 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("indexpartial", 1, 32.0, "marketing");
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
+
+        /*
+         * INDEX_PARTIAL_MAPPING uses dynamic:false so `org`, `salary`, `hire_date` and `ip_addr` exist only in
+         * stored _source — they are unmapped. With fls_partial_no_source_user (grant *, except _source) ES|QL
+         * cannot load those unmapped columns from _source. INDEX_FULL_MAPPING has the same JSON document shape
+         * but maps every field with its proper type — so a multi-index query with unmapped_fields="load"
+         * exercises the partially-mapped non-KEYWORD source-loader path (see #144228 and #144109) under FLS.
+         */
+        String mappingPartial = """
+            "dynamic":"false","properties":{"value": {"type": "double"}}
+            """;
+        createIndex(INDEX_PARTIAL_MAPPING, Settings.EMPTY, mappingPartial);
+        indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
+        indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
+        refresh(INDEX_PARTIAL_MAPPING);
+
+        String mappingFull = """
+            "properties":{"value":{"type":"double"},"org":{"type":"keyword"},"salary":{"type":"long"},\
+            "hire_date":{"type":"date"},"ip_addr":{"type":"ip"}}
+            """;
+        createIndex(INDEX_FULL_MAPPING, Settings.EMPTY, mappingFull);
+        indexFlsTestDocument(INDEX_FULL_MAPPING, 1, 30.0, "marketing", 300000L, "2022-03-01", "10.0.0.3");
+        indexFlsTestDocument(INDEX_FULL_MAPPING, 2, 40.0, "support", 400000L, "2021-11-20", "10.0.0.4");
+        refresh(INDEX_FULL_MAPPING);
 
         createIndex("lookup-user1", lookupSettings, mapping);
         indexDocument("lookup-user1", 1, 12.0, "engineering");
@@ -318,6 +372,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    public void testViewRewriteDoesNotDropUnauthorizedTargetsWhenMixedWithViews() throws Exception {
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user2 | STATS sum=sum(value)"));
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user1,index-user2 | STATS sum=sum(value)"));
+        var resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1,index-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
     public void testAliasFilter() throws Exception {
         for (var index : List.of("first-alias", "first-alias,index-*", "first-*,index-*")) {
             Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
@@ -457,6 +523,193 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
     }
 
+    public void testViewRewriteDoesNotDropUnauthorizedTargets() throws Exception {
+        ResponseException resp = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM view | STATS sum=sum(value)"));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("unauthorized"));
+        assertThat(errorMessage, containsString("indices [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testViewRewriteAllUnauthorizedTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2 | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewRewriteMixedUnauthorizedAndMissingTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2,missing-view-target | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2,missing-view-target]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewQueryAuthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewWildcardFiltersUnauthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user* | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewResolutionAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user1");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewInnerViewUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user2");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [view-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewDataSelectorResolvesView() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1::data | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewFailureSelectorNotResolved() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1::failures | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewReferencingAliasAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM first-alias");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0d))));
+    }
+
+    public void testViewReferencingAliasUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user2", "FROM first-alias");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user2", "FROM other-view-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewWithDocumentLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewWithFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewWithDocumentAndFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    public void testViewDlsOnWildcardPattern() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user* | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "view-user1");
+    }
+
+    /**
+     * Tests a scenario, where the parent view has DLS, but the nested view has no DLS or FLS.
+     * This ensures that the DLS check is applied at the parent view level
+     */
+    public void testViewDlsOnNestedViewOuter() throws Exception {
+        createView("test-admin", "nested-dls-view-no-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-dls", "FROM nested-dls-view-no-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-dls | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
+    }
+
+    /**
+     * Tests a scenario, where the parent view has no DLS or FLS, but the nested view has DLS.
+     * This ensures that the DLS check is applied at the child view level
+     */
+    public void testViewDlsOnNestedViewInner() throws Exception {
+        createView("test-admin", "nested-dls-view-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-no-dls", "FROM nested-dls-view-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-no-dls | STATS sum=sum(value)")
+        );
+        validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
+    }
+
+    public void testUserCanQueryViewWhileHavingDlsOnUnderlyingIndices() throws Exception {
+        assertOK(runESQLCommand("view_index_dls_user", "FROM view-user1 | STATS sum=sum(value)"));
+    }
+
+    public void testViewWithIndexExclusionInBody() throws Exception {
+        createView("test-admin", "view-with-exclusion", "FROM index-user*,-index-user2 | KEEP value, org");
+        Response resp = assertOK(runESQLCommand("test-admin", "FROM view-with-exclusion | STATS sum=sum(value)"));
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        // index-user1 (12+31=43) only; index-user2 must be excluded
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(43.0d))));
+    }
+
+    public void testViewWithIndexExclusionInFromClause() throws Exception {
+        createView("test-admin", "view-all-users", "FROM index-user* | KEEP value, org");
+        Response resp = assertOK(runESQLCommand("test-admin", "FROM view-all-users,-index-user2 | STATS sum=sum(value)"));
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        // The view is an isolated subquery — FROM-level exclusions do not penetrate into it.
+        // -index-user2 is silently dropped because there are no non-view indices to apply it to.
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(115.0d))));
+    }
+
     public void testDocumentLevelSecurity() throws Exception {
         Response resp = runESQLCommand("user3", "from index | stats sum=sum(value)");
         assertOK(resp);
@@ -536,6 +789,391 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
     }
 
+    /**
+     * FLS-denied fields are invisible in field_caps, so the analyzer treats them as unmapped.
+     * With {@code unmapped_fields="nullify"}, referencing the denied field yields a NULL column —
+     * FLS is enforced and no data leaks.
+     */
+    public void testFieldLevelSecurityWithUnmappedFieldsNullify() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        // fls_user is granted [value, partial] on `index`; `org` is FLS-denied on every accessible index.
+        Response resp = runESQLCommand("fls_user", "SET unmapped_fields=\"nullify\"; FROM index | KEEP value, org | SORT value | LIMIT 2");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "null")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+    }
+
+    /**
+     * Security-sensitive: with {@code unmapped_fields="load"} the engine attempts to read the
+     * denied field from {@code _source}. FLS must also strip the field from {@code _source},
+     * so the loaded value must be null — otherwise FLS is bypassed.
+     */
+    public void testFieldLevelSecurityWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand("fls_user", "SET unmapped_fields=\"load\"; FROM index | KEEP value, org | SORT value | LIMIT 2");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+    }
+
+    /**
+     * For {@code fls_user}, {@code partial} is FLS-allowed on {@code index} but denied on
+     * {@code indexpartial} — i.e. partially unmapped. With {@code nullify}, rows from the
+     * FLS-denied index must show null for the partially-unmapped attribute.
+     */
+    public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"nullify\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+        assertThat(
+            values,
+            equalTo(
+                List.of(
+                    List.of("index", 10.0, "sales10.0"),
+                    List.of("index", 20.0, "engineering20.0"),
+                    Arrays.asList("indexpartial", 32.0, null),
+                    Arrays.asList("indexpartial", 40.0, null)
+                )
+            )
+        );
+    }
+
+    /**
+     * Security-sensitive: with {@code load} on a partially FLS-denied field, rows from the
+     * permitted index ({@code index}) must surface real values, while rows from the denied
+     * index ({@code indexpartial}) must remain null — FLS strips {@code _source} too.
+     */
+    public void testFieldLevelSecurityPartiallyUnmappedLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+        assertThat(
+            values,
+            equalTo(
+                List.of(
+                    List.of("index", 10.0, "sales10.0"),
+                    List.of("index", 20.0, "engineering20.0"),
+                    Arrays.asList("indexpartial", 32.0, null),
+                    Arrays.asList("indexpartial", 40.0, null)
+                )
+            )
+        );
+    }
+
+    /**
+     * See <a href="https://github.com/elastic/elasticsearch/issues/148297">#148297</a>:
+     * {@code SET unmapped_fields="load"} must not expose values read from {@code _source} when FLS disables {@code _source}
+     * ({@code grant: ["*"], except: ["_source"]}).
+     */
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | KEEP value, org, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        List<MapMatcher> expectedColumns = List.of(
+            matchesMap().entry("name", "value").entry("type", "double"),
+            matchesMap().entry("name", "org").entry("type", "keyword"),
+            matchesMap().entry("name", "salary").entry("type", "keyword"),
+            matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+            matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+        );
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, "sales", "100000", "2024-01-01", "10.0.0.1"),
+                        List.of(20.0, "engineering", "200000", "2023-06-15", "10.0.0.2")
+                    )
+                )
+        );
+
+        // _source denied: every unmapped column must be null even though the JSON contained the value;
+        // the mapped `value` still loads from doc values.
+        Response noSourceResp = runESQLCommand("fls_partial_no_source_user", query);
+        assertOK(noSourceResp);
+        assertMap(
+            entityAsMap(noSourceResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry("values", List.of(Arrays.asList(10.0, null, null, null, null), Arrays.asList(20.0, null, null, null, null)))
+        );
+
+        // _source denied AND mapped `value` denied: all columns null. FLS hides `value` from the mapping
+        // entirely, so it surfaces as keyword (the unmapped default) rather than its declared type.
+        Response noSourceNoValueResp = runESQLCommand("fls_no_source_no_value_user", query);
+        assertOK(noSourceNoValueResp);
+        assertMap(
+            entityAsMap(noSourceNoValueResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword"),
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(null, null, null, null, null), Arrays.asList(null, null, null, null, null)))
+        );
+    }
+
+    /**
+     * Verifies FLS field exclusions are honoured even when the user can read {@code _source}: with
+     * {@code SET unmapped_fields="load"}, the mapped {@code value} and the unmapped {@code org} must
+     * both come back {@code null} for {@code fls_deny_value_org_user} (grant {@code *}, except
+     * {@code value, org}), confirming neither the doc-values path (mapped) nor the source-load path
+     * (unmapped) bypasses the FLS exception list.
+     */
+    public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM " + INDEX_PARTIAL_MAPPING + " | KEEP value, org | SORT value | LIMIT 10";
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of(10.0, "sales"), List.of(20.0, "engineering")))
+        );
+
+        // FLS hides `value` from the mapping entirely, so it surfaces as keyword (the unmapped default).
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
+        );
+    }
+
+    /**
+     * Verifies that FLS rules apply per-index in multi-index queries: {@code fls_per_index_access_user}
+     * has {@code _source} denied on {@link #INDEX_PARTIAL_MAPPING} but unrestricted access to
+     * {@link #INDEX_FULL_MAPPING}, so {@code org} must come back as {@code null} only for the rows from
+     * the source-denied index. {@code org} is unmapped on the first index and mapped as keyword on the
+     * second — i.e. partially-mapped keyword.
+     */
+    public void testFieldLevelSecuritySourceDisabledMultiIndex() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + ", "
+            + INDEX_FULL_MAPPING
+            + " METADATA _index | KEEP _index, value, org | SORT value | LIMIT 10";
+        Response resp = runESQLCommand("fls_per_index_access_user", query);
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "_index").entry("type", "keyword"),
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 10.0, null),
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 20.0, null),
+                        List.of(INDEX_FULL_MAPPING, 30.0, "marketing"),
+                        List.of(INDEX_FULL_MAPPING, 40.0, "support")
+                    )
+                )
+        );
+    }
+
+    /**
+     * Multi-index variant where the partially-mapped fields are non-KEYWORD types ({@code long},
+     * {@code date}, {@code ip}) — the regression surface called out in #144228 / #144109. The same
+     * fields are unmapped on {@link #INDEX_PARTIAL_MAPPING} (where {@code _source} is denied) and
+     * fully mapped on {@link #INDEX_FULL_MAPPING}. With {@code unmapped_fields="load"}, the
+     * source-denied unmapped rows must not leak via the typed source-loader paths and must come back
+     * {@code null}; the mapped rows continue to load from doc values.
+     */
+    public void testFieldLevelSecuritySourceDisabledMultiIndexPartialMappingNonKeyword() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + ", "
+            + INDEX_FULL_MAPPING
+            + " METADATA _index | KEEP _index, value, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        Response resp = runESQLCommand("fls_per_index_access_user", query);
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "_index").entry("type", "keyword"),
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "salary").entry("type", "long"),
+                        matchesMap().entry("name", "hire_date").entry("type", "date"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "ip")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 10.0, null, null, null),
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 20.0, null, null, null),
+                        List.of(INDEX_FULL_MAPPING, 30.0, 300000, "2022-03-01T00:00:00.000Z", "10.0.0.3"),
+                        List.of(INDEX_FULL_MAPPING, 40.0, 400000, "2021-11-20T00:00:00.000Z", "10.0.0.4")
+                    )
+                )
+        );
+    }
+
+    /**
+     * Variant of {@link #testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad} that runs the unmapped
+     * values through explicit per-type casts, exercising the long/date/ip conversion paths. The restricted user
+     * must still see {@code null} for every unmapped column.
+     */
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoadAndCast() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | EVAL salary = salary::long, hire_date = hire_date::date, ip_addr = ip_addr::ip "
+            + "| KEEP value, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        List<MapMatcher> expectedColumns = List.of(
+            matchesMap().entry("name", "value").entry("type", "double"),
+            matchesMap().entry("name", "salary").entry("type", "long"),
+            matchesMap().entry("name", "hire_date").entry("type", "date"),
+            matchesMap().entry("name", "ip_addr").entry("type", "ip")
+        );
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, 100000, "2024-01-01T00:00:00.000Z", "10.0.0.1"),
+                        List.of(20.0, 200000, "2023-06-15T00:00:00.000Z", "10.0.0.2")
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_partial_no_source_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry("columns", expectedColumns)
+                .entry("values", List.of(Arrays.asList(10.0, null, null, null), Arrays.asList(20.0, null, null, null)))
+        );
+    }
+
+    /**
+     * Same scenario as {@link #testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad}, but without
+     * {@code unmapped_fields="load"} the unmapped fields stay invisible to ES|QL. Mapped fields still load
+     * from doc values, and {@code SET unmapped_fields="load"} is set anyway to prove the code path is exercised.
+     */
+    public void testFieldLevelSecuritySourceDisabledMappedFieldsStillReadable() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_partial_no_source_user",
+            "SET unmapped_fields=\"load\"; FROM " + INDEX_PARTIAL_MAPPING + " | KEEP value | SORT value | LIMIT 10"
+        );
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "value").entry("type", "double")))
+                .entry("values", List.of(List.of(10.0), List.of(20.0)))
+        );
+    }
+
     public void testRowCommand() throws Exception {
         String user = randomFrom("test-admin", "user1", "user2");
         Response resp = runESQLCommand(user, "row a = 5, b = 2 | stats count=sum(b) by a");
@@ -546,6 +1184,118 @@ public class EsqlSecurityIT extends ESRestTestCase {
             equalTo(List.of(Map.of("name", "count", "type", "long"), Map.of("name", "a", "type", "integer")))
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(2, 5))));
+    }
+
+    public void testExplain() throws Exception {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+        for (String user : List.of("test-admin", "user1")) {
+            Response resp = runExplainCommand(user, "EXPLAIN (FROM index | WHERE value > 10 | STATS sum=sum(value))");
+            assertOK(resp);
+            Map<String, Object> respMap = entityAsMap(resp);
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> columns = (List<Map<String, String>>) respMap.get("columns");
+            // Verify we have the expected columns
+            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.get(0).get("name"), equalTo("cluster"));
+            assertThat(columns.get(1).get("name"), equalTo("node"));
+            assertThat(columns.get(2).get("name"), equalTo("role"));
+            assertThat(columns.get(3).get("name"), equalTo("type"));
+            assertThat(columns.get(4).get("name"), equalTo("plan"));
+
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+            // Should have at least coordinator plans
+            assertThat(values.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(3));
+
+            // Check for expected plan types
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    assertThat("Parsed plan should contain UnresolvedRelation", plan, containsString("UnresolvedRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                    assertThat("Optimized logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                    // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
+                    assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
+                }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // Local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        anyOf(containsString("EsQueryExec"), containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                }
+            }
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        }
+    }
+
+    private void validateDlsFlsViewException(Response response, String expectedViewNames) throws IOException {
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        Map<String, Object> entity = entityAsMap(response.getEntity());
+        assertThat(entity, hasKey("error"));
+        Object error = entity.get("error");
+        if (error instanceof Map<?, ?> errorMap) {
+            assertThat(errorMap, hasKey("reason"));
+            assertThat(errorMap, hasKey("views_with_dls_or_fls"));
+            assertThat(
+                errorMap.get("reason"),
+                equalTo(
+                    "Views with document or field level security restrictions are not supported."
+                        + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude the views from the request."
+                )
+            );
+            assertThat(errorMap.get("views_with_dls_or_fls"), equalTo(expectedViewNames));
+        } else {
+            fail("unexpected error format: " + error);
+        }
+    }
+
+    /**
+     * Run an EXPLAIN command - does not add LIMIT since EXPLAIN doesn't support downstream commands.
+     */
+    private Response runExplainCommand(String user, String command) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.addParameter("error_trace", "true");
+        // EXPLAIN queries may trigger a default limit warning, so ignore warnings
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
+        );
+        return client().performRequest(request);
     }
 
     public void testEnrich() throws Exception {
@@ -1243,6 +1993,51 @@ public class EsqlSecurityIT extends ESRestTestCase {
         var viewNames = views.stream().map(view -> view.get("name")).collect(Collectors.toSet());
         assertThat(viewNames, hasSize(2));
         assertThat(viewNames, containsInAnyOrder("view-user1", "view"));
+    }
+
+    // TODO: use named privileges when available — https://github.com/elastic/elasticsearch/issues/147017
+    public void testDataSourceCrudForbiddenWithoutClusterManage() {
+        // user2 has cluster: []. All three data source actions are cluster-level → 403.
+        for (String path : List.of("/_query/data_source/ds_x", "/_query/data_source")) {
+            Request get = new Request("GET", path);
+            setUser(get, "user2");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        }
+
+        Request put = new Request("PUT", "/_query/data_source/ds_x");
+        put.setJsonEntity("{\"type\":\"s3\"}");
+        setUser(put, "user2");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(put));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        Request del = new Request("DELETE", "/_query/data_source/ds_x");
+        setUser(del, "user2");
+        ex = expectThrows(ResponseException.class, () -> client().performRequest(del));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    public void testDatasetCrudForbiddenWithoutIndexManage() {
+        // user3 has only `read` on `index`. Dataset actions need index `manage`.
+        Request put = new Request("PUT", "/_query/dataset/index");
+        put.setJsonEntity("{\"data_source\":\"parent\",\"resource\":\"s3://b/\"}");
+        setUser(put, "user3");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(put));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        Request del = new Request("DELETE", "/_query/dataset/index");
+        setUser(del, "user3");
+        ex = expectThrows(ResponseException.class, () -> client().performRequest(del));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    public void testDataSourceAdminListEmpty() throws IOException {
+        // test-admin has cluster:all. GET list on an empty cluster returns 200 with an empty array.
+        Request req = new Request("GET", "/_query/data_source");
+        Response resp = client().performRequest(req);
+        assertOK(resp);
+        Map<String, Object> body = entityAsMap(resp);
+        assertThat(body.get("data_sources"), equalTo(List.of()));
     }
 
     private static final Request GET_QUERY_REQUEST = new Request(

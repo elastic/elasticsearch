@@ -47,13 +47,29 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         if (page != null) {
             pagesEmitted++;
             rowsEmitted += page.getPositionCount();
+            return page;
         }
-        return page;
+        if (buffer.failure() != null) {
+            throw propagateFailure(buffer.failure());
+        }
+        return null;
+    }
+
+    private static RuntimeException propagateFailure(Throwable t) {
+        if (t instanceof RuntimeException re) {
+            return re;
+        }
+        if (t instanceof Error e) {
+            throw e;
+        }
+        return new RuntimeException(t);
     }
 
     @Override
     public boolean isFinished() {
-        return buffer.isFinished();
+        // Keep "not finished" while a failure is pending so the driver calls getOutput() and the
+        // exception propagates instead of treating the source as a clean EOF.
+        return buffer.isFinished() && buffer.failure() == null;
     }
 
     @Override
@@ -84,7 +100,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.failure());
+        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.bytesInBuffer(), buffer.failure());
     }
 
     public static class Status implements Operator.Status {
@@ -94,15 +110,21 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_ASYNC_SOURCE_BYTES_BUFFERED = TransportVersion.fromName(
+            "esql_async_source_bytes_buffered"
+        );
+
         private final int pagesWaiting;
         private final int pagesEmitted;
         private final long rowsEmitted;
+        private final long bytesBuffered;
         private final Throwable failure;
 
-        Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, Throwable failure) {
+        Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, long bytesBuffered, Throwable failure) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
+            this.bytesBuffered = bytesBuffered;
             this.failure = failure;
         }
 
@@ -110,6 +132,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             pagesWaiting = in.readVInt();
             pagesEmitted = in.readVInt();
             rowsEmitted = in.readVLong();
+            bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
         }
 
@@ -118,6 +141,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             out.writeVInt(pagesWaiting);
             out.writeVInt(pagesEmitted);
             out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED)) {
+                out.writeVLong(bytesBuffered);
+            }
             out.writeException(failure);
         }
 
@@ -138,8 +164,23 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return rowsEmitted;
         }
 
+        public long bytesBuffered() {
+            return bytesBuffered;
+        }
+
         public Throwable failure() {
             return failure;
+        }
+
+        /**
+         * Projects the operator's existing {@code rowsEmitted} counter into the
+         * {@link Operator.Status#documentsFound()} contract so external-source-emitted
+         * rows aggregate into the top-level {@code documents_found} of the ES|QL response
+         * alongside Lucene-sourced operators, without introducing a new wire field.
+         */
+        @Override
+        public long documentsFound() {
+            return rowsEmitted;
         }
 
         @Override
@@ -148,6 +189,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("pages_waiting", pagesWaiting);
             builder.field("pages_emitted", pagesEmitted);
             builder.field("rows_emitted", rowsEmitted);
+            builder.field("bytes_buffered", bytesBuffered);
             if (failure != null) {
                 builder.field("failure", failure.getMessage());
             }
@@ -168,12 +210,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return pagesWaiting == status.pagesWaiting
                 && pagesEmitted == status.pagesEmitted
                 && rowsEmitted == status.rowsEmitted
+                && bytesBuffered == status.bytesBuffered
                 && Objects.equals(thisFailureMsg, otherFailureMsg);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesWaiting, pagesEmitted, rowsEmitted, failure != null ? failure.getMessage() : null);
+            return Objects.hash(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure != null ? failure.getMessage() : null);
         }
 
         @Override

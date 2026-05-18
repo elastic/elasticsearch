@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -294,8 +293,11 @@ public class IncrementalBulkService {
             try {
                 bulkRequest.add(items);
                 releasables.add(releasable);
-                long size = items.stream().mapToLong(Accountable::ramBytesUsed).sum();
-                incrementalOperation.increment(items.size(), size);
+                long ramBytesUsed = 0;
+                for (final var item : items) {
+                    ramBytesUsed += item.ramBytesUsed();
+                }
+                incrementalOperation.increment(items.size(), ramBytesUsed);
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);

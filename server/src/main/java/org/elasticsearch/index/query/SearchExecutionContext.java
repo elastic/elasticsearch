@@ -23,6 +23,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -53,6 +55,8 @@ import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -73,6 +77,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -88,8 +93,24 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
  *
  * This context is used in several components of search execution, including
  * building queries and fetching hits.
+ *
+ * The context is not designed to be thread-safe and is not expected to be
+ * shared between multiple threads. The exception is the Percolator that
+ * runs multiple queries simultaneously with the same context and will mutate
+ * elements of the context that are not threadsafe. Percolator makes copies of
+ * the context before executing each query.
  */
 public class SearchExecutionContext extends QueryRewriteContext {
+
+    /**
+     * Per-call telemetry for the pre-flight reservation swap in
+     * {@link #addCircuitBreakerMemory(long, long, String)}. Enable at {@code DEBUG} to observe
+     * the {@code reservation/actual} ratio in production and inform tuning of the automaton peak
+     * multiplier used to size the reservation.
+     */
+    private static final Logger CB_RESERVATION_LOGGER = LogManager.getLogger(
+        SearchExecutionContext.class.getCanonicalName() + ".cb.automaton.reservation"
+    );
 
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
@@ -107,11 +128,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
+    @Nullable
+    private String sliceRouting;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
     private final ShardSearchStats shardSearchStats;
+    @Nullable
+    private final CircuitBreaker circuitBreaker;
+    private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
 
     public SearchExecutionContext(
         int shardId,
@@ -163,11 +189,22 @@ public class SearchExecutionContext extends QueryRewriteContext {
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             requestSize,
             mapperMetrics,
-            shardSearchStats
+            shardSearchStats,
+            null
         );
     }
 
+    /**
+     * Copy constructor that preserves the circuit breaker from the source context.
+     */
     public SearchExecutionContext(SearchExecutionContext source) {
+        this(source, source.circuitBreaker);
+    }
+
+    /**
+     * Copy constructor that overrides the circuit breaker.
+     */
+    public SearchExecutionContext(SearchExecutionContext source, @Nullable CircuitBreaker circuitBreaker) {
         this(
             source.shardId,
             source.shardRequestIndex,
@@ -191,7 +228,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.runtimeMappings,
             source.requestSize,
             source.mapperMetrics,
-            source.shardSearchStats
+            source.shardSearchStats,
+            circuitBreaker
         );
     }
 
@@ -218,7 +256,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Map<String, MappedFieldType> runtimeMappings,
         Integer requestSize,
         MapperMetrics mapperMetrics,
-        ShardSearchStats shardSearchStats
+        ShardSearchStats shardSearchStats,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
             parserConfig,
@@ -254,6 +293,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.requestSize = requestSize;
         this.mapperMetrics = mapperMetrics;
         this.shardSearchStats = shardSearchStats;
+        this.circuitBreaker = circuitBreaker;
     }
 
     private void reset() {
@@ -271,6 +311,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public QueryBuilder getAliasFilter() {
         return aliasFilter;
+    }
+
+    // Set slice routing, so it can be applied as a shard-level filter in search context.
+    public void setSliceRouting(@Nullable String sliceRouting) {
+        this.sliceRouting = sliceRouting;
+    }
+
+    @Nullable
+    public String getSliceRouting() {
+        return sliceRouting;
     }
 
     /**
@@ -316,6 +366,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
+                mapperService.getIdFieldDataEnabled(),
                 fielddataOperation
             )
         );
@@ -416,7 +467,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 filter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
                 mapperMetrics.sourceFieldMetrics(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
         return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
@@ -504,6 +555,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     getIndexSettings(),
                     searchLookup,
                     this::sourcePath,
+                    () -> false,
                     fielddataOperation
                 )
             ),
@@ -537,7 +589,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 query = Queries.newMatchNoDocsQuery("No query left after rewrite.");
             }
             return new ParsedQuery(query, copyNamedQueries());
-        } catch (QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
@@ -717,5 +769,81 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     public ShardSearchStats stats() {
         return shardSearchStats;
+    }
+
+    /**
+     * Returns the circuit breaker used for query construction memory accounting, or {@code null}
+     * if none was configured.
+     */
+    @Nullable
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
+    /**
+     * Adds memory usage to the circuit breaker for query construction.
+     * <p>
+     * This method tracks memory used during query construction and enforces circuit breaker limits
+     * to prevent excessive memory usage. The tracked memory can later be released using
+     * {@link #releaseQueryConstructionMemory()}.
+     *
+     * @param bytes the number of bytes to add to the circuit breaker
+     * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
+     */
+    public void addCircuitBreakerMemory(long bytes, String label) {
+        assert bytes >= 0 : "bytes must be non-negative, got " + bytes;
+        addCircuitBreakerMemory(bytes, 0L, label);
+    }
+
+    /**
+     * Swap variant of {@link #addCircuitBreakerMemory(long, String)} that replaces a prior
+     * reservation of {@code heldBreakerBytes} with a final charge of {@code bytes}, applying the
+     * net delta as a single breaker operation. A positive delta may trip the breaker; if it does,
+     * the reservation residual remains on the breaker and the request counter until
+     * {@link #releaseQueryConstructionMemory()} runs at request end.
+     * <p>
+     * {@code heldBreakerBytes <= 0} behaves like the single-arg form.
+     * <p>
+     * Used by wildcard / regexp construction to keep the in-flight clause visible to the breaker
+     * across the unguarded {@code CompiledAutomaton} build window.
+     */
+    public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+        assert bytes >= 0 : "bytes must be non-negative, got " + bytes;
+        if (circuitBreaker == null) {
+            return;
+        }
+        long held = Math.max(heldBreakerBytes, 0L);
+        long delta = bytes - held;
+        if (delta > 0) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
+        } else if (delta < 0) {
+            circuitBreaker.addWithoutBreaking(delta);
+        }
+        queryConstructionMemoryUsed.addAndGet(delta);
+        if (held > 0 && CB_RESERVATION_LOGGER.isDebugEnabled()) {
+            CB_RESERVATION_LOGGER.debug(
+                "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
+                bytes,
+                heldBreakerBytes,
+                label
+            );
+        }
+    }
+
+    /**
+     * Get total query construction memory used.
+     */
+    public long getQueryConstructionMemoryUsed() {
+        return queryConstructionMemoryUsed.get();
+    }
+
+    /**
+     * Release all accumulated query construction memory back to the circuit breaker.
+     */
+    public void releaseQueryConstructionMemory() {
+        long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
+        if (memoryToRelease > 0 && circuitBreaker != null) {
+            circuitBreaker.addWithoutBreaking(-memoryToRelease);
+        }
     }
 }

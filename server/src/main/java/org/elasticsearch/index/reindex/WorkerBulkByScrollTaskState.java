@@ -12,10 +12,12 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,7 +35,7 @@ import static java.lang.Math.round;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
- * Task behavior for {@link BulkByScrollTask} that does the actual work of querying and indexing
+ * Task behavior for {@link BulkByPaginatedSearchTask} that does the actual work of querying and indexing
  */
 public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
@@ -44,7 +46,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     private static final TimeValue MAX_THROTTLE_WAIT_TIME = TimeValue.timeValueHours(1);
 
-    private final BulkByScrollTask task;
+    private final BulkByPaginatedSearchTask task;
 
     /**
      * The id of the slice that this worker is processing or {@code null} if this task isn't for a sliced request.
@@ -79,15 +81,19 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
+    /// Set under {@link #delayedPrepareBulkRequestReference} lock during relocation to block concurrent rethrottle.
+    /// Otherwise, rethrottle would succeed and relocated task would proceed with old RPS value.
+    private boolean capturedRpsForRelocation = false;
+
+    public WorkerBulkByScrollTaskState(BulkByPaginatedSearchTask task, Integer sliceId, float requestsPerSecond) {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
         this.nodeToRelocateToSupplier = new SetOnce<>();
     }
 
-    public BulkByScrollTask.Status getStatus() {
-        return new BulkByScrollTask.Status(
+    public BulkByPaginatedSearchTask.Status getStatus() {
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total.get(),
             updated.get(),
@@ -108,7 +114,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /**
      * Restore state from the supplied status, presumably from a previously relocated task
      */
-    public void restoreState(BulkByScrollTask.Status status) {
+    public void restoreState(BulkByPaginatedSearchTask.Status status) {
         assert status != null : "Cannot restore from null status";
         total.set(status.getTotal());
         updated.set(status.getUpdated());
@@ -120,7 +126,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         bulkRetries.set(status.getBulkRetries());
         searchRetries.set(status.getSearchRetries());
         throttledNanos.set(status.getThrottled().nanos());
-        rethrottle(status.getRequestsPerSecond());
+        // RPS is set via constructor from task init from the request, not restored from status
     }
 
     public void handleCancel() {
@@ -184,7 +190,11 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     }
 
     public Optional<String> getNodeToRelocateTo() {
-        return Objects.requireNonNull(this.nodeToRelocateToSupplier.get(), "nodeToRelocateToSupplier not set for worker").get();
+        final Supplier<Optional<String>> supplier = this.nodeToRelocateToSupplier.get();
+        if (supplier == null) {
+            throw new IllegalStateException("Node to relocate to supplier should be set before, if this method is called");
+        }
+        return supplier.get();
     }
 
     float getRequestsPerSecond() {
@@ -270,6 +280,30 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             }
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
+        }
+    }
+
+    /// Rethrottle with relocation guard.
+    /// For non-sliced workers ({@code sliceId == null}), checks whether the RPS
+    /// has been captured for relocation and throws 503 if so. For sliced children the guard is skipped since the
+    /// leader guard handles the race. Java {@code synchronized} is reentrant so the nested acquire inside
+    /// {@link #rethrottle} is safe.
+    public void rethrottleWithRelocationGuard(float newRequestsPerSecond) {
+        synchronized (delayedPrepareBulkRequestReference) {
+            if (sliceId == null && capturedRpsForRelocation) {
+                throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
+            }
+            rethrottle(newRequestsPerSecond);
+        }
+    }
+
+    /// Atomically reads the current RPS and sets a flag preventing further rethrottle via
+    /// {@link #rethrottleWithRelocationGuard}. Only valid for non-sliced workers.
+    public float captureRequestsPerSecondForRelocation() {
+        assert sliceId == null : "should only be called on non-sliced workers";
+        synchronized (delayedPrepareBulkRequestReference) {
+            capturedRpsForRelocation = true;
+            return requestsPerSecond;
         }
     }
 

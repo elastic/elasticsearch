@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -18,17 +20,23 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDVLeafFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -133,7 +141,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, BinaryDocValuesField::new);
+            return (cache, breakerService) -> new CustomBinaryIndexFieldData(name(), BinaryDocValuesField::new);
         }
 
         @Override
@@ -233,6 +241,45 @@ public class BinaryFieldMapper extends FieldMapper {
         return super.syntheticSourceSupport();
     }
 
+    /**
+     * This class is necessary because BinaryFieldMapper uses its own binary encoding format, matching that of
+     * {@link MultiValuedBinaryDocValuesField.IntegratedCount}.
+     */
+    private static final class CustomBinaryDVLeafFieldData extends MultiValuedBinaryDVLeafFieldData {
+        private final LeafReader leafReader;
+        private final String fieldName;
+
+        CustomBinaryDVLeafFieldData(
+            String fieldName,
+            LeafReader leafReader,
+            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ) {
+            super(fieldName, leafReader, toScriptFieldFactory, IndexVersion.current());
+            this.leafReader = leafReader;
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public SortedBinaryDocValues getBytesValues() {
+            try {
+                return MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    private static final class CustomBinaryIndexFieldData extends BytesBinaryIndexFieldData {
+        CustomBinaryIndexFieldData(String fieldName, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+            super(fieldName, CoreValuesSourceType.KEYWORD, toScriptFieldFactory, IndexVersion.current());
+        }
+
+        @Override
+        public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
+            return new CustomBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory);
+        }
+    }
+
     public static final class CustomBinaryDocValuesField extends CustomDocValuesField {
 
         private final List<byte[]> bytesList;
@@ -252,7 +299,11 @@ public class BinaryFieldMapper extends FieldMapper {
             try {
                 bytesList.sort(Arrays::compareUnsigned);
                 CollectionUtils.uniquify(bytesList, Arrays::compareUnsigned);
-                int bytesSize = bytesList.stream().map(a -> a.length).reduce(0, Integer::sum);
+                // avoiding a streaming map/reduce for efficiency reasons
+                int bytesSize = 0;
+                for (byte[] bytes : bytesList) {
+                    bytesSize += bytes.length;
+                }
                 int n = bytesList.size();
                 BytesStreamOutput out = new BytesStreamOutput(bytesSize + (n + 1) * 5);
                 out.writeVInt(n);  // write total number of values

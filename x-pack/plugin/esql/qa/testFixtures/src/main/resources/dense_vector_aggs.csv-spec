@@ -1,0 +1,196 @@
+# Tests for SUM aggregation function with dense_vector
+
+sumDenseVectorBasic
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE id < 5
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[946.0, 96.0, 136.0]
+;
+
+sumDenseVectorPrimaryColors
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE primary == true
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[1148.0, 1021.0, 1148.0]
+;
+
+sumDenseVectorWithFilter
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE color IN ("red", "green", "blue")
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[255.0, 128.0, 255.0]
+;
+
+sumDenseVectorSingleRow
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE color == "red"
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+[255.0, 0.0, 0.0]
+;
+
+sumDenseVectorEmptyResult
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE id < 0
+| STATS total = SUM(rgb_vector)
+;
+
+total:dense_vector
+null
+;
+
+sumDenseVectorFromDenseVectorIndex
+required_capability: dense_vector_sum_function
+
+FROM dense_vector
+| WHERE float_vector IS NOT NULL
+| STATS total = SUM(float_vector)
+;
+
+total:dense_vector
+[14.0625, 15.25, 16.75]
+;
+
+sumDenseVectorWithCount
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE id < 5
+| STATS total = SUM(rgb_vector), cnt = COUNT(*)
+;
+
+total:dense_vector | cnt:long
+[946.0, 96.0, 136.0] | 5
+;
+
+sumDenseVectorMultipleAggs
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE id < 3
+| STATS sum_rgb = SUM(rgb_vector), count_colors = COUNT(*), count_vectors = COUNT(rgb_vector)
+;
+
+sum_rgb:dense_vector | count_colors:long | count_vectors:long
+[471.0, 76.0, 76.0]  | 3                 | 3
+;
+
+# Grouping tests for SUM with dense_vector
+sumDenseVectorGroupByBooleanMoreRows
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE id < 10
+| STATS total = SUM(rgb_vector) BY primary
+| SORT primary
+;
+
+total:dense_vector    | primary:boolean
+[1961.0, 830.0, 401.0] | false
+[255.0, 0.0, 0.0]      | true
+;
+
+sumDenseVectorGroupByWithCount
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE id < 10
+| STATS total = SUM(rgb_vector), cnt = COUNT(*) BY primary
+| SORT primary
+;
+
+total:dense_vector    | cnt:long | primary:boolean
+[1961.0, 830.0, 401.0] | 9        | false
+[255.0, 0.0, 0.0]      | 1        | true
+;
+
+sumDenseVectorGroupBySingleGroup
+required_capability: dense_vector_sum_function
+
+FROM colors
+| WHERE color IN ("red", "green", "blue")
+| STATS total = SUM(rgb_vector) BY primary
+;
+
+total:dense_vector  | primary:boolean
+[255.0, 128.0, 255.0] | true
+;
+
+# INLINE STATS tests for SUM with dense_vector
+inlineStatsSumDenseVectorGroupByBoolean
+required_capability: dense_vector_sum_function
+required_capability: inline_stats
+
+FROM colors
+| WHERE id < 5
+| KEEP id, color, rgb_vector, primary
+| INLINE STATS total = SUM(rgb_vector) BY primary
+| SORT id
+;
+
+id:integer | color:text | rgb_vector:dense_vector | total:dense_vector    | primary:boolean
+0          | maroon     | [128.0, 0.0, 0.0]      | [691.0, 96.0, 136.0]  | false
+1          | brown      | [165.0, 42.0, 42.0]    | [691.0, 96.0, 136.0]  | false
+2          | firebrick  | [178.0, 34.0, 34.0]    | [691.0, 96.0, 136.0]  | false
+3          | crimson    | [220.0, 20.0, 60.0]    | [691.0, 96.0, 136.0]  | false
+4          | red        | [255.0, 0.0, 0.0]      | [255.0, 0.0, 0.0]     | true
+;
+
+inlineStatsSumDenseVectorNoGrouping
+required_capability: dense_vector_sum_function
+required_capability: inline_stats
+
+FROM colors
+| WHERE color IN ("red", "green", "blue")
+| KEEP color, rgb_vector
+| INLINE STATS total = SUM(rgb_vector)
+| SORT color
+;
+
+color:text | rgb_vector:dense_vector | total:dense_vector
+blue       | [0.0, 0.0, 255.0]       | [255.0, 128.0, 255.0]
+green      | [0.0, 128.0, 0.0]       | [255.0, 128.0, 255.0]
+red        | [255.0, 0.0, 0.0]       | [255.0, 128.0, 255.0]
+;
+
+sumDenseVectorOverflow
+required_capability: dense_vector_sum_function
+
+ROW
+    expand = [1, 2, 3],
+    overflow = to_dense_vector([3e38, 3e38, 3e38]),
+    underflow = to_dense_vector([-3e38, -3e38, -3e38])
+| MV_EXPAND expand
+| STATS
+      overflow = SUM(overflow),
+      underflow = SUM(underflow)
+;
+warning:Line 7:12: evaluation of [SUM(overflow)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 7:12: java.lang.ArithmeticException: not a finite float number: Infinity
+warning:Line 8:13: evaluation of [SUM(underflow)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 8:13: java.lang.ArithmeticException: not a finite float number: -Infinity
+
+overflow:dense_vector | underflow:dense_vector
+null                  | null
+;

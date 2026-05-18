@@ -14,23 +14,23 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromDatetimeEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator datetime;
+  private final ExpressionEvaluator datetime;
 
   private final DateFormatter formatter;
 
-  public ToStringFromDatetimeEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
+  public ToStringFromDatetimeEvaluator(Source source, ExpressionEvaluator datetime,
       DateFormatter formatter, DriverContext driverContext) {
     super(driverContext, source);
     this.datetime = datetime;
@@ -38,7 +38,7 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return datetime;
   }
 
@@ -114,15 +114,14 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+    private final ExpressionEvaluator.Factory datetime;
 
     private final DateFormatter formatter;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
-        DateFormatter formatter) {
+    public Factory(Source source, ExpressionEvaluator.Factory datetime, DateFormatter formatter) {
       this.source = source;
       this.datetime = datetime;
       this.formatter = formatter;

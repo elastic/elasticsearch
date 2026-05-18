@@ -133,7 +133,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * Create a {@link SubscribableListener} which has already succeeded with the given result.
      */
     public static <T> SubscribableListener<T> newSucceeded(T result) {
-        return new SubscribableListener<>(new SuccessResult<>(result));
+        return result == null ? nullSuccess() : new SubscribableListener<>(SuccessResult.of(result));
     }
 
     /**
@@ -212,10 +212,14 @@ public class SubscribableListener<T> implements ActionListener<T> {
      *                      then it will be completed using the given executor. If the subscribing listener is completed immediately then
      *                      this completion happens on the subscribing thread.
      *                      <p>
-     *                      This behaviour may seem complex at first sight, but it is like this to allow callers to ensure that
-     *                      {@code listener} is completed using a particular executor much more cheaply than simply always forking the
-     *                      completion task to the desired executor. To ensure that {@code listener} is completed using a particular
-     *                      executor, do both of the following:
+     *                      This behaviour may seem complex at first sight, but it is like this to allow callers to control the executor on
+     *                      which {@code listener} is completed much more cheaply than simply always forking the completion task to a
+     *                      particular executor. It is common for asynchronous methods to be <i>mostly</i> synchronous, completing their
+     *                      listener before returning most of the time and only incurring the latency costs of forking work elsewhere when
+     *                      unavoidable. If such a method returns without having completed its listener then it has already forked work to
+     *                      another thread at least once, so it is less important to avoid further forking.
+     *                      <p>
+     *                      To ensure that {@code listener} is completed using a particular executor, do both of the following:
      *                      <ul>
      *                      <li>Pass the desired executor in as {@code executor}, and</li>
      *                      <li>Invoke {@link #addListener} using that executor.</li>
@@ -276,7 +280,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     @Override
     public final void onResponse(T result) {
-        setResult(new SuccessResult<T>(result));
+        setResult(SuccessResult.of(result));
     }
 
     @Override
@@ -418,6 +422,15 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     private record SuccessResult<T>(T result) {
+
+        @SuppressWarnings("rawtypes")
+        private static final SuccessResult NULL_SUCCESS_RESULT = new SuccessResult<>(null);
+
+        @SuppressWarnings("unchecked")
+        static <T> SuccessResult<T> of(T result) {
+            return result == null ? NULL_SUCCESS_RESULT : new SuccessResult<>(result);
+        }
+
         public void complete(ActionListener<T> listener) {
             try {
                 listener.onResponse(result);
@@ -522,9 +535,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
      * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
-     * was called. This behaviour may seem complex at first sight but it is like this to allow callers to ensure that {@code nextStep} runs
-     * using a particular executor much more cheaply than simply always forking its execution. To ensure that {@code nextStep} is invoked
-     * using a particular executor, do both of the following:
+     * was called. This behaviour may seem complex at first sight but it is like this to allow callers to control the executor on which
+     * {@code nextStep} runs much more cheaply than simply always forking its execution to a particular executor. It is common for
+     * asynchronous methods to be <i>mostly</i> synchronous, completing their listener before returning most of the time and only incurring
+     * the latency costs of forking work elsewhere when unavoidable. If such a method returns without having completed its listener then it
+     * has already forked work to another thread at least once, so it is less important to avoid further forking.
+     * <p>
+     * To ensure that {@code nextStep} is invoked using a particular executor, do both of the following:
      * <ul>
      * <li>Pass the desired executor in as {@code executor}, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
@@ -632,7 +649,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+    private static final SubscribableListener NULL_SUCCESS = new SubscribableListener<>(SuccessResult.of(null));
 
     /**
      * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.

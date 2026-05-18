@@ -21,9 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -32,9 +35,11 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -241,6 +246,38 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testDenseVectorExperimentalFeaturesDefaultsFromBuildType() {
         assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
+    }
+
+    public void testSliceEnabledSettingRequiresFeatureFlag() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta("index", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()),
+                Settings.EMPTY
+            )
+        );
+        assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
+    }
+
+    public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+                        .build()
+                ),
+                Settings.EMPTY
+            )
+        );
+        assertThat(exception.getMessage(), containsString("index.slice.enabled"));
+        assertThat(exception.getMessage(), containsString("index.mode"));
+        assertThat(exception.getMessage(), containsString("time_series"));
     }
 
     @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
@@ -956,13 +993,14 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdCorrectSettings() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
-        String codec = CodecService.DEFAULT_CODEC;
+        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
+            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
+            : CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
@@ -977,8 +1015,46 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(indexMetadata.useTimeSeriesSyntheticId());
     }
 
+    public void testSyntheticIdDefaultValueTrue() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
+            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
+            : CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdDefaultValueFalse() {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertFalse(indexSettings.useTimeSeriesSyntheticId());
+        assertFalse(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
     public void testSyntheticIdBadVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = CodecService.DEFAULT_CODEC;
@@ -1007,18 +1083,19 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadCodec() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
-        String badCodec = randomFrom(
-            CodecService.BEST_COMPRESSION_CODEC,
-            CodecService.LEGACY_BEST_COMPRESSION_CODEC,
-            CodecService.LEGACY_DEFAULT_CODEC,
-            CodecService.LUCENE_DEFAULT_CODEC
+
+        ArrayList<String> badCodecs = new ArrayList<>(
+            Arrays.asList(CodecService.LEGACY_BEST_COMPRESSION_CODEC, CodecService.LEGACY_DEFAULT_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
         );
+        if (version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION) == false) {
+            badCodecs.add(CodecService.BEST_COMPRESSION_CODEC);
+        }
+        String badCodec = randomFrom(badCodecs);
 
         Settings settings = Settings.builder()
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
@@ -1034,10 +1111,11 @@ public class IndexSettingsTests extends ESTestCase {
             Matchers.containsString(
                 String.format(
                     Locale.ROOT,
-                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    "The setting [%s] is only permitted when [%s] is set to [%s] or [%s]. Current mode: [%s].",
                     IndexSettings.SYNTHETIC_ID.getKey(),
                     INDEX_CODEC_SETTING.getKey(),
                     CodecService.DEFAULT_CODEC,
+                    CodecService.BEST_COMPRESSION_CODEC,
                     badCodec
                 )
             )
@@ -1045,12 +1123,11 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadMode() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
-        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
         String codec = CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
@@ -1072,6 +1149,437 @@ public class IndexSettingsTests extends ESTestCase {
                     IndexMode.TIME_SERIES.name(),
                     badMode.name()
                 )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersSetting() {
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var disabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, indexVersion);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertThat(indexSettings.sequenceNumbersDisabled(), is(equalTo(disabled)));
+    }
+
+    public void testDisableSequenceNumbersImpliesDocValuesOnly() {
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+
+        assertThat(
+            IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexMetadata.getSettings()),
+            equalTo(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+        );
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnly() {
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        var e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
+        }
+        IndexMode mode = randomFrom(modes);
+        Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), mode.getName())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        if (mode == IndexMode.TIME_SERIES) {
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+        }
+        IndexMetadata indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersValidationWithInvalidVersion() {
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
+
+        Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                    badVersion
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersDefaultForColumnarModes() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        // Test COLUMNAR mode
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        IndexMetadata columnarMetadata = newIndexMeta("columnar-index", columnarSettings, indexVersion);
+        IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
+        assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
+
+        // Test LOGSDB_COLUMNAR mode
+        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
+        IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
+        IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
+        assertThat(
+            "DISABLE_SEQUENCE_NUMBERS should be true for LOGSDB_COLUMNAR mode",
+            columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
+            is(true)
+        );
+
+        // Test that STANDARD mode does not have sequence numbers disabled by default
+        Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
+        IndexMetadata standardMetadata = newIndexMeta("standard-index", standardSettings, indexVersion);
+        IndexSettings standardIndexSettings = new IndexSettings(standardMetadata, Settings.EMPTY);
+        assertThat(
+            "DISABLE_SEQUENCE_NUMBERS should be false for STANDARD mode",
+            standardIndexSettings.sequenceNumbersDisabled(),
+            is(false)
+        );
+    }
+
+    public void testBloomFilterSettingsFromScopedSettings() {
+        int numHashFunctions = randomIntBetween(1, ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS);
+        int smallMaxDocs = randomIntBetween(1, 999);
+        int largeMinDocs = randomIntBetween(1000, 10_000);
+        double lowBits = randomDoubleBetween(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC, 32.0, true);
+        double highBits = randomDoubleBetween(64.0, ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC, true);
+        ByteSizeValue maxSize = ByteSizeValue.ofKb(randomIntBetween(64, 8192));
+        boolean optimizedMerge = randomBoolean();
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), numHashFunctions)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), smallMaxDocs)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), largeMinDocs)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), highBits)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), lowBits)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), maxSize.getStringRep())
+            .put(SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE.getKey(), optimizedMerge)
+            .build();
+
+        var syntheticIdBloomFilterSettings = SyntheticIdBloomFilterSettings.fromScopedSettings(
+            new IndexScopedSettings(
+                settings,
+                Set.of(
+                    IndexSettings.SYNTHETIC_ID,
+                    SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
+                    SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS,
+                    SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS,
+                    SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC,
+                    SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC,
+                    SyntheticIdBloomFilterSettings.MAX_SIZE,
+                    SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE
+                )
+            )
+        );
+        assertThat(syntheticIdBloomFilterSettings.numHashFunctions(), equalTo(numHashFunctions));
+        assertThat(syntheticIdBloomFilterSettings.smallSegmentMaxDocs(), equalTo(smallMaxDocs));
+        assertThat(syntheticIdBloomFilterSettings.largeSegmentMinDocs(), equalTo(largeMinDocs));
+        assertThat(syntheticIdBloomFilterSettings.highBitsPerDoc(), equalTo(highBits));
+        assertThat(syntheticIdBloomFilterSettings.lowBitsPerDoc(), equalTo(lowBits));
+        assertThat(syntheticIdBloomFilterSettings.maxSize(), equalTo(maxSize));
+        assertThat(syntheticIdBloomFilterSettings.optimizedMerge(), equalTo(optimizedMerge));
+    }
+
+    public void testBloomFilterSegmentDocCountsMinBoundary() {
+        // min=1 passes for both
+        Settings valid = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 1)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 2)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(valid), equalTo(1));
+        assertThat(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(valid), equalTo(2));
+
+        // 0 fails (below min=1)
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 0)
+                    .build()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 0)
+                    .build()
+            )
+        );
+    }
+
+    public void testBloomFilterSmallSegmentMaxDocsGreaterThanLargeSegmentMinDocsFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 500)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 100)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings));
+        assertThat(e.getMessage(), containsString("small_segment_max_docs"));
+        assertThat(e.getMessage(), containsString("large_segment_min_docs"));
+    }
+
+    public void testBloomFilterSmallSegmentMaxDocsEqualToLargeSegmentMinDocsPasses() {
+        // Equal values are valid: segments with < N docs are "small", >= N docs are "large" — no gap or overlap.
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 100)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 100)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings), equalTo(100));
+        assertThat(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings), equalTo(100));
+    }
+
+    public void testBloomFilterLargeSegmentMinDocsLessThanSmallSegmentMaxDocsFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 500)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 100)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings));
+        assertThat(e.getMessage(), containsString("large_segment_min_docs"));
+        assertThat(e.getMessage(), containsString("small_segment_max_docs"));
+    }
+
+    public void testBloomFilterSmallAndLargeSegmentDocCountsValidCombinationPasses() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 100)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 200)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings), equalTo(100));
+        assertThat(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings), equalTo(200));
+    }
+
+    public void testBloomFilterHighBitsPerDocLessThanLowBitsPerDocFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 8.0)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 16.0)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(settings));
+        assertThat(e.getMessage(), containsString("high_bits_per_doc"));
+        assertThat(e.getMessage(), containsString("low_bits_per_doc"));
+    }
+
+    public void testBloomFilterLowBitsPerDocGreaterThanHighBitsPerDocFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 8.0)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 16.0)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(settings));
+        assertThat(e.getMessage(), containsString("low_bits_per_doc"));
+        assertThat(e.getMessage(), containsString("high_bits_per_doc"));
+    }
+
+    public void testBloomFilterHighBitsPerDocEqualToLowBitsPerDocPasses() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 16.0)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 16.0)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(settings), equalTo(16.0));
+        assertThat(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(settings), equalTo(16.0));
+    }
+
+    public void testBloomFilterSettingsRequireSyntheticIdEnabled() {
+        var settingsUnderTest = new Object[][] {
+            { SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS, "5" },
+            { SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS, "100" },
+            { SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS, "1000000" },
+            { SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC, "64.0" },
+            { SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC, "16.0" },
+            { SyntheticIdBloomFilterSettings.MAX_SIZE, "1mb" },
+            { SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE, "true" }, };
+        for (var entry : settingsUnderTest) {
+            @SuppressWarnings("unchecked")
+            Setting<Object> setting = (Setting<Object>) entry[0];
+            Settings settings = Settings.builder()
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                .put(setting.getKey(), (String) entry[1])
+                .build();
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                "expected failure for setting " + setting.getKey(),
+                () -> setting.get(settings)
+            );
+            assertThat(e.getMessage(), containsString(IndexSettings.SYNTHETIC_ID.getKey()));
+        }
+    }
+
+    public void testBloomFilterSettingsDefaultsDoNotRequireSyntheticIdEnabled() {
+        // When a bloom filter setting is not explicitly set (isPresent=false), no synthetic_id check fires.
+        Settings settings = Settings.builder().put(IndexSettings.SYNTHETIC_ID.getKey(), false).build();
+        SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(settings);
+        SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings);
+        SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings);
+        SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(settings);
+        SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(settings);
+        SyntheticIdBloomFilterSettings.MAX_SIZE.get(settings);
+        SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE.get(settings);
+    }
+
+    public void testBloomFilterNumHashFunctionsBoundaries() {
+        Settings min = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), 1)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(min), equalTo(1));
+
+        Settings max = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS)
+            .build();
+        assertThat(
+            SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(max),
+            equalTo(ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS)
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), 0)
+                    .build()
+            )
+        );
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(
+                        SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(),
+                        ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS + 1
+                    )
+                    .build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("num_hash_functions"));
+    }
+
+    public void testBloomFilterBitsPerDocBoundaries() {
+        Settings atMin = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(atMin), equalTo(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC));
+        assertThat(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(atMin), equalTo(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC));
+
+        Settings atMax = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(atMax), equalTo(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC));
+        assertThat(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(atMax), equalTo(ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 7.9)
+                    .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+                    .build()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 256.1)
+                    .build()
+            )
+        );
+    }
+
+    public void testBloomFilterMaxSizeBoundaries() {
+        Settings atMin = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), ES94BloomFilterDocValuesFormat.MIN_BLOOM_FILTER_SIZE.getStringRep())
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.MAX_SIZE.get(atMin), equalTo(ES94BloomFilterDocValuesFormat.MIN_BLOOM_FILTER_SIZE));
+
+        Settings atMax = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE.getStringRep())
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.MAX_SIZE.get(atMax), equalTo(ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE));
+
+        // below minimum fails
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.MAX_SIZE.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), "32kb")
+                    .build()
+            )
+        );
+        // above maximum fails
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.MAX_SIZE.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), "16mb")
+                    .build()
             )
         );
     }

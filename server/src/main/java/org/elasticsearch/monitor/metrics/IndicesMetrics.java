@@ -13,15 +13,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardFieldStats;
+import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -33,27 +38,50 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getTotalUserIndices;
+import static org.elasticsearch.common.component.Lifecycle.State.STARTED;
+
 /**
  * {@link IndicesMetrics} monitors index statistics on an Elasticsearch node and exposes them as metrics
  * through the provided {@link MeterRegistry}. It tracks the current total number of indices, document count, and
  * store size (in bytes) for each index mode.
  */
 public class IndicesMetrics extends AbstractLifecycleComponent {
+    public static final String USER_INDEX_TOTAL_METRIC_NAME = "es.indices.users.total";
+    public static final String FIELD_INFOS_CACHED_CURRENT_METRIC_NAME = "es.indices.field_infos.cached.current";
+    public static final String FIELD_INFOS_CURRENT_METRIC_NAME = "es.indices.field_infos.current";
+    public static final String MAPPING_FIELDS_CURRENT_METRIC_NAME = "es.indices.mapping.fields.current";
     private final Logger logger = LogManager.getLogger(IndicesMetrics.class);
     private final MeterRegistry registry;
     private final List<AutoCloseable> metrics = new ArrayList<>();
     private final IndicesStatsCache stateCache;
+    private final ClusterService clusterService;
+    private final SystemIndices systemIndices;
 
-    public IndicesMetrics(MeterRegistry meterRegistry, IndicesService indicesService, TimeValue metricsInterval) {
+    public IndicesMetrics(
+        MeterRegistry meterRegistry,
+        IndicesService indicesService,
+        TimeValue metricsInterval,
+        ClusterService clusterService,
+        SystemIndices systemIndices
+    ) {
         this.registry = meterRegistry;
         // Use half of the update interval to ensure that results aren't cached across updates,
         // while preventing the cache from expiring when reading different gauges within the same update.
         var cacheExpiry = new TimeValue(metricsInterval.getMillis() / 2);
         this.stateCache = new IndicesStatsCache(indicesService, cacheExpiry);
+        this.clusterService = clusterService;
+        this.systemIndices = systemIndices;
     }
 
-    private static List<AutoCloseable> registerAsyncMetrics(MeterRegistry registry, IndicesStatsCache cache) {
-        final int TOTAL_METRICS = 52;
+    @FixForMultiProject(description = "When multi-project arrives we should add project ID to the USER_INDEX_TOTAL_METRIC_NAME.")
+    private static List<AutoCloseable> registerAsyncMetrics(
+        MeterRegistry registry,
+        IndicesStatsCache cache,
+        ClusterService clusterService,
+        SystemIndices systemIndices
+    ) {
+        final int TOTAL_METRICS = 95;
         List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();
@@ -165,6 +193,46 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
         }
+        metrics.add(
+            registry.registerLongGauge(
+                FIELD_INFOS_CACHED_CURRENT_METRIC_NAME,
+                "Unique FieldInfo instances retained by the per-shard FieldInfo cache across all shards on this node; "
+                    + "deduped count of "
+                    + FIELD_INFOS_CURRENT_METRIC_NAME
+                    + ", which ideally approaches "
+                    + MAPPING_FIELDS_CURRENT_METRIC_NAME,
+                "unit",
+                () -> new LongWithAttributes(getCachedFieldInfoCount(cache.indicesService))
+            )
+        );
+        metrics.add(
+            registry.registerLongGauge(
+                FIELD_INFOS_CURRENT_METRIC_NAME,
+                "Raw count of FieldInfo instances summed across every segment of every shard on this node, before " + "deduplication",
+                "unit",
+                () -> new LongWithAttributes(getTotalLuceneFieldCount(cache.indicesService))
+            )
+        );
+        metrics.add(
+            registry.registerLongGauge(
+                MAPPING_FIELDS_CURRENT_METRIC_NAME,
+                "Total fields defined in the index mappings of all shards on this node",
+                "unit",
+                () -> new LongWithAttributes(getTotalMappingFieldCount(cache.indicesService))
+            )
+        );
+        metrics.add(registry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
+            if (clusterService.lifecycleState() != STARTED) {
+                return null;
+            }
+            final var clusterState = clusterService.state();
+            if (clusterState.clusterRecovered() == false || clusterState.nodes().isLocalNodeElectedMaster() == false) {
+                return null;
+            }
+            return new LongWithAttributes(
+                getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next())
+            );
+        }));
         assert metrics.size() == TOTAL_METRICS : "total number of metrics has changed";
         return metrics;
     }
@@ -180,7 +248,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        metrics.addAll(registerAsyncMetrics(registry, stateCache));
+        metrics.addAll(registerAsyncMetrics(registry, stateCache, clusterService, systemIndices));
     }
 
     @Override
@@ -197,6 +265,54 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 logger.warn("metrics close() method should not throw Exception", e);
             }
         });
+    }
+
+    static long getTotalMappingFieldCount(IndicesService indicesService) {
+        long count = 0;
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                var mapperService = indexShard.mapperService();
+                if (mapperService == null) {
+                    continue;
+                }
+
+                var lookup = mapperService.mappingLookup();
+                if (lookup != null) {
+                    count += lookup.getTotalFieldsCount();
+                }
+            }
+        }
+        return count;
+    }
+
+    static long getTotalLuceneFieldCount(IndicesService indicesService) {
+        long count = 0;
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                ShardFieldStats stats = indexShard.getShardFieldStats();
+                if (stats != null) {
+                    count += stats.totalFields();
+                }
+            }
+        }
+        return count;
+    }
+
+    static long getCachedFieldInfoCount(IndicesService indicesService) {
+        long count = 0;
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                try {
+                    FieldInfoCachingDirectory cache = FieldInfoCachingDirectory.unwrap(indexShard.store().directory());
+                    if (cache != null) {
+                        count += cache.fieldInfoCacheSize();
+                    }
+                } catch (IllegalIndexShardStateException | AlreadyClosedException ignored) {
+                    // shard closed or not ready; skip
+                }
+            }
+        }
+        return count;
     }
 
     static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService) {

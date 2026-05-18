@@ -87,6 +87,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
+        registerScriptChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -121,16 +122,14 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertFalse(field.fieldType().stored());
     }
 
-    public void testNotIndexed() throws Exception {
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("index", false)));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        return DocValuesType.NUMERIC;
     }
 
     public void testNoDocValues() throws Exception {
@@ -178,7 +177,10 @@ public class DateFieldMapperTests extends MapperTestCase {
             exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
                 .errorMatches("failed to parse date field [hello world]"),
             exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time"))
-                .errorMatches("failed to parse date field [true]")
+                .errorMatches("failed to parse date field [true]"),
+            exampleMalformedValue(b -> b.startObject().field("string", "hello").endObject()).errorMatches(
+                "Cannot parse object or array as a date value"
+            )
         );
     }
 
@@ -585,6 +587,24 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testIgnoreMalformedWithObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "date");
+            b.field("ignore_malformed", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()));
+        assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testObjectValueWithoutIgnoreMalformed() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Cannot parse object or array as a date value"));
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return syntheticSourceSupportInternal(ignoreMalformed, true);
@@ -633,10 +653,14 @@ public class DateFieldMapperTests extends MapperTestCase {
                     .map(Value::output)
                     .toList();
 
-                Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                List<Object> malformedOutput = values.stream()
+                    .filter(v -> v.malformedOutput != null)
+                    .map(Value::malformedOutput)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
 
-                // Malformed values are always last in the implementation.
-                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+                // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);

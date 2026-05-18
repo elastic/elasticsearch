@@ -26,12 +26,15 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -181,8 +184,8 @@ public class InternalUsers {
                         ".fleet-actions-results",
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
                         ".fleet-fileds*",
-                        // System data stream for kibana workflows logs
-                        ".workflows-execution-data-stream-logs"
+                        // System data stream for kibana workflows
+                        ".workflows*"
                     )
                     .privileges(
                         filterNonNull(
@@ -217,6 +220,7 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     .privileges(
+                        "read",
                         GetDataStreamAction.NAME,
                         RolloverAction.NAME,
                         IndicesStatsAction.NAME,
@@ -233,6 +237,8 @@ public class InternalUsers {
                         TransportUpdateSettingsAction.TYPE.name(),
                         RefreshAction.NAME,
                         ReindexAction.NAME,
+                        TransportClosePointInTimeAction.TYPE.name(),
+                        TransportOpenPointInTimeAction.TYPE.name(),
                         TransportSearchAction.NAME,
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,
@@ -312,7 +318,9 @@ public class InternalUsers {
                 TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
                 "cluster:internal:data/read/esql/open_exchange",
                 "cluster:internal:data/read/esql/exchange",
-                "cluster:internal/remote_cluster/nodes" },
+                "cluster:internal/remote_cluster/nodes",
+                "cluster:admin/serverless/autoscaling/get_serverless_autoscaling_metrics",
+                XPackInfoAction.NAME },
             null,
             null,
             null,

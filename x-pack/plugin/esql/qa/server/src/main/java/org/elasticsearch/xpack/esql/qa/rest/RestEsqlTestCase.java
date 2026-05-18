@@ -136,8 +136,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
 
-        private Map<String, Map<String, TypeAndValues>> tables;
-
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
@@ -157,11 +155,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder query(String query) throws IOException {
             builder.field("query", query);
-            return this;
-        }
-
-        public RequestObjectBuilder tables(Map<String, Map<String, TypeAndValues>> tables) {
-            this.tables = tables;
             return this;
         }
 
@@ -245,19 +238,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
-                if (tables != null) {
-                    builder.startObject("tables");
-                    for (var table : tables.entrySet()) {
-                        builder.startObject(table.getKey());
-                        for (var column : table.getValue().entrySet()) {
-                            builder.startObject(column.getKey());
-                            builder.field(column.getValue().type(), column.getValue().values());
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
                 if (profile != null) {
                     builder.field("profile", profile);
                 }
@@ -1922,9 +1902,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             """.formatted(testIndexName(), randomLong()));
 
         var timeZone = randomZone();
-        var interval = randomFrom("1 hour", "1 day", "1 month");
+        var unit = randomFrom("hour", "day", "month");
         var functions = Stream.of("DATE_TRUNC(\"%s\", @timestamp)", "BUCKET(@timestamp, \"%s\")", "TBUCKET(\"%s\")")
-            .map(f -> f.formatted(interval))
+            .map(f -> f.formatted("1 " + unit))
             .toList();
 
         Object firstResultValues = null;
@@ -1951,7 +1931,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertResultMap(
                     result,
                     getResultMatcher(result),
-                    matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date")),
+                    matchesList().item(
+                        matchesMap() //
+                            .entry("name", "bucket")
+                            .entry("type", "date")
+                            // meta is only present if request is routed to a node supporting this feature
+                            .optionalEntry("_meta", Map.of("bucket", Map.of("interval", 1, "unit", unit)))
+                    ),
                     hasSize(greaterThanOrEqualTo(1))
                 );
 
@@ -1968,6 +1954,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
             }
         }
+    }
+
+    public void testApproximationColumnMetadata() throws IOException {
+        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled());
+        bulkLoadTestData(10);
+
+        String query = "SET approximation=true; " + fromIndex() + " | STATS count=COUNT()";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        assertResultMap(
+            result,
+            matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                .item(
+                    matchesMap().entry("name", "_approximation_confidence_interval(count)")
+                        .entry("type", "long")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "confidence_interval").entry("column", "count"))
+                        )
+                )
+                .item(
+                    matchesMap().entry("name", "_approximation_certified(count)")
+                        .entry("type", "boolean")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "certified").entry("column", "count"))
+                        )
+                ),
+            matchesList().item(matchesList().item(10).item(matchesList().item(10).item(10)).item(true))
+        );
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
@@ -2038,7 +2054,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(404, response.getStatusLine().getStatusCode());
     }
 
-    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
+    protected static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
         throws IOException {
         Request request = prepareRequest(mode);
         if (mode == ASYNC) {

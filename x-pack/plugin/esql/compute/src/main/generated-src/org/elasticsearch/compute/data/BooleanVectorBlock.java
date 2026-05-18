@@ -45,6 +45,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }
@@ -52,6 +57,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public ElementType elementType() {
         return vector.elementType();
+    }
+
+    @Override
+    public BooleanBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
     }
 
     @Override

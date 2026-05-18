@@ -11,8 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask.StatusBuilder;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask.StatusBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 
 import java.util.ArrayList;
@@ -24,9 +23,9 @@ import java.util.concurrent.TimeUnit;
  */
 class BulkByScrollResponseBuilder extends StatusBuilder {
     private TimeValue took;
-    private BulkByScrollTask.Status status;
+    private BulkByPaginatedSearchTask.Status status;
     private List<Failure> bulkFailures = new ArrayList<>();
-    private List<SearchFailure> searchFailures = new ArrayList<>();
+    private List<PaginatedSearchFailure> searchFailures = new ArrayList<>();
     private boolean timedOut;
 
     BulkByScrollResponseBuilder() {}
@@ -39,7 +38,7 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
         this.took = took;
     }
 
-    public void setStatus(BulkByScrollTask.Status status) {
+    public void setStatus(BulkByPaginatedSearchTask.Status status) {
         this.status = status;
     }
 
@@ -48,8 +47,8 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
             for (Object object : failures) {
                 if (object instanceof Failure) {
                     bulkFailures.add((Failure) object);
-                } else if (object instanceof SearchFailure) {
-                    searchFailures.add((SearchFailure) object);
+                } else if (object instanceof PaginatedSearchFailure) {
+                    searchFailures.add((PaginatedSearchFailure) object);
                 }
             }
         }

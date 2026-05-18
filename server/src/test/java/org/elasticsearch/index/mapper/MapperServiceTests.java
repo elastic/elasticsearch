@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -47,7 +48,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
-        merge(mapperService, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
+        String update = """
+            {"_doc":{"properties":{"field0":{"type":"keyword"}}}}
+            """;
+        mapperService.isNoOpUpdate(new CompressedXContent(update));
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(
             mapperService,
@@ -127,6 +131,37 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         // valid partitioned index
         createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", true).endObject()));
+    }
+
+    public void testSliceEnabledRequiresRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertTrue(mapperService.documentMapper().routingFieldMapper().required());
+        assertTrue(mapperService.documentMapper().routingFieldMapper().docValues());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", false).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("must not configure [_routing] settings when [index.slice.enabled] is true"));
+
+        IllegalArgumentException docValuesException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject()))
+        );
+        assertThat(
+            docValuesException.getMessage(),
+            containsString("must not configure [_routing] settings when [index.slice.enabled] is true")
+        );
+
+        MapperService explicitRequired = createMapperService(
+            settings,
+            topMapping(b -> b.startObject("_routing").field("required", true).field("doc_values", true).endObject())
+        );
+        assertTrue(explicitRequired.documentMapper().routingFieldMapper().required());
+        assertTrue(explicitRequired.documentMapper().routingFieldMapper().docValues());
     }
 
     public void testIndexSortWithNestedFields() throws IOException {
@@ -355,37 +390,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }
         };
 
-        for (IndexMode indexMode : IndexMode.values()) {
+        for (IndexMode indexMode : IndexMode.availableModes()) {
             MapperService mapperService = initMapperService.apply(indexMode);
             assertMapperService.accept(mapperService);
-        }
-    }
-
-    public void testMappingUpdateChecks() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // Text fields are not stored by default, so an incoming update that is identical but
-            // just has `stored:false` should not require an update
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"false"}}}""");
-            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
-        }
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // However, an update that really does need a rebuild will throw an exception
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"true"}}}""");
-            Exception e = expectThrows(IllegalStateException.class, () -> mapperService.assertNoUpdateRequired(builder.build()));
-
-            assertThat(e.getMessage(), containsString("expected current mapping ["));
-            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
         }
     }
 

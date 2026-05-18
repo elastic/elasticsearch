@@ -12,6 +12,7 @@ package org.elasticsearch.index.engine;
 import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.translog.Translog;
@@ -41,11 +43,12 @@ import java.util.Set;
  * The {@code maxMemorySizeInBytes} parameter limits the total size of uncompressed _sources
  * loaded into memory during batch retrieval.
  */
-public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnapshot {
+public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnapshot {
     private final long maxMemorySizeInBytes;
     private final StoredFieldLoader storedFieldLoader;
     private final SourceLoader sourceLoader;
 
+    private final boolean routingDocValues;
     private int skippedOperations;
     private long lastSeenSeqNo;
 
@@ -88,6 +91,8 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         // zstd best compression stores upto 2048 docs in a block, so it is likely that in this case docs are co-located in same block:
         boolean forceSequentialReader = CodecService.BEST_COMPRESSION_CODEC.equals(defaultCodec);
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, forceSequentialReader);
+        RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
+        this.routingDocValues = routingMapper != null && routingMapper.docValues();
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 
@@ -186,6 +191,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         LeafReaderContext leafReaderContext = null;
         LeafStoredFieldLoader leafFieldLoader = null;
         SourceLoader.Leaf leafSourceLoader = null;
+        SortedDocValues leafRoutingDocValues = null;
         for (int i = 0; i < documentRecords.size(); i++) {
             SearchRecord docRecord = documentRecords.get(i);
             if (docRecord.docID() >= docBase + maxDoc) {
@@ -203,7 +209,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     if (record.isTombstone()) {
                         continue;
                     }
-                    if (record.hasRecoverySourceSize() == false && skipDocsWithNullSource()) {
+                    if (record.hasRecoverySourceSize() == false) {
                         assert requiredFullRange == false : "source not found for seqno=" + record.seqNo();
                         continue;
                     }
@@ -221,11 +227,21 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                 int[] nextDocIdArray = nextDocIds.toArray();
                 leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
                 leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);
+                if (routingDocValues) {
+                    leafRoutingDocValues = leafReaderContext.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                }
                 setNextSyntheticFieldsReader(leafReaderContext);
             }
             int segmentDocID = docRecord.docID() - docBase;
             leafFieldLoader.advanceTo(segmentDocID);
-            operations[docRecord.index()] = createOperation(docRecord, leafFieldLoader, leafSourceLoader, segmentDocID, leafReaderContext);
+            operations[docRecord.index()] = createOperation(
+                docRecord,
+                leafFieldLoader,
+                leafSourceLoader,
+                leafRoutingDocValues,
+                segmentDocID,
+                leafReaderContext
+            );
         }
         return operations;
     }
@@ -234,6 +250,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         SearchRecord docRecord,
         LeafStoredFieldLoader fieldLoader,
         SourceLoader.Leaf sourceLoader,
+        SortedDocValues routingDocValues,
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
@@ -243,12 +260,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
             return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
         } else if (docRecord.isTombstone()) {
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
-            return new Translog.Delete(
-                overrideId(fieldLoader.id(), context, segmentDocID),
-                docRecord.seqNo(),
-                docRecord.primaryTerm(),
-                docRecord.version()
-            );
+            return new Translog.Delete(fieldLoader.id(), docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
         } else {
             if (docRecord.hasRecoverySourceSize() == false) {
                 // TODO: Callers should ask for the range that source should be retained. Thus we should always
@@ -257,21 +269,32 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     throw new MissingHistoryOperationsException(
                         "source not found for seqno=" + docRecord.seqNo() + " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo
                     );
-                } else if (skipDocsWithNullSource()) {
+                } else {
                     skippedOperations++;
                     return null;
                 }
             }
             var source = addSyntheticFields(sourceLoader.source(fieldLoader, segmentDocID), segmentDocID);
+            String routing = fieldLoader.routing();
+            if (routing == null && routingDocValues != null) {
+                routing = readRoutingFromDocValues(routingDocValues, segmentDocID);
+            }
             return new Translog.Index(
-                overrideId(fieldLoader.id(), context, segmentDocID),
+                fieldLoader.id(),
                 docRecord.seqNo(),
                 docRecord.primaryTerm(),
                 docRecord.version(),
-                overrideSource(source != null ? source.internalSourceRef() : null, context, segmentDocID),
-                fieldLoader.routing(),
+                source != null ? source.internalSourceRef() : null,
+                routing,
                 -1 // autogenerated timestamp
             );
         }
+    }
+
+    private static String readRoutingFromDocValues(SortedDocValues routingDocValues, int segmentDocID) throws IOException {
+        if (routingDocValues != null && routingDocValues.advanceExact(segmentDocID)) {
+            return routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
+        }
+        return null;
     }
 }

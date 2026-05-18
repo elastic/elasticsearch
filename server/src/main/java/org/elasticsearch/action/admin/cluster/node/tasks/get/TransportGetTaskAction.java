@@ -31,7 +31,11 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -39,12 +43,14 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -61,6 +67,8 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportGetTaskAction.class);
+
     public static final String TASKS_ORIGIN = "tasks";
     public static final ActionType<GetTaskResponse> TYPE = new ActionType<>("cluster:monitor/task/get");
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
@@ -69,6 +77,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
+    // Used for follow-up requests when we need to follow a relocated request to preserve the user origin
+    private final Client rawClient;
     private final NamedXContentRegistry xContentRegistry;
     private final ProjectResolver projectResolver;
 
@@ -87,16 +97,20 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = new OriginSettingClient(client, TASKS_ORIGIN);
+        this.rawClient = client;
         this.xContentRegistry = xContentRegistry;
         this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
+        ActionListener<GetTaskResponse> relocationAwareListener = request.getFollowRelocations()
+            ? listener.delegateFailureAndWrap((l, response) -> followReindexRelocationIfNeeded(request, response, l))
+            : listener;
         if (clusterService.localNode().getId().equals(request.getTaskId().getNodeId())) {
-            getRunningTaskFromNode(thisTask, request, listener);
+            getRunningTaskFromNode(thisTask, request, relocationAwareListener);
         } else {
-            runOnNodeWithTaskIfPossible(thisTask, request, listener);
+            runOnNodeWithTaskIfPossible(thisTask, request, relocationAwareListener);
         }
     }
 
@@ -107,30 +121,53 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      */
     private void runOnNodeWithTaskIfPossible(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
+        ActionListener<GetTaskResponse> finishedTaskListener = ActionListener.wrap(listener::onResponse, e -> {
+            if (e instanceof ResourceNotFoundException) {
+                e = new ResourceNotFoundException(
+                    "task ["
+                        + request.getTaskId()
+                        + "] belongs to the node ["
+                        + request.getTaskId().getNodeId()
+                        + "] which isn't part of the cluster and there is no record of the task",
+                    e
+                );
+            }
+            listener.onFailure(e);
+        });
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
-            getFinishedTaskFromIndex(thisTask, request, ActionListener.wrap(listener::onResponse, e -> {
-                if (e instanceof ResourceNotFoundException) {
-                    e = new ResourceNotFoundException(
-                        "task ["
-                            + request.getTaskId()
-                            + "] belongs to the node ["
-                            + request.getTaskId().getNodeId()
-                            + "] which isn't part of the cluster and there is no record of the task",
-                        e
-                    );
-                }
-                listener.onFailure(e);
-            }));
+            getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
             return;
         }
-        GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
+        // The originating node is the single owner of relocation chain following; disabling it on the forwarded request
+        // keeps remote intermediate-hop failures (e.g. a transport error during shutdown) from escaping past us.
+        GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId()).setFollowRelocations(false);
+        ActionListener<GetTaskResponse> getTaskListener = ActionListener.wrap(listener::onResponse, e -> {
+            if (ExceptionsHelper.unwrap(e, ConnectTransportException.class) != null) {
+                // The node is still in the cluster state but disconnected (e.g. shutting down during relocation).
+                // Fall back to the .tasks index where the completed task result should be stored.
+                logger.debug("failed to contact node [{}] for task [{}], falling back to .tasks index", node.getId(), request.getTaskId());
+                getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
+            } else {
+                listener.onFailure(e);
+            }
+        });
         transportService.sendRequest(
             node,
             TYPE.name(),
             nodeRequest,
-            TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(
+                ActionListener.addTimeout(
+                    request.getTimeout(),
+                    threadPool,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    getTaskListener,
+                    () -> { /* TODO cancel the remote tasks? */}
+                ),
+                GetTaskResponse::new,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            )
         );
     }
 
@@ -271,5 +308,104 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             TaskResult result = TaskResult.PARSER.apply(parser, null);
             listener.onResponse(new GetTaskResponse(result));
         }
+    }
+
+    /**
+     * This adds relocation awareness for reindex tasks. This is needed to maintain backward compatibility so that
+     * reindex task can still be found after relocation.
+     * <p>
+     * If the response represents a completed reindex task that was relocated to another node, issues a new
+     * {@code GetTask} request for the relocated task ID with {@code follow_relocations=false}, then merges the
+     * relocated task's response with the original task's timing. Multi-hop chains are followed iteratively here on
+     * the originating node. Failures are surfaced to the caller rather than being masked by returning the original
+     * pre-relocation response.
+     * <p>
+     * The merge takes the start time from the original task and adjusts running time to cover the full duration
+     * including the relocation gap. Each iteration's merge correctly chains the adjustments for multi-hop chains.
+     * <p>
+     * Non-reindex tasks and reindex tasks without relocations pass through unchanged.
+     */
+    private void followReindexRelocationIfNeeded(
+        GetTaskRequest originalRequest,
+        GetTaskResponse response,
+        ActionListener<GetTaskResponse> listener
+    ) {
+        TaskId relocatedTaskId = extractRelocatedReindexTaskId(response.getTask());
+        if (relocatedTaskId == null) {
+            listener.onResponse(response);
+            return;
+        }
+        logger.debug("task [{}] was relocated to [{}], following relocation chain", originalRequest.getTaskId(), relocatedTaskId);
+        GetTaskRequest relocatedRequest = new GetTaskRequest().setTaskId(relocatedTaskId)
+            .setWaitForCompletion(originalRequest.getWaitForCompletion())
+            .setTimeout(originalRequest.getTimeout())
+            // Do not follow relocation within the request, instead we will follow relocation in the listener below, so
+            // chain-following is done by the coordinating node instead of every node through the chain.
+            .setFollowRelocations(false);
+
+        rawClient.admin().cluster().getTask(relocatedRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(GetTaskResponse relocatedResponse) {
+                GetTaskResponse merged = mergeRelocatedTask(response.getTask(), relocatedResponse);
+                followReindexRelocationIfNeeded(originalRequest, merged, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("failed to follow task [{}] to its relocated task [{}]", originalRequest.getTaskId(), relocatedTaskId, e);
+                if (e instanceof ElasticsearchException ese) {
+                    ese.addMetadata("es.following_relocation_from", response.getTask().getTask().taskId().toString());
+                }
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Merges the original (pre-relocation) task's timing with the relocated task's current state.
+     */
+    static GetTaskResponse mergeRelocatedTask(TaskResult original, GetTaskResponse relocatedResponse) {
+        TaskResult relocated = relocatedResponse.getTask();
+        TaskInfo originalInfo = original.getTask();
+        TaskInfo relocatedInfo = relocated.getTask();
+
+        long adjustedRunningTimeNanos = relocatedInfo.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(
+            relocatedInfo.startTime() - originalInfo.startTime()
+        );
+
+        TaskInfo mergedInfo = new TaskInfo(
+            relocatedInfo.taskId(),
+            relocatedInfo.type(),
+            relocatedInfo.node(),
+            relocatedInfo.action(),
+            relocatedInfo.description(),
+            relocatedInfo.status(),
+            // startTime and runningTime reflect the full duration of the original task, so that the task appears to have been running
+            // continuously since it was originally started
+            originalInfo.startTime(),
+            adjustedRunningTimeNanos,
+            relocatedInfo.cancellable(),
+            relocatedInfo.cancelled(),
+            relocatedInfo.parentTaskId(),
+            relocatedInfo.headers(),
+            relocatedInfo.originalTaskId(),
+            relocatedInfo.originalStartTimeMillis()
+        );
+
+        return new GetTaskResponse(new TaskResult(relocated.isCompleted(), mergedInfo, relocated.getError(), relocated.getResponse()));
+    }
+
+    /**
+     * Extracts the relocated task ID from a completed reindex task result. Returns {@code null} if the result
+     * is not a completed reindex task with a {@code task_relocated_exception} error containing a {@code relocated_task_id}.
+     */
+    static TaskId extractRelocatedReindexTaskId(TaskResult result) {
+        if (result.isCompleted() == false) {
+            return null;
+        }
+        if (ReindexAction.NAME.equals(result.getTask().action()) == false) {
+            return null;
+        }
+        return TaskRelocatedException.relocatedTaskIdFromErrorMap(result.getErrorAsMap()).orElse(null);
     }
 }

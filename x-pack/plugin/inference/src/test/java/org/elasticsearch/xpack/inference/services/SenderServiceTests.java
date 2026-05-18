@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +24,6 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentObjects;
@@ -57,8 +57,6 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -80,18 +78,13 @@ public class SenderServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testStart_InitializesTheSender() throws IOException {
+    public void testSenderServiceConstructor_CreatesASender() throws IOException {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener);
-
-            listener.actionGet(TIMEOUT);
-            verify(sender, times(1)).startAsynchronously(any());
+        try (var ignored = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             verify(factory, times(1)).createSender();
         }
 
@@ -100,23 +93,22 @@ public class SenderServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testStart_CallingStartTwiceKeepsSameSenderReference() throws IOException {
+    public void testStart_ReturnsTrue() throws IOException {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener);
-            listener.actionGet(TIMEOUT);
-
-            PlainActionFuture<Boolean> listener2 = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener2);
-            listener2.actionGet(TIMEOUT);
-
             verify(factory, times(1)).createSender();
-            verify(sender, times(2)).startAsynchronously(any());
+
+            var listener = new TestPlainActionFuture<Boolean>();
+            service.start(mock(Model.class), null, listener);
+            assertTrue(listener.actionGet(TIMEOUT));
+
+            var listener2 = new TestPlainActionFuture<Boolean>();
+            service.start(mock(Model.class), null, listener2);
+            assertTrue(listener2.actionGet(TIMEOUT));
         }
 
         verify(sender, times(1)).close();
@@ -242,8 +234,8 @@ public class SenderServiceTests extends ESTestCase {
                 ActionListener<InferenceServiceResults> listener
             ) {
                 var queryDocs = inputs.castTo(QueryAndDocsInputs.class);
-                assertThat(queryDocs.getQuery(), is(queryString));
-                assertThat(queryDocs.getChunks(), is(List.of(testInput)));
+                assertThat(queryDocs.getQueryAsString(), is(queryString));
+                assertThat(queryDocs.getDocsAsStrings(), is(List.of(testInput)));
                 doInferCalled.set(true);
                 listener.onResponse(mock(InferenceServiceResults.class));
             }
@@ -298,35 +290,38 @@ public class SenderServiceTests extends ESTestCase {
         }
     }
 
-    public void testMultimodalChatCompletionNotSupportedByDefault() throws IOException {
+    public void testMultimodalChatCompletionSupportedByDefault() throws IOException {
         var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var request = new UnifiedCompletionRequest(
-                List.of(
-                    new Message(
-                        new ContentObjects(List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())),
-                        "user",
-                        null,
-                        null
-                    )
-                ),
-                null,
-                null,
-                null,
-                null,
-                null,
+        List<Message> messages = List.of(
+            new Message(
+                new ContentObjects(List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())),
+                "user",
                 null,
                 null
-            );
+            )
+        );
+        var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            protected void doUnifiedCompletionInfer(
+                Model model,
+                UnifiedChatInput inputs,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                assertThat(inputs.getRequest().messages(), is(messages));
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+        try (service) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
             service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
 
-            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), is("The test service service does not support unified completion with non-text inputs"));
+            listener.actionGet(TIMEOUT);
         }
     }
 
@@ -351,19 +346,12 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     public static Sender createMockSender() {
-        var sender = mock(Sender.class);
-        doAnswer(invocationOnMock -> {
-            ActionListener<Void> listener = invocationOnMock.getArgument(0);
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(sender).startAsynchronously(any());
-
-        return sender;
+        return mock(Sender.class);
     }
 
-    private static class TestSenderService extends SenderService {
+    private static class TestSenderService extends SenderService<Model> {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-            super(factory, serviceComponents, clusterService);
+            super(factory, serviceComponents, clusterService, Map.of());
         }
 
         @Override
@@ -403,36 +391,6 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         public String name() {
             return "test service";
-        }
-
-        @Override
-        public void parseRequestConfig(
-            String inferenceEntityId,
-            TaskType taskType,
-            Map<String, Object> config,
-            ActionListener<Model> parsedModelListener
-        ) {
-            parsedModelListener.onResponse(null);
-        }
-
-        @Override
-        public Model parsePersistedConfigWithSecrets(
-            String inferenceEntityId,
-            TaskType taskType,
-            Map<String, Object> config,
-            Map<String, Object> secrets
-        ) {
-            return null;
-        }
-
-        @Override
-        public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-            return null;
-        }
-
-        @Override
-        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-            return null;
         }
 
         @Override

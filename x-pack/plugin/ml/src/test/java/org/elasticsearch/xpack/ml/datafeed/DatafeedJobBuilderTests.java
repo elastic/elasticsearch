@@ -79,6 +79,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new HashSet<>(
                 Arrays.asList(
                     MachineLearning.DELAYED_DATA_CHECK_FREQ,
+                    MachineLearning.CCS_STABILIZATION_CYCLES,
+                    MachineLearning.CCS_STABILIZATION_FLOOR,
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,

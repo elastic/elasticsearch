@@ -20,15 +20,26 @@ import org.junit.Before;
 import java.util.Collections;
 
 public abstract class AbstractAsyncBulkByScrollActionTestCase<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Response extends BulkByScrollResponse> extends ESTestCase {
     protected ThreadPool threadPool;
-    protected BulkByScrollTask task;
+    protected BulkByPaginatedSearchTask task;
 
     @Before
     public void setupForTest() {
         threadPool = new TestThreadPool(getTestName());
-        task = new BulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap(), false);
+        task = new BulkByPaginatedSearchTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            "test",
+            "test",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
+        );
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
     }

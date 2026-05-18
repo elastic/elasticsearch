@@ -25,12 +25,12 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
         return new Singleton(docValues, toDouble);
     }
 
     @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
         return new MvMinSorted(docValues, toDouble);
     }
 
@@ -58,11 +58,6 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (DoubleBuilder) builder);
         }
 
         private void read(int doc, DoubleBuilder builder) throws IOException {

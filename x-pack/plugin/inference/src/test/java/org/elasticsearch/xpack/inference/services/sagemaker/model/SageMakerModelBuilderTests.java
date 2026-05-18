@@ -10,29 +10,43 @@ package org.elasticsearch.xpack.inference.services.sagemaker.model;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.inference.TaskTypeTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemasTests;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.USE_ID_FOR_INDEX;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
+import static org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings.API;
+import static org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings.ENDPOINT_NAME;
+import static org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings.REGION;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class SageMakerModelBuilderTests extends ESTestCase {
     private static final String inferenceId = "inferenceId";
-    private static final TaskType taskType = TaskType.ANY;
     private static final String service = "service";
     private SageMakerModelBuilder builder;
 
@@ -265,8 +279,58 @@ public class SageMakerModelBuilderTests extends ESTestCase {
         assertNull(modelWithoutSecrets.getSecrets().getSecretSettings());
     }
 
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel_OpenAi() {
+        testUpdateModelWithEmbeddingDetails("openai", null, SimilarityMeasure.DOT_PRODUCT);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_OpenAi() {
+        testUpdateModelWithEmbeddingDetails("openai", SimilarityMeasure.COSINE, SimilarityMeasure.DOT_PRODUCT);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_Elastic() {
+        testUpdateModelWithEmbeddingDetails("elastic", SimilarityMeasure.COSINE, SimilarityMeasure.COSINE);
+    }
+
+    private static void testUpdateModelWithEmbeddingDetails(
+        String api,
+        SimilarityMeasure originalSimilarity,
+        SimilarityMeasure expectedSimilarity
+    ) {
+        var serviceSettingsMap = new HashMap<String, Object>(
+            Map.of(
+                ACCESS_KEY_FIELD,
+                "test-access-key",
+                SECRET_KEY_FIELD,
+                "test-secret-key",
+                REGION,
+                "us-east-1",
+                API,
+                api,
+                ServiceFields.DIMENSIONS,
+                64,
+                ENDPOINT_NAME,
+                "test-endpoint"
+            )
+        );
+        if (api.equalsIgnoreCase("elastic")) {
+            serviceSettingsMap.put(ELEMENT_TYPE, DenseVectorFieldMapper.ElementType.FLOAT.toString());
+            if (originalSimilarity != null) {
+                serviceSettingsMap.put(SIMILARITY, originalSimilarity.toString());
+            }
+        }
+
+        var requestMap = new HashMap<String, Object>(Map.of(SERVICE_SETTINGS, serviceSettingsMap));
+        var modelBuilder = new SageMakerModelBuilder(new SageMakerSchemas());
+        var embeddingModel = modelBuilder.fromRequest(inferenceId, TaskType.TEXT_EMBEDDING, service, requestMap);
+        var newDimensions = 128;
+        var updatedModel = modelBuilder.updateModelWithEmbeddingDetails(embeddingModel, newDimensions);
+
+        assertThat(updatedModel.serviceSettings().dimensions(), is(newDimensions));
+        assertThat(updatedModel.serviceSettings().similarity(), is(expectedSimilarity));
+    }
+
     private SageMakerModel fromRequest(String json) {
-        return builder.fromRequest(inferenceId, taskType, service, map(json));
+        return builder.fromRequest(inferenceId, TaskTypeTests.randomTaskTypeOtherThanAny(), service, map(json));
     }
 
     private void testExceptionFromRequest(String json, Class<? extends Exception> exceptionClass, String message) {

@@ -94,12 +94,14 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/other", null, """
@@ -111,7 +113,8 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertListObjectsResponse(handler, "path/", "/", """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult>\
             <Prefix>path/</Prefix><Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             <CommonPrefixes><Prefix>path/subpath1/</Prefix></CommonPrefixes>\
             <CommonPrefixes><Prefix>path/subpath2/</Prefix></CommonPrefixes>\
             </ListBucketResult>""");
@@ -121,8 +124,10 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/subpath1/blob</Key><Size>50</Size></Contents>\
-            <Contents><Key>path/subpath2/blob</Key><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath1/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
+            <Contents><Key>path/subpath2/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath1/blob").status());
@@ -202,6 +207,78 @@ public class S3HttpHandlerTests extends ESTestCase {
             ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
+
+        // Suffix range: last N bytes of the blob.
+        var suffixLength = randomIntBetween(1, blobBytes.length() - 1);
+        var suffixStart = blobBytes.length() - suffixLength;
+        assertEquals(
+            "Suffix Range: bytes=-" + suffixLength,
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes.slice(suffixStart, suffixLength),
+                addETag(expectedEtag, contentRangeHeader(suffixStart, blobBytes.length() - 1, blobBytes.length()))
+            ),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesSuffixHeader(suffixLength))
+        );
+
+        // Suffix length larger than the blob: returns the entire object (RFC 9110 §14.1.2).
+        assertEquals(
+            "Suffix Range larger than blob: bytes=-" + (blobBytes.length() + 100),
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes,
+                addETag(expectedEtag, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length()))
+            ),
+            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesSuffixHeader(blobBytes.length() + 100))
+        );
+    }
+
+    public void testStorageClass() {
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
+        final var standardPath = "/bucket/path/standard-blob";
+        final var tieredPath = "/bucket/path/tiered-blob";
+        final var storageClass = randomFrom("INTELLIGENT_TIERING", "STANDARD_IA", "GLACIER", "DEEP_ARCHIVE");
+        final var body = new BytesArray(randomAlphaOfLength(20).getBytes(StandardCharsets.UTF_8));
+
+        // PUT without storage class header defaults to STANDARD
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", standardPath, body).status());
+        // PUT with an explicit storage class
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", tieredPath, body, storageClassHeader(storageClass)).status());
+
+        // GET: STANDARD objects do not carry the x-amz-storage-class header
+        assertNull(handleRequest(handler, "GET", standardPath).headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
+        // GET: non-STANDARD objects carry the header
+        assertEquals(storageClass, handleRequest(handler, "GET", tieredPath).headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
+
+        // LIST: both objects appear with their correct StorageClass elements
+        assertListObjectsResponse(handler, "path/", null, Strings.format("""
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
+            <Contents><Key>path/standard-blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
+            <Contents><Key>path/tiered-blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
+            <StorageClass>%s</StorageClass></Contents>\
+            </ListBucketResult>""", storageClass));
+
+        // Multipart upload with explicit storage class
+        final var createUploadResponse = handleRequest(
+            handler,
+            "POST",
+            "/bucket/path/mp-blob?uploads",
+            BytesArray.EMPTY,
+            storageClassHeader(storageClass)
+        );
+        final var uploadId = getUploadId(createUploadResponse.body());
+        final var partResponse = handleRequest(handler, "PUT", "/bucket/path/mp-blob?uploadId=" + uploadId + "&partNumber=1", body);
+        final var partEtag = Objects.requireNonNull(partResponse.etag());
+        handleRequest(handler, "POST", "/bucket/path/mp-blob?uploadId=" + uploadId, new BytesArray(Strings.format("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Part><ETag>%s</ETag><PartNumber>1</PartNumber></Part>
+            </CompleteMultipartUpload>""", partEtag).getBytes(StandardCharsets.UTF_8)));
+        assertEquals(
+            storageClass,
+            handleRequest(handler, "GET", "/bucket/path/mp-blob").headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER)
+        );
     }
 
     public void testSingleMultipartUpload() {
@@ -261,7 +338,8 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><Size>100</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>100</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         final var expectedContents = new BytesArray((part1 + part2).getBytes(StandardCharsets.UTF_8));
@@ -601,7 +679,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         var responseHeaders = new Headers();
         httpExchange.getResponseHeaders().forEach((header, values) -> {
             // com.sun.net.httpserver.Headers.Headers() normalize keys
-            if ("Etag".equals(header) || "Content-range".equals(header)) {
+            if ("Etag".equals(header) || "Content-range".equals(header) || S3HttpHandler.STORAGE_CLASS_HEADER.equals(header)) {
                 responseHeaders.put(header, List.copyOf(values));
             }
         });
@@ -612,17 +690,21 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
-    private static Headers bytesRangeHeader(@Nullable Integer startInclusive, @Nullable Integer endInclusive) {
+    private static Headers bytesRangeHeader(int startInclusive, @Nullable Integer endInclusive) {
         StringBuilder range = new StringBuilder("bytes=");
-        if (startInclusive != null) {
-            range.append(startInclusive);
-        }
-        range.append('-');
+        range.append(startInclusive).append('-');
         if (endInclusive != null) {
             range.append(endInclusive);
         }
         var headers = new Headers();
         headers.put("Range", List.of(range.toString()));
+        return headers;
+    }
+
+    /** Suffix-range header per RFC 7233 §2.1: "bytes=-N" requests the last N bytes. */
+    private static Headers bytesSuffixHeader(int suffixLength) {
+        var headers = new Headers();
+        headers.put("Range", List.of("bytes=-" + suffixLength));
         return headers;
     }
 
@@ -635,6 +717,12 @@ public class S3HttpHandlerTests extends ESTestCase {
     private static Headers contentRangeHeader(long start, long end, long length) {
         var headers = new Headers();
         headers.put("Content-Range", List.of(Strings.format("bytes %d-%d/%d", start, end, length)));
+        return headers;
+    }
+
+    private static Headers storageClassHeader(String storageClass) {
+        var headers = new Headers();
+        headers.put(S3HttpHandler.STORAGE_CLASS_HEADER, List.of(storageClass));
         return headers;
     }
 

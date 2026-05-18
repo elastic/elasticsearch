@@ -98,7 +98,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     protected void masterOperation(Task ignoredTask, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
         TransformNodes.warnIfNoTransformNodes(state);
-        if (TransformMetadata.upgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(state)) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot upgrade Transforms while the Transform feature is upgrading.", RestStatus.CONFLICT)
             );
@@ -171,7 +171,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 configAndVersion.v2(),
                 false, // defer validation
                 dryRun,
-                false, // check access,
+                false, // check access
+                false, // hasLinkedProjects (irrelevant since checkAccess is false)
                 timeout,
                 destIndexSettings,
                 listener

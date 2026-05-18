@@ -23,6 +23,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
 
 import java.util.Collection;
 import java.util.List;
@@ -108,7 +109,7 @@ public class InferenceEndpointRegistry {
         if (cacheEnabled()) {
             var cacheKeys = cache.keys().iterator();
             while (cacheKeys.hasNext()) {
-                if (cacheKeys.next().projectId.equals(projectId)) {
+                if (cacheKeys.next().projectId().equals(projectId)) {
                     cacheKeys.remove();
                 }
             }
@@ -126,12 +127,7 @@ public class InferenceEndpointRegistry {
                     )
                 );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                unparsedModel.inferenceEntityId(),
-                unparsedModel.taskType(),
-                unparsedModel.settings(),
-                unparsedModel.secrets()
-            );
+            var model = service.parsePersistedConfig(unparsedModel);
 
             if (cacheEnabled()) {
                 cache.put(idAndProject, model);
@@ -157,5 +153,4 @@ public class InferenceEndpointRegistry {
         return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_ENDPOINT_CACHE);
     }
 
-    private record InferenceIdAndProject(String inferenceEntityId, ProjectId projectId) {}
 }

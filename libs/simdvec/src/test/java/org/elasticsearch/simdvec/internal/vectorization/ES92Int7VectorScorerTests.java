@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -59,9 +60,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) dimensions * numVectors);
                 final IndexInput slice2 = in.slice("test2", 0, (long) dimensions * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                // TODO: test native separately to panama as well
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
                 assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
                 assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 for (int i = 0; i < numVectors; i++) {
                     in.readBytes(vector, 0, dimensions);
@@ -88,12 +92,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final byte[] qVector = new byte[dimensions];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         try (Directory dir = new MMapDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
                 for (float[] vector : vectors) {
-                    randomVector(vector, similarityFunction);
+                    VectorScorerTestUtils.randomVector(random(), vector, similarityFunction);
                     OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
                         vector,
                         residualScratch,
@@ -112,7 +116,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 }
             }
             final float[] query = new float[dimensions];
-            randomVector(query, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
                 query,
                 residualScratch,
@@ -132,9 +136,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions, bulkSize);
+                // TODO: test native separately to panama as well
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(in, dimensions, bulkSize);
                 assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
                 assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 for (int i = 0; i < numVectors; i++) {
                     float scoreDefault = defaultScorer.score(
@@ -177,7 +184,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final float[] residualScratch = new float[dimensions];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
 
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         try (Directory dir = new MMapDirectory(createTempDir())) {
@@ -185,7 +192,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 OptimizedScalarQuantizer.QuantizationResult[] results = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {
-                        randomVector(vectors[i + j], similarityFunction);
+                        VectorScorerTestUtils.randomVector(random(), vectors[i + j], similarityFunction);
                         results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, quantizedScratch, (byte) 7, centroid);
                         for (int k = 0; k < dimensions; k++) {
                             quantizeVector[k] = (byte) quantizedScratch[k];
@@ -197,7 +204,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
             }
             final float[] query = new float[dimensions];
             final byte[] quantizeQuery = new byte[dimensions];
-            randomVector(query, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
                 query,
                 residualScratch,
@@ -215,9 +222,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions, bulkSize);
+                // TODO: test native separately to panama as well
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(in, dimensions, bulkSize);
                 assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
                 assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 float[] scoresDefault = new float[bulkSize];
                 float[] scoresPanama = new float[bulkSize];
@@ -272,15 +282,6 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         }
         for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
             out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        }
-    }
-
-    private void randomVector(float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random().nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
         }
     }
 }

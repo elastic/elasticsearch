@@ -16,11 +16,13 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,9 +41,9 @@ public final class S3StorageObject implements StorageObject {
     private final String key;
     private final StoragePath path;
 
-    private Long cachedLength;
-    private Instant cachedLastModified;
-    private Boolean cachedExists;
+    private volatile Long cachedLength;
+    private volatile Instant cachedLastModified;
+    private volatile Boolean cachedExists;
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);
@@ -100,12 +102,13 @@ public final class S3StorageObject implements StorageObject {
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            GetObjectResponse metadata = response.response();
 
             if (cachedLength == null) {
-                cachedLength = response.response().contentLength();
+                cachedLength = metadata.contentLength();
             }
             if (cachedLastModified == null) {
-                cachedLastModified = response.response().lastModified();
+                cachedLastModified = metadata.lastModified();
             }
 
             return response;
@@ -121,8 +124,8 @@ public final class S3StorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        if (length <= 0) {
+            throw new IllegalArgumentException("length must be positive, got: " + length);
         }
 
         long endPosition = position + length - 1;
@@ -131,20 +134,16 @@ public final class S3StorageObject implements StorageObject {
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            GetObjectResponse metadata = response.response();
 
-            if (cachedLength == null && response.response().contentLength() != null) {
-                String contentRange = response.response().contentRange();
-                if (contentRange != null && contentRange.contains("/")) {
-                    String[] parts = contentRange.split("/");
-                    if (parts.length == 2 && parts[1].equals("*") == false) {
-                        try {
-                            cachedLength = Long.parseLong(parts[1]);
-                        } catch (NumberFormatException ignored) {}
-                    }
+            if (cachedLength == null) {
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total != null) {
+                    cachedLength = total;
                 }
             }
             if (cachedLastModified == null) {
-                cachedLastModified = response.response().lastModified();
+                cachedLastModified = metadata.lastModified();
             }
 
             return response;
@@ -189,6 +188,44 @@ public final class S3StorageObject implements StorageObject {
 
     private void fetchMetadata() throws IOException {
         try {
+            // Suffix range: bytes=-1 returns the last byte + Content-Range with total size.
+            // Avoids a separate HEAD request for file size discovery.
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=-1").build();
+            try (var response = s3Client.getObject(request)) {
+                // Drain the 1-byte body so the HTTP connection returns to the pool
+                // instead of being aborted on close.
+                response.readAllBytes();
+                GetObjectResponse metadata = response.response();
+                cachedExists = true;
+                cachedLastModified = metadata.lastModified();
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total != null) {
+                    cachedLength = total;
+                    return;
+                }
+            }
+            // Content-Range missing (unexpected for S3) — fall back to HEAD for length
+            fetchMetadataViaHead();
+        } catch (NoSuchKeyException e) {
+            setNotFound();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 416) {
+                // 416 Range Not Satisfiable: object exists but is empty (0 bytes)
+                cachedExists = true;
+                cachedLength = 0L;
+            } else if (e.statusCode() == 403) {
+                // GET denied — try the existing bytes=0-0 fallback which extracts
+                // size from Content-Range; HEAD uses the same s3:GetObject permission
+                // so would also be denied.
+                fetchMetadataViaRangeGet();
+            } else {
+                fetchMetadataViaHead();
+            }
+        }
+    }
+
+    private void fetchMetadataViaHead() throws IOException {
+        try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             HeadObjectResponse response = s3Client.headObject(request);
 
@@ -196,12 +233,46 @@ public final class S3StorageObject implements StorageObject {
             cachedLength = response.contentLength();
             cachedLastModified = response.lastModified();
         } catch (NoSuchKeyException e) {
-            cachedExists = false;
-            cachedLength = 0L;
-            cachedLastModified = null;
+            setNotFound();
         } catch (Exception e) {
-            throw new IOException("HeadObject request failed for " + path, e);
+            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                fetchMetadataViaRangeGet();
+            } else {
+                throw new IOException("HeadObject request failed for " + path, e);
+            }
         }
+    }
+
+    private void fetchMetadataViaRangeGet() throws IOException {
+        try {
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0").build();
+            try (var response = s3Client.getObject(request)) {
+                GetObjectResponse metadata = response.response();
+                cachedExists = true;
+                cachedLastModified = metadata.lastModified();
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total == null) {
+                    throw new IOException(
+                        "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                    );
+                }
+                cachedLength = total;
+            }
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            if (e instanceof NoSuchKeyException) {
+                setNotFound();
+            } else {
+                throw new IOException("Failed to get metadata for " + path + " (HEAD denied, range GET also failed)", e);
+            }
+        }
+    }
+
+    private void setNotFound() {
+        cachedExists = false;
+        cachedLength = 0L;
+        cachedLastModified = null;
     }
 
     public String bucket() {
@@ -223,8 +294,8 @@ public final class S3StorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
         }
-        if (length < 0) {
-            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+        if (length <= 0) {
+            listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
 
@@ -249,18 +320,16 @@ public final class S3StorageObject implements StorageObject {
                 cachedLastModified = response.lastModified();
             }
             if (cachedLength == null) {
-                String contentRange = response.contentRange();
-                if (contentRange != null && contentRange.contains("/")) {
-                    String[] parts = contentRange.split("/");
-                    if (parts.length == 2 && parts[1].equals("*") == false) {
-                        try {
-                            cachedLength = Long.parseLong(parts[1]);
-                        } catch (NumberFormatException ignored) {}
-                    }
+                Long total = ContentRangeParser.parseTotalLength(response.contentRange());
+                if (total != null) {
+                    cachedLength = total;
                 }
             }
 
-            listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArray()));
+            // Avoid the defensive copy that asByteArray() does (Arrays.copyOf). Safe here because the AWS SDK
+            // does not retain a reference to the buffer after this callback returns; the array is wrapped in a
+            // ByteBuffer and consumed by the caller.
+            listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArrayUnsafe()));
         });
     }
 

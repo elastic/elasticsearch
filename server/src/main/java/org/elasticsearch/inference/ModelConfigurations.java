@@ -121,6 +121,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
         this.taskType = Objects.requireNonNull(taskType);
+        assert taskType != TaskType.ANY : "Model task type cannot be ANY";
         this.service = Objects.requireNonNull(service);
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = Objects.requireNonNull(taskSettings);
@@ -183,9 +184,14 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         return chunkingSettings;
     }
 
-    public EndpointMetadata getEndpointMetadata() {
+    public EndpointMetadata getEndpointMetadataOrEmpty() {
         // Outside of this class, we'll use the empty instance so callers can avoid the null check
         return Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY_INSTANCE);
+    }
+
+    @Nullable
+    public EndpointMetadata getEndpointMetadata() {
+        return endpointMetadata;
     }
 
     @Override

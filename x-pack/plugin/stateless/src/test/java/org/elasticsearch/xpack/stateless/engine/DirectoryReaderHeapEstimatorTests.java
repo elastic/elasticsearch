@@ -15,14 +15,18 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class DirectoryReaderHeapEstimatorTests extends ESTestCase {
 
@@ -91,7 +95,32 @@ public class DirectoryReaderHeapEstimatorTests extends ESTestCase {
             assertEquals(DirectoryReaderHeapEstimator.softDeleteBitsetBytes(next.asList().get(0)), delta);
             // And that matches the closed-form for FixedBitSet over maxDoc longs.
             int maxDoc = next.asList().get(0).info.maxDoc();
-            assertEquals(((long) (maxDoc + 63) >>> 6) << 3, delta);
+            assertEquals(((((long) maxDoc) + 63) >>> 6) << 3, delta);
+        }
+    }
+
+    public void testSoftDeleteBitsetBytesDoesNotOverflowAtMaxDoc() throws IOException {
+        // Pin the int→long widening: maxDoc + 63 must happen in long arithmetic, otherwise the addition
+        // overflows near Integer.MAX_VALUE and the unsigned right shift produces a huge bogus value.
+        try (Directory dir = newDirectory()) {
+            SegmentInfo info = new SegmentInfo(
+                dir,
+                Version.LATEST,
+                Version.LATEST,
+                "_overflow",
+                Integer.MAX_VALUE,
+                false,
+                false,
+                null,
+                Map.of(),
+                new byte[16],
+                Map.of(),
+                null
+            );
+            SegmentCommitInfo sci = new SegmentCommitInfo(info, 0, 1, -1L, -1L, -1L, new byte[16]);
+            long expected = ((((long) Integer.MAX_VALUE) + 63) >>> 6) << 3;
+            assertEquals(expected, DirectoryReaderHeapEstimator.softDeleteBitsetBytes(sci));
+            assertTrue("bitset bytes must be positive for max-int maxDoc", DirectoryReaderHeapEstimator.softDeleteBitsetBytes(sci) > 0);
         }
     }
 

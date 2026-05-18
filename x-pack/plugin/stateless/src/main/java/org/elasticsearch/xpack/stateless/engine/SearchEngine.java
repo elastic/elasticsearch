@@ -149,6 +149,11 @@ public class SearchEngine extends Engine {
     // even after a burst of defers.
     private final AtomicBoolean deferredRefreshScheduled = new AtomicBoolean();
     private volatile NewCommitNotification pendingDeferredNotification;
+    // Independent slot for event-driven retries fired when a reader closes and frees reservation bytes. Decoupled
+    // from `deferredRefreshScheduled` so an in-flight timer does not block a budget-released kick (and vice
+    // versa). Both paths converge in `commitNotifications` / `findLatestNotification`, which handles redundancy.
+    private final AtomicBoolean immediateRetryScheduled = new AtomicBoolean();
+    private final AtomicLong refreshImmediateRetryCount = new AtomicLong();
     private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
         relocatedPITReader -> acquireSearcherSupplier(
             relocatedPITReader.wrapper,
@@ -206,17 +211,21 @@ public class SearchEngine extends Engine {
                 searchDirectory.getCurrentCommit()
             );
 
-            final Set<String> initialSegmentKeys = SegmentReservations.keysOf(initialSegmentInfosAndCommit.segmentInfos());
+            // Always reserve so the close listener can release a single Reservation regardless of whether the
+            // initial commit ends up tracked as an "open reader".
+            final SegmentReservations.Reservation initialReservation = reserveAndChargeWithoutBreaking(
+                initialSegmentInfosAndCommit.segmentInfos()
+            );
             // do not consider the empty commit an open reader (no data to delete from object store)
             if (primaryTerm.isPresent()) {
                 trackLocalOpenReader(
                     directoryReader,
                     initialCommit,
-                    initialSegmentKeys,
+                    initialReservation,
                     initialSegmentInfosAndCommit.getBCCDependenciesForCommit()
                 );
             }
-            registerReaderHeapReservation(directoryReader, initialSegmentInfosAndCommit.segmentInfos());
+            registerReaderHeapRelease(directoryReader, initialReservation);
             readerManager = new ElasticsearchReaderManager(directoryReader) {
                 private SegmentInfosAndCommit previousSegmentInfosAndCommit;
 
@@ -228,14 +237,14 @@ public class SearchEngine extends Engine {
                         return null;
                     }
                     final SegmentInfos nextInfos = segmentInfosAndCommitCopy.segmentInfos();
-                    final Set<String> nextSegmentKeys = SegmentReservations.keysOf(nextInfos);
-                    final long delta = reservations.reserve(nextInfos, segmentBytesFn);
+                    final SegmentReservations.Reservation reservation = reservations.reserve(nextInfos, segmentBytesFn);
+                    final long delta = reservation.bytesReserved();
                     if (delta > 0) {
                         if (readerHeapBreaker.getLimit() != -1) {
                             try {
                                 readerHeapBreaker.addEstimateBytesAndMaybeBreak(delta, StatelessReaderHeapBreaker.NAME);
                             } catch (CircuitBreakingException e) {
-                                reservations.release(nextSegmentKeys);
+                                reservation.release();
                                 refreshDeferredCount.incrementAndGet();
                                 refreshDeferredPendingBytes.set(delta);
                                 readerHeapMetrics.recordRefreshDeferred();
@@ -259,13 +268,13 @@ public class SearchEngine extends Engine {
                         indexCommit
                     );
                     if (next == null) {
-                        reservations.release(nextSegmentKeys);
-                        if (delta > 0) {
-                            readerHeapBreaker.addWithoutBreaking(-delta);
+                        long freed = reservation.release();
+                        if (freed > 0) {
+                            readerHeapBreaker.addWithoutBreaking(-freed);
                         }
                     } else {
-                        addNextReader(next, segmentInfosAndCommitCopy, indexCommit, nextSegmentKeys);
-                        registerReaderHeapRelease(next, nextSegmentKeys);
+                        addNextReader(next, segmentInfosAndCommitCopy, indexCommit, reservation);
+                        registerReaderHeapRelease(next, reservation);
                         refreshDeferredPendingBytes.set(0L);
                     }
                     previousSegmentInfosAndCommit = segmentInfosAndCommitCopy;
@@ -276,11 +285,11 @@ public class SearchEngine extends Engine {
                     ElasticsearchDirectoryReader next,
                     SegmentInfosAndCommit segmentInfosAndCommitCopy,
                     IndexCommit first,
-                    Set<String> segmentKeys
+                    SegmentReservations.Reservation reservation
                 ) throws IOException {
                     boolean added = false;
                     try {
-                        trackLocalOpenReader(next, first, segmentKeys, segmentInfosAndCommitCopy.getBCCDependenciesForCommit());
+                        trackLocalOpenReader(next, first, reservation, segmentInfosAndCommitCopy.getBCCDependenciesForCommit());
                         added = true;
                     } finally {
                         if (added == false) {
@@ -337,7 +346,7 @@ public class SearchEngine extends Engine {
     private void trackLocalOpenReader(
         ElasticsearchDirectoryReader directoryReader,
         IndexCommit commit,
-        Set<String> segmentKeys,
+        SegmentReservations.Reservation reservation,
         Set<PrimaryTermAndGeneration> bccDependencies
     ) throws IOException {
         ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> {
@@ -347,27 +356,31 @@ public class SearchEngine extends Engine {
         });
 
         synchronized (openReaders) {
-            openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), segmentKeys, bccDependencies));
+            openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), reservation, bccDependencies));
         }
     }
 
-    // Reserve bytes for a non-refresh reader (engine open, PIT relocation) so the caller's path never fails on
-    // budget pressure, and register the matching release on reader close.
-    private void registerReaderHeapReservation(ElasticsearchDirectoryReader reader, SegmentInfos infos) throws IOException {
-        long delta = reservations.reserve(infos, segmentBytesFn);
-        if (delta > 0) {
-            readerHeapBreaker.addWithoutBreaking(delta);
+    // Reserve bytes for a non-refresh reader (engine open, PIT relocation) using the no-break path so the caller's
+    // open never fails on budget pressure. The returned Reservation must be paired with registerReaderHeapRelease
+    // so the close listener decrements both the ledger and the breaker.
+    private SegmentReservations.Reservation reserveAndChargeWithoutBreaking(SegmentInfos infos) {
+        SegmentReservations.Reservation reservation = reservations.reserve(infos, segmentBytesFn);
+        if (reservation.bytesReserved() > 0) {
+            readerHeapBreaker.addWithoutBreaking(reservation.bytesReserved());
         }
-        registerReaderHeapRelease(reader, SegmentReservations.keysOf(infos));
+        return reservation;
     }
 
-    // Capture only the segment keys (a few short strings per segment) for the close listener so the lambda
-    // does not pin the full SegmentInfos / SegmentInfo graph for the lifetime of the reader.
-    private void registerReaderHeapRelease(ElasticsearchDirectoryReader reader, Set<String> segmentKeys) throws IOException {
+    // Capture only the Reservation handle (a short key set internally) for the close listener so the lambda does
+    // not pin the full SegmentInfos / SegmentInfo graph for the lifetime of the reader. When the close actually
+    // frees ledger bytes, kick a budget-released retry for any pending deferred refresh.
+    private void registerReaderHeapRelease(ElasticsearchDirectoryReader reader, SegmentReservations.Reservation reservation)
+        throws IOException {
         ElasticsearchDirectoryReader.addReaderCloseListener(reader, ignored -> {
-            long released = reservations.release(segmentKeys);
+            long released = reservation.release();
             if (released > 0) {
                 readerHeapBreaker.addWithoutBreaking(-released);
+                maybeFireImmediateRetryOnRelease();
             }
         });
     }
@@ -385,6 +398,12 @@ public class SearchEngine extends Engine {
     // visible for testing
     public long getRefreshDeferredPendingBytes() {
         return refreshDeferredPendingBytes.get();
+    }
+
+    // visible for testing — counts how many times the close-listener-driven immediate retry actually re-injected
+    // the pending deferred notification onto the processor.
+    public long getRefreshImmediateRetryCount() {
+        return refreshImmediateRetryCount.get();
     }
 
     PrimaryTermAndGeneration getCurrentPrimaryTermAndGeneration() {
@@ -768,10 +787,21 @@ public class SearchEngine extends Engine {
 
     /**
      * Schedule a deferred-refresh retry. Coalesces multiple defers into a single in-flight task; the latest deferred
-     * notification is captured so the retry re-injects the most recent one. Idempotency on a race with a natural
-     * refresh is provided by {@code findLatestNotification} (which skips notifications whose generation is
-     * {@code <= currentPrimaryTermGeneration}) and the {@code previousSegmentInfosAndCommit} check inside
-     * {@code refreshIfNeeded}.
+     * notification is captured so the retry re-injects the most recent one.
+     * <p>
+     * The retry appends its deferred notification to the tail of {@code commitNotifications}. That position in the
+     * queue is irrelevant to correctness: {@code findLatestNotification} polls a batch and selects the
+     * <em>maximum-generation</em> entry (not the most-recently-added one), so a newer natural notification queued
+     * either before or after the retry's entry still wins. Two race cases follow:
+     * <ul>
+     * <li>A newer natural notification {@code N2} is already queued but unprocessed when the retry adds the older
+     * {@code N1}: the batch contains both, {@code findLatestNotification} picks {@code N2}, and {@code N1} is
+     * dropped implicitly (the loop only opens a reader for the chosen latest).</li>
+     * <li>A newer natural notification {@code N2} has already advanced the reader past {@code N1}'s generation
+     * before the retry fires: {@code findLatestNotification} skips {@code N1} because its generation is
+     * {@code <= currentPrimaryTermGeneration}, and the {@code previousSegmentInfosAndCommit} check inside
+     * {@code refreshIfNeeded} is a second line of defense.</li>
+     * </ul>
      */
     private void scheduleDeferredRefreshRetry(NewCommitNotification notification) {
         pendingDeferredNotification = notification;
@@ -789,6 +819,40 @@ public class SearchEngine extends Engine {
                 processCommitNotifications();
             }
         }, deferredRefreshRetryDelay(), engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH));
+    }
+
+    /**
+     * Event-driven counterpart to {@link #scheduleDeferredRefreshRetry}: kick a retry of the latest deferred
+     * notification immediately when a reader closes and frees ledger bytes, in case the budget headroom now
+     * accommodates a previously-deferred refresh. Skips if there is nothing pending, if the pending notification
+     * has already been overtaken by the current generation, or if another immediate retry is already in flight.
+     * Independent of the timer-based retry slot — both paths converge in {@code commitNotifications} and
+     * {@code findLatestNotification} handles any redundancy.
+     */
+    private void maybeFireImmediateRetryOnRelease() {
+        NewCommitNotification pending = pendingDeferredNotification;
+        if (pending == null || isClosed.get()) {
+            return;
+        }
+        PrimaryTermAndGeneration current = currentPrimaryTermGeneration;
+        if (current != null && pending.compoundCommit().primaryTermAndGeneration().compareTo(current) <= 0) {
+            return;
+        }
+        if (immediateRetryScheduled.compareAndSet(false, true) == false) {
+            return;
+        }
+        engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(() -> {
+            NewCommitNotification toRetry = pendingDeferredNotification;
+            immediateRetryScheduled.set(false);
+            if (isClosed.get() || toRetry == null) {
+                return;
+            }
+            refreshImmediateRetryCount.incrementAndGet();
+            commitNotifications.add(toRetry);
+            if (pendingCommitNotifications.incrementAndGet() == 1) {
+                processCommitNotifications();
+            }
+        });
     }
 
     @Override
@@ -1439,16 +1503,12 @@ public class SearchEngine extends Engine {
                 for (BlobLocation blobLocation : metadata.values()) {
                     bccDeps.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
                 }
-                trackLocalOpenReader(
-                    relocatedPitReader,
-                    indexCommit,
-                    SegmentReservations.keysOf(segmentCommitInfos),
-                    Collections.unmodifiableSet(bccDeps)
-                );
                 // Account the PIT-relocated reader against the node's reader-heap budget so its segments
                 // participate in reservation tracking and metrics; uses the no-break path because relocation
                 // must always succeed.
-                registerReaderHeapReservation(relocatedPitReader, segmentCommitInfos);
+                final SegmentReservations.Reservation pitReservation = reserveAndChargeWithoutBreaking(segmentCommitInfos);
+                trackLocalOpenReader(relocatedPitReader, indexCommit, pitReservation, Collections.unmodifiableSet(bccDeps));
+                registerReaderHeapRelease(relocatedPitReader, pitReservation);
                 // Register the relocated PIT reader with relocatedPITReaderTracker so it is closed
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).
@@ -1472,16 +1532,23 @@ public class SearchEngine extends Engine {
     }
 
     /**
-     * Tracks a directory reader currently alive on this node. {@code segmentKeys} is the set of
-     * {@code (name, doc-values gen)} identifiers this reader holds — sufficient for a future reclamation policy
-     * to answer "how many bytes would I free by closing this reader?" by consulting {@link SegmentReservations},
-     * without retaining the full {@link SegmentInfos}.
+     * Tracks a directory reader currently alive on this node. {@code reservation} owns the segment keys this reader
+     * holds — sufficient for a future reclamation policy to answer "how many bytes would I free by closing this
+     * reader?" by consulting {@link SegmentReservations}, without retaining the full {@link SegmentInfos}.
      */
-    private record OpenReaderInfo(Collection<String> files, Set<String> segmentKeys, Set<PrimaryTermAndGeneration> referencedBCCs) {
+    private record OpenReaderInfo(
+        Collection<String> files,
+        SegmentReservations.Reservation reservation,
+        Set<PrimaryTermAndGeneration> referencedBCCs
+    ) {
 
-        private OpenReaderInfo(Collection<String> files, Set<String> segmentKeys, Set<PrimaryTermAndGeneration> referencedBCCs) {
+        private OpenReaderInfo(
+            Collection<String> files,
+            SegmentReservations.Reservation reservation,
+            Set<PrimaryTermAndGeneration> referencedBCCs
+        ) {
             this.files = Set.copyOf(files);
-            this.segmentKeys = segmentKeys;
+            this.reservation = reservation;
             this.referencedBCCs = referencedBCCs;
         }
     }

@@ -83,7 +83,7 @@ public final class DirectoryReaderHeapEstimator {
 
     public static long softDeleteBitsetBytes(SegmentCommitInfo sci) {
         // FixedBitSet uses ceil(maxDoc / 64) longs; ignore the small fixed object header for this estimate.
-        return ((long) (sci.info.maxDoc() + 63) >>> 6) << 3;
+        return ((((long) sci.info.maxDoc()) + 63) >>> 6) << 3;
     }
 
     public static ByteSizeValue estimateAsByteSize(SegmentInfos infos) {

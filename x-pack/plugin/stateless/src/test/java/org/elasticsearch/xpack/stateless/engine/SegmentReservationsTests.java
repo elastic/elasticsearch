@@ -47,15 +47,18 @@ public class SegmentReservationsTests extends ESTestCase {
             SegmentReservations reservations = new SegmentReservations();
             assertEquals(0, reservations.totalBytes());
 
-            long delta = reservations.reserve(infos, CONSTANT_100);
-            assertEquals(100L, delta);
+            SegmentReservations.Reservation reservation = reservations.reserve(infos, CONSTANT_100);
+            assertEquals(100L, reservation.bytesReserved());
             assertEquals(100L, reservations.totalBytes());
             assertEquals(1, reservations.trackedSegmentCount());
 
-            long released = reservations.release(SegmentReservations.keysOf(infos));
+            long released = reservation.release();
             assertEquals(100L, released);
             assertEquals(0, reservations.totalBytes());
             assertEquals(0, reservations.trackedSegmentCount());
+
+            // Idempotent: a second release reports zero.
+            assertEquals(0L, reservation.release());
         }
     }
 
@@ -73,8 +76,8 @@ public class SegmentReservationsTests extends ESTestCase {
             SegmentReservations reservations = new SegmentReservations();
             reservations.reserve(initial, CONSTANT_100);
             // The new infos contains the original segment shared with `initial` plus one new segment.
-            long delta = reservations.reserve(next, CONSTANT_100);
-            assertEquals("only the new segment must be charged", 100L, delta);
+            SegmentReservations.Reservation nextReservation = reservations.reserve(next, CONSTANT_100);
+            assertEquals("only the new segment must be charged", 100L, nextReservation.bytesReserved());
             assertEquals(200L, reservations.totalBytes());
             assertEquals(2, reservations.trackedSegmentCount());
         }
@@ -92,16 +95,16 @@ public class SegmentReservationsTests extends ESTestCase {
             assertEquals(2, next.size());
 
             SegmentReservations reservations = new SegmentReservations();
-            reservations.reserve(initial, CONSTANT_100);
-            reservations.reserve(next, CONSTANT_100);
+            SegmentReservations.Reservation initialReservation = reservations.reserve(initial, CONSTANT_100);
+            SegmentReservations.Reservation nextReservation = reservations.reserve(next, CONSTANT_100);
             assertEquals(200L, reservations.totalBytes());
 
             // Closing the initial reader must NOT release the bytes for the segment it shares with `next`.
-            long released = reservations.release(SegmentReservations.keysOf(initial));
+            long released = initialReservation.release();
             assertEquals("shared segment must stay reserved while another reader holds it", 0L, released);
             assertEquals("both segments are still tracked because `next` still holds them", 200L, reservations.totalBytes());
 
-            released = reservations.release(SegmentReservations.keysOf(next));
+            released = nextReservation.release();
             assertEquals("closing the last holder releases both segments", 200L, released);
             assertEquals(0L, reservations.totalBytes());
         }
@@ -124,16 +127,16 @@ public class SegmentReservationsTests extends ESTestCase {
             assertTrue(next.asList().get(0).getDocValuesGen() > initial.asList().get(0).getDocValuesGen());
 
             SegmentReservations reservations = new SegmentReservations();
-            reservations.reserve(initial, CONSTANT_100);
-            long delta = reservations.reserve(next, CONSTANT_100);
-            assertEquals("new doc-values generation must be charged separately", 100L, delta);
+            SegmentReservations.Reservation initialReservation = reservations.reserve(initial, CONSTANT_100);
+            SegmentReservations.Reservation nextReservation = reservations.reserve(next, CONSTANT_100);
+            assertEquals("new doc-values generation must be charged separately", 100L, nextReservation.bytesReserved());
             assertEquals(200L, reservations.totalBytes());
             assertEquals(2, reservations.trackedSegmentCount());
 
             // Each reader release frees only its own generation.
-            assertEquals(100L, reservations.release(SegmentReservations.keysOf(initial)));
+            assertEquals(100L, initialReservation.release());
             assertEquals(100L, reservations.totalBytes());
-            assertEquals(100L, reservations.release(SegmentReservations.keysOf(next)));
+            assertEquals(100L, nextReservation.release());
             assertEquals(0L, reservations.totalBytes());
         }
     }
@@ -160,8 +163,25 @@ public class SegmentReservationsTests extends ESTestCase {
             assertEquals(1, reservations.trackedSegmentCount());
 
             // And it must match what reserve() reports.
-            long delta = reservations.reserve(next, CONSTANT_100);
-            assertEquals(predicted, delta);
+            SegmentReservations.Reservation reservation = reservations.reserve(next, CONSTANT_100);
+            assertEquals(predicted, reservation.bytesReserved());
+        }
+    }
+
+    public void testCloseIsEquivalentToRelease() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, newIwc())) {
+            writer.addDocument(doc("1"));
+            writer.commit();
+            SegmentInfos infos = SegmentInfos.readLatestCommit(dir);
+
+            SegmentReservations reservations = new SegmentReservations();
+            SegmentReservations.Reservation reservation = reservations.reserve(infos, CONSTANT_100);
+            assertEquals(100L, reservations.totalBytes());
+
+            // Releasable.close() must drain the ledger the same way release() does.
+            reservation.close();
+            assertEquals(0L, reservations.totalBytes());
+            assertEquals(0, reservations.trackedSegmentCount());
         }
     }
 

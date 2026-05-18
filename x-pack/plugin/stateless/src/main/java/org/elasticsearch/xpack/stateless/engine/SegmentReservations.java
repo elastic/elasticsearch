@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.engine;
 
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.core.Releasable;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,8 +22,24 @@ import java.util.function.ToLongFunction;
  * shares {@code SegmentReader} instances across directory-reader generations: a segment held by multiple
  * readers is reserved once, freed when the last holder releases. All methods are synchronized because refresh
  * and reader-close callbacks run on different threads.
+ *
+ * <p>{@link #reserve} returns a {@link Reservation} that owns the underlying keys; the caller closes (or
+ * {@link Reservation#release releases}) it from the reader-close listener instead of plumbing the key set
+ * around the engine.
  */
 public final class SegmentReservations {
+
+    /**
+     * Identifies a reservation entry by segment name and the doc-values generation of the reader holding it.
+     * A bumped doc-values generation produces a fresh {@code SegmentReader} (and a fresh soft-delete bitset),
+     * so it gets a distinct reservation from the prior generation.
+     */
+    public record SegmentKey(String segmentName, long docValuesGen) {
+
+        public static SegmentKey of(SegmentCommitInfo sci) {
+            return new SegmentKey(sci.info.name, sci.getDocValuesGen());
+        }
+    }
 
     private static final class Entry {
         final long bytes;
@@ -34,25 +51,30 @@ public final class SegmentReservations {
         }
     }
 
-    private final Map<String, Entry> entries = new HashMap<>();
+    private final Map<SegmentKey, Entry> entries = new HashMap<>();
     private long totalBytes;
 
     /** Bytes that would be newly reserved if {@code infos} were accepted now. Does not mutate state. */
     public synchronized long predictDelta(SegmentInfos infos, ToLongFunction<SegmentCommitInfo> bytesFn) {
         long delta = 0L;
         for (SegmentCommitInfo sci : infos) {
-            if (entries.containsKey(key(sci)) == false) {
+            if (entries.containsKey(SegmentKey.of(sci)) == false) {
                 delta += bytesFn.applyAsLong(sci);
             }
         }
         return delta;
     }
 
-    /** Reserve bytes for new segments and refcount-bump segments already tracked. Returns bytes newly reserved. */
-    public synchronized long reserve(SegmentInfos infos, ToLongFunction<SegmentCommitInfo> bytesFn) {
+    /**
+     * Reserve bytes for the given segments and refcount-bump segments already tracked. Returns a {@link Reservation}
+     * carrying the keys to release on reader close and the bytes newly charged against the ledger.
+     */
+    public synchronized Reservation reserve(SegmentInfos infos, ToLongFunction<SegmentCommitInfo> bytesFn) {
         long delta = 0L;
+        Set<SegmentKey> keys = new HashSet<>(infos.size() * 2);
         for (SegmentCommitInfo sci : infos) {
-            String key = key(sci);
+            SegmentKey key = SegmentKey.of(sci);
+            keys.add(key);
             Entry existing = entries.get(key);
             if (existing == null) {
                 long bytes = bytesFn.applyAsLong(sci);
@@ -63,13 +85,13 @@ public final class SegmentReservations {
                 existing.refCount++;
             }
         }
-        return delta;
+        return new Reservation(this, keys, delta);
     }
 
     /** Decrement refcounts for the given segment keys, freeing bytes when refcount drops to zero. */
-    public synchronized long release(Set<String> segmentKeys) {
+    synchronized long releaseKeys(Set<SegmentKey> segmentKeys) {
         long released = 0L;
-        for (String key : segmentKeys) {
+        for (SegmentKey key : segmentKeys) {
             Entry existing = entries.get(key);
             assert existing != null && existing.refCount > 0 : "release of untracked segment " + key;
             existing.refCount--;
@@ -82,18 +104,6 @@ public final class SegmentReservations {
         return released;
     }
 
-    /**
-     * Extract the segment keys for {@code infos} — one short string per segment, sufficient to release the
-     * reservation later without retaining a reference to the full {@link SegmentInfos}.
-     */
-    public static Set<String> keysOf(SegmentInfos infos) {
-        Set<String> keys = new HashSet<>(infos.size() * 2);
-        for (SegmentCommitInfo sci : infos) {
-            keys.add(key(sci));
-        }
-        return keys;
-    }
-
     public synchronized long totalBytes() {
         return totalBytes;
     }
@@ -102,7 +112,48 @@ public final class SegmentReservations {
         return entries.size();
     }
 
-    private static String key(SegmentCommitInfo sci) {
-        return sci.info.name + ":" + sci.getDocValuesGen();
+    /**
+     * Handle to a set of segment-key refcount bumps owned by a single reader. Closing or {@link #release releasing}
+     * decrements those refcounts and reports the bytes actually freed from the ledger (zero when other readers
+     * still pin the same segments). Idempotent — repeated calls return zero.
+     */
+    public static final class Reservation implements Releasable {
+        private final SegmentReservations owner;
+        private final Set<SegmentKey> keys;
+        private final long bytesReserved;
+        private boolean released;
+
+        Reservation(SegmentReservations owner, Set<SegmentKey> keys, long bytesReserved) {
+            this.owner = owner;
+            this.keys = keys;
+            this.bytesReserved = bytesReserved;
+        }
+
+        /** Bytes added to the ledger by this reservation (zero when all segments were already tracked). */
+        public long bytesReserved() {
+            return bytesReserved;
+        }
+
+        /** Segment keys held by this reservation. Useful for diagnostics and reclamation policies. */
+        public Set<SegmentKey> keys() {
+            return keys;
+        }
+
+        /**
+         * Decrement the refcounts for this reservation's keys; returns bytes actually freed from the ledger
+         * (zero when other readers still pin the same segments). Idempotent — repeated calls return zero.
+         */
+        public synchronized long release() {
+            if (released) {
+                return 0L;
+            }
+            released = true;
+            return owner.releaseKeys(keys);
+        }
+
+        @Override
+        public void close() {
+            release();
+        }
     }
 }

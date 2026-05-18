@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.stateless.engine;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 
@@ -256,6 +258,141 @@ public class SearchEngineHeapBudgetTests extends AbstractEngineTestCase {
                 searchEngine.getRefreshDeferredCount(),
                 equalTo(deferCountAfterNatural)
             );
+        }
+
+        assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testRetryLosesToNewerQueuedNotification() throws IOException {
+        // Variant of testRetryIsIdempotentWhenNaturalNotificationWinsRace: instead of letting the natural N2 fully
+        // process before the retry fires, drop the limit, enqueue N2, then advance the clock past the retry delay
+        // BEFORE running tasks so the retry's re-injected N1 and the natural N2 race in the same drain. Since
+        // findLatestNotification picks the max-generation entry in the polled batch, N2 must win regardless of
+        // queue position; N1 is dropped implicitly.
+        trackingBreaker.setLimit(1L);
+
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            long startGen = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+
+            indexEngine.index(randomDoc("d1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            assertThat("N1 must defer", searchEngine.getRefreshDeferredCount(), equalTo(1L));
+            assertThat("retry must be scheduled", searchTaskQueue.hasDeferredTasks(), equalTo(true));
+
+            // Relax the limit, enqueue N2 the natural way, then advance time past the retry delay BEFORE running
+            // tasks — both the retry timer and N2's processing become runnable in the same drain pass.
+            trackingBreaker.setLimit(Long.MAX_VALUE);
+            indexEngine.index(randomDoc("d2"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+
+            long retryDelayMillis = searchEngine.config().getIndexSettings().getRefreshInterval().millis() * 2L;
+            long deadline = searchTaskQueue.getCurrentTimeMillis() + retryDelayMillis + 1L;
+            while (searchTaskQueue.hasDeferredTasks() && searchTaskQueue.getCurrentTimeMillis() < deadline) {
+                searchTaskQueue.advanceTime();
+            }
+            searchTaskQueue.runAllRunnableTasks();
+
+            long expectedGen = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat("reader must land on the natural N2 generation, not the older retry's N1", expectedGen, greaterThan(startGen));
+            assertThat(
+                "reader must end at the latest queued generation",
+                searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                equalTo(expectedGen)
+            );
+        }
+
+        assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testImmediateRetryFiresOnReaderCloseAfterDefer() throws IOException {
+        // Construct a scenario where a non-current reader pins reservation bytes that are NOT shared with the
+        // current reader (forceMerge in between makes R1's pre-merge segments disjoint from R_post-merge), then
+        // a subsequent refresh defers under tight budget. Releasing the pinning searcher closes R1; the close
+        // listener releases real bytes and must kick the event-driven retry — observable through the
+        // immediate-retry counter and the reader advancing without waiting for the timer.
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            // R1 — two segments. We pin this reader through a searcher so its reservation entries persist.
+            indexEngine.index(randomDoc("d1"));
+            indexEngine.flush();
+            indexEngine.index(randomDoc("d2"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            long r1Bytes = trackingBreaker.getUsed();
+            assertThat("R1 must reserve bytes for its two segments", r1Bytes, greaterThan(0L));
+
+            Engine.Searcher pinnedR1 = searchEngine.acquireSearcher("pin-r1");
+            try {
+                // Force-merge to a single segment so R_post-merge has DIFFERENT segments than R1. R1's
+                // reservation entries are now unique to R1 — closing R1 frees real bytes.
+                indexEngine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                searchTaskQueue.runAllRunnableTasks();
+                notifyCommits(indexEngine, searchEngine);
+                searchTaskQueue.runAllRunnableTasks();
+                long postMergeBytes = trackingBreaker.getUsed();
+                assertThat("post-merge reader must hold its own reservation in addition to R1's", postMergeBytes, greaterThan(r1Bytes));
+
+                // Tighten the limit so the next refresh's delta trips the breaker.
+                trackingBreaker.setLimit(1L);
+                long preDeferGen = searchEngine.getCurrentPrimaryTermAndGeneration().generation();
+                indexEngine.index(randomDoc("d3"));
+                indexEngine.flush();
+                notifyCommits(indexEngine, searchEngine);
+                searchTaskQueue.runAllRunnableTasks();
+
+                assertThat("N3 must defer under the tight limit", searchEngine.getRefreshDeferredCount(), greaterThanOrEqualTo(1L));
+                assertThat("no immediate retry has fired yet", searchEngine.getRefreshImmediateRetryCount(), equalTo(0L));
+                assertThat(
+                    "reader must still be pinned at the post-merge generation while N3 is deferred",
+                    searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                    equalTo(preDeferGen)
+                );
+
+                // Lift the limit. Closing the searcher releases R1's now-unique reservation, which must fire the
+                // event-driven retry. The deferred N3 should advance the reader without advancing the test clock.
+                trackingBreaker.setLimit(Long.MAX_VALUE);
+                pinnedR1.close();
+                pinnedR1 = null;
+                searchTaskQueue.runAllRunnableTasks();
+
+                assertThat(
+                    "close-listener-driven retry must have re-injected the deferred notification",
+                    searchEngine.getRefreshImmediateRetryCount(),
+                    greaterThanOrEqualTo(1L)
+                );
+                assertThat(
+                    "reader must now have advanced past the deferred generation without waiting for the timer",
+                    searchEngine.getCurrentPrimaryTermAndGeneration().generation(),
+                    greaterThan(preDeferGen)
+                );
+            } finally {
+                if (pinnedR1 != null) {
+                    pinnedR1.close();
+                }
+            }
         }
 
         assertThat("reservation drains to zero after engine close", trackingBreaker.getUsed(), equalTo(0L));

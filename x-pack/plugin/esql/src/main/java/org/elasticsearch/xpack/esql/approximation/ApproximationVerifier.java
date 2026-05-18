@@ -261,10 +261,6 @@ public class ApproximationVerifier {
         }
     }
 
-    static QueryProperties verifyPlanOrThrow(LogicalPlan logicalPlan) {
-        return verifyPlanOrThrow(logicalPlan, TransportVersion.current());
-    }
-
     static QueryProperties verifyPlanOrThrow(LogicalPlan logicalPlan, TransportVersion minimumVersion) {
         // The plan must contain a STATS command.
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {

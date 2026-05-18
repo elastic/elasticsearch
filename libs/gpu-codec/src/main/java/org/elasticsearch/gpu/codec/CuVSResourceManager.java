@@ -50,8 +50,22 @@ public interface CuVSResourceManager {
      * effect on GPU memory and compute usage to determine whether to give out
      * another resource or wait for a resources to be returned before giving out another.
      */
-    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
+    ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams, String reason)
         throws InterruptedException, IOException;
+
+    /**
+     * Tries to acquire a resource from the manager.
+     *
+     * <p> Non-blocking variant of {@link #acquire}. Returns a locked resource immediately if
+     * one is available and there is sufficient GPU memory, or {@code null} if the GPU is busy.
+     */
+    ManagedCuVSResources tryAcquire(
+        int numVectors,
+        int dims,
+        CuVSMatrix.DataType dataType,
+        CagraIndexParams cagraIndexParams,
+        String reason
+    ) throws IOException;
 
     /** Marks the resources as finished with regard to compute. */
     void finishedComputation(ManagedCuVSResources resources);
@@ -148,23 +162,65 @@ public interface CuVSResourceManager {
         }
 
         @Override
-        public ManagedCuVSResources acquire(int numVectors, int dims, CuVSMatrix.DataType dataType, CagraIndexParams cagraIndexParams)
-            throws InterruptedException, IOException {
+        public ManagedCuVSResources acquire(
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            CagraIndexParams cagraIndexParams,
+            String reason
+        ) throws InterruptedException, IOException {
+            return doAcquire(numVectors, dims, dataType, cagraIndexParams, false, reason);
+        }
+
+        @Override
+        public ManagedCuVSResources tryAcquire(
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            CagraIndexParams cagraIndexParams,
+            String reason
+        ) throws IOException {
             try {
-                var started = System.nanoTime();
-                lock.lock();
+                return doAcquire(numVectors, dims, dataType, cagraIndexParams, true, reason);
+            } catch (InterruptedException e) {
+                throw new AssertionError("non-blocking acquire should never block", e);
+            }
+        }
 
-                boolean allConditionsMet = false;
-                ManagedCuVSResources res = null;
-
+        /**
+         * Shared implementation for {@link #acquire} and {@link #tryAcquire}.
+         *
+         * @param nonBlocking if {@code true}, returns {@code null} instead of waiting when no
+         *                    resource or memory is available (tryAcquire semantics); if {@code false},
+         *                    blocks until a resource becomes available (acquire semantics).
+         */
+        private ManagedCuVSResources doAcquire(
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            CagraIndexParams cagraIndexParams,
+            boolean nonBlocking,
+            String reason
+        ) throws InterruptedException, IOException {
+            var started = System.nanoTime();
+            lock.lock();
+            try {
                 long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType, cagraIndexParams);
                 logger.debug(
-                    "Estimated memory for [{}] vectors, [{}] dims of type [{}] is [{} B]",
+                    "Try acquiring resource for [{}] (nonBlocking=[{}]): [{}] vectors, [{}] dims, type [{}], "
+                        + "estimated [{}] B, pool state: [{}] created, [{}] locked",
+                    reason,
+                    nonBlocking,
                     numVectors,
                     dims,
                     dataType.name(),
-                    requiredMemoryInBytes
+                    requiredMemoryInBytes,
+                    createdCount,
+                    numLockedResources()
                 );
+
+                boolean allConditionsMet = false;
+                ManagedCuVSResources res = null;
 
                 while (allConditionsMet == false) {
                     res = getResourceFromPool();
@@ -173,6 +229,17 @@ public interface CuVSResourceManager {
                     if (res != null) {
                         // Check immutable constraints
                         long totalMemoryInBytes = gpuMemoryService.totalMemoryInBytes(res);
+                        long availableMemoryInBytes = gpuMemoryService.availableMemoryInBytes(res);
+                        enoughMemory = requiredMemoryInBytes <= availableMemoryInBytes;
+                        logger.debug(
+                            "Memory check: available [{}] B / total [{}] B, required [{}] B, enoughMemory [{}], locked [{}]",
+                            availableMemoryInBytes,
+                            totalMemoryInBytes,
+                            requiredMemoryInBytes,
+                            enoughMemory,
+                            numLockedResources()
+                        );
+
                         if (requiredMemoryInBytes > totalMemoryInBytes) {
                             String message = Strings.format(
                                 "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
@@ -184,31 +251,41 @@ public interface CuVSResourceManager {
                             throw new IllegalArgumentException(message);
                         }
 
-                        // If no resource in the pool is locked, short circuit to avoid livelock
-                        if (numLockedResources() == 0) {
-                            logger.debug("No resources currently locked, proceeding");
+                        // If no resource in the pool is locked, we must proceed to avoid livelock
+                        if (enoughMemory == false && numLockedResources() == 0) {
+                            logger.warn(
+                                "Insufficient GPU memory ([{}] B available, [{}] B required) "
+                                    + "but no locked resources to wait on; proceeding to avoid livelock",
+                                availableMemoryInBytes,
+                                requiredMemoryInBytes
+                            );
                             break;
                         }
-
-                        // Check resources availability
-                        long availableMemoryInBytes = gpuMemoryService.availableMemoryInBytes(res);
-                        enoughMemory = requiredMemoryInBytes <= availableMemoryInBytes;
-                        logger.debug("Free device memory [{} B], enoughMemory[{}]", availableMemoryInBytes, enoughMemory);
                     } else {
-                        if (createdCount == 0) {
+                        if (nonBlocking == false && createdCount == 0) {
                             throw new IOException("No GPU resources available and unable to create new ones");
                         }
                         logger.debug("No resources available in pool");
                         enoughMemory = false;
                     }
-                    // TODO: add enoughComputation / enoughComputationCondition here
-                    allConditionsMet = enoughMemory; // && enoughComputation
+
+                    allConditionsMet = enoughMemory;
                     if (allConditionsMet == false) {
+                        if (nonBlocking) {
+                            return null;
+                        }
+                        logger.debug("Waiting for GPU resources for [{}]", reason);
                         enoughResourcesCondition.await();
                     }
                 }
-                var elapsed = started - System.nanoTime();
-                logger.debug("Resource acquired in [{}ms]", elapsed / 1_000_000.0);
+                var elapsed = System.nanoTime() - started;
+                logger.debug(
+                    "Resource acquired for [{}] in [{}] ms, reserving [{}] B, locked after acquire [{}]",
+                    reason,
+                    elapsed / 1_000_000.0,
+                    requiredMemoryInBytes,
+                    numLockedResources() + 1
+                );
                 gpuMemoryService.reserveMemory(requiredMemoryInBytes);
                 res.lock(() -> gpuMemoryService.releaseMemory(requiredMemoryInBytes));
                 return res;

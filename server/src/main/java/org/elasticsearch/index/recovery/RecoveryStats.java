@@ -121,7 +121,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         builder.startObject(Fields.RECOVERY);
         builder.field(Fields.CURRENT_AS_SOURCE, currentAsSource());
         builder.field(Fields.CURRENT_AS_TARGET, currentAsTarget());
-        builder.field(Fields.CURRENT_AS_QUEUED_SOURCE, currentAsSourceQueued());
+        builder.field(Fields.CURRENT_AS_SOURCE_QUEUED, currentAsSourceQueued());
         builder.humanReadableField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
         return builder;
@@ -130,8 +130,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     static final class Fields {
         static final String RECOVERY = "recovery";
         static final String CURRENT_AS_SOURCE = "current_as_source";
+        static final String CURRENT_AS_SOURCE_QUEUED = "current_as_source_queued";
         static final String CURRENT_AS_TARGET = "current_as_target";
-        static final String CURRENT_AS_QUEUED_SOURCE = "current_as_queued_source";
         static final String THROTTLE_TIME = "throttle_time";
         static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
     }

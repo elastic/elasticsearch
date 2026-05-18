@@ -228,7 +228,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     // TODO: add actual OTel metrics for how many recoveries are queued vs ongoing. RecoveryStats is only exposed via REST calls.
     final class OngoingRecoveries {
 
-        private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
+        private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
 
         private final Map<DiscoveryNode, Collection<RemoteRecoveryTargetHandler>> nodeToHandlers = new HashMap<>();
 
@@ -273,7 +273,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             assert lifecycle.started();
             assert activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries;
             activeRecoveryHandlersCount++;
-            final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
+            final ShardRecoveryContext shardContext = activeRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
             final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, task, shard);
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
             nodeToHandlers.computeIfAbsent(recoveryTargetHandler.targetNode(), k -> new HashSet<>()).add(recoveryTargetHandler);
@@ -312,7 +312,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             ActionListener<RecoveryResponse> listener
         ) {
             assert lifecycle.started();
-            final ShardRecoveryContext shardContext = ongoingRecoveries.get(shard);
+            final ShardRecoveryContext shardContext = activeRecoveries.get(shard);
             if (shardContext != null) {
                 shardContext.reestablishRecovery(request, listener);
                 return;
@@ -322,7 +322,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final Iterator<PendingRecovery> iterator = pendingRecoveries.iterator();
             while (iterator.hasNext()) {
                 final PendingRecovery pending = iterator.next();
-                if (pending.request().targetAllocationId().equals(request.targetAllocationId())) {
+                if (pending.request().recoveryId() == request.recoveryId()
+                    && pending.request().targetAllocationId().equals(request.targetAllocationId())) {
                     iterator.remove();
                     final var combined = new SubscribableListener<RecoveryResponse>();
                     combined.addListener(pending.listener());
@@ -386,7 +387,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         }
 
         synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
-            final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);
+            final ShardRecoveryContext shardRecoveryContext = activeRecoveries.get(shard);
             assert shardRecoveryContext != null : "Shard was not registered [" + shard + "]";
             final RemoteRecoveryTargetHandler removed = shardRecoveryContext.recoveryHandlers.remove(handler);
             assert removed != null : "Handler was not registered [" + handler + "]";
@@ -405,9 +406,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 });
             }
             if (shardRecoveryContext.recoveryHandlers.isEmpty()) {
-                ongoingRecoveries.remove(shard);
+                activeRecoveries.remove(shard);
             }
-            if (ongoingRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
+            if (activeRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
                 if (emptyListeners != null) {
                     final List<ActionListener<Void>> onEmptyListeners = emptyListeners;
                     emptyListeners = null;
@@ -419,7 +420,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         void cancel(IndexShard shard) {
             final List<PendingRecovery> cancelled;
             synchronized (this) {
-                final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);
+                final ShardRecoveryContext shardRecoveryContext = activeRecoveries.get(shard);
                 if (shardRecoveryContext != null) {
                     final List<Exception> failures = new ArrayList<>();
                     for (RecoverySourceHandler handlers : shardRecoveryContext.recoveryHandlers.keySet()) {
@@ -453,7 +454,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             assert lifecycle.stoppedOrClosed();
             final PlainActionFuture<Void> future;
             synchronized (this) {
-                if (ongoingRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
+                if (activeRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
                     return;
                 }
                 future = new PlainActionFuture<>();
@@ -474,7 +475,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     );
                 }
             }
-            for (ShardRecoveryContext ctx : ongoingRecoveries.values()) {
+            for (ShardRecoveryContext ctx : activeRecoveries.values()) {
                 for (RecoverySourceHandler h : ctx.recoveryHandlers.keySet()) {
                     if (h.getRequest().targetAllocationId().equals(targetAllocationId)) {
                         throw new DelayRecoveryException(
@@ -514,11 +515,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             /**
              * Adds recovery source handler.
              */
-            synchronized Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> addNewRecovery(
+            Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> addNewRecovery(
                 StartRecoveryRequest request,
                 Task task,
                 IndexShard shard
             ) {
+                assert Thread.holdsLock(OngoingRecoveries.this);
                 final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = createRecoverySourceHandler(
                     request,
                     task,
@@ -531,7 +533,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             /**
              * Adds recovery source handler.
              */
-            synchronized void reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+            void reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+                assert Thread.holdsLock(OngoingRecoveries.this);
                 RecoverySourceHandler handler = null;
                 for (RecoverySourceHandler existingHandler : recoveryHandlers.keySet()) {
                     if (existingHandler.getRequest().recoveryId() == request.recoveryId()

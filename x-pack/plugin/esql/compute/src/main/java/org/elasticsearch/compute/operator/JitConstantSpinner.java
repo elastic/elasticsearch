@@ -478,8 +478,9 @@ public final class JitConstantSpinner {
     }
 
     private static void emitCtors(ClassWriter cw, Class<?> base, String baseInternal) {
-        // Reproduce every public/protected base ctor with a chained super call.
-        for (var ctor : base.getDeclaredConstructors()) {
+        // Reproduce every public base ctor with a chained super call. The base classes
+        // we spin against are always codegen-emitted abstract evaluators with public ctors.
+        for (var ctor : base.getConstructors()) {
             int mods = ctor.getModifiers();
             if (java.lang.reflect.Modifier.isPrivate(mods)) continue;
             Class<?>[] paramTypes = ctor.getParameterTypes();

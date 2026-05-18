@@ -89,7 +89,7 @@ public class JitConstantSpinnerTests extends ESTestCase {
 
     public void testLongSubclassReturnsConstant() throws Exception {
         Class<? extends LongBase> klass = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 60L).orElseThrow();
-        LongBase inst = klass.getDeclaredConstructor().newInstance();
+        LongBase inst = klass.getConstructor().newInstance();
         assertEquals(60L, inst.divisor());
         assertEquals(7L, inst.applyMod(127L));
         assertEquals(2L, inst.applyDiv(127L));
@@ -97,14 +97,14 @@ public class JitConstantSpinnerTests extends ESTestCase {
 
     public void testIntSubclass() throws Exception {
         Class<? extends IntBase> klass = JitConstantSpinner.intConstantSubclass(IntBase.class, "n", 7).orElseThrow();
-        IntBase inst = klass.getDeclaredConstructor().newInstance();
+        IntBase inst = klass.getConstructor().newInstance();
         assertEquals(7, inst.n());
         assertEquals(21, inst.triple());
     }
 
     public void testDoubleSubclass() throws Exception {
         Class<? extends DoubleBase> klass = JitConstantSpinner.doubleConstantSubclass(DoubleBase.class, "scale", 0.5).orElseThrow();
-        DoubleBase inst = klass.getDeclaredConstructor().newInstance();
+        DoubleBase inst = klass.getConstructor().newInstance();
         assertEquals(0.5, inst.scale(), 0.0);
         assertEquals(3.0, inst.scaled(6.0), 0.0);
     }
@@ -113,7 +113,7 @@ public class JitConstantSpinnerTests extends ESTestCase {
         Pattern p = Pattern.compile("\\d+");
         Class<? extends PatternBase> klass = JitConstantSpinner.referenceConstantSubclass(PatternBase.class, "pat", Pattern.class, p)
             .orElseThrow();
-        PatternBase inst = klass.getDeclaredConstructor().newInstance();
+        PatternBase inst = klass.getConstructor().newInstance();
         assertSame(p, inst.pat());
         assertTrue(inst.matches("123"));
         assertFalse(inst.matches("abc"));
@@ -121,7 +121,7 @@ public class JitConstantSpinnerTests extends ESTestCase {
 
     public void testCtorWithArgsIsReproduced() throws Exception {
         Class<? extends TwoCtorBase> klass = JitConstantSpinner.longConstantSubclass(TwoCtorBase.class, "value", 99L).orElseThrow();
-        TwoCtorBase inst = klass.getDeclaredConstructor(String.class, long.class).newInstance("hello", 42L);
+        TwoCtorBase inst = klass.getConstructor(String.class, long.class).newInstance("hello", 42L);
         assertEquals("hello", inst.tag);
         assertEquals(42L, inst.extra);
         assertEquals(99L, inst.value());
@@ -216,7 +216,7 @@ public class JitConstantSpinnerTests extends ESTestCase {
     public void testEvaluatorInstancePinsClassThroughWeakRef() throws Exception {
         JitConstantSpinner.setAdmissionThreshold(1);  // skip admission for this test
         Class<? extends LongBase> klass = JitConstantSpinner.longConstantSubclass(LongBase.class, "divisor", 99L).orElseThrow();
-        LongBase instance = klass.getDeclaredConstructor().newInstance();
+        LongBase instance = klass.getConstructor().newInstance();
 
         // GC should NOT reclaim the class while the instance is alive
         System.gc();

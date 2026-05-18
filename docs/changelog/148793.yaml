@@ -1,0 +1,6 @@
+area: Inference
+issues: []
+pr: 148793
+summary: "[Inference API] Use image/jpeg instead of image/jpg for inference validation\
+  \ MIME type"
+type: bug

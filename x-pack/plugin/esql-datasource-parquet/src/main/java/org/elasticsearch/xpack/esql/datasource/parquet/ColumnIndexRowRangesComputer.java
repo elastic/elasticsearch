@@ -13,6 +13,8 @@ import org.apache.parquet.filter2.predicate.UserDefinedPredicate;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.UninitializedArrays;
 
 import java.nio.ByteBuffer;
@@ -200,6 +202,19 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
             return all();
         }
 
+        // Resolve the file-level primitive type from the captured MessageType so decodeValue can
+        // pick the right reader (FLOAT vs DOUBLE) and reject non-native DOUBLE backings (DECIMAL,
+        // Float16) instead of misreading the raw bytes. Uses the same containsField + getType
+        // idiom as ParquetPushedExpressions#buildDatetimePredicate, which is correct for ESQL's
+        // current flat-column pushdown surface (all leaf columns are top-level). When the column
+        // is absent (e.g. legacy metadata built without a schema, or a path not in the file), we
+        // fall back to keeping all rows so FilterExec rechecks per-row.
+        MessageType schema = metadata.schema();
+        if (schema.containsField(columnPath) == false) {
+            return all();
+        }
+        PrimitiveType primitive = schema.getType(columnPath).asPrimitiveType();
+
         int pageCount = oi.getPageCount();
         List<ByteBuffer> minValues = ci.getMinValues();
         List<ByteBuffer> maxValues = ci.getMaxValues();
@@ -215,8 +230,8 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
                 continue;
             }
 
-            T min = decodeValue(minValues.get(p), column);
-            T max = decodeValue(maxValues.get(p), column);
+            T min = decodeValue(minValues.get(p), column, primitive);
+            T max = decodeValue(maxValues.get(p), column, primitive);
             if (min == null || max == null) {
                 long pageStart = oi.getFirstRowIndex(p);
                 long pageEnd = (p + 1 < pageCount) ? oi.getFirstRowIndex(p + 1) : rowGroupRowCount;
@@ -238,7 +253,7 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Comparable<T>> T decodeValue(ByteBuffer buf, Operators.Column<T> column) {
+    private static <T extends Comparable<T>> T decodeValue(ByteBuffer buf, Operators.Column<T> column, PrimitiveType primitive) {
         if (buf == null || buf.remaining() == 0) {
             return null;
         }
@@ -249,12 +264,30 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
         } else if (type == Long.class) {
             return (T) Long.valueOf(ordered.getLong());
         } else if (type == Double.class) {
-            // Buffer length distinguishes physical FLOAT (4 bytes) from DOUBLE (8 bytes);
-            // parquet-mr's Column API only exposes Double.class for both floatColumn and doubleColumn.
-            if (ordered.remaining() == Float.BYTES) {
-                return (T) Double.valueOf(ordered.getFloat());
-            }
-            return (T) Double.valueOf(ordered.getDouble());
+            // parquet-mr's Column API exposes Double.class for both floatColumn and doubleColumn,
+            // so the predicate's column type alone is ambiguous. The file-level schema is the
+            // authoritative source of the physical primitive — read the bytes accordingly and
+            // reject anything else conservatively (returning null routes the page through the
+            // `min == null || max == null` branch in evaluateLeaf, keeping the page so FilterExec
+            // applies the predicate per row).
+            //
+            // NaN min/max are also unusable for page-level pruning: the parquet-format spec treats
+            // NaN as a "no usable bound" sentinel, and Java's Comparable orders NaN above every
+            // finite value, which both prunes real-data pages (e.g. Lt: Double.compare(NaN, V) < 0
+            // is false) and relies on accidental correctness in other shapes.
+            return switch (primitive.getPrimitiveTypeName()) {
+                case FLOAT -> {
+                    float f = ordered.getFloat();
+                    yield Float.isNaN(f) ? null : (T) Double.valueOf(f);
+                }
+                case DOUBLE -> {
+                    double d = ordered.getDouble();
+                    yield Double.isNaN(d) ? null : (T) Double.valueOf(d);
+                }
+                // INT32/INT64/FIXED_LEN_BYTE_ARRAY/BINARY mapped to ESQL DOUBLE (DECIMAL, Float16):
+                // the raw bytes are not a comparable Double, so suppress page-level pruning.
+                case INT32, INT64, FIXED_LEN_BYTE_ARRAY, BINARY, INT96, BOOLEAN -> null;
+            };
         } else if (type == Boolean.class) {
             return (T) Boolean.valueOf(ordered.get() != 0);
         } else if (type == Binary.class) {
@@ -264,4 +297,5 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
         }
         return null;
     }
+
 }

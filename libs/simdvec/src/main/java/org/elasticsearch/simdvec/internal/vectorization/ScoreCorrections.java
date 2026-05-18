@@ -16,7 +16,7 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 
-class ScoreCorrections {
+public class ScoreCorrections {
     static final VectorSimilarityFunctions SIMILARITY_FUNCTIONS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
@@ -25,7 +25,7 @@ class ScoreCorrections {
     static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsMaxInnerProductBulk();
     static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_BULK = SIMILARITY_FUNCTIONS.applyCorrectionsDotProductBulk();
 
-    static float nativeApplyCorrectionsBulk(
+    public static float nativeApplyCorrectionsBulk(
         VectorSimilarityFunction similarityFunction,
         MemorySegment corrections,
         int bulkSize,

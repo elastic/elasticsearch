@@ -15,6 +15,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
+import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.logging.LogManager;
@@ -63,23 +64,35 @@ final class PreloadedRowGroupMetadata {
      */
     private final NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks;
 
-    PreloadedRowGroupMetadata(Map<String, ColumnIndex> columnIndexes, Map<String, OffsetIndex> offsetIndexes) {
-        this(columnIndexes, offsetIndexes, new TreeMap<>());
+    /**
+     * File-level Parquet schema, captured at preload time. Consumers that need to disambiguate
+     * the physical primitive type behind a column (e.g. FLOAT vs DOUBLE, or DECIMAL-encoded
+     * columns mapped to ESQL DOUBLE) look it up here rather than from a separate per-call
+     * parameter. Always non-null; {@link #empty()} uses a fields-free placeholder.
+     */
+    private final MessageType schema;
+
+    private static final MessageType EMPTY_SCHEMA = new MessageType("empty");
+
+    PreloadedRowGroupMetadata(Map<String, ColumnIndex> columnIndexes, Map<String, OffsetIndex> offsetIndexes, MessageType schema) {
+        this(columnIndexes, offsetIndexes, new TreeMap<>(), schema);
     }
 
     PreloadedRowGroupMetadata(
         Map<String, ColumnIndex> columnIndexes,
         Map<String, OffsetIndex> offsetIndexes,
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
+        MessageType schema
     ) {
         this.columnIndexes = Map.copyOf(columnIndexes);
         this.offsetIndexes = Map.copyOf(offsetIndexes);
         // Defensive copy: the caller's map is no longer referenced after construction.
         this.preWarmedChunks = preWarmedChunks.isEmpty() ? new TreeMap<>() : new TreeMap<>(preWarmedChunks);
+        this.schema = schema;
     }
 
     static PreloadedRowGroupMetadata empty() {
-        return new PreloadedRowGroupMetadata(Map.of(), Map.of());
+        return new PreloadedRowGroupMetadata(Map.of(), Map.of(), EMPTY_SCHEMA);
     }
 
     /**
@@ -243,7 +256,7 @@ final class PreloadedRowGroupMetadata {
             }
         }
 
-        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, preWarmedChunks);
+        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, preWarmedChunks, reader.getFileMetaData().getSchema());
     }
 
     private enum RangeKind {
@@ -353,7 +366,15 @@ final class PreloadedRowGroupMetadata {
             }
         }
 
-        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes);
+        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, reader.getFileMetaData().getSchema());
+    }
+
+    /**
+     * Returns the file-level Parquet schema captured at preload time. Never null; for empty
+     * metadata (no row groups, or {@link #empty()}) this is a fields-free {@link MessageType}.
+     */
+    MessageType schema() {
+        return schema;
     }
 
     ColumnIndex getColumnIndex(int rowGroupOrdinal, String columnPath) {

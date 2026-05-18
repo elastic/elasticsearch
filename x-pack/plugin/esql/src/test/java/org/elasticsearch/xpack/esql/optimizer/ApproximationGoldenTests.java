@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.ArrayList;
@@ -97,8 +98,20 @@ public class ApproximationGoldenTests extends GoldenTestCase {
               | EVAL language_code = sv % 4 + 1
               | LOOKUP JOIN languages_lookup ON language_code
               | EVAL length = LENGTH(language_name)
-              | STATS AVG(length)
-            """, STAGES, TransportVersion.fromName("esql_approximation_lookup_join"));
+              | STATS MEDIAN(length)
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_approximation_lookup_join")));
+    }
+
+    public void testLookupJoin_withOldDataNode() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
+        runGoldenTest("""
+            SET approximation=true;
+            FROM many_numbers
+              | EVAL language_code = sv % 4 + 1
+              | LOOKUP JOIN languages_lookup ON language_code
+              | EVAL length = LENGTH(language_name)
+              | STATS MEDIAN(length)
+            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("esql_approximation_lookup_join")));
     }
 
     public void testFork() {

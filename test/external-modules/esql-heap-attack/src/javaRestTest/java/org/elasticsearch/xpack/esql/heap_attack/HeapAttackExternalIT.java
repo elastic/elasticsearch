@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
  * request breaker did not intervene.
  * <p>
  * The cluster keeps the standard 512&nbsp;MB heap and 60% request-breaker limit from
- * {@link Clusters#buildExternalCluster}. Payload sizes are auto-tuned per-run from the
+ * {@link ExternalClusters#buildExternalCluster}. Payload sizes are auto-tuned per-run from the
  * cluster's actual {@code jvm.mem.heap_max_in_bytes} (see {@link #ensureHeapBudgetDiscovered()}),
  * so the suite stays meaningful if someone later changes the heap setting. Each scenario must
  * trip the request circuit breaker via {@link #assertCircuitBreaks} or
@@ -56,7 +56,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
 
     private static final DataSourcesS3HttpFixture S3_FIXTURE = new DataSourcesS3HttpFixture();
 
-    private static final ElasticsearchCluster CLUSTER = Clusters.buildExternalCluster(S3_FIXTURE::getAddress);
+    private static final ElasticsearchCluster CLUSTER = ExternalClusters.buildExternalCluster(S3_FIXTURE::getAddress);
 
     @ClassRule
     public static final TestRule RULE_CHAIN = RuleChain.outerRule(S3_FIXTURE).around(CLUSTER);

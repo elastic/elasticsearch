@@ -208,14 +208,10 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
         stage.decode(values, valueCount, context);
     }
 
-    // NOTE: Direction changes are committed lazily. A candidate flip at position p is
-    // recorded as pending and resolved on the next non-zero direction:
-    // - reverts to the previous primary direction -> boundary jump (single split at p,
-    // primary direction unchanged; the anomaly value at p belongs to the next sub-run).
-    // - sustains the new direction -> true reversal (split at p, primary direction
-    // becomes the new one).
-    // This makes the classic TSDB pattern [desc, desc, ..., UP, desc, desc, ...] resolve
-    // to a single split rather than two adjacent splits with a length-1 middle sub-run.
+    // NOTE: Direction changes are committed lazily so the canonical TSDB pattern
+    // [desc, ..., UP, desc, ...] resolves to one split (the UP value joins the next
+    // sub-run) instead of two splits around a length-1 middle sub-run. Without this,
+    // every _tsid boundary would double its per-block metadata and trip hasShortSubRun.
     private int countFlips(final long[] values, final int valueCount) {
         int k = 0;
         int prev = 0;

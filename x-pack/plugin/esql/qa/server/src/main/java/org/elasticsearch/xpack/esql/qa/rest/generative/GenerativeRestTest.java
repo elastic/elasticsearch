@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
+import org.elasticsearch.xpack.esql.generator.AllowedGeneratorFailureException;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
@@ -336,7 +337,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 );
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
-                if (isAllowedError(e.getMessage()) == false) {
+                if (e instanceof AllowedGeneratorFailureException == false && isAllowedError(e.getMessage()) == false) {
                     StringBuilder message = new StringBuilder();
                     message.append("Generative tests, error generating new command \n");
                     message.append("Previous query: \n");
@@ -1048,6 +1049,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    @Override
+    public boolean isAllowedFailure(
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (result.exception() == null) {
+            return false;
+        }
+        return isAllowedFailure(new FailureContext(result.exception().getMessage(), result.query(), previousCommands, currentSchema));
     }
 
     @Override

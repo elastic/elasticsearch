@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.generator;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
@@ -17,9 +19,11 @@ import java.util.List;
 /**
  * Builds a parenthesized subquery suitable for embedding in another query, e.g. {@code (FROM idx)}.
  * Each command is run incrementally against the cluster; the pipeline stops appending once a result has an empty schema,
- * but the empty-schema subquery is still returned. Inner exceptions propagate.
+ * but the empty-schema subquery is still returned. Inner exceptions propagate unless the executor considers them allowed.
  */
 public final class SubqueryGenerator {
+
+    private static final Logger logger = LogManager.getLogger(SubqueryGenerator.class);
 
     private static final int INNER_PIPE_DEPTH = 5;
 
@@ -28,7 +32,11 @@ public final class SubqueryGenerator {
     public record SubqueryResult(String queryText, List<Column> outputSchema) {}
 
     /**
-     * Returns a parenthesized subquery and its output schema. Inner exceptions are rethrown.
+     * Returns a parenthesized subquery and its output schema.
+     * Throws {@link AllowedGeneratorFailureException} if the inner pipeline failed with an allowed/known error
+     * (as judged by {@link QueryExecutor#isAllowedFailure}), so callers can detect and propagate the
+     * allowed-failure signal rather than silently swallowing it.
+     * Unexpected inner exceptions are rethrown as-is.
      */
     public static SubqueryResult build(GenerationContext outerContext, CommandGenerator.QuerySchema schema, QueryExecutor queryExecutor) {
         GenerationContext innerContext = outerContext.withSubqueryDepth(outerContext.subqueryDepth() + 1);
@@ -38,6 +46,10 @@ public final class SubqueryGenerator {
 
         QueryExecuted last = inner.lastResult;
         if (last.exception() != null) {
+            logger.warn("Subquery generation failed for inner query [{}]", last.query());
+            if (queryExecutor.isAllowedFailure(last, inner.previousCommands(), inner.currentSchema())) {
+                throw new AllowedGeneratorFailureException(last.exception());
+            }
             throw ExceptionsHelper.convertToRuntime(last.exception());
         }
         return new SubqueryResult("(" + last.query() + ")", last.outputSchema());

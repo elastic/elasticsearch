@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -34,6 +35,11 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
      * issues: applying the corrections in even a slightly different order can impact the score.
      */
     protected static final float BULK_DELTA = 2e-5f;
+
+    @BeforeClass
+    public static void checkWindows() {
+        assumeFalse("Windows is not supported", Constants.WINDOWS);
+    }
 
     @BeforeClass
     public static void getVectorScorerFactory() {

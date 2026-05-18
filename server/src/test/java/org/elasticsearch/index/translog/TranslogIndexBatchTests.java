@@ -119,17 +119,12 @@ public class TranslogIndexBatchTests extends ESTestCase {
         for (int i = 0; i < docs.size(); i++) {
             metas.add(
                 new Translog.IndexBatch.DocMeta(
-                    Uid.encodeId("doc-" + i),
-                    firstSeqNo + i,
-                    term,
-                    1L,
-                    i % 2 == 0 ? null : "route-" + i,
-                    100L + i,
-                    i
+                    1L, firstSeqNo + i, 100L + i, i, xContentType, Uid.encodeId("doc-" + i),
+                    i % 2 == 0 ? null : "route-" + i
                 )
             );
         }
-        return new Translog.IndexBatch(batchData, xContentType, metas);
+        return new Translog.IndexBatch(batchData, term, metas);
     }
 
     public void testWireFormatRoundTrip() throws IOException {
@@ -149,10 +144,10 @@ public class TranslogIndexBatchTests extends ESTestCase {
             batchData = new BytesArray(eirf.data().toBytesRef(), true);
         }
         final List<Translog.IndexBatch.DocMeta> metas = List.of(
-            new Translog.IndexBatch.DocMeta(Uid.encodeId("doc-0"), 5L, primaryTerm.get(), 1L, null, 100L, 0),
-            new Translog.IndexBatch.DocMeta(Uid.encodeId("doc-1"), 6L, primaryTerm.get(), 1L, "route", 101L, 1)
+            new Translog.IndexBatch.DocMeta(1L, 5L, 100L, 0, xContentType, Uid.encodeId("doc-0"), null),
+            new Translog.IndexBatch.DocMeta(1L, 6L, 101L, 1, xContentType, Uid.encodeId("doc-1"), "route")
         );
-        final Translog.IndexBatch batch = new Translog.IndexBatch(batchData, xContentType, metas);
+        final Translog.IndexBatch batch = new Translog.IndexBatch(batchData, primaryTerm.get(), metas);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             batch.writeTo(out);
@@ -161,7 +156,8 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 assertEquals(Translog.Operation.Type.BATCH.id(), typeByte);
                 final Translog.IndexBatch read = Translog.IndexBatch.readFrom(in);
                 assertEquals(batch, read);
-                assertEquals(xContentType, read.xContentType());
+                assertEquals(xContentType, read.docMetas().get(0).xContentType());
+                assertEquals(xContentType, read.docMetas().get(1).xContentType());
             }
         }
     }

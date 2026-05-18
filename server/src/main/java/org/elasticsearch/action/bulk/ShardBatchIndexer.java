@@ -142,7 +142,6 @@ public final class ShardBatchIndexer {
             final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(
                 operations,
                 batch.data(),
-                XContentType.JSON,
                 rowIndices
             );
 
@@ -237,7 +236,6 @@ public final class ShardBatchIndexer {
                 final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(
                     operations,
                     batch.data(),
-                    XContentType.JSON,
                     rowIndices
                 );
                 for (Engine.IndexResult result : results) {

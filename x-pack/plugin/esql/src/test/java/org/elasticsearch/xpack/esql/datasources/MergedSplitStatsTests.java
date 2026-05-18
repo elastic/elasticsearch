@@ -68,10 +68,59 @@ public class MergedSplitStatsTests extends ESTestCase {
         assertEquals(-1, merged.columnNullCount("age"));
     }
 
-    public void testColumnNullCountReturnsMinusOneForMissingColumn() {
+    public void testColumnNullCountReturnsRowCountForMissingColumn() {
+        // Under the SPI's "implicit nulls" contract, a column absent from a child
+        // contributes that child's full row count as implicit nulls (not -1).
         SplitStats a = splitStatsWithColumn("age", 5L, 10, 90, 400);
         MergedSplitStats merged = new MergedSplitStats(List.of(a));
-        assertEquals(-1, merged.columnNullCount("name"));
+        assertEquals("absent column contributes rowCount, not -1", a.rowCount(), merged.columnNullCount("name"));
+    }
+
+    public void testColumnNullCountWithAbsentChildrenSumsCorrectly() {
+        // Child A: 100 rows, has bonus with 5 explicit nulls.
+        // Child B: 200 rows, no bonus column at all -> contributes 200 implicit nulls.
+        // Sum: 5 + 200 = 205.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 5L, 10, 90, 400);
+        SplitStats b = splitStatsRowCountWithColumn(200, "age", 0L, 1, 2, 100);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertEquals(205L, merged.columnNullCount("bonus"));
+    }
+
+    public void testColumnMinSkipsChildrenWithoutColumnValue() {
+        // Child A: has bonus, min=10. Child B: no bonus. Child C: has bonus, min=20.
+        // Skip B rather than poison; result is 10.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats b = splitStatsRowCountWithColumn(50, "age", 0L, 1, 2, 100);
+        SplitStats c = splitStatsRowCountWithColumn(100, "bonus", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals(10, merged.columnMin("bonus"));
+        assertEquals(90, merged.columnMax("bonus"));
+    }
+
+    public void testColumnMinSkipsAllNullChildren() {
+        // Child A: has bonus, min=10 (some rows non-null). Child B: has bonus but every row is null.
+        // Child C: has bonus, min=20. B contributes no candidate value and must be skipped.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 5L, 10, 90, 400);
+        // B has bonus column but nullCount == rowCount (all rows null) and no min/max stat.
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("bonus", 50L, null, null, 200);
+        SplitStats b = bb.build();
+        SplitStats c = splitStatsRowCountWithColumn(100, "bonus", 0L, 20, 80, 400);
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b, c));
+        assertEquals(10, merged.columnMin("bonus"));
+        assertEquals(90, merged.columnMax("bonus"));
+    }
+
+    public void testColumnMinPoisonedByPresentButStatlessChild() {
+        // Child A: has bonus with full stats. Child B: column physically present (column added)
+        // but null count is unknown (-1). Defensive: poison rather than fabricate.
+        SplitStats a = splitStatsRowCountWithColumn(100, "bonus", 0L, 10, 90, 400);
+        SplitStats.Builder bb = new SplitStats.Builder().rowCount(50);
+        bb.addColumn("bonus", -1L, null, null, 200);
+        SplitStats b = bb.build();
+        MergedSplitStats merged = new MergedSplitStats(List.of(a, b));
+        assertNull("present-but-statless child must poison the min", merged.columnMin("bonus"));
+        assertNull("present-but-statless child must poison the max", merged.columnMax("bonus"));
     }
 
     // -- columnMin --
@@ -181,6 +230,12 @@ public class MergedSplitStatsTests extends ESTestCase {
 
     private static SplitStats splitStatsWithColumn(String name, long nullCount, int min, int max, long sizeBytes) {
         SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        b.addColumn(name, nullCount, min, max, sizeBytes);
+        return b.build();
+    }
+
+    private static SplitStats splitStatsRowCountWithColumn(long rowCount, String name, long nullCount, int min, int max, long sizeBytes) {
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(rowCount);
         b.addColumn(name, nullCount, min, max, sizeBytes);
         return b.build();
     }

@@ -176,6 +176,30 @@ public class SplitStatsTests extends ESTestCase {
         assertFalse(map.containsKey(SourceStatisticsSerializer.columnSizeBytesKey("x")));
     }
 
+    public void testColumnNullCountReturnsRowCountWhenColumnAbsent() {
+        // Per-file SplitStats with no "bonus" column at all. Under the SPI's "implicit nulls"
+        // contract, every row of this file counts as a null for "bonus".
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        b.addColumn("age", 5L, 18, 65, 400);
+        SplitStats stats = b.build();
+
+        assertEquals("absent column should return rowCount as implicit nulls", 100L, stats.columnNullCount("bonus"));
+        assertNull(stats.columnMin("bonus"));
+        assertNull(stats.columnMax("bonus"));
+        assertEquals(-1L, stats.columnSizeBytes("bonus"));
+    }
+
+    public void testColumnNullCountReturnsMinusOneWhenColumnPresentButStatless() {
+        // Defensive: a column physically present but with an unknown null count must keep
+        // returning -1 (callers bail out rather than fabricate). This mirrors the rare
+        // Parquet path where stats were not written.
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(100);
+        b.addColumn("bonus");
+        SplitStats stats = b.build();
+
+        assertEquals("present-but-statless column must keep -1 sentinel", -1L, stats.columnNullCount("bonus"));
+    }
+
     public void testFindColumn() {
         SplitStats.Builder b = new SplitStats.Builder().rowCount(50);
         b.addColumn("a.b.c", 0L, null, null, -1);

@@ -39,8 +39,16 @@ public interface SplitStats {
     }
 
     /**
-     * Number of null values in the named column, or {@code -1} if unknown or the
-     * column is not present in this split's statistics.
+     * Number of null values in the named column under the "implicit nulls" contract:
+     * a column that is physically absent from this split contributes {@code rowCount()}
+     * implicit nulls (every row would deserialize as {@code null}). Returns {@code -1}
+     * only when the column is physically present in the split but the reader could not
+     * extract a null count (the rare Parquet present-but-statless case; ORC always emits one).
+     * <p>
+     * This contract makes {@code Count(col) = rowCount - columnNullCount} correct for
+     * UNION_BY_NAME pushdown across files where some files lack the column, and lets
+     * {@code IS NULL}/{@code IS NOT NULL} classifiers treat absent-column splits as
+     * unconditionally null without needing a separate "column present?" probe.
      */
     long columnNullCount(String name);
 

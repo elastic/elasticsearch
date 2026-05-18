@@ -260,12 +260,17 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(result, AggregateExec.class);
     }
 
-    public void testCountFieldWithoutNullCountNotPushed() {
+    public void testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount() {
+        // The merged metadata map carries a row count but no _stats.columns.age.* entries.
+        // Under the SplitStats SPI's "implicit nulls" contract, the column is treated as
+        // absent from this scope, so columnNullCount("age") == rowCount and COUNT(age) == 0.
+        // The rule pushes down a LocalSourceExec with value 0 rather than bailing out.
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
         var agg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), countFieldAlias(AGE));
 
-        as(applyRule(agg), AggregateExec.class);
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(0L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
     public void testMinWithoutColumnStatsNotPushed() {
@@ -420,6 +425,91 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         assertEquals(100.5, as(maxLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0001);
     }
 
+    public void testCountOverPartiallyPresentColumnUsesImplicitNulls() {
+        // Metadata-fast-path scenario (single sourceMetadata map, no per-split stats).
+        // The map already encodes the merged null_count under the new contract:
+        // 600 implicit nulls (rows from files lacking the column) + 10 explicit nulls = 610.
+        // Pushdown computes Count(bonus) = rowCount - columnNullCount = 1000 - 610 = 390.
+        // Pre-fix the merger would have produced null_count=10 and the result would be 990.
+        ReferenceAttribute bonus = referenceAttribute("bonus", DataType.INTEGER);
+        Map<String, Object> metadata = statsMetadata(1000L, "bonus", 610L);
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(referenceAttribute("x", DataType.INTEGER), AGE, SCORE, bonus),
+            Map.of(),
+            metadata,
+            null
+        );
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countFieldAlias(bonus));
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(390L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
+    public void testPushdownAcrossSplitsWithMissingColumnInOneSplit() {
+        // Per-split path: split 1 has full bonus stats (100 rows, 5 nulls, min=1, max=99);
+        // split 2 has 200 rows but no bonus column at all.
+        // Under the implicit-nulls contract:
+        // COUNT(bonus) = (100 + 200) - (5 + 200) = 95 (split 2 contributes 200 implicit nulls).
+        // MIN(bonus) = 1 (split 2 has no candidate, gets skipped rather than poisoning).
+        // MAX(bonus) = 99 (same logic).
+        ReferenceAttribute bonus = referenceAttribute("bonus", DataType.INTEGER);
+        Map<String, Object> withBonus = new HashMap<>();
+        withBonus.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        withBonus.put(SourceStatisticsSerializer.columnNullCountKey("bonus"), 5L);
+        withBonus.put(SourceStatisticsSerializer.columnMinKey("bonus"), 1);
+        withBonus.put(SourceStatisticsSerializer.columnMaxKey("bonus"), 99);
+        withBonus.put(SourceStatisticsSerializer.columnSizeBytesKey("bonus"), 800L);
+
+        Map<String, Object> withoutBonus = new HashMap<>();
+        withoutBonus.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+
+        // ExternalSourceExec with custom output that includes bonus in its attributes.
+        List<Attribute> attrs = List.of(referenceAttribute("x", DataType.INTEGER), AGE, SCORE, bonus);
+
+        ExternalSourceExec extCount = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withBonus, withoutBonus);
+        var countAgg = aggregateExec(AggregatorMode.SINGLE, extCount, countFieldAlias(bonus));
+        LocalSourceExec countLocal = as(applyRule(countAgg), LocalSourceExec.class);
+        assertEquals(95L, as(countLocal.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+
+        ExternalSourceExec extMin = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withBonus, withoutBonus);
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, extMin, alias("mn", new Min(Source.EMPTY, bonus)));
+        LocalSourceExec minLocal = as(applyRule(minAgg), LocalSourceExec.class);
+        assertEquals(1, as(minLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
+
+        ExternalSourceExec extMax = externalSourceWithSplitsAndAttrs(attrs, Map.of(), withBonus, withoutBonus);
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, extMax, alias("mx", new Max(Source.EMPTY, bonus)));
+        LocalSourceExec maxLocal = as(applyRule(maxAgg), LocalSourceExec.class);
+        assertEquals(99, as(maxLocal.supplier().get().getBlock(0), IntBlock.class).getInt(0));
+    }
+
+    public void testCountFieldNotPushedWhenMergedNullCountPoisoned() {
+        // Defensive end-to-end check for the present-but-statless poison path:
+        // mergeStatistics drops null_count for `bonus` when any present file lacks it, so the
+        // sourceMetadata reaching the optimizer has no _stats.columns.bonus.null_count entry,
+        // even though _stats.columns.bonus.size_bytes is set (column is physically present
+        // somewhere). columnNullCount must return -1 and the rule must bail out.
+        ReferenceAttribute bonus = referenceAttribute("bonus", DataType.INTEGER);
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
+        metadata.put(SourceStatisticsSerializer.columnSizeBytesKey("bonus"), 4000L);
+        // No _stats.columns.bonus.null_count -> SplitStats.of treats nullCount as -1 (unknown).
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(referenceAttribute("x", DataType.INTEGER), AGE, SCORE, bonus),
+            Map.of(),
+            metadata,
+            null
+        );
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countFieldAlias(bonus));
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     public void testNotPushedWithMultipleSplitsWithoutStats() {
         ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null), (Map<String, Object>[]) null);
         var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
@@ -460,6 +550,32 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     // --- helpers ---
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private static ExternalSourceExec externalSourceWithSplitsAndAttrs(
+        List<Attribute> attrs,
+        Map<String, Object> sourceMetadata,
+        Map<String, Object>... perSplitStats
+    ) {
+        List<ExternalSplit> splits = new ArrayList<>(perSplitStats.length);
+        for (int i = 0; i < perSplitStats.length; i++) {
+            splits.add(fileSplit(i, perSplitStats[i]));
+        }
+        return new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            attrs,
+            Map.of(),
+            sourceMetadata,
+            null,
+            -1,
+            null,
+            null,
+            splits
+        );
+    }
 
     @SafeVarargs
     @SuppressWarnings("varargs")

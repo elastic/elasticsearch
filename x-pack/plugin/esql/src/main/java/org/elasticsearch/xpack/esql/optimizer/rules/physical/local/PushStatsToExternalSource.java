@@ -169,6 +169,14 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
+    /**
+     * Resolves {@code COUNT(col)} from split-level statistics as {@code rowCount - columnNullCount}.
+     * Correctness depends on the {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats}
+     * "implicit nulls" contract: {@code columnNullCount} includes rows from files where the column
+     * is physically absent (each such row is an implicit null), so the formula is correct for
+     * UNION_BY_NAME mixes where some files lack the column. A return of {@code -1} from
+     * {@code columnNullCount} signals the rare present-but-statless case and we bail out.
+     */
     private static Object resolveCount(Count count, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (count.hasFilter()) {
             return null;

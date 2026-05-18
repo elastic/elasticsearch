@@ -1098,7 +1098,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), NO_OP_RELEASE_BATCH_HITS, Assert::fail));
+        cancelTaskCase(
+            (DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), NO_OP_RELEASE_BATCH_HITS, Assert::fail)
+        );
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {

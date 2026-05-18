@@ -134,7 +134,6 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         );
     }
 
-
     private ProjectState stateWithTemplate(Settings.Builder settings) {
         final var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);

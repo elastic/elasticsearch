@@ -141,7 +141,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
 
-
     AbstractAsyncBulkByScrollAction(
         BulkByScrollTask task,
         boolean needsSourceDocumentVersions,

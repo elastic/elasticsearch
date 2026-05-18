@@ -38,8 +38,23 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ReindexSettings reindexSettings,
         CircuitBreaker requestBreaker
     ) {
-        super(task, false, true, false, logger, client, threadPool, request, listener, scriptService, null, maxTaskShutdownGracePeriod,
-            reindexSettings, requestBreaker, "delete_by_query_bulk_batch");
+        super(
+            task,
+            false,
+            true,
+            false,
+            logger,
+            client,
+            threadPool,
+            request,
+            listener,
+            scriptService,
+            null,
+            maxTaskShutdownGracePeriod,
+            reindexSettings,
+            requestBreaker,
+            "delete_by_query_bulk_batch"
+        );
     }
 
     @Override

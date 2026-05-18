@@ -18,7 +18,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.esql-function'
-apply plugin: 'elasticsearch.esql-release-engine'
+apply plugin: 'elasticsearch.esql-release'
 
 versions << [
   'hadoop': '3.4.3',

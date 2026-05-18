@@ -8,10 +8,10 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.esql-release-datasource-core'
+apply plugin: 'elasticsearch.esql-release'
 
 subprojects {
-  apply plugin: 'elasticsearch.esql-release-datasource-qa'
+  apply plugin: 'elasticsearch.esql-release'
 }
 
 esplugin {

@@ -1,8 +1,8 @@
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.esql-release-qa'
+apply plugin: 'elasticsearch.esql-release'
 
 subprojects {
-  apply plugin: 'elasticsearch.esql-release-qa'
+  apply plugin: 'elasticsearch.esql-release'
 }
 
 versions << [

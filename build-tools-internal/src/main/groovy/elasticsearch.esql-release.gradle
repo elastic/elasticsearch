@@ -9,6 +9,6 @@
 
 tasks.register('releaseTestCheck') {
   group = 'Verification'
-  description = 'Runs release checks for ESQL engine projects.'
+  description = 'Runs release checks for ESQL projects.'
   dependsOn 'check'
 }

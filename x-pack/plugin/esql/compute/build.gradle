@@ -4,10 +4,10 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.transport-version-references'
-apply plugin: 'elasticsearch.esql-release-engine'
+apply plugin: 'elasticsearch.esql-release'
 
 subprojects {
-  apply plugin: 'elasticsearch.esql-release-engine'
+  apply plugin: 'elasticsearch.esql-release'
 }
 
 base {

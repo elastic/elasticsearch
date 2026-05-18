@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.esql-release-engine'
+apply plugin: 'elasticsearch.esql-release'
 
 dependencies {
   implementation project(":libs:x-content")

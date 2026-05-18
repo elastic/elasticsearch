@@ -17,6 +17,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -111,10 +112,67 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 assertEquals(1, meta.retryCalls());
                 // Excluded = collected passing docs from round 0.
                 assertArrayEquals(new int[] { 0, 1 }, meta.retryExcludedDocs());
-                // SeedDocs = topDocs.scoreDocs from round 0 (delegate is not DocTracking).
-                assertArrayEquals(new int[] { 0, 1 }, meta.retrySeedDocs());
+                // SeedDocs = sorted getTrackedDocs() from round 0 — single segment, per-leaf
+                // collector size = numCands (10) which holds every doc in the leaf, so tracked
+                // covers all 8 docs (not just topDocs.scoreDocs).
+                assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5, 6, 7 }, meta.retrySeedDocs());
                 assertEquals(2, meta.retryRemainingK());
                 assertEquals(0, meta.fallbackCalls());
+            }
+        }
+    }
+
+    /**
+     * Two segments of 4 docs each, all passing. Round 0 with scaledK=2 returns the global top-2
+     * via {@link AssertingKnnQuery#mergeLeafResults}, but the per-leaf {@link DocTrackingCollector}
+     * captures each leaf's own top-numCands first. The retry's {@code seedDocs} therefore must be
+     * the union of both leaves' tracked sets — verifying {@link DocTrackingCollectorManager}
+     * correctly aggregates across leaves and that {@link PostFilterKnnQuery} threads that union
+     * into {@link PostFilterableKnnQuery#createRetryQuery}.
+     */
+    public void testRetrySeedDocsMergedAcrossLeavesFromGetTrackedDocs() throws IOException {
+        IndexWriterConfig cfg = new IndexWriterConfig();
+        cfg.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, cfg)) {
+            // Segment 0: docs 0-3 at vectors 0..3.
+            for (int i = 0; i < 4; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { (float) i }));
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            // Segment 1: docs 4-7 at vectors 100..103 (far from query, so the global top-2
+            // comes entirely from segment 0).
+            for (int i = 0; i < 4; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { 100f + i }));
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertEquals("expected two segments", 2, reader.leaves().size());
+                int k = 4;
+                Query userFilter = new TermQuery(new Term("tag", "pass"));
+                // scale=0.5 -> scaledK=2: round 0 picks global top-2 = {0, 1} from segment 0.
+                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, userFilter, 0.5f);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, userFilter, k, "vector", null, 0f);
+
+                TopDocs td = searcher.search(pfq, k);
+
+                assertEquals(k, td.scoreDocs.length);
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 1, 2, 3 });
+
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals(1, meta.retryCalls());
+                // Round 0 surfaced only {0, 1} as the post-filter passing set.
+                assertArrayEquals(new int[] { 0, 1 }, meta.retryExcludedDocs());
+                // getTrackedDocs() returns the union of per-leaf top-numCands. Both leaves have
+                // 4 docs each ≤ numCands(=10), so all 8 are tracked across the two leaves.
+                assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5, 6, 7 }, meta.retrySeedDocs());
             }
         }
     }
@@ -156,8 +214,9 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 assertEquals(0.25f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
                 assertArrayEquals(new int[] { 0 }, meta.retryExcludedDocs());
-                // SeedDocs = sorted topDocs.scoreDocs from round 0: {0,1,2}.
-                assertArrayEquals(new int[] { 0, 1, 2 }, meta.retrySeedDocs());
+                // SeedDocs = sorted getTrackedDocs() from round 0 — single segment, per-leaf
+                // collector holds all 8 docs (numCands=10 > 8), so the full set is tracked.
+                assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5, 6, 7 }, meta.retrySeedDocs());
                 assertEquals(1, meta.retryRemainingK());
                 assertEquals(1, meta.fallbackCalls());
                 assertArrayEquals(new int[] { 0 }, meta.fallbackExcludedDocs());

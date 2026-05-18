@@ -12,13 +12,16 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.knn.KnnCollectorManager;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnnQuery {
 
@@ -133,7 +136,27 @@ class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnn
     public Query createPostFilterDelegate(float filterSelectivity) {
         postFilterMeta.recordPostFilterDelegate(filterSelectivity);
         int scaledK = Math.max(1, (int) Math.ceil(kParam * postFilterScale));
-        return new AssertingKnnQuery(field, target, scaledK, numCandsParam, null, postFilterScale, postFilterMeta);
+        return new AssertingKnnQuery(field, target, scaledK, numCandsParam, null, postFilterScale, postFilterMeta) {
+            final AtomicReference<DocTrackingCollectorManager> collectorManager = new AtomicReference<>();
+
+            @Override
+            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+                DocTrackingCollectorManager existing = collectorManager.get();
+                if (existing != null) {
+                    return existing;
+                }
+                KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
+                DocTrackingCollectorManager wrapped = DocTrackingCollectorManager.wrap(base, searcher.getIndexReader().leaves().size());
+                collectorManager.compareAndSet(null, wrapped);
+                return collectorManager.get();
+            }
+
+            @Override
+            public int[] getTrackedDocs() {
+                DocTrackingCollectorManager mgr = collectorManager.get();
+                return mgr == null ? new int[0] : mgr.getTrackedDocs();
+            }
+        };
     }
 
     @Override

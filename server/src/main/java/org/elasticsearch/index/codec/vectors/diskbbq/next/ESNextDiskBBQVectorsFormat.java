@@ -112,32 +112,23 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packDibit(quantized, destination);
+                ESVectorUtil.packDibitPacked(quantized, destination);
             }
 
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
-                ESVectorUtil.transposeHalfByte(quantized, destination);
-            }
-
-            @Override
-            public int discretizedDimensions(int dimensions) {
-                int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
-                // we want to force dibit packing to byte boundaries assuming single bit striping
-                // so we discretize to the same as single bit encoding
-                int docDiscretized = (dimensions + 7) / 8 * 8;
-                int maxDiscretized = Math.max(queryDiscretized, docDiscretized);
-                assert maxDiscretized % (8.0 / 4) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
-                assert maxDiscretized % (8.0 / 2) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
-                return maxDiscretized;
+                packDibitQueryByStripe(quantized, destination);
             }
 
             @Override
             public int getDocPackedLength(int dimensions) {
-                // discretized to single bit encoding, but we assume dibit packing (2 bits per value)
-                // so we need twice as many bytes as single bit encoding
                 int discretized = discretizedDimensions(dimensions);
-                return 2 * ((discretized + 7) / 8);
+                return discretized / 4;
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
             }
         },
         FOUR_BIT_SYMMETRIC(2, (byte) 4, (byte) 4) {
@@ -206,6 +197,18 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             int packedLength = destination.length;
             for (int i = 0; i < packedLength; i++) {
                 destination[i] = (byte) ((quantized[i] << 4) | (quantized[packedLength + i] & 0x0F));
+            }
+        }
+
+        private static void packDibitQueryByStripe(int[] quantized, byte[] destination) {
+            assert quantized.length == destination.length;
+            assert destination.length % 4 == 0;
+            int packedLength = destination.length / 4;
+            for (int i = 0; i < packedLength; i++) {
+                destination[i] = (byte) quantized[4 * i];
+                destination[i + packedLength] = (byte) quantized[4 * i + 1];
+                destination[i + 2 * packedLength] = (byte) quantized[4 * i + 2];
+                destination[i + 3 * packedLength] = (byte) quantized[4 * i + 3];
             }
         }
 

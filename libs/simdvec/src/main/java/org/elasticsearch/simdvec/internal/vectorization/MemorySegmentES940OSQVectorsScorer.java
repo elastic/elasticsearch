@@ -40,15 +40,16 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     enum QuantEncoding {
         D1Q4,
         D2Q4,
+        D2Q4_PACKED,
         D4Q4_STRIPED,
         D4Q4_PACKED,
         D7Q7;
 
-        static QuantEncoding of(byte queryBits, byte indexBits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
+        static QuantEncoding of(byte queryBits, byte indexBits, ES940OSQVectorsScorer.BitEncoding bitEncoding) {
             return switch ((queryBits << 8) | indexBits) {
                 case (4 << 8) | 1 -> D1Q4;
-                case (4 << 8) | 2 -> D2Q4;
-                case (4 << 8) | 4 -> int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE ? D4Q4_PACKED : D4Q4_STRIPED;
+                case (4 << 8) | 2 -> bitEncoding == ES940OSQVectorsScorer.BitEncoding.PACKED ? D2Q4_PACKED : D2Q4;
+                case (4 << 8) | 4 -> bitEncoding == ES940OSQVectorsScorer.BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
                 case (7 << 8) | 7 -> D7Q7;
                 default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
             };
@@ -64,7 +65,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int dimensions,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        ES940OSQVectorsScorer.BitEncoding bitEncoding,
         boolean nativeEnabled
     ) {
         super(
@@ -74,20 +75,21 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             dimensions,
             dataLength,
             bulkSize,
-            int4Encoding == null ? ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED : int4Encoding
+            bitEncoding == null ? ES940OSQVectorsScorer.BitEncoding.STRIPED : bitEncoding
         );
-        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedInt4 = int4Encoding == null
-            ? ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED
-            : int4Encoding;
+        ES940OSQVectorsScorer.BitEncoding resolvedBitEncoding = bitEncoding == null
+            ? ES940OSQVectorsScorer.BitEncoding.STRIPED
+            : bitEncoding;
         this.scorer = USE_NATIVE && nativeEnabled
-            ? createNativeScorer(QuantEncoding.of(queryBits, indexBits, resolvedInt4), in, dimensions, dataLength, bulkSize)
-            : createPanamaScorer(QuantEncoding.of(queryBits, indexBits, resolvedInt4), in, dimensions, dataLength, bulkSize);
+            ? createNativeScorer(QuantEncoding.of(queryBits, indexBits, resolvedBitEncoding), in, dimensions, dataLength, bulkSize)
+            : createPanamaScorer(QuantEncoding.of(queryBits, indexBits, resolvedBitEncoding), in, dimensions, dataLength, bulkSize);
     }
 
     private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
             case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
+            case D2Q4_PACKED -> new MSPackedD2Q4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_PACKED -> new MSPackedInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D7Q7 -> new MSD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
@@ -98,6 +100,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         return switch (enc) {
             case D1Q4 -> new MSBitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new MSDibitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D2Q4_PACKED -> new MSPackedD2Q4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new MSInt4SymmetricES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_PACKED -> new MSPackedInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D7Q7 -> new MSD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
@@ -251,7 +254,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     abstract static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToInt4ES940OSQVectorsScorer,
         MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer, MSD7Q7ES940OSQVectorsScorer,
-        MSPackedInt4ES940OSQVectorsScorer {
+        MSPackedInt4ES940OSQVectorsScorer, MSPackedD2Q4ES940OSQVectorsScorer {
 
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 

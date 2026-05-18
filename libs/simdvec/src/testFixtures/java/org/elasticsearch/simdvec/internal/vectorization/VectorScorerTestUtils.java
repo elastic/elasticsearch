@@ -58,6 +58,12 @@ public class VectorScorerTestUtils {
 
     private VectorScorerTestUtils() {}
 
+    private static int stripedD2Q4DiscretizedDimensions(int dimensions) {
+        int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
+        int docDiscretized = (dimensions + 7) / 8 * 8;
+        return Math.max(queryDiscretized, docDiscretized);
+    }
+
     public static VectorData createBinarizedIndexData(
         float[] values,
         float[] centroid,
@@ -160,10 +166,12 @@ public class VectorScorerTestUtils {
         int dimensions,
         byte indexBits,
         int vectorPackedLengthInBytes,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
         final float[] residualScratch = new float[dimensions];
-        final int[] scratch = new int[ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
+        final int[] scratch = new int[indexBits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED
+            ? stripedD2Q4DiscretizedDimensions(dimensions)
+            : ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
         final byte[] qVector = new byte[vectorPackedLengthInBytes];
 
         OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
@@ -173,8 +181,10 @@ public class VectorScorerTestUtils {
             indexBits,
             centroid
         );
-        if (indexBits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+        if (indexBits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
             ESVectorUtil.transposeHalfByte(scratch, qVector);
+        } else if (indexBits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            ESVectorUtil.packDibit(scratch, qVector);
         } else {
             ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).pack(scratch, qVector);
         }
@@ -227,10 +237,12 @@ public class VectorScorerTestUtils {
         byte queryBits,
         int queryVectorPackedLengthInBytes,
         byte indexBits,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
         final float[] residualScratch = new float[dimensions];
-        final int[] scratch = new int[ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
+        final int[] scratch = new int[indexBits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED
+            ? stripedD2Q4DiscretizedDimensions(dimensions)
+            : ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
 
         OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
             query,
@@ -240,7 +252,7 @@ public class VectorScorerTestUtils {
             centroid
         );
         final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
-        if (indexBits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+        if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
             ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
         } else {
             ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);

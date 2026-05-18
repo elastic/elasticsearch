@@ -107,8 +107,8 @@ public class VectorScorerOSQBenchmark {
     @Param({ "1", "2", "4", "7" })
     public byte bits;
 
-    @Param({ "STRIPED", "PACKED_NIBBLE" })
-    public ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
+    @Param({ "STRIPED", "PACKED" })
+    public ES940OSQVectorsScorer.BitEncoding bitEncoding;
 
     @Param
     public VectorImplementation implementation;
@@ -151,24 +151,30 @@ public class VectorScorerOSQBenchmark {
         int sparseOffsetsCount
     ) {}
 
-    private static ES940OSQVectorsScorer.SymmetricInt4Encoding resolveInt4Encoding(
-        byte bits,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
-    ) {
-        return bits == 4 ? int4Encoding : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
+    private static ES940OSQVectorsScorer.BitEncoding resolveBitEncoding(byte bits, ES940OSQVectorsScorer.BitEncoding bitEncoding) {
+        return bits == 2 || bits == 4 ? bitEncoding : ES940OSQVectorsScorer.BitEncoding.STRIPED;
     }
 
-    private static int docPackedLength(int dims, byte bits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
-        if (bits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+    private static int docPackedLength(int dims, byte bits, ES940OSQVectorsScorer.BitEncoding bitEncoding) {
+        if (bits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            int queryDiscretized = (dims * 4 + 7) / 8 * 8 / 4;
+            int docDiscretized = (dims + 7) / 8 * 8;
+            int discretized = Math.max(queryDiscretized, docDiscretized);
+            return 2 * ((discretized + 7) / 8);
+        }
+        if (bits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
             int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).discretizedDimensions(dims);
             return 4 * ((discretized + 7) / 8);
         }
         return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
     }
 
-    private static int queryPackedLength(int dims, byte bits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
-        if (bits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
-            return docPackedLength(dims, bits, int4Encoding);
+    private static int queryPackedLength(int dims, byte bits, ES940OSQVectorsScorer.BitEncoding bitEncoding) {
+        if (bits == 2 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            return docPackedLength(dims, bits, bitEncoding) * 2;
+        }
+        if (bits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+            return docPackedLength(dims, bits, bitEncoding);
         }
         return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
     }
@@ -177,10 +183,10 @@ public class VectorScorerOSQBenchmark {
         Random random,
         int dims,
         byte bits,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        ES940OSQVectorsScorer.BitEncoding bitEncoding,
         VectorSimilarityFunction similarityFunction
     ) {
-        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
+        ES940OSQVectorsScorer.BitEncoding resolvedEncoding = resolveBitEncoding(bits, bitEncoding);
         int binaryIndexLength = docPackedLength(dims, bits, resolvedEncoding);
 
         final float[] centroid = new float[dims];
@@ -277,7 +283,7 @@ public class VectorScorerOSQBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(generateRandomVectorData(new Random(123), dims, bits, int4Encoding, similarityFunction));
+        setup(generateRandomVectorData(new Random(123), dims, bits, bitEncoding, similarityFunction));
     }
 
     void setup(VectorData data) throws IOException {
@@ -319,7 +325,7 @@ public class VectorScorerOSQBenchmark {
             }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
-        ES940OSQVectorsScorer.SymmetricInt4Encoding resolvedEncoding = resolveInt4Encoding(bits, int4Encoding);
+        ES940OSQVectorsScorer.BitEncoding resolvedEncoding = resolveBitEncoding(bits, bitEncoding);
         this.scorer = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false)
                 .getVectorScorerFactory()

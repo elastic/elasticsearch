@@ -992,9 +992,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
                 BULK_SIZE,
-                quantEncoding.bits() == 4
-                    ? ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
-                    : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED
+                quantEncoding.bits() == 2 || quantEncoding.bits() == 4
+                    ? ES940OSQVectorsScorer.BitEncoding.PACKED
+                    : ES940OSQVectorsScorer.BitEncoding.STRIPED
             );
         }
 

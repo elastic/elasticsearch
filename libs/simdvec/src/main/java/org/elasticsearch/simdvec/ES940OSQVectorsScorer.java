@@ -24,9 +24,9 @@ public class ES940OSQVectorsScorer {
 
     public static final int BULK_SIZE = 32;
 
-    public enum SymmetricInt4Encoding {
+    public enum BitEncoding {
         STRIPED,
-        PACKED_NIBBLE
+        PACKED
     }
 
     protected static final float[] BIT_SCALES = new float[] {
@@ -47,7 +47,7 @@ public class ES940OSQVectorsScorer {
     protected final int length;
     protected final int dimensions;
     protected final int bulkSize;
-    protected final SymmetricInt4Encoding int4Encoding;
+    protected final BitEncoding bitEncoding;
 
     protected final float[] lowerIntervals;
     protected final float[] upperIntervals;
@@ -63,7 +63,7 @@ public class ES940OSQVectorsScorer {
         int dimensions,
         int dataLength,
         int bulkSize,
-        SymmetricInt4Encoding int4Encoding
+        BitEncoding bitEncoding
     ) {
         if (indexBits == 1 && queryBits != 4) {
             throw new IllegalArgumentException("Only asymmetric 4-bit query supported for 1-bit index");
@@ -87,13 +87,13 @@ public class ES940OSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
-        this.int4Encoding = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
+        this.bitEncoding = bitEncoding == null ? BitEncoding.STRIPED : bitEncoding;
         this.scratch = indexBits == 7 ? new byte[dimensions] : null;
-        this.packedScratch = indexBits == 4 && this.int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE ? new byte[dataLength] : null;
+        this.packedScratch = this.bitEncoding == BitEncoding.PACKED && (indexBits == 2 || indexBits == 4) ? new byte[dataLength] : null;
     }
 
     public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
-        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, SymmetricInt4Encoding.STRIPED);
+        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
     }
 
     public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
@@ -109,10 +109,13 @@ public class ES940OSQVectorsScorer {
             return quantized4BitScore(q, length);
         }
         if (indexBits == 2) {
-            return quantized4BitScore2BitIndex(q);
+            if (bitEncoding == BitEncoding.PACKED) {
+                return quantized4BitScore2BitIndexPacked(q);
+            }
+            return quantized4BitScore2BitIndexStriped(q);
         }
         if (indexBits == 4) {
-            if (int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE) {
+            if (bitEncoding == BitEncoding.PACKED) {
                 return quantized4BitScorePacked(q);
             }
             return quantized4BitScoreSymmetric(q);
@@ -151,12 +154,26 @@ public class ES940OSQVectorsScorer {
         return score;
     }
 
-    private long quantized4BitScore2BitIndex(byte[] q) throws IOException {
+    private long quantized4BitScore2BitIndexStriped(byte[] q) throws IOException {
         assert q.length == length * 2;
         assert length % 2 == 0 : "length must be even for 2-bit index length: " + length + " dimensions: " + dimensions;
         int lower = (int) quantized4BitScore(q, length / 2);
         int upper = (int) quantized4BitScore(q, length / 2);
         return lower + ((long) upper << 1);
+    }
+
+    private long quantized4BitScore2BitIndexPacked(byte[] q) throws IOException {
+        assert q.length == length * 4 : "length mismatch q " + q.length + " vs " + (length * 4);
+        in.readBytes(packedScratch, 0, length);
+        long score = 0;
+        for (int i = 0; i < length; i++) {
+            int packed = packedScratch[i] & 0xFF;
+            score += ((packed >>> 6) & 0x03) * (q[i] & 0x0F);
+            score += ((packed >>> 4) & 0x03) * (q[i + length] & 0x0F);
+            score += ((packed >>> 2) & 0x03) * (q[i + 2 * length] & 0x0F);
+            score += (packed & 0x03) * (q[i + 3 * length] & 0x0F);
+        }
+        return score;
     }
 
     private long quantized4BitScore(byte[] q, int length) throws IOException {

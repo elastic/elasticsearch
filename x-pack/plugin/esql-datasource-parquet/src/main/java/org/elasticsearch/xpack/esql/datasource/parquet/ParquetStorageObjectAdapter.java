@@ -155,7 +155,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      */
     private static class WindowedSeekableInputStream extends SeekableInputStream {
 
-        /** Caps each {@link ArrowBuf#setBytes(long, InputStream, int)} call to limit JDK thread-local direct buffer use. */
+        /** Caps each stream-read iteration to limit per-chunk heap allocation. */
         private static final int STREAM_READ_CHUNK_SIZE = 256 * 1024;
 
         private final StorageObject storageObject;
@@ -163,6 +163,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private final long length;
         private final int windowSize;
         private final ArrowBuf window;
+        // ArrowBuf.getBytes(inputstream) internally allocates an 8 kB buffer. To avoid it,
+        // use a staging buffer filled from the InputStream then copied into {@link #window}.
+        private final byte[] streamReadBuf = UninitializedArrays.newByteArray(STREAM_READ_CHUNK_SIZE);
 
         /**
          * Supplier that returns the adapter's current pre-warmed chunks map (or {@code null}).
@@ -262,7 +265,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 int totalRead = 0;
                 while (totalRead < target) {
                     int chunk = Math.min(STREAM_READ_CHUNK_SIZE, target - totalRead);
-                    int n = window.setBytes(totalRead, in, chunk);
+                    int n = in.read(streamReadBuf, 0, chunk);
                     if (n < 0) {
                         throw new IOException(
                             "Unexpected end of stream while filling window at position " + pos + "; read " + totalRead + " of " + target
@@ -271,6 +274,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     if (n == 0 && chunk > 0) {
                         throw new IOException("InputStream.read returned 0 while " + chunk + " bytes were requested");
                     }
+                    window.setBytes(totalRead, streamReadBuf, 0, n);
                     totalRead += n;
                 }
                 windowStart = pos;

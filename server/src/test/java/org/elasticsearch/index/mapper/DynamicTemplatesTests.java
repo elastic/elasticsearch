@@ -2209,7 +2209,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
      * Same dynamic-template scenario as {@link #testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFields()}, but with
      * {@code index.mapping.dynamic_strings.auto_keyword} disabled so the concrete string ({@code one_xyz}) maps as {@code text} only.
      */
-    public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFieldsWithoutAutoKeywordSubfield() throws IOException {
+    public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFieldsWithoutAutoTextSubfield() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         String mapping = """
             {

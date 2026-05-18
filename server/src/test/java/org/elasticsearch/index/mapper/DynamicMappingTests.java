@@ -1075,7 +1075,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * With {@code index.mapping.dynamic_strings.auto_keyword} disabled, a dynamically introduced root-level string maps as
      * {@code text} only (no {@code .keyword} multi-field) and does not index a separate keyword subfield.
      */
-    public void testDynamicFieldWithoutAutoKeywordSubfield() throws Exception {
+    public void testDynamicFieldWithoutAutoTextSubfield() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createMapperService(withoutDynamicStringsAutoText(), mapping(b -> {})).documentMapper();
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "bar")));
@@ -1089,10 +1089,10 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     /**
-     * Same as {@link #testDynamicFieldWithoutAutoKeywordSubfield()} for a new string field under {@code dynamic: true} when
+     * Same as {@link #testDynamicFieldWithoutAutoTextSubfield()} for a new string field under {@code dynamic: true} when
      * other properties are already mapped; the dynamically added field must still omit the automatic keyword subfield.
      */
-    public void testDynamicFieldWithoutAutoKeywordSubfieldWithExistingMapping() throws IOException {
+    public void testDynamicFieldWithoutAutoTextSubfieldWithExistingMapping() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper defaultMapper = createMapperService(
             withoutDynamicStringsAutoText(),
@@ -1119,7 +1119,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * With auto-keyword disabled, strings under a {@code dynamic: true} object still map without a keyword subfield, while
      * strings under a sibling {@code dynamic: runtime} object continue to become runtime keyword fields as usual.
      */
-    public void testDynamicFieldWithoutAutoKeywordSubfieldWithRuntimeField() throws Exception {
+    public void testDynamicFieldWithoutAutoTextSubfieldWithRuntimeField() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createMapperService(
             withoutDynamicStringsAutoText(),

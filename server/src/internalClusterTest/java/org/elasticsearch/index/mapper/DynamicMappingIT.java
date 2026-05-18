@@ -96,7 +96,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
-    public void testDynamicStringMappingWithoutAutoKeywordSubfield() {
+    public void testDynamicStringMappingWithoutAutoTextSubfield() {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         internalCluster().ensureAtLeastNumDataNodes(1);
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -123,7 +123,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(msg.containsKey("fields"), is(false));
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> docValues = (Map<String, Object>) props.get("doc_values");
+        Map<String, Object> docValues = (Map<String, Object>) msg.get("doc_values");
         assertThat(docValues, notNullValue());
         assertThat(docValues.get("cardinality"), is("high"));
     }

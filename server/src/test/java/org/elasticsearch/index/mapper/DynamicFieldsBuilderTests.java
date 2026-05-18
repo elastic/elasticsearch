@@ -102,7 +102,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         assertEquals("keyword", built.typeName());
     }
 
-    public void testCreateDynamicStringFieldWithoutAutoKeywordSubfield() throws IOException {
+    public void testCreateDynamicStringFieldWithoutAutoTextSubfield() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
         String source = "{\"f1\": \"foobar\"}";

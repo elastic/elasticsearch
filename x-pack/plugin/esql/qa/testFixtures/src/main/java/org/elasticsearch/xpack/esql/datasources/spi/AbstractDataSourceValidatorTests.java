@@ -57,7 +57,9 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
             DataSourceSetting setting = validated.get(fieldName);
             assertNotNull("validator dropped field [" + fieldName + "] from its output", setting);
             assertTrue(
-                "validator must classify [" + fieldName + "] as secret — found secret=false. "
+                "validator must classify ["
+                    + fieldName
+                    + "] as secret — found secret=false. "
                     + "If the value is intentionally non-secret, remove it from expectedSecretFieldNames(); "
                     + "otherwise mark it secret in the validator's Configuration schema.",
                 setting.secret()
@@ -71,7 +73,9 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
         for (var entry : validated.entrySet()) {
             if (expectedSecrets.contains(entry.getKey()) == false) {
                 assertFalse(
-                    "validator marked [" + entry.getKey() + "] as secret but it isn't in expectedSecretFieldNames(). "
+                    "validator marked ["
+                        + entry.getKey()
+                        + "] as secret but it isn't in expectedSecretFieldNames(). "
                         + "Either add it to the set or remove the secret-marking from the validator's schema.",
                     entry.getValue().secret()
                 );

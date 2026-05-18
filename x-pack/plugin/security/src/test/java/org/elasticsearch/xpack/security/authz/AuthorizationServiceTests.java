@@ -81,6 +81,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -289,6 +290,14 @@ public class AuthorizationServiceTests extends ESTestCase {
     private AuthorizedProjectsResolver authorizedProjectsResolver;
     private CrossProjectModeDecider crossProjectModeDecider;
     private ProjectRoutingResolver projectRoutingResolver;
+    private final ReplicationTask task = new ReplicationTask(
+        randomLong(),
+        randomIdentifier(),
+        randomIdentifier(),
+        randomIdentifier(),
+        null,
+        Map.of()
+    );
 
     @SuppressWarnings("unchecked")
     @Before
@@ -1881,6 +1890,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {});
         TransportShardBulkAction.performOnPrimary(
+            task,
             request,
             indexShard,
             new UpdateHelper(mock(ScriptService.class)),

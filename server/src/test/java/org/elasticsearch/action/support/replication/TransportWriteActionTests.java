@@ -66,6 +66,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -98,6 +99,14 @@ public class TransportWriteActionTests extends ESTestCase {
     private final ProjectId projectId = randomProjectIdOrDefault();
     private ClusterService clusterService;
     private IndexShard indexShard;
+    private final ReplicationTask replicationTask = new ReplicationTask(
+        randomLong(),
+        randomIdentifier(),
+        randomIdentifier(),
+        randomIdentifier(),
+        null,
+        Map.of()
+    );
 
     @BeforeClass
     public static void beforeClass() {
@@ -141,7 +150,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(
-            mock(Task.class),
+            replicationTask,
             request,
             indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
@@ -175,7 +184,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(
-            mock(Task.class),
+            replicationTask,
             request,
             indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
@@ -225,7 +234,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(
-            mock(Task.class),
+            replicationTask,
             request,
             indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
@@ -276,7 +285,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testDocumentFailureInShardOperationOnPrimary() {
         final var listener = SubscribableListener.<Exception>newForked(
             l -> new TestAction(true, randomBoolean()).dispatchedShardOperationOnPrimary(
-                mock(Task.class),
+                replicationTask,
                 new TestRequest(),
                 indexShard,
                 ActionTestUtils.assertNoSuccessListener(l::onResponse)

@@ -63,6 +63,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -218,7 +219,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             delegate.onFailure(e);
                             return;
                         }
-                        performSequentialOnPrimary(request, delegate, context, startBatchTime);
+                        performSequentialOnPrimary(task, request, delegate, context, startBatchTime);
                     }
                 })
             );
@@ -229,11 +230,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 listener.onFailure(e);
                 return;
             }
-            performSequentialOnPrimary(request, listener, context, startBatchTime);
+            performSequentialOnPrimary(task, request, listener, context, startBatchTime);
         }
     }
 
     private void performSequentialOnPrimary(
+        final Task task,
         final BulkShardRequest request,
         final ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         final BulkPrimaryExecutionContext batchContext,
@@ -246,7 +248,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             logger,
             threadPool.getThreadContext()
         );
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
+        performOnPrimary(task, request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
@@ -293,6 +295,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     public static void performOnPrimary(
+        Task task,
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
@@ -303,6 +306,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Executor executor
     ) {
         performOnPrimary(
+            task,
             request,
             primary,
             updateHelper,
@@ -317,6 +321,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     public static void performOnPrimary(
+        Task task,
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
@@ -329,6 +334,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         DocumentParsingProvider documentParsingProvider
     ) {
         performOnPrimary(
+            task,
             request,
             primary,
             updateHelper,
@@ -345,6 +351,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static void performOnPrimary(
+        Task task,
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
@@ -365,6 +372,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             protected void doRun() throws Exception {
                 while (context.hasMoreOperationsToExecute()) {
+                    assert task == null || task instanceof CancellableTask;
+
                     if (executeBulkItemRequest(
                         context,
                         updateHelper,

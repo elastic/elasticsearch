@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -35,7 +36,6 @@ import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseSyncAction.getExceptionLogLevel;
@@ -60,6 +61,14 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private ShardStateAction shardStateAction;
+    private final ReplicationTask replicationTask = new ReplicationTask(
+        randomLong(),
+        randomIdentifier(),
+        randomIdentifier(),
+        randomIdentifier(),
+        null,
+        Map.of()
+    );
 
     public void setUp() throws Exception {
         super.setUp();
@@ -116,7 +125,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.dispatchedShardOperationOnPrimary(mock(Task.class), request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+        action.dispatchedShardOperationOnPrimary(replicationTask, request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // the retention leases on the shard should be persisted
             verify(indexShard).persistRetentionLeases();
             // we should forward the request containing the current retention leases to the replica

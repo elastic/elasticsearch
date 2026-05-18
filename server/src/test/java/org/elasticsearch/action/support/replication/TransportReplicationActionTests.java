@@ -94,6 +94,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -130,6 +131,14 @@ import static org.mockito.Mockito.when;
 public class TransportReplicationActionTests extends ESTestCase {
 
     private static final ShardId NO_SHARD_ID = null;
+    private final ReplicationTask replicationTask = new ReplicationTask(
+        randomLong(),
+        randomIdentifier(),
+        randomIdentifier(),
+        randomIdentifier(),
+        null,
+        Map.of()
+    );
 
     /**
      * takes a request that was sent by a {@link TransportReplicationAction} and captured
@@ -901,7 +910,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     public void testPrimaryReference() {
         final IndexShard shard = mock(IndexShard.class);
-        final ReplicationTask replicationTask = mock(ReplicationTask.class);
 
         AtomicBoolean closed = new AtomicBoolean();
         Releasable releasable = () -> {

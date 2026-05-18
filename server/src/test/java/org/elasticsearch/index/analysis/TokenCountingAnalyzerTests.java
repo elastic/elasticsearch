@@ -23,7 +23,7 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
 
     public void testTokenCountingWithinOrAtLimit() throws IOException {
         int limit = randomIntBetween(1, 100);
-        int tokenCount = randomIntBetween(1, limit*2);
+        int tokenCount = randomIntBetween(1, limit * 2);
         String fieldName = "foo";
         String input = generateWords(tokenCount);
 
@@ -31,7 +31,7 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
             TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, limit);
             try (TokenStream ts = analyzer.tokenStream(fieldName, input)) {
                 ts.reset();
-                if( tokenCount > limit ) {
+                if (tokenCount > limit) {
                     TokenCountingAnalyzer.FieldTokenCountExceededException ex = expectThrows(
                         TokenCountingAnalyzer.FieldTokenCountExceededException.class,
                         () -> {

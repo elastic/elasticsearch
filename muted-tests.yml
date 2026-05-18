@@ -572,3 +572,6 @@ tests:
 - class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
   method: testReindexRelocatesWhenCoordinatorShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/149285
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:tdigest.isNotNullFilter (timeseries mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/149293

@@ -213,8 +213,8 @@ public class ExternalSourceResolver {
         if (schema == null || schema.isEmpty()) {
             return Map.of();
         }
-        SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(identityMapping(schema.size()), null);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(schema, identityMapping, null));
+        ColumnMapping identityMapping = new ColumnMapping(identityMapping(schema.size()), null);
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -361,12 +361,10 @@ public class ExternalSourceResolver {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());
-            SchemaReconciliation.ColumnMapping identityMapping = new SchemaReconciliation.ColumnMapping(
-                identityMapping(dataOnlySchema.size()),
-                null
-            );
+            ColumnMapping identityMapping = new ColumnMapping(identityMapping(dataOnlySchema.size()), null);
+            ExternalSchema dataOnly = new ExternalSchema(dataOnlySchema);
             for (int i = 0; i < listing.fileCount(); i++) {
-                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnlySchema, identityMapping, null));
+                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnly, identityMapping, null));
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
         } else {
@@ -487,7 +485,7 @@ public class ExternalSourceResolver {
             result = SchemaReconciliation.reconcileUnionByName(allMetadata);
         }
 
-        List<Attribute> unifiedSchema = result.unifiedSchema();
+        List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
         SourceMetadata firstMeta = allMetadata.get(firstFile);
         Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
         ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
@@ -664,11 +662,11 @@ public class ExternalSourceResolver {
 
     static FormatReader.SchemaResolution parseSchemaResolution(@Nullable Map<String, Object> config) {
         if (config == null) {
-            return FormatReader.SchemaResolution.FIRST_FILE_WINS;
+            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
         }
         Object value = config.get(CONFIG_SCHEMA_RESOLUTION);
         if (value == null) {
-            return FormatReader.SchemaResolution.FIRST_FILE_WINS;
+            return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
         }
         return switch (value.toString().toLowerCase(Locale.ROOT)) {
             case "first_file_wins" -> FormatReader.SchemaResolution.FIRST_FILE_WINS;

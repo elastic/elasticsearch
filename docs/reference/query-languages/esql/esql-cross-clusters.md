@@ -24,13 +24,13 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 
     To ensure your remote cluster configuration supports {{ccs}}, see [Supported {{ccs}} configurations](docs-content://explore-analyze/cross-cluster-search.md#ccs-supported-configurations).
 
-* For full {{ccs}} capabilities, the local and remote cluster must be on the same [subscription level](https://www.elastic.co/subscriptions).
+* For full {{ccs}} capabilities, the local and remote clusters must be on the same [subscription level](https://www.elastic.co/subscriptions).
 * The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
-* If you use [sniff mode](docs-content:///deploy-manage/remote-clusters/remote-clusters-self-managed.md#sniff-mode), the local coordinating node must be able to connect to seed and gateway nodes on the remote cluster.
+* If you use [sniff mode](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md#sniff-mode), the local coordinating node must be able to connect to seed and gateway nodes on the remote cluster.
 
     We recommend using gateway nodes capable of serving as coordinating nodes. The seed nodes can be a subset of these gateway nodes.
 
-* If you use [proxy mode](docs-content:///deploy-manage/remote-clusters/remote-clusters-self-managed.md#proxy-mode), the local coordinating node must be able to connect to the configured `proxy_address`. The proxy at this address must be able to route connections to gateway and coordinating nodes on the remote cluster.
+* If you use [proxy mode](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md#proxy-mode), the local coordinating node must be able to connect to the configured `proxy_address`. The proxy at this address must be able to route connections to gateway and coordinating nodes on the remote cluster.
 * {{ccs-cap}} requires different security privileges on the local cluster and remote cluster. See [Configure roles and users](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#remote-clusters-privileges-api-key) and [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
 
 
@@ -96,7 +96,7 @@ POST /_security/user/remote_user
 Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges, which are controlled by the remote cluster’s administrator.
 
 ::::{tip}
-Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to add the new permissions required for {{esql}} with ENRICH.
+Cross cluster API keys created in versions prior to 8.15.0 will need to be replaced or updated to add the new permissions required for {{esql}} with ENRICH.
 
 ::::
 
@@ -224,7 +224,7 @@ Which returns:
 7. The `is_partial` field is set to `true` if the search has partial results for any reason, for example due to partial shard failures,
 failures in remote clusters, or if the async query was stopped by calling the [async query stop API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-esql).
 
-The cross-cluster metadata can be used to determine whether any data came back from a cluster. For instance, in the query below, the wildcard expression for `cluster-two` did not resolve to a concrete index (or indices). The cluster is, therefore, marked as *skipped* and the total number of shards searched is set to zero.
+The cross-cluster metadata can be used to determine whether any data came back from a cluster. For instance, in the query below, the wildcard expression for `cluster_two` did not resolve to a concrete index (or indices). The cluster is, therefore, marked as *skipped* and the total number of shards searched is set to zero.
 
 ```console
 POST /_query/async?format=json
@@ -301,7 +301,7 @@ For more on partial results and how cluster status is determined when failures o
 Enrich in {{esql}} across clusters operates similarly to [local enrich](commands/enrich.md). If the enrich policy and its enrich indices are consistent across all clusters, simply write the enrich command as you would without remote clusters. In this default mode, {{esql}} can execute the enrich command on either the local cluster or the remote clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that the policy exists with consistent data on both the local cluster and the remote clusters is critical for ES|QL to produce a consistent query result.
 
 ::::{tip}
-Enrich in {{esql}} across clusters using the API key based security model was introduced in version **8.15.0**. Cross cluster API keys created in versions prior to 8.15.0 will need to replaced or updated to use the new required permissions. Refer to the example in the [API key authentication](#esql-ccs-security-model-api-key) section.
+Enrich in {{esql}} across clusters using the API key based security model was introduced in version **8.15.0**. Cross cluster API keys created in versions prior to 8.15.0 will need to be replaced or updated to use the new required permissions. Refer to the example in the [API key authentication](#esql-ccs-security-model-api-key) section.
 
 ::::
 
@@ -405,7 +405,7 @@ FROM my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001
 
 ## Skipping problematic remote clusters [ccq-skip-unavailable-clusters]
 
-{{ccs-cap}} for {{esql}} behavior when there are problems connecting to or running query on remote clusters differs between versions.
+{{ccs-cap}} for {{esql}} behavior when there are problems connecting to or running a query on remote clusters differs between versions.
 
 ::::{applies-switch}
 
@@ -418,7 +418,7 @@ Remote clusters are configured with the `skip_unavailable: true` setting by defa
 
 The `partial` status means the remote query either has errors or was interrupted by an explicit user action, but some data may be returned.
 
-Queries will still fail when `skip_unavailable` is set `true`, if none of the specified indices exist. For example, the
+Queries will still fail when `skip_unavailable` is set to `true`, if none of the specified indices exist. For example, the
 following queries will fail:
 
 ```esql

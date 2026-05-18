@@ -38,6 +38,8 @@ cost:double | step:datetime
 
 max_over_time_of_double_no_grouping_promql_expanded
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(max_over_time(network.cost[1m])))
 | SORT step;
@@ -51,6 +53,8 @@ cost:double | step:datetime
 max_over_time_of_double_no_grouping_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(max_over_time(network.cost[1m])))
 | TS_COLLAPSE;

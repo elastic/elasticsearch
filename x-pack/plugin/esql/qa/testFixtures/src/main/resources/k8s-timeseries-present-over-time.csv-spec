@@ -78,6 +78,8 @@ is_present:double | step:datetime            | cluster:keyword
 present_over_time_of_long_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
 | TS_COLLAPSE

@@ -36,6 +36,8 @@ clients:double | step:datetime            | cluster:keyword
 
 last_over_time_of_integer_promql_expanded
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
 | SORT cluster, step;
@@ -54,6 +56,8 @@ clients:double | step:datetime            | cluster:keyword
 last_over_time_of_integer_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
 | TS_COLLAPSE

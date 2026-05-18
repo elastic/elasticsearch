@@ -200,6 +200,8 @@ irate_bytes_in:double | step:datetime            | cluster:keyword
 irate_with_filtering_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" irate_bytes_in=(round(sum by (cluster) (irate(network.total_bytes_in{pod="one"}[10m])), 0.01))
 | TS_COLLAPSE

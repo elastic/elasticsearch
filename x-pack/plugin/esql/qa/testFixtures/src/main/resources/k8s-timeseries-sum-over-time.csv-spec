@@ -136,6 +136,8 @@ sum_over_time_of_aggregate_metric_double_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: aggregate_metric_double_v0
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s-downsampled step=10m start="2024-05-09T23:30:00.000Z" end="2024-05-09T23:50:00.000Z" tx=(sum(sum_over_time(network.eth0.tx[10m])))
 | TS_COLLAPSE;

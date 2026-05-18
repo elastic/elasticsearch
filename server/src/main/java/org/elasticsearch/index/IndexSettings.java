@@ -1111,7 +1111,7 @@ public final class IndexSettings {
             return Boolean.FALSE.toString();
         }
         IndexMode indexMode = IndexSettings.MODE.get(settings);
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
+        if (indexMode.isStrictColumnar()) {
             var indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
             // Only enable by default if the index version supports it
             if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)) {

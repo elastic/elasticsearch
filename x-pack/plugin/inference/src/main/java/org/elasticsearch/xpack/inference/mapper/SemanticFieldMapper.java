@@ -101,8 +101,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticFieldMapper.class);
 
-    private static final String VALUE_SUFFIX = ".value";
-
     public static final String CONTENT_TYPE = "semantic";
 
     public static final FeatureFlag SEMANTIC_FIELD_FEATURE_FLAG = new FeatureFlag("semantic_field");
@@ -679,12 +677,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     private void indexValue(DocumentParserContext context, XContentString value) {
         var utfBytes = value.bytes();
         var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-        final String fieldName = fieldType().name() + VALUE_SUFFIX;
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldName, bytesRef, UNSORTED);
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name(), bytesRef, UNSORTED);
     }
 
     private void indexValue(DocumentParserContext context, BytesRef bytesRef) {
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name() + VALUE_SUFFIX, bytesRef, UNSORTED);
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name(), bytesRef, UNSORTED);
     }
 
     @Override

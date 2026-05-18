@@ -184,6 +184,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         public NativeFunctions addBBQ(Iterable<BBQType> bbqTypes, Iterable<Operation> operations) {
             bbqTypes.forEach(type -> operations.forEach(op -> {
                 String typeName = switch (type) {
+                    case D1Q1 -> throw new IllegalStateException("D1Q1 has no native implementation");
                     case D1Q4 -> "d1q4";
                     case D2Q4 -> "d2q4";
                     case D4Q4 -> "d4q4";
@@ -208,7 +209,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static Iterable<BBQType> allBBQTypes() {
-            return () -> Arrays.stream(BBQType.values()).iterator();
+            return () -> Arrays.stream(BBQType.values()).filter(t -> t != BBQType.D1Q1).iterator();
         }
 
         private static String getOpName(Operation op) {

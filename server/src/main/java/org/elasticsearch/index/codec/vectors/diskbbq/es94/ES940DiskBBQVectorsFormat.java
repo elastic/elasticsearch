@@ -110,6 +110,17 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
                 ESVectorUtil.transposeHalfByte(quantized, destination);
             }
         },
+        ONE_BIT_1BIT_QUERY(5, (byte) 1, (byte) 1) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                ESVectorUtil.packAsBinary(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                ESVectorUtil.packAsBinary(quantized, destination);
+            }
+        },
         TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
@@ -307,6 +318,46 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
                 case 4 -> FOUR_BIT_SYMMETRIC_PACKED;
                 case 7 -> SEVEN_BIT_SYMMETRIC;
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+            };
+        }
+
+        /**
+         * Resolves the quantization encoding from document and query bit widths.
+         *
+         * @throws IllegalArgumentException if the combination is unsupported
+         */
+        public static QuantEncoding fromDocAndQueryBits(byte docBits, byte queryBits) {
+            return switch (docBits) {
+                case 1 -> {
+                    if (queryBits == 1) {
+                        yield ONE_BIT_1BIT_QUERY;
+                    }
+                    if (queryBits == 4) {
+                        yield ONE_BIT_4BIT_QUERY;
+                    }
+                    throw new IllegalArgumentException("1-bit document quantization supports query bits 1 or 4, but got: " + queryBits);
+                }
+                case 2 -> {
+                    if (queryBits != 4) {
+                        throw new IllegalArgumentException(
+                            "2-bit document quantization requires 4-bit query quantization, but got: " + queryBits
+                        );
+                    }
+                    yield TWO_BIT_4BIT_QUERY;
+                }
+                case 4 -> {
+                    if (queryBits != 4) {
+                        throw new IllegalArgumentException("4-bit symmetric quantization requires query bits 4, but got: " + queryBits);
+                    }
+                    yield FOUR_BIT_SYMMETRIC_PACKED;
+                }
+                case 7 -> {
+                    if (queryBits != 7) {
+                        throw new IllegalArgumentException("7-bit symmetric quantization requires query bits 7, but got: " + queryBits);
+                    }
+                    yield SEVEN_BIT_SYMMETRIC;
+                }
+                default -> throw new IllegalArgumentException("Unsupported document bits: " + docBits);
             };
         }
     }

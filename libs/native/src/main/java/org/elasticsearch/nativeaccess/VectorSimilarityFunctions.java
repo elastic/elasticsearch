@@ -107,27 +107,33 @@ public interface VectorSimilarityFunctions {
      */
     enum BBQType {
         /**
+         * 1-bit data, 1-bit queries, bit-plane striped layout.
+         */
+        D1Q1((byte) 1, (byte) 1, Layout.STRIPED),
+        /**
          * 1-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D1Q4((byte) 1, Layout.STRIPED),
+        D1Q4((byte) 1, (byte) 4, Layout.STRIPED),
         /**
          * 2-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D2Q4((byte) 2, Layout.STRIPED),
+        D2Q4((byte) 2, (byte) 4, Layout.STRIPED),
         /**
          * 4-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D4Q4((byte) 4, Layout.STRIPED),
+        D4Q4((byte) 4, (byte) 4, Layout.STRIPED),
         /**
          * 2-bit data, 4-bit queries, packed-quad layout.
          */
-        D2Q4_PACKED((byte) 2, Layout.PACKED);
+        D2Q4_PACKED((byte) 2, (byte) 4, Layout.PACKED);
 
         private final byte dataBits;
+        private final byte queryBits;
         private final Layout layout;
 
-        BBQType(byte dataBits, Layout layout) {
+        BBQType(byte dataBits, byte queryBits, Layout layout) {
             this.dataBits = dataBits;
+            this.queryBits = queryBits;
             this.layout = layout;
         }
 
@@ -136,7 +142,7 @@ public interface VectorSimilarityFunctions {
         }
 
         public byte queryBits() {
-            return 4;
+            return queryBits;
         }
 
         public Layout layout() {

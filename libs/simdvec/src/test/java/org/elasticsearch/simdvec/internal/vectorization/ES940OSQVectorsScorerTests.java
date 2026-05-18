@@ -70,6 +70,9 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
     }
 
     private int docPackedLength(int dimensions) {
+        if (indexBits == 1 && queryBits == 1) {
+            return ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_1BIT_QUERY.getDocPackedLength(dimensions);
+        }
         if (indexBits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
             int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions);
             return 4 * ((discretized + 7) / 8);
@@ -78,6 +81,9 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
     }
 
     private int queryPackedLength(int dimensions) {
+        if (indexBits == 1 && queryBits == 1) {
+            return ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_1BIT_QUERY.getQueryPackedLength(dimensions);
+        }
         if (indexBits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
             return docPackedLength(dimensions);
         }
@@ -781,6 +787,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         var bitCombinations = List.of(
+            List.of((byte) 1, (byte) 1, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),
             List.of((byte) 1, (byte) 4, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),
             List.of((byte) 2, (byte) 4, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),
             List.of((byte) 4, (byte) 4, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),

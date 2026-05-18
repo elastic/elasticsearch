@@ -499,8 +499,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     context.mappingLookup().getMapping().ignoredSourceFormat()
                 );
                 var sourceLeafLoader = sourceLoader.leaf(leafCtx.reader(), docIds);
-                var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
-                    .getLoader(leafCtx, docIds);
+                var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
                 storedFieldLoader.advanceTo(docId);
                 try (var b = new XContentBuilder(context.sourceToParse().getXContentType().xContent(), new ByteArrayOutputStream())) {
                     sourceLeafLoader.write(storedFieldLoader, docId, b);

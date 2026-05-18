@@ -578,10 +578,10 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                     }
                     return new TestCaseSupplier.TestCase(
                         args,
-                        "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesEvaluator[lhs="
+                        "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesByConstantEvaluator[lhs="
                             + attr
                             + ", "
-                            + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
+                            + "rhs=50.0]], rhs=LiteralsEvaluator[lit=50.0]]",
                         DataType.DOUBLE,
                         resultsMatcher(args)
                     ).withExtra(META_NUMERIC_50);
@@ -617,10 +617,10 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 }
                 return new TestCaseSupplier.TestCase(
                     args,
-                    "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesEvaluator[lhs="
+                    "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesByConstantEvaluator[lhs="
                         + attr
                         + ", "
-                        + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
+                        + "rhs=50.0]], rhs=LiteralsEvaluator[lit=50.0]]",
                     DataType.DOUBLE,
                     resultsMatcher(args)
                 ).withExtra(META_NUMERIC_50);

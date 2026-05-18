@@ -99,10 +99,8 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
     }
 
     private static String randomNonTimestampFieldName() {
-        String candidate;
-        do {
-            candidate = randomAlphaOfLengthBetween(1, 16);
-        } while (TIMESTAMP_FIELD_NAME.equals(candidate));
-        return candidate;
+        // NOTE: randomAlphaOfLengthBetween only produces ASCII alpha characters, so the
+        // result can never equal TIMESTAMP_FIELD_NAME ("@timestamp" starts with @).
+        return randomAlphaOfLengthBetween(1, 16);
     }
 }

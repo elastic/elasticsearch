@@ -525,9 +525,7 @@ public class ExternalSourceResolver {
         return result;
     }
 
-    /** Cache-aware single-file resolve; mirrors the FFW cache pattern. Exceptions from the
-     *  cache layer or the underlying resolve propagate to the caller (same as FFW) so a real
-     *  cache bug fails loud instead of degrading silently to N footer reads per warm query. */
+    /** Cache-aware single-file resolve. Mirrors the FFW path — exceptions propagate (no catch). */
     private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
         String formatType = detectFormatType(filePath);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
@@ -544,14 +542,11 @@ public class ExternalSourceResolver {
      * then merges all maps using {@link SourceStatisticsSerializer#mergeStatistics}.
      * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
      */
-    // package-private for direct test coverage of the cached/uncached shape branch.
     @Nullable
     static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         for (SourceMetadata meta : allMetadata) {
-            // Cached entries arrive with stats already embedded as flat keys in sourceMetadata();
-            // uncached entries arrive with typed statistics(). Accept either shape so callers
-            // don't need to know whether the metadata came through the schema cache.
+            // Cached entries embed stats in sourceMetadata(); uncached entries use typed statistics().
             Map<String, Object> base = meta.sourceMetadata();
             if (base != null && base.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
                 perFileFlatStats.add(base);

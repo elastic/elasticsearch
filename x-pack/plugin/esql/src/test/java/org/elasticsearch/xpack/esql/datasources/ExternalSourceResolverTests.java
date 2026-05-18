@@ -1005,14 +1005,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
-    /**
-     * {@link ExternalSourceResolver#aggregateFileStatistics} accepts two distinct
-     * {@link SourceMetadata} shapes — cached entries arrive with stats already embedded as flat
-     * keys in {@code sourceMetadata()}, uncached entries arrive with typed {@code statistics()}
-     * — and merges both into a single flat stats map. Pinned independently of the full resolver
-     * flow so the shape branch (the load-bearing piece of the reconciliation fix) regresses
-     * loudly if either arm breaks.
-     */
     public void testAggregateFileStatisticsAcceptsCachedAndUncachedShapes() {
         long uncachedRowCount = 42L;
         long cachedRowCount = 58L;
@@ -1063,12 +1055,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
 
         Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
-        assertNotNull("merging cached and uncached shapes must succeed", merged);
-        assertEquals(
-            "merged row count must sum both shapes",
-            uncachedRowCount + cachedRowCount,
-            ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
-        );
+        assertNotNull(merged);
+        assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
 
         SourceMetadata missing = new SourceMetadata() {
             @Override
@@ -1086,10 +1074,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return "s3://bucket/missing.parquet";
             }
         };
-        assertNull(
-            "aggregate must return null when any entry lacks both flat-embedded stats and typed statistics()",
-            ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing))
-        );
+        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing)));
     }
 
     private static SourceStatistics statsOf(long rowCount) {
@@ -1106,16 +1091,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
     }
 
-    /**
-     * Column statistics (min/max/null_count) flow through {@code aggregateFileStatistics} via the
-     * same shape branch as row counts: cached entries carry them as flat {@code _stats.columns.*}
-     * keys in {@code sourceMetadata()}, uncached entries carry them as typed
-     * {@link SourceStatistics.ColumnStatistics}. The regression on {@code stats_min_max_eventdate}
-     * (21× slower at the bench baseline) makes column stats load-bearing, so pin the full
-     * round-trip: merged {@code null_count} sums across both shapes; merged {@code min}/{@code max}
-     * span the union; the implicit-nulls pass does not over-count when both files contain the
-     * column.
-     */
     public void testAggregateFileStatisticsMergesColumnStatsAcrossShapes() {
         String col = "eventDate";
         long uncachedRowCount = 100L;
@@ -1177,27 +1152,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
 
         Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
-        assertNotNull("merging cached and uncached shapes with column stats must succeed", merged);
+        assertNotNull(merged);
+        assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
         assertEquals(
-            "merged row count must sum both shapes",
-            uncachedRowCount + cachedRowCount,
-            ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
-        );
-        assertEquals(
-            "merged null_count must sum across both shapes (no implicit nulls when column is present in every file)",
             uncachedNullCount + cachedNullCount,
             ((Number) merged.get(SourceStatisticsSerializer.columnNullCountKey(col))).longValue()
         );
-        assertEquals(
-            "merged min must span the union",
-            uncachedMin,
-            ((Number) merged.get(SourceStatisticsSerializer.columnMinKey(col))).longValue()
-        );
-        assertEquals(
-            "merged max must span the union",
-            cachedMax,
-            ((Number) merged.get(SourceStatisticsSerializer.columnMaxKey(col))).longValue()
-        );
+        assertEquals(uncachedMin, ((Number) merged.get(SourceStatisticsSerializer.columnMinKey(col))).longValue());
+        assertEquals(cachedMax, ((Number) merged.get(SourceStatisticsSerializer.columnMaxKey(col))).longValue());
     }
 
     private static SourceStatistics statsWithColumn(long rowCount, String columnName, long nullCount, long min, long max) {

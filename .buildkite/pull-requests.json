@@ -36,7 +36,6 @@
       "build_on_commit": true,
       "build_on_comment": true,
       "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) test this$",
-      "retrigger_label_regex": "v[0-9]+\\.[0-9]+\\.[0-9]+",
       "cancel_intermediate_builds": true,
       "cancel_intermediate_builds_on_comment": false,
       "skip_duplicate_builds": true,

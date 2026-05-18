@@ -128,7 +128,7 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
             return;
         }
 
-        final int k = detectFlips(values, valueCount);
+        final int k = countFlips(values, valueCount);
         if (k <= 0) {
             return;
         }
@@ -216,7 +216,7 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
     // becomes the new one).
     // This makes the classic TSDB pattern [desc, desc, ..., UP, desc, desc, ...] resolve
     // to a single split rather than two adjacent splits with a length-1 middle sub-run.
-    private int detectFlips(final long[] values, final int valueCount) {
+    private int countFlips(final long[] values, final int valueCount) {
         int k = 0;
         int prev = 0;
         int pendingFlip = -1;

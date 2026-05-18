@@ -21,7 +21,7 @@ import java.lang.reflect.Field;
  * Allocates uninitialized primitive arrays via {@code jdk.internal.misc.Unsafe#allocateUninitializedArray}.
  * <p>
  * Unlike {@code new T[length]}, the returned arrays are not zeroed by the JVM. Callers must
- * fully overwrite every element before reading, otherwise they will observe stale memory
+ * overwrite every element they use before reading it, otherwise they will observe stale memory
  * contents. Use only on the hot path where the zeroing cost is measurable and the array is
  * guaranteed to be fully written before being read.
  * <p>
@@ -46,7 +46,8 @@ public final class UninitializedArrays {
 
     private static final Logger logger = LogManager.getLogger(UninitializedArrays.class);
 
-    private static final String UNSAFE_DISABLED_MESSAGE = "Could not initialize jdk.internal.misc.Unsafe#allocateUninitializedArray; "
+    // Visible for testing
+    static final String UNSAFE_DISABLED_MESSAGE = "Could not initialize jdk.internal.misc.Unsafe#allocateUninitializedArray; "
         + "pass --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED to enable the fast path.";
 
     // Per-primitive-type call sites. Each handle has both the Unsafe receiver and the
@@ -68,7 +69,7 @@ public final class UninitializedArrays {
     private static final boolean UNSAFE_ENABLED = ALLOCATE_BYTE != null;
 
     @SuppressForbidden(reason = "need to access jdk.internal.misc.Unsafe")
-    private static ConstantCallSite bindAllocate(Class<?> componentType) {
+    static ConstantCallSite bindAllocate(Class<?> componentType) {
         try {
             // We resolve jdk.internal.misc.Unsafe reflectively rather than via a direct
             // import because the ES build compiles with javac's --release flag, which pins
@@ -91,7 +92,7 @@ public final class UninitializedArrays {
                 // call site — a prerequisite for the allocation intrinsic.
                 .asType(MethodType.methodType(componentType.arrayType(), int.class));
             return new ConstantCallSite(handle);
-        } catch (ReflectiveOperationException | RuntimeException e) {
+        } catch (Throwable e) {
             logger.warn(UNSAFE_DISABLED_MESSAGE + " Falling back to zero-initialized array allocation.", e);
             return null;
         }

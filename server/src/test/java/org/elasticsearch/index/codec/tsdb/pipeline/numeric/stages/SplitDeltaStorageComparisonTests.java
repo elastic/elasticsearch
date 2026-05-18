@@ -162,6 +162,28 @@ public class SplitDeltaStorageComparisonTests extends ESTestCase {
         }
     }
 
+    public void testJitteredFourFlipBlock() throws IOException {
+        final long[] expectedDelta = { 520, 2056, 4104, 8200 };
+        final long[] expectedSplitDelta = { 232, 811, 1580, 3116 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = jitteredMultiFlipBlock(blockSize, 4, new Random(JITTER_SEED));
+            assertEquals(expectedDelta[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expectedSplitDelta[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
+    }
+
+    public void testJitteredKMaxFlipBlock() throws IOException {
+        final long[] expectedDelta = { 520, 2056, 4104, 8200 };
+        final long[] expectedSplitDelta = { 316, 904, 1674, 3211 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            final long[] values = jitteredMultiFlipBlock(blockSize, 16, new Random(JITTER_SEED));
+            assertEquals(expectedDelta[i], encodeBlockSize(deltaPipeline(blockSize), values));
+            assertEquals(expectedSplitDelta[i], encodeBlockSize(splitDeltaPipeline(blockSize), values));
+        }
+    }
+
     private static PipelineConfig deltaPipeline(int blockSize) {
         return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
     }

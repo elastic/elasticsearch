@@ -18,8 +18,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,11 +35,17 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.COSINE;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.hamcrest.Matchers.closeTo;
 
 public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     private static final double DELTA = 1e-6;
+
+    @BeforeClass
+    public static void requiresHeapSegments() {
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
+    }
 
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {
@@ -46,54 +54,65 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testZeros() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, byte[]::new, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT);
+        try (Directory dir = new MMapDirectory(createTempDir("testZeros"), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
+            testRandomSupplier(dir, byte[]::new, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT);
+        }
     }
 
-    public void testRandom() throws IOException {
+    public void testRandomMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
+            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+        }
+    }
+
+    public void testRandomNIO() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
+            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+        }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomSupplier(maxChunkSize, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
+            testRandomSupplier(dir, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
+        }
     }
 
-    void testRandomSupplier(long maxChunkSize, IntFunction<byte[]> bytesSupplier, VectorSimilarityType... types) throws IOException {
+    void testRandomSupplier(Directory dir, IntFunction<byte[]> bytesSupplier, VectorSimilarityType... types) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            final int dims = randomIntBetween(1, 4096);
-            final int size = randomIntBetween(2, 100);
-            final byte[][] vectors = new byte[size][];
+        final int dims = randomIntBetween(1, 4096);
+        final int size = randomIntBetween(2, 100);
+        final byte[][] vectors = new byte[size][];
 
-            String fileName = "testRandom-" + dims;
-            logger.info("Testing " + fileName);
-            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                for (int i = 0; i < size; i++) {
-                    byte[] vec = bytesSupplier.apply(dims);
-                    out.writeBytes(vec, vec.length);
-                    vectors[i] = vec;
-                }
+        String fileName = "testRandom-" + dir.getClass().getSimpleName() + "-" + dims;
+        logger.info("Testing " + fileName);
+        try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+            for (int i = 0; i < size; i++) {
+                byte[] vec = bytesSupplier.apply(dims);
+                out.writeBytes(vec, vec.length);
+                vectors[i] = vec;
             }
-            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                for (int times = 0; times < TIMES; times++) {
-                    int idx0 = randomIntBetween(0, size - 1);
-                    int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
-                    for (var sim : types) {
-                        var values = vectorValues(dims, size, in, sim.function());
-                        float expected = luceneScore(sim, vectors[idx0], vectors[idx1]);
+        }
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int idx0 = randomIntBetween(0, size - 1);
+                int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
+                for (var sim : types) {
+                    var values = vectorValues(dims, size, in, sim.function());
+                    float expected = luceneScore(sim, vectors[idx0], vectors[idx1]);
 
-                        var supplier = factory.getByteVectorScorerSupplier(sim, in, values).get();
-                        var scorer = supplier.scorer();
-                        scorer.setScoringOrdinal(idx0);
+                    var supplier = factory.getByteVectorScorerSupplier(sim, in, values).get();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(idx0);
 
-                        // scale the delta to the magnitude of the score
-                        double expectedDelta = expected * DELTA;
-                        assertThat(sim.toString(), (double) scorer.score(idx1), closeTo(expected, expectedDelta));
-                    }
+                    // scale the delta to the magnitude of the score
+                    double expectedDelta = expected * DELTA;
+                    assertThat(sim.toString(), (double) scorer.score(idx1), closeTo(expected, expectedDelta));
                 }
             }
         }
@@ -141,6 +160,13 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
     public void testSupplierBulkWithMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (var dir = new MMapDirectory(createTempDir("testBulkWithMMap"))) {
+            testSupplierBulkImpl(dir);
+        }
+    }
+
+    public void testSupplierBulkWithNIO() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        try (var dir = new NIOFSDirectory(createTempDir("testBulkWithNIO"))) {
             testSupplierBulkImpl(dir);
         }
     }

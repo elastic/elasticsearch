@@ -56,6 +56,22 @@ public final class ES819TSDBDocValuesFormatFactory {
         true
     );
 
+    static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID = new ES819Version3TSDBDocValuesFormat(false, false, true, true);
+    static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_BINARY_BLOCK = new ES819Version3TSDBDocValuesFormat(
+        false,
+        true,
+        true,
+        true
+    );
+    static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(
+        true,
+        false,
+        true,
+        true
+    );
+    static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_NUMERIC_AND_BINARY_BLOCK =
+        new ES819Version3TSDBDocValuesFormat(true, true, true, true);
+
     private ES819TSDBDocValuesFormatFactory() {}
 
     /**
@@ -67,15 +83,27 @@ public final class ES819TSDBDocValuesFormatFactory {
      * @param useLargeNumericBlockSize a boolean flag indicating whether to use a large numeric block size.
      * @param useLargeBinaryBlockSize  a boolean flag indicating whether to use a large binary block size.
      * @param writePrefixPartitions    a boolean flag indicating whether to write the prefix partition for the primary sort field
+     * @param skipTsidLz4Encoding  a boolean flag indicating whether to skip LZ4 on the {@code _tsid} terms dictionary
      * @return the appropriate DocValuesFormat instance based on the index version and block size selection.
      */
     public static DocValuesFormat createDocValuesFormat(
         IndexVersion indexCreatedVersion,
         boolean useLargeNumericBlockSize,
         boolean useLargeBinaryBlockSize,
-        boolean writePrefixPartitions
+        boolean writePrefixPartitions,
+        boolean skipTsidLz4Encoding
     ) {
         if (writePrefixPartitions) {
+            if (skipTsidLz4Encoding) {
+                if (useLargeNumericBlockSize && useLargeBinaryBlockSize) {
+                    return ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_NUMERIC_AND_BINARY_BLOCK;
+                } else if (useLargeBinaryBlockSize) {
+                    return ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_BINARY_BLOCK;
+                }
+                return useLargeNumericBlockSize
+                    ? ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_NUMERIC_BLOCK
+                    : ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID;
+            }
             if (useLargeNumericBlockSize && useLargeBinaryBlockSize) {
                 return ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK;
             } else if (useLargeBinaryBlockSize) {

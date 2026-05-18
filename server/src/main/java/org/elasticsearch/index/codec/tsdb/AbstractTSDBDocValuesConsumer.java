@@ -40,7 +40,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.elasticsearch.core.IOUtils;
 
@@ -119,6 +118,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     private final SortedFieldObserverFactory sortedFieldObserverFactory;
     private final NumericBlockCodec numericCodec;
     private final OrdinalBlockCodec ordinalCodec;
+    private final TermsDictBlockCodec termsDictCodec;
+    private final TermsDictWriteContext termsDictWriteContext;
     private final NumericWriteContext writeContext;
 
     /**
@@ -135,6 +136,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
      * @param sortedFieldObserverFactory  factory for creating observers during sorted field writes
      * @param numericCodec                codec for numeric doc values (NUMERIC and SORTED_NUMERIC)
      * @param ordinalCodec                codec for ordinal doc values (SORTED and SORTED_SET)
+     * @param termsDictCodec              codec for terms-dictionary block bodies (SORTED and SORTED_SET)
      */
     @SuppressWarnings("this-escape")
     protected AbstractTSDBDocValuesConsumer(
@@ -150,13 +152,16 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final DocOffsetsCodec.Encoder docOffsetsEncoder,
         final SortedFieldObserverFactory sortedFieldObserverFactory,
         final NumericBlockCodec numericCodec,
-        final OrdinalBlockCodec ordinalCodec
+        final OrdinalBlockCodec ordinalCodec,
+        final TermsDictBlockCodec termsDictCodec
     ) throws IOException {
         this.state = state;
         this.docOffsetsEncoder = docOffsetsEncoder;
         this.sortedFieldObserverFactory = sortedFieldObserverFactory;
         this.numericCodec = numericCodec;
         this.ordinalCodec = ordinalCodec;
+        this.termsDictCodec = termsDictCodec;
+        this.termsDictWriteContext = new TermsDictWriteContext(formatConfig.skipTsidLz4Encoding());
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.primarySortFieldNumber = AbstractTSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
@@ -168,36 +173,19 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         boolean success = false;
         try {
+            final int effectiveVersion = effectiveVersion(formatConfig);
             final String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
             data = state.directory.createOutput(dataName, state.context);
-            CodecUtil.writeIndexHeader(
-                data,
-                dataCodec,
-                TSDBDocValuesFormatConfig.VERSION_CURRENT,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            CodecUtil.writeIndexHeader(data, dataCodec, effectiveVersion, state.segmentInfo.getId(), state.segmentSuffix);
 
             final String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
             meta = state.directory.createOutput(metaName, state.context);
-            CodecUtil.writeIndexHeader(
-                meta,
-                metaCodec,
-                TSDBDocValuesFormatConfig.VERSION_CURRENT,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            CodecUtil.writeIndexHeader(meta, metaCodec, effectiveVersion, state.segmentInfo.getId(), state.segmentSuffix);
             meta.writeByte((byte) formatConfig.numericBlockShift());
 
             final String skipName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, skipExtension);
             skip = state.directory.createOutput(skipName, state.context);
-            CodecUtil.writeIndexHeader(
-                skip,
-                skipCodec,
-                TSDBDocValuesFormatConfig.VERSION_CURRENT,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            CodecUtil.writeIndexHeader(skip, skipCodec, effectiveVersion, state.segmentInfo.getId(), state.segmentSuffix);
 
             maxDoc = state.segmentInfo.maxDoc();
             this.enableOptimizedMerge = enableOptimizedMerge;
@@ -217,6 +205,18 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                 IOUtils.closeWhileHandlingException(this);
             }
         }
+    }
+
+    /**
+     * Returns the on-disk format version stamped on this segment's data, meta, and skip file
+     * headers. The producer reads this same value back and uses it to choose the
+     * {@code _tsid} terms-dict path (raw at {@link TSDBDocValuesFormatConfig#VERSION_TERMS_DICT_RAW_FLAG}
+     * and later, LZ4 below it), so no per-field meta byte is needed.
+     */
+    private static int effectiveVersion(final TSDBDocValuesFormatConfig formatConfig) {
+        return formatConfig.skipTsidLz4Encoding()
+            ? TSDBDocValuesFormatConfig.VERSION_TERMS_DICT_RAW_FLAG
+            : TSDBDocValuesFormatConfig.VERSION_SEPARATE_SKIPLIST;
     }
 
     /**
@@ -673,7 +673,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final SortedFieldObserver observer = sortedFieldObserverFactory.create(field);
         final SortedDocValues sorted = valuesProducer.getSorted(field);
         final int maxOrd = sorted.getValueCount();
-        addTermsDict(DocValues.singleton(sorted), observer);
+        addTermsDict(field, DocValues.singleton(sorted), observer);
         observer.prepareForDocs();
         writeOrdinalField(field, producer, maxOrd, null, observer);
         if (primarySortFieldNumber == field.number) {
@@ -682,7 +682,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         observer.flush(data, meta);
     }
 
-    private void addTermsDict(final SortedSetDocValues values, final SortedFieldObserver observer) throws IOException {
+    private void addTermsDict(final FieldInfo field, final SortedSetDocValues values, final SortedFieldObserver observer)
+        throws IOException {
         final long size = values.getValueCount();
         meta.writeVLong(size);
 
@@ -705,14 +706,14 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         int maxLength = 0, maxBlockLength = 0;
         TermsEnum iterator = values.termsEnum();
 
-        LZ4.FastCompressionHashTable ht = new LZ4.FastCompressionHashTable();
+        final TermsDictFieldWriter.Encoder blockEncoder = termsDictCodec.createWriter(termsDictWriteContext, field).encoder();
         ByteArrayDataOutput bufferedOutput = new ByteArrayDataOutput(termsDictBuffer);
         int dictLength = 0;
 
         for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
             if ((ord & blockMask) == 0) {
                 if (ord != 0) {
-                    final int uncompressedLength = compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
+                    final int uncompressedLength = writeTermsDictBlock(blockEncoder, bufferedOutput, dictLength);
                     maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
                     bufferedOutput.reset(termsDictBuffer);
                 }
@@ -743,7 +744,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             ++ord;
         }
         if (bufferedOutput.getPosition() > dictLength) {
-            final int uncompressedLength = compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
+            final int uncompressedLength = writeTermsDictBlock(blockEncoder, bufferedOutput, dictLength);
             maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
         }
 
@@ -760,15 +761,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         writeTermsIndex(values);
     }
 
-    private int compressAndGetTermsDictBlockLength(
+    private int writeTermsDictBlock(
+        final TermsDictFieldWriter.Encoder blockEncoder,
         final ByteArrayDataOutput bufferedOutput,
-        int dictLength,
-        final LZ4.FastCompressionHashTable ht
+        final int dictLength
     ) throws IOException {
-        int uncompressedLength = bufferedOutput.getPosition() - dictLength;
-        data.writeVInt(uncompressedLength);
-        LZ4.compressWithDictionary(termsDictBuffer, 0, dictLength, uncompressedLength, data, ht);
-        return uncompressedLength;
+        final int blockLength = bufferedOutput.getPosition() - dictLength;
+        blockEncoder.writeHeader(data, blockLength);
+        blockEncoder.writeBody(data, termsDictBuffer, 0, dictLength, blockLength);
+        return blockLength;
     }
 
     private ByteArrayDataOutput maybeGrowBuffer(ByteArrayDataOutput bufferedOutput, int termLength) {
@@ -1028,7 +1029,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             }
         }, maxOrd);
 
-        addTermsDict(valuesProducer.getSortedSet(field), SortedFieldObserver.NOOP);
+        addTermsDict(field, valuesProducer.getSortedSet(field), SortedFieldObserver.NOOP);
     }
 
     @Override

@@ -13,13 +13,14 @@ package org.elasticsearch.index.codec.tsdb;
  * Format-specific configuration that varies per codec version. Groups related parameters
  * into sub-records and provides delegation methods for convenient flat access.
  *
- * @param version                    version identifiers for header validation and feature gating
- * @param termsDict                  terms dictionary block layout parameters
- * @param skipIndex                  skip index geometry parameters
- * @param numeric                    numeric encoding parameters
- * @param binary                     binary doc values compression parameters
- * @param directMonotonicBlockShift  block shift for DirectMonotonicWriter used across all field types
- * @param writePrefixPartitions      whether to write prefix-based partition metadata for the primary sort field
+ * @param version                       version identifiers for header validation and feature gating
+ * @param termsDict                     terms dictionary block layout parameters
+ * @param skipIndex                     skip index geometry parameters
+ * @param numeric                       numeric encoding parameters
+ * @param binary                        binary doc values compression parameters
+ * @param directMonotonicBlockShift     block shift for DirectMonotonicWriter used across all field types
+ * @param writePrefixPartitions         whether to write prefix-based partition metadata for the primary sort field
+ * @param skipTsidLz4Encoding       whether to write the {@code _tsid} terms dictionary blocks raw, skipping LZ4
  */
 public record TSDBDocValuesFormatConfig(
     int version,
@@ -28,7 +29,8 @@ public record TSDBDocValuesFormatConfig(
     NumericConfig numeric,
     BinaryConfig binary,
     int directMonotonicBlockShift,
-    boolean writePrefixPartitions
+    boolean writePrefixPartitions,
+    boolean skipTsidLz4Encoding
 ) {
     /** @return terms dict block mask */
     public int termsBlockLz4Mask() {
@@ -140,5 +142,6 @@ public record TSDBDocValuesFormatConfig(
     public static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
     public static final int VERSION_PREFIX_PARTITIONS = 4;
     public static final int VERSION_SEPARATE_SKIPLIST = 5;
-    public static final int VERSION_CURRENT = VERSION_SEPARATE_SKIPLIST;
+    public static final int VERSION_TERMS_DICT_RAW_FLAG = 6;
+    public static final int VERSION_CURRENT = VERSION_TERMS_DICT_RAW_FLAG;
 }

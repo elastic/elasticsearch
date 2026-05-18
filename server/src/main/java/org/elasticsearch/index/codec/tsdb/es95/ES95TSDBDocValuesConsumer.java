@@ -16,6 +16,7 @@ import org.elasticsearch.index.codec.tsdb.NumericBlockCodec;
 import org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
+import org.elasticsearch.index.codec.tsdb.TSDBTermsDictBlockCodec;
 
 import java.io.IOException;
 
@@ -54,7 +55,8 @@ final class ES95TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
             docOffsetsEncoder,
             sortedFieldObserverFactory,
             numericCodec,
-            ordinalCodec
+            ordinalCodec,
+            new TSDBTermsDictBlockCodec()
         );
     }
 }

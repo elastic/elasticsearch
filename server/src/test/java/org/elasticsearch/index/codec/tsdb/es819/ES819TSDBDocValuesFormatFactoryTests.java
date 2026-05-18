@@ -25,6 +25,7 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
                 IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
                 false,
                 false,
+                false,
                 false
             )
         );
@@ -33,7 +34,13 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
     public void testVersion3WithLargeNumericBlockSize() {
         assertSame(
             ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, true, false, false)
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
+                IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
+                true,
+                false,
+                false,
+                false
+            )
         );
     }
 
@@ -42,6 +49,7 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
             IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
             false,
             true,
+            false,
             false
         );
         assertSame(ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, actual);
@@ -52,18 +60,24 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
     public void testVersion3WithLargeNumericAndBinaryBlockSize() {
         assertSame(
             ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK,
-            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, true, true, false)
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
+                IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
+                true,
+                true,
+                false,
+                false
+            )
         );
     }
 
     public void testVersionAfterVersion3() {
         assertSame(
             ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,
-            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false, false, false)
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false, false, false, false)
         );
         assertSame(
             ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true, false, false)
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true, false, false, false)
         );
     }
 
@@ -71,7 +85,7 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
         IndexVersion preV3 = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3);
         assertSame(
             ES819TSDBDocValuesFormatFactory.ES_819_2_TSDB_DOC_VALUES_FORMAT,
-            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, false, false, false)
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, false, false, false, false)
         );
     }
 
@@ -79,7 +93,26 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
         IndexVersion preV3 = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3);
         assertSame(
             ES819TSDBDocValuesFormatFactory.ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, true, false, false)
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, true, false, false, false)
+        );
+    }
+
+    public void testVersion4SkipLz4ForTsidTermsDictSelection() {
+        assertSame(
+            ES819TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID,
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false, false, true, true)
+        );
+        assertSame(
+            ES819TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_BINARY_BLOCK,
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false, true, true, true)
+        );
+        assertSame(
+            ES819TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_NUMERIC_BLOCK,
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true, false, true, true)
+        );
+        assertSame(
+            ES819TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_RAW_TSID_LARGE_NUMERIC_AND_BINARY_BLOCK,
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true, true, true, true)
         );
     }
 }

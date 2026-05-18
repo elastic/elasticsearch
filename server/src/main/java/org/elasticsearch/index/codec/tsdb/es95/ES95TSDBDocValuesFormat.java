@@ -100,6 +100,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             true,
             NUMERIC_BLOCK_SHIFT,
             false,
+            false,
             BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
             BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
@@ -115,6 +116,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         boolean enablePerBlockCompression,
         int numericBlockShift,
         boolean writePrefixPartitions,
+        boolean skipTsidLz4Encoding,
         int blockBytesThreshold,
         int blockCountThreshold,
         final NumericCodecFactory numericCodecFactory,
@@ -144,7 +146,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
                 binaryDVCompressionMode
             ),
             DIRECT_MONOTONIC_BLOCK_SHIFT,
-            writePrefixPartitions
+            writePrefixPartitions,
+            skipTsidLz4Encoding
         );
     }
 

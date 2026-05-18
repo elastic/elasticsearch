@@ -18,7 +18,7 @@
 # See publish_vec_binaries.sh.
 
 HEADERS    = -I src/vec/headers/
-CXXFLAGS   = -std=c++17 -O3 -fpic -DNDEBUG
+CXXFLAGS   = -std=c++17 -O3 -fpic -g -fstandalone-debug -DNDEBUG
 
 # Per-architecture march flags
 MARCH_AARCH64_TIER1 = armv8.2-a+dotprod
@@ -45,9 +45,11 @@ CLANG_LINK  = $(CLANG_CXX) --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -
 CXX_ARM     = $(CLANG_CXX) --target=aarch64-linux-gnu -Winline
 CXX_X64     = $(CLANG_CXX) --target=x86_64-linux-gnu -Winline
 
-# Strip commands per target platform
-DARWIN_STRIP = llvm-strip$(LLVM_SUFFIX) --strip-debug
-LINUX_STRIP  = llvm-strip$(LLVM_SUFFIX) --strip-unneeded
+# Strip and debug-info commands per target platform
+DARWIN_STRIP    = llvm-strip$(LLVM_SUFFIX) --strip-debug
+LINUX_STRIP     = llvm-strip$(LLVM_SUFFIX) --strip-unneeded
+LINUX_OBJCOPY   = llvm-objcopy$(LLVM_SUFFIX)
+DARWIN_DSYMUTIL = $(shell llvm-config$(LLVM_SUFFIX) --bindir)/dsymutil
 
 # Sources split by tier
 SRC_AARCH64_TIER1 = $(filter-out %_2.cpp, $(wildcard src/vec/c/aarch64/*.cpp))
@@ -90,18 +92,21 @@ ifeq ($(shell uname -s),Darwin)
   local: CLANG = clang++ -Winline
   local: CLANG_LINK = clang++
   local: DARWIN_STRIP = strip -x
+  local: DARWIN_DSYMUTIL = dsymutil
   local: $(DYLIB)
 else ifeq ($(shell uname -m),aarch64)
   LOCAL_PLATFORM = linux-aarch64
   LOCAL_OUTPUT   = $(SO_ARM)
   local: CXX_ARM = $(CLANG_CXX) -Winline
   local: LINUX_STRIP = strip --strip-unneeded
+  local: LINUX_OBJCOPY = objcopy
   local: $(SO_ARM)
 else
   LOCAL_PLATFORM = linux-x64
   LOCAL_OUTPUT   = $(SO_X64)
   local: CXX_X64 = $(CLANG_CXX) -Winline
   local: LINUX_STRIP = strip --strip-unneeded
+  local: LINUX_OBJCOPY = objcopy
   local: $(SO_X64)
 endif
 
@@ -125,6 +130,7 @@ $(OBJ_DARWIN_TIER2): $(OBJ_DARWIN)/%.o: src/vec/c/aarch64/%.cpp | $(OBJ_DARWIN)
 
 $(DYLIB): $(OBJ_DARWIN_TIER1) $(OBJ_DARWIN_TIER2) | $(OUT_DIR_AARCH64)
 	$(CLANG_LINK) -shared $^ -o $@
+	$(DARWIN_DSYMUTIL) $@ -o $@.dSYM
 	$(DARWIN_STRIP) $@
 
 # --- linux-aarch64 ---
@@ -137,7 +143,9 @@ $(OBJ_LIN_ARM_TIER2): $(OBJ_LIN_ARM)/%.o: src/vec/c/aarch64/%.cpp | $(OBJ_LIN_AR
 
 $(SO_ARM): $(OBJ_LIN_ARM_TIER1) $(OBJ_LIN_ARM_TIER2) | $(OUT_DIR_AARCH64)
 	$(CXX_ARM) -fuse-ld=lld -shared $^ -o $@
+	$(LINUX_OBJCOPY) --only-keep-debug $@ $@.debug
 	$(LINUX_STRIP) $@
+	$(LINUX_OBJCOPY) --add-gnu-debuglink=$@.debug $@
 
 # --- linux-x64 ---
 
@@ -152,7 +160,9 @@ $(OBJ_LIN_X64_TIER3): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
 
 $(SO_X64): $(OBJ_LIN_X64_TIER1) $(OBJ_LIN_X64_TIER2) $(OBJ_LIN_X64_TIER3) | $(OUT_DIR_AMD64)
 	$(CXX_X64) -fuse-ld=lld -shared $^ -o $@
+	$(LINUX_OBJCOPY) --only-keep-debug $@ $@.debug
 	$(LINUX_STRIP) $@
+	$(LINUX_OBJCOPY) --add-gnu-debuglink=$@.debug $@
 
 # --- directories ---
 

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -86,7 +87,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
         expectThrows(
             XContentParseException.class,
@@ -122,7 +125,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
         expectThrows(
             UncheckedIOException.class,
@@ -195,7 +200,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             randomBoolean() ? null : Version.CURRENT,
             randomPositiveTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
     }
 }

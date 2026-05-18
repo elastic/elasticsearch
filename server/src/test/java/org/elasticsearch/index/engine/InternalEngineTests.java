@@ -48,7 +48,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortedSetSortField;
@@ -98,7 +97,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -3750,7 +3748,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         engine.close();
         // we need to reuse the engine config unless the parser.mappingModified won't work
-        engine = new InternalEngine(copy(engine.config(), inSyncGlobalCheckpointSupplier));
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).globalCheckpointSupplier(inSyncGlobalCheckpointSupplier).build());
         recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         engine.refresh("warm_up");
 
@@ -3881,39 +3879,7 @@ public class InternalEngineTests extends EngineTestCase {
             BigArrays.NON_RECYCLING_INSTANCE
         );
 
-        EngineConfig brokenConfig = new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            config.getIndexSettings(),
-            null,
-            store,
-            newMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            newCodecService(),
-            config.getEventListener(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> UNASSIGNED_SEQ_NO,
-            () -> RetentionLeases.EMPTY,
-            primaryTerm::get,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            config.getRelativeTimeInNanosSupplier(),
-            null,
-            true,
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            Function.identity()
-        );
+        EngineConfig brokenConfig = EngineConfig.builder(config).translogConfig(translogConfig).build();
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -4132,7 +4098,26 @@ public class InternalEngineTests extends EngineTestCase {
                     return super.softUpdateDocument(term, docIncludeExtraField, softDeletes);
                 }
             };
-            EngineConfig config = config(this.engine.config(), store, createTempDir());
+            Path translogPath = createTempDir();
+            IndexSettings configIndexSettings = IndexSettingsModule.newIndexSettings(
+                "test",
+                Settings.builder()
+                    .put(this.engine.config().getIndexSettings().getSettings())
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
+            );
+            TranslogConfig configTranslogConfig = new TranslogConfig(
+                shardId,
+                translogPath,
+                configIndexSettings,
+                BigArrays.NON_RECYCLING_INSTANCE
+            );
+            EngineConfig config = EngineConfig.builder(this.engine.config())
+                .indexSettings(configIndexSettings)
+                .store(store)
+                .codecProvider(newCodecService())
+                .translogConfig(configTranslogConfig)
+                .build();
             try (InternalEngine engine = createEngine(indexWriterFactory, null, null, config)) {
                 final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 indexDoc(engine, indexForDoc(doc));
@@ -5330,14 +5315,15 @@ public class InternalEngineTests extends EngineTestCase {
                 maxSeqNo,
                 localCheckpoint
             );
-            EngineConfig noopEngineConfig = copy(
-                engine.config(),
-                new SoftDeletesRetentionMergePolicy(
-                    Lucene.SOFT_DELETES_FIELD,
-                    () -> Queries.ALL_DOCS_INSTANCE,
-                    engine.config().getMergePolicy()
+            EngineConfig noopEngineConfig = EngineConfig.builder(engine.config())
+                .mergePolicy(
+                    new SoftDeletesRetentionMergePolicy(
+                        Lucene.SOFT_DELETES_FIELD,
+                        () -> Queries.ALL_DOCS_INSTANCE,
+                        engine.config().getMergePolicy()
+                    )
                 )
-            );
+                .build();
             noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier) {
                 @Override
                 protected long doGenerateSeqNoForOperation(Operation operation) {
@@ -5647,7 +5633,9 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(docs - 1, engine.getProcessedLocalCheckpoint());
             assertEquals(maxSeqIDOnReplica, replicaEngine.getSeqNoStats(-1).getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.getProcessedLocalCheckpoint());
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
+            recoveringEngine = new InternalEngine(
+                EngineConfig.builder(replicaEngine.config()).globalCheckpointSupplier(globalCheckpoint::get).build()
+            );
             assertEquals(numDocsOnReplica, getTranslog(recoveringEngine).stats().getUncommittedOperations());
             recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getSeqNoStats(-1).getMaxSeqNo());
@@ -5680,7 +5668,9 @@ public class InternalEngineTests extends EngineTestCase {
 
         // now do it again to make sure we preserve values etc.
         try {
-            recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
+            recoveringEngine = new InternalEngine(
+                EngineConfig.builder(replicaEngine.config()).globalCheckpointSupplier(globalCheckpoint::get).build()
+            );
             if (flushed) {
                 assertThat(recoveringEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
             }
@@ -6212,7 +6202,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testShouldPeriodicallyFlushAfterMerge() throws Exception {
         engine.close();
         // Do not use MockRandomMergePolicy as it can cause a force merge performing two merges.
-        engine = createEngine(copy(engine.config(), newMergePolicy(random(), false)));
+        engine = createEngine(EngineConfig.builder(engine.config()).mergePolicy(newMergePolicy(random(), false)).build());
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
         indexDoc(engine, indexForDoc(doc));
@@ -7516,39 +7506,12 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getIndexSettings(),
                 config.getTranslogConfig().getBigArrays()
             );
-            EngineConfig configWithWarmer = new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getThreadPoolMergeExecutorService(),
-                config.getIndexSettings(),
-                warmer,
-                store,
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                newCodecService(),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                translogConfig,
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getSnapshotCommitSupplier(),
-                config.getLeafSorter(),
-                config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener(),
-                config.isPromotableToPrimary(),
-                config.getMapperService(),
-                config.getEngineResetLock(),
-                config.getMergeMetrics(),
-                config.getIndexDeletionPolicyWrapper()
-            );
+            EngineConfig configWithWarmer = EngineConfig.builder(config)
+                .warmer(warmer)
+                .store(store)
+                .translogConfig(translogConfig)
+                .codecProvider(newCodecService())
+                .build();
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(

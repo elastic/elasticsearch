@@ -1595,41 +1595,15 @@ public class StatelessPlugin extends Plugin
                     indexEngineDeletionPolicyCommitsListener = null;
                 }
 
-                EngineConfig newConfig = new EngineConfig(
-                    config.getShardId(),
-                    config.getThreadPool(),
-                    config.getThreadPoolMergeExecutorService(),
-                    config.getIndexSettings(),
-                    config.getWarmer(),
-                    config.getStore(),
-                    getMergePolicy(config),
-                    config.getAnalyzer(),
-                    config.getSimilarity(),
-                    getCodecProvider(config),
-                    config.getEventListener(),
-                    config.getQueryCache(),
-                    config.getQueryCachingPolicy(),
-                    newTranslogConfig,
-                    config.getFlushMergesAfter(),
-                    config.getExternalRefreshListener(),
-                    internalRefreshListeners,
-                    config.getIndexSort(),
-                    config.getCircuitBreakerService(),
-                    config.getGlobalCheckpointSupplier(),
-                    config.retentionLeasesSupplier(),
-                    config.getPrimaryTermSupplier(),
-                    config.getSnapshotCommitSupplier(),
-                    config.getLeafSorter(),
-                    config.getRelativeTimeInNanosSupplier(),
-                    config.getIndexCommitListener(),
-                    config.isPromotableToPrimary(),
-                    config.getMapperService(),
-                    config.getEngineResetLock(),
-                    config.getMergeMetrics(),
+                EngineConfig newConfig = EngineConfig.builder(config)
+                    .mergePolicy(getMergePolicy(config))
+                    .codecProvider(getCodecProvider(config))
+                    .translogConfig(newTranslogConfig)
+                    .internalRefreshListener(internalRefreshListeners)
                     // Here we pass an index deletion policy wrapper to the engine. This is the only way we have to pass the
                     // LocalCommitsRefs and the listener to the IndexWriter's policy, because the IndexWriter is created during
                     // InternalEngine construction, before IndexEngine class attributes are set.
-                    policy -> {
+                    .indexDeletionPolicyWrapper(policy -> {
                         if (hollowShardsEnabled) {
                             // If there is no default policy, we assume it is an hollow index engine
                             if (policy instanceof CombinedDeletionPolicy combinedDeletionPolicy) {
@@ -1645,8 +1619,8 @@ public class StatelessPlugin extends Plugin
                         } else {
                             return policy;
                         }
-                    }
-                );
+                    })
+                    .build();
 
                 final Engine engine = newHollowOrIndexEngine(indexSettings, newConfig);
 

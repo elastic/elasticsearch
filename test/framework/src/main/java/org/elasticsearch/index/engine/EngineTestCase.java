@@ -10,7 +10,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -291,150 +290,6 @@ public abstract class EngineTestCase extends ESTestCase {
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
         }
-    }
-
-    public static EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            globalCheckpointSupplier,
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
-    }
-
-    public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            analyzer,
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
-    }
-
-    public static EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            mergePolicy,
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
-    }
-
-    public static EngineConfig copy(EngineConfig config, MapperService mapperService) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            mapperService,
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
     }
 
     @Override
@@ -947,83 +802,37 @@ public abstract class EngineTestCase extends ESTestCase {
             globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
             retentionLeasesSupplier = maybeRetentionLeasesSupplier;
         }
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            mergePolicy,
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            newCodecService(),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            extRefreshListenerList,
-            intRefreshListenerList,
-            indexSort,
-            breakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTerm,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            this::relativeTimeInNanos,
-            indexCommitListener,
-            true,
-            mapperService,
-            new EngineResetLock(),
-            mergeMetrics,
-            indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper
-        );
-    }
-
-    protected EngineConfig config(EngineConfig config, Store store, Path translogPath) {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "test",
-            Settings.builder()
-                .put(config.getIndexSettings().getSettings())
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .build()
-        );
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            indexSettings,
-            config.getWarmer(),
-            store,
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            newCodecService(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            translogConfig,
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
+        return EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(mergePolicy)
+            .analyzer(iwc.getAnalyzer())
+            .similarity(iwc.getSimilarity())
+            .codecProvider(newCodecService())
+            .eventListener(eventListener)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(extRefreshListenerList)
+            .internalRefreshListener(intRefreshListenerList)
+            .indexSort(indexSort)
+            .circuitBreakerService(breakerService)
+            .globalCheckpointSupplier(globalCheckpointSupplier)
+            .retentionLeasesSupplier(retentionLeasesSupplier)
+            .primaryTermSupplier(primaryTerm)
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(this::relativeTimeInNanos)
+            .indexCommitListener(indexCommitListener)
+            .promotableToPrimary(true)
+            .mapperService(mapperService)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(mergeMetrics)
+            .indexDeletionPolicyWrapper(indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper)
+            .build();
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {

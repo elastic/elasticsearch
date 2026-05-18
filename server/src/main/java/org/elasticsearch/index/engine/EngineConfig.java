@@ -52,6 +52,15 @@ import java.util.function.Supplier;
  * object will affect the {@link Engine} instance.
  */
 public final class EngineConfig {
+
+    public static EngineConfig.Builder builder() {
+        return new Builder();
+    }
+
+    public static EngineConfig.Builder builder(EngineConfig config) {
+        return new Builder(config);
+    }
+
     private final ShardId shardId;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
@@ -159,10 +168,7 @@ public final class EngineConfig {
      */
     private final Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
 
-    /**
-     * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
-     */
-    public EngineConfig(
+    private EngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
@@ -502,5 +508,268 @@ public final class EngineConfig {
      */
     public Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> getIndexDeletionPolicyWrapper() {
         return indexDeletionPolicyWrapper;
+    }
+
+    public static final class Builder {
+        private ShardId shardId;
+        private ThreadPool threadPool;
+        private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
+        private IndexSettings indexSettings;
+        private Engine.Warmer warmer;
+        private Store store;
+        private MergePolicy mergePolicy;
+        private Analyzer analyzer;
+        private Similarity similarity;
+        private CodecProvider codecProvider;
+        private Engine.EventListener eventListener;
+        private QueryCache queryCache;
+        private QueryCachingPolicy queryCachingPolicy;
+        private TranslogConfig translogConfig;
+        private TimeValue flushMergesAfter;
+        private List<ReferenceManager.RefreshListener> externalRefreshListener;
+        private List<ReferenceManager.RefreshListener> internalRefreshListener;
+        private Sort indexSort;
+        private CircuitBreakerService circuitBreakerService;
+        private LongSupplier globalCheckpointSupplier;
+        private Supplier<RetentionLeases> retentionLeasesSupplier;
+        private LongSupplier primaryTermSupplier;
+        private IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
+        private Comparator<LeafReader> leafSorter;
+        private LongSupplier relativeTimeInNanosSupplier;
+        private Engine.IndexCommitListener indexCommitListener;
+        private boolean promotableToPrimary;
+        private MapperService mapperService;
+        private EngineResetLock engineResetLock;
+        private MergeMetrics mergeMetrics;
+        private Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
+
+        Builder() {}
+
+        Builder(EngineConfig config) {
+            this.shardId = config.shardId;
+            this.threadPool = config.threadPool;
+            this.threadPoolMergeExecutorService = config.threadPoolMergeExecutorService;
+            this.indexSettings = config.indexSettings;
+            this.warmer = config.warmer;
+            this.store = config.store;
+            this.mergePolicy = config.mergePolicy;
+            this.analyzer = config.analyzer;
+            this.similarity = config.similarity;
+            this.codecProvider = config.codecProvider;
+            this.eventListener = config.eventListener;
+            this.queryCache = config.queryCache;
+            this.queryCachingPolicy = config.queryCachingPolicy;
+            this.translogConfig = config.translogConfig;
+            this.flushMergesAfter = config.flushMergesAfter;
+            this.externalRefreshListener = config.externalRefreshListener;
+            this.internalRefreshListener = config.internalRefreshListener;
+            this.indexSort = config.indexSort;
+            this.circuitBreakerService = config.circuitBreakerService;
+            this.globalCheckpointSupplier = config.globalCheckpointSupplier;
+            this.retentionLeasesSupplier = config.retentionLeasesSupplier;
+            this.primaryTermSupplier = config.primaryTermSupplier;
+            this.snapshotCommitSupplier = config.snapshotCommitSupplier;
+            this.leafSorter = config.leafSorter;
+            this.relativeTimeInNanosSupplier = config.relativeTimeInNanosSupplier;
+            this.indexCommitListener = config.indexCommitListener;
+            this.promotableToPrimary = config.promotableToPrimary;
+            this.mapperService = config.mapperService;
+            this.engineResetLock = config.engineResetLock;
+            this.mergeMetrics = config.mergeMetrics;
+            this.indexDeletionPolicyWrapper = config.indexDeletionPolicyWrapper;
+        }
+
+        public Builder shardId(ShardId shardId) {
+            this.shardId = shardId;
+            return this;
+        }
+
+        public Builder threadPool(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+            return this;
+        }
+
+        public Builder threadPoolMergeExecutorService(ThreadPoolMergeExecutorService threadPoolMergeExecutorService) {
+            this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
+            return this;
+        }
+
+        public Builder indexSettings(IndexSettings indexSettings) {
+            this.indexSettings = indexSettings;
+            return this;
+        }
+
+        public Builder warmer(Engine.Warmer warmer) {
+            this.warmer = warmer;
+            return this;
+        }
+
+        public Builder store(Store store) {
+            this.store = store;
+            return this;
+        }
+
+        public Builder mergePolicy(MergePolicy mergePolicy) {
+            this.mergePolicy = mergePolicy;
+            return this;
+        }
+
+        public Builder analyzer(Analyzer analyzer) {
+            this.analyzer = analyzer;
+            return this;
+        }
+
+        public Builder similarity(Similarity similarity) {
+            this.similarity = similarity;
+            return this;
+        }
+
+        public Builder codecProvider(CodecProvider codecProvider) {
+            this.codecProvider = codecProvider;
+            return this;
+        }
+
+        public Builder eventListener(Engine.EventListener eventListener) {
+            this.eventListener = eventListener;
+            return this;
+        }
+
+        public Builder queryCache(QueryCache queryCache) {
+            this.queryCache = queryCache;
+            return this;
+        }
+
+        public Builder queryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+            this.queryCachingPolicy = queryCachingPolicy;
+            return this;
+        }
+
+        public Builder translogConfig(TranslogConfig translogConfig) {
+            this.translogConfig = translogConfig;
+            return this;
+        }
+
+        public Builder flushMergesAfter(TimeValue flushMergesAfter) {
+            this.flushMergesAfter = flushMergesAfter;
+            return this;
+        }
+
+        public Builder externalRefreshListener(List<ReferenceManager.RefreshListener> externalRefreshListener) {
+            this.externalRefreshListener = externalRefreshListener;
+            return this;
+        }
+
+        public Builder internalRefreshListener(List<ReferenceManager.RefreshListener> internalRefreshListener) {
+            this.internalRefreshListener = internalRefreshListener;
+            return this;
+        }
+
+        public Builder indexSort(Sort indexSort) {
+            this.indexSort = indexSort;
+            return this;
+        }
+
+        public Builder circuitBreakerService(CircuitBreakerService circuitBreakerService) {
+            this.circuitBreakerService = circuitBreakerService;
+            return this;
+        }
+
+        public Builder globalCheckpointSupplier(LongSupplier globalCheckpointSupplier) {
+            this.globalCheckpointSupplier = globalCheckpointSupplier;
+            return this;
+        }
+
+        public Builder retentionLeasesSupplier(Supplier<RetentionLeases> retentionLeasesSupplier) {
+            this.retentionLeasesSupplier = retentionLeasesSupplier;
+            return this;
+        }
+
+        public Builder primaryTermSupplier(LongSupplier primaryTermSupplier) {
+            this.primaryTermSupplier = primaryTermSupplier;
+            return this;
+        }
+
+        public Builder snapshotCommitSupplier(IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
+            this.snapshotCommitSupplier = snapshotCommitSupplier;
+            return this;
+        }
+
+        public Builder leafSorter(Comparator<LeafReader> leafSorter) {
+            this.leafSorter = leafSorter;
+            return this;
+        }
+
+        public Builder relativeTimeInNanosSupplier(LongSupplier relativeTimeInNanosSupplier) {
+            this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+            return this;
+        }
+
+        public Builder indexCommitListener(Engine.IndexCommitListener indexCommitListener) {
+            this.indexCommitListener = indexCommitListener;
+            return this;
+        }
+
+        public Builder promotableToPrimary(boolean promotableToPrimary) {
+            this.promotableToPrimary = promotableToPrimary;
+            return this;
+        }
+
+        public Builder mapperService(MapperService mapperService) {
+            this.mapperService = mapperService;
+            return this;
+        }
+
+        public Builder engineResetLock(EngineResetLock engineResetLock) {
+            this.engineResetLock = engineResetLock;
+            return this;
+        }
+
+        public Builder mergeMetrics(MergeMetrics mergeMetrics) {
+            this.mergeMetrics = mergeMetrics;
+            return this;
+        }
+
+        public Builder indexDeletionPolicyWrapper(
+            Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
+        ) {
+            this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
+            return this;
+        }
+
+        public EngineConfig build() {
+            return new EngineConfig(
+                shardId,
+                threadPool,
+                threadPoolMergeExecutorService,
+                indexSettings,
+                warmer,
+                store,
+                mergePolicy,
+                analyzer,
+                similarity,
+                codecProvider,
+                eventListener,
+                queryCache,
+                queryCachingPolicy,
+                translogConfig,
+                flushMergesAfter,
+                externalRefreshListener,
+                internalRefreshListener,
+                indexSort,
+                circuitBreakerService,
+                globalCheckpointSupplier,
+                retentionLeasesSupplier,
+                primaryTermSupplier,
+                snapshotCommitSupplier,
+                leafSorter,
+                relativeTimeInNanosSupplier,
+                indexCommitListener,
+                promotableToPrimary,
+                mapperService,
+                engineResetLock,
+                mergeMetrics,
+                indexDeletionPolicyWrapper
+            );
+        }
     }
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -24,6 +23,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -52,6 +52,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
@@ -276,7 +277,43 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
 
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        throw new IllegalStateException(Strings.format("New rerank code path invoked for %s service that does not support it", name()));
+        if (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText)) {
+            listener.onFailure(createUnsupportedMultimodalRerankException(name()));
+            return;
+        }
+        if (!(model instanceof SageMakerModel sageMakerModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        timeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
+        var inferenceRequest = new SageMakerInferenceRequest(
+            InferenceString.textValue(request.query()),
+            request.returnDocuments(),
+            request.topN(),
+            InferenceString.toStringList(request.inputs()),
+            false,
+            InputType.UNSPECIFIED
+        );
+
+        try {
+            final var finalSageMakerModel = sageMakerModel.override(request.taskSettings());
+            var regionAndSecrets = regionAndSecrets(finalSageMakerModel);
+
+            var schema = schemas.schemaFor(finalSageMakerModel);
+            var invokeEndpointRequest = schema.request(finalSageMakerModel, inferenceRequest);
+            client.invoke(
+                regionAndSecrets,
+                invokeEndpointRequest,
+                timeout,
+                model.getInferenceEntityId(),
+                ActionListener.wrap(
+                    response -> listener.onResponse(schema.response(finalSageMakerModel, response, threadPool.getThreadContext())),
+                    e -> listener.onFailure(schema.error(finalSageMakerModel, e))
+                )
+            );
+        } catch (Exception e) {
+            listener.onFailure(internalFailure(model, e));
+        }
     }
 
     @Override

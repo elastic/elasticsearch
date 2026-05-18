@@ -7,16 +7,31 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
 import java.util.Set;
 
-public class GcsDataSourceValidatorTests extends ESTestCase {
+public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"));
+
+    @Override
+    protected DataSourceValidator validator() {
+        return validator;
+    }
+
+    @Override
+    protected Map<String, Object> sampleConfigWithAllSecrets() {
+        return Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "sample-proj");
+    }
+
+    @Override
+    protected Set<String> expectedSecretFieldNames() {
+        return Set.of("credentials");
+    }
 
     public void testType() {
         assertEquals("gcs", validator.type());

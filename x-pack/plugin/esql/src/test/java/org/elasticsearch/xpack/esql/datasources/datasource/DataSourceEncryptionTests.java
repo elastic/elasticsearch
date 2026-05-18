@@ -21,11 +21,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Unit tests for {@link DataSourceService#encryptSecrets}. The full putDataSource path (gate +
+ * Unit tests for {@link DataSourceEncryption#encrypt}. The full putDataSource path (gate +
  * cluster-state task + 503 negative case) is covered by {@code DataSourceCrudIT} and
- * {@code DataSourceEncryptionRequiredIT}; this file pins the per-setting encryption transform.
+ * {@code DataSourceWithoutEncryptionIT}; this file pins the per-setting encryption transform.
  */
-public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
+public class DataSourceEncryptionTests extends ESTestCase {
 
     public void testNonSecretSettingsPassThroughUnchanged() {
         EncryptionService never = countingService();
@@ -34,7 +34,7 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
         in.put("max_retries", new DataSourceSetting(7, false));
         in.put("use_path_style", new DataSourceSetting(true, false));
 
-        Map<String, DataSourceSetting> out = DataSourceService.encryptSecrets(in, never);
+        Map<String, DataSourceSetting> out = new DataSourceEncryption(never).encrypt(in);
 
         assertEquals(in.size(), out.size());
         for (var e : in.entrySet()) {
@@ -60,7 +60,7 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
         String canary = "AKIA_canary_" + randomAlphaOfLength(8);
         Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(canary, true));
 
-        Map<String, DataSourceSetting> out = DataSourceService.encryptSecrets(in, svc);
+        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).encrypt(in);
 
         assertEquals(1, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
@@ -87,7 +87,7 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
         };
 
         Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(null, true));
-        Map<String, DataSourceSetting> out = DataSourceService.encryptSecrets(in, svc);
+        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).encrypt(in);
 
         assertEquals("encrypt() not invoked for null secret", 0, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
@@ -115,7 +115,7 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
         byte[] preEncryptedBlob = encodeBlob(new EncryptedData("upstream-key", "AKIA_old".getBytes(StandardCharsets.UTF_8)));
         Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(preEncryptedBlob, true));
 
-        Map<String, DataSourceSetting> out = DataSourceService.encryptSecrets(in, svc);
+        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).encrypt(in);
 
         assertEquals("encrypt() not invoked when value is already a blob", 0, encryptCalls.get());
         assertSame(preEncryptedBlob, out.get("secret_access_key").rawValue());
@@ -134,7 +134,7 @@ public class DataSourceServiceEncryptSecretsTests extends ESTestCase {
         in.put("secret_access_key", new DataSourceSetting(sk, true));
         in.put("max_retries", new DataSourceSetting(7, false));
 
-        Map<String, DataSourceSetting> out = DataSourceService.encryptSecrets(in, svc);
+        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).encrypt(in);
 
         assertEquals("encrypt() called once per secret with a String value", 2, encryptCalls.get());
 

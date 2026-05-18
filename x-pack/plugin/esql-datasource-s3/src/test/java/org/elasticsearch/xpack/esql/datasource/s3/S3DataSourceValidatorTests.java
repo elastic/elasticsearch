@@ -7,16 +7,31 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
 import java.util.Set;
 
-public class S3DataSourceValidatorTests extends ESTestCase {
+public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
+
+    @Override
+    protected DataSourceValidator validator() {
+        return validator;
+    }
+
+    @Override
+    protected Map<String, Object> sampleConfigWithAllSecrets() {
+        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "region", "us-east-1");
+    }
+
+    @Override
+    protected Set<String> expectedSecretFieldNames() {
+        return Set.of("access_key", "secret_key");
+    }
 
     // Must stay in sync with CsvDataSourcePlugin.FORMAT_CONFIG_KEYS. Direct reference is not
     // possible due to cross-plugin test dependency constraints; CsvFormatReaderRecognizedKeysTests

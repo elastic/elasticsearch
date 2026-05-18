@@ -24,21 +24,13 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.crypto.EncryptedData;
-import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -105,8 +97,8 @@ public class DataSourceService {
     }
 
     /**
-     * Create or replace a data source. When {@code encryptionService} is bound, every secret value is
-     * encrypted master-side before being committed to cluster state. When it is not bound (e.g. the
+     * Create or replace a data source. When {@code encryption.isAvailable()}, every secret value is
+     * encrypted master-side before being committed to cluster state. When it is not available (e.g. the
      * cluster runs without {@code xpack.security.enabled} or with the PEK feature flag off), secret
      * values are committed as plaintext and a single loud warning is logged at most once per
      * master-instance lifetime (re-fires after a master failover; see {@link #plaintextWarningLogged}).
@@ -117,7 +109,7 @@ public class DataSourceService {
     public void putDataSource(
         ProjectId projectId,
         PutDataSourceAction.Request request,
-        @Nullable EncryptionService encryptionService,
+        DataSourceEncryption encryption,
         ActionListener<AcknowledgedResponse> listener
     ) {
         logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
@@ -135,8 +127,8 @@ public class DataSourceService {
                     );
                 }
                 final Map<String, DataSourceSetting> stored;
-                if (encryptionService != null) {
-                    stored = encryptSecrets(validated.settings(), encryptionService);
+                if (encryption.isAvailable()) {
+                    stored = encryption.encrypt(validated.settings());
                 } else {
                     if (hasSecret(validated.settings()) && plaintextWarningLogged.compareAndSet(false, true)) {
                         logger.warn(
@@ -165,47 +157,6 @@ public class DataSourceService {
             if (s.secret() && s.rawValue() != null) return true;
         }
         return false;
-    }
-
-    // Package-private for unit testing.
-    static Map<String, DataSourceSetting> encryptSecrets(Map<String, DataSourceSetting> settings, EncryptionService encryptionService) {
-        Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
-        for (var entry : settings.entrySet()) {
-            DataSourceSetting setting = entry.getValue();
-            if (setting.secret() == false) {
-                result.put(entry.getKey(), setting);
-                continue;
-            }
-            Object raw = setting.rawValue();
-            if (raw == null) {
-                result.put(entry.getKey(), setting);
-                continue;
-            }
-            if (raw instanceof String plaintext) {
-                byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
-                try {
-                    EncryptedData encrypted = encryptionService.encrypt(bytes);
-                    BytesStreamOutput out = new BytesStreamOutput();
-                    try {
-                        encrypted.writeTo(out);
-                    } catch (IOException e) {
-                        throw new ElasticsearchStatusException(
-                            "failed to serialize encrypted value for setting [" + entry.getKey() + "]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        );
-                    }
-                    byte[] wireBytes = BytesReference.toBytes(out.bytes());
-                    result.put(entry.getKey(), new DataSourceSetting(wireBytes, true));
-                } finally {
-                    Arrays.fill(bytes, (byte) 0);
-                }
-            } else {
-                // Already a byte[] blob (cluster-state replay); forward unchanged.
-                result.put(entry.getKey(), setting);
-            }
-        }
-        return result;
     }
 
     /** Delete data sources by name. Fails with 409 if any dataset references one; 404 if a name doesn't exist. */

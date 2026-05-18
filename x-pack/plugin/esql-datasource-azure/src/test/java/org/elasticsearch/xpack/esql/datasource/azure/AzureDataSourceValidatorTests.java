@@ -7,20 +7,38 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
 import java.util.Set;
 
-public class AzureDataSourceValidatorTests extends ESTestCase {
+public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator(
         "azure",
         AzureConfiguration::fromMap,
         Set.of("wasbs", "wasb")
     );
+
+    @Override
+    protected DataSourceValidator validator() {
+        return validator;
+    }
+
+    @Override
+    protected Map<String, Object> sampleConfigWithAllSecrets() {
+        // Azure accepts one of three authentication forms; we exercise key-based auth which marks the
+        // `key` field secret. connection_string and sas_token are mutually exclusive with key (the
+        // validator rejects mixed-auth configs), so this sample tests the key path.
+        return Map.of("account", "sampleaccount", "key", "sample-key-base64=");
+    }
+
+    @Override
+    protected Set<String> expectedSecretFieldNames() {
+        return Set.of("key");
+    }
 
     public void testType() {
         assertEquals("azure", validator.type());

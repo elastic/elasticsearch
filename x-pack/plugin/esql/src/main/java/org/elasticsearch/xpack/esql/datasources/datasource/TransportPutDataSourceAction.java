@@ -79,7 +79,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataSourceService.putDataSource(state.projectId(), request, encryptionService, listener);
+        dataSourceService.putDataSource(state.projectId(), request, new DataSourceEncryption(encryptionService), listener);
     }
 
     @Override

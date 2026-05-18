@@ -49,9 +49,8 @@ import java.io.IOException;
  *   | VInt(k)           | VInt(splitPosition) * k    | ZLong(firstDelta) * (k+1)     |
  *   +-------------------+----------------------------+-------------------------------+
  * </pre>
- * <p>For a single-flip block in a 128-value block this is roughly eight bytes, compared
- * to {@code 128 * log2(time_range) / 8} bytes (typically 300+ bytes for millisecond
- * precision timestamps) when falling through to bit-packing the raw values.
+ * <p>Per-block metadata is dominated by the {@code k+1} ZLong anchors. See
+ * {@code SplitDeltaStorageComparisonTests} for byte-exact per-block sizes.
  *
  * <h2>Wire format note</h2>
  * <p>{@code kMax} is an encode-time threshold only and is not persisted. The decoder
@@ -74,7 +73,7 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
     /**
      * Creates a stage that accepts up to {@code kMax} direction flips per block.
      *
-     * @param kMax the maximum number of flips accepted per block; must be at least one
+     * @param kMax the maximum number of direction flips accepted per block; must be at least one
      * @throws IllegalArgumentException if {@code kMax} is less than one
      */
     public SplitDeltaCodecStage(int kMax) {

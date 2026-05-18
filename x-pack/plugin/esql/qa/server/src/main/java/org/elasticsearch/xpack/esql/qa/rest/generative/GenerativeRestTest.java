@@ -449,7 +449,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isApproximationNotSupportedError(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1049,6 +1050,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/149321
+     */
+    private static boolean isApproximationNotSupportedError(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return FromGenerator.hasApproximationSettings(query) && errorMessage.contains("approximation not supported");
     }
 
     @Override

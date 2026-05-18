@@ -491,9 +491,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
-- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
-  method: testProcessOnceOnPrimary
-  issue: https://github.com/elastic/elasticsearch/issues/148943
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange
   issue: https://github.com/elastic/elasticsearch/issues/148966
@@ -515,9 +512,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testCommitsNotDeletedWhileAnUnpromotableIsRecovering
-  issue: https://github.com/elastic/elasticsearch/issues/149036
 - class: org.elasticsearch.xpack.stateless.objectstore.S3ObjectStoreTests
   method: testUploadIndicesDataWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/149037
@@ -539,9 +533,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardMovedAway
   issue: https://github.com/elastic/elasticsearch/issues/149083
-- class: org.elasticsearch.xpack.stateless.StatelessFieldCapabilitiesIT
-  method: testFieldCapsForHollowShards
-  issue: https://github.com/elastic/elasticsearch/issues/149113
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149126

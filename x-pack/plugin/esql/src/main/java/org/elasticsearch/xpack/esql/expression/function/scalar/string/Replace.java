@@ -227,10 +227,11 @@ public class Replace extends EsqlScalarFunction {
             return NO_LITERAL_PREFIX;
         }
 
-        // Top-level alternation invalidates anchoring: `^a|b` is `(^a)|(b)`, so an input starting with `b`
-        // would still match. Java regex hex / unicode / control / octal escapes always produce literal
-        // characters (they cannot encode a meta `|`), so a simple literal-`|` scan outside `\Q...\E` is enough.
-        if (containsTopLevelAlternation(regex, i)) {
+        // Any alternation invalidates anchoring: `^a|b` is `(^a)|(b)`, so an input starting with `b` would
+        // still match — and even `^foo(a|b)` is rejected by this coarse check, see below. Java regex hex /
+        // unicode / control / octal escapes always produce literal characters (they cannot encode a meta
+        // `|`), so a simple literal-`|` scan outside `\Q...\E` is enough.
+        if (containsUnquotedAlternation(regex, i)) {
             return NO_LITERAL_PREFIX;
         }
 
@@ -347,14 +348,15 @@ public class Replace extends EsqlScalarFunction {
 
     /**
      * Returns {@code true} if a literal {@code |} appears outside a {@code \Q...\E} block in the pattern
-     * starting at {@code from}. This is a deliberately coarse check: any {@code |} (including those nested
-     * in a group) disqualifies the pattern, which keeps the analysis simple at the cost of giving up on
-     * patterns like {@code ^a(b|c)} where a prefix could still be extracted.
+     * starting at {@code from}. Despite the term "alternation" usually referring to a top-level construct,
+     * this check is deliberately coarse: any {@code |} (including those nested in a group) disqualifies
+     * the pattern. It keeps the analysis simple at the cost of giving up on patterns like {@code ^a(b|c)}
+     * where a prefix could still be extracted.
      * <p>
      * Hex / unicode / control / octal escapes in Java regex always produce a literal character (never an
-     * unescaped meta), so they cannot smuggle in a hidden top-level alternation.
+     * unescaped meta), so they cannot smuggle in a hidden alternation.
      */
-    private static boolean containsTopLevelAlternation(String regex, int from) {
+    private static boolean containsUnquotedAlternation(String regex, int from) {
         int n = regex.length();
         for (int i = from; i < n; i++) {
             char c = regex.charAt(i);

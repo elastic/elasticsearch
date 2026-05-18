@@ -465,32 +465,33 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     private GroupingAggregatorEvaluationContext evaluationContext(TimeSeriesBlockHash tsBlockHash) {
-        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
+        Rounding.Prepared fastRounding = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
             IntArray prevGroupIds;
             IntArray nextGroupIds;
 
             @Override
             public long rangeStartInMillis(int groupId) {
-                return timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId));
+                return fastRounding.roundingFloor(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
             }
 
             @Override
             public long rangeEndInMillis(int groupId) {
-                return optimizedTimeBucket.nextRoundingValue(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
+                return fastRounding.roundingCeiling(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
             }
 
             @Override
             public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {
                 int tsid = tsBlockHash.tsidForGroup(startingGroupId);
                 long minMillis = timeResolution.roundDownToMillis(tsBlockHash.minTimestamp());
-                long bucket = Math.max(rangeStartMillis, minMillis);
-                while (bucket < rangeEndMillis) {
-                    long groupId = tsBlockHash.getGroupId(tsid, bucket);
-                    if (groupId != -1 && groupId != startingGroupId) {
-                        action.accept(Math.toIntExact(groupId));
+                var iterator = fastRounding.iterator(Math.max(rangeStartMillis, minMillis), rangeEndMillis);
+                while (iterator.next()) {
+                    if (iterator.getRoundedFloor() >= rangeStartMillis) {
+                        long groupId = tsBlockHash.getGroupId(tsid, iterator.getRounded());
+                        if (groupId != -1 && groupId != startingGroupId) {
+                            action.accept(Math.toIntExact(groupId));
+                        }
                     }
-                    bucket = optimizedTimeBucket.nextRoundingValue(bucket);
                 }
             }
 
@@ -518,7 +519,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 for (int groupId = 0; groupId < numGroups; groupId++) {
                     long tsid = tsBlockHash.tsidForGroup(groupId);
                     long bucketTs = tsBlockHash.timestampForGroup(groupId);
-                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, optimizedTimeBucket::nextRoundingValue);
+                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, fastRounding::nextRoundingValue);
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
                         nextGroupIds.set(groupId, nextGroupId);

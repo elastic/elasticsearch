@@ -2233,7 +2233,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             """;
 
-        Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD.getKey(), false).build();
+        Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
         MapperService mapperService = createMapperService(settings, mapping);
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
         mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
@@ -2241,8 +2241,9 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         Mapping update = parseDynamicUpdate(parsedDoc.dynamicMappingsUpdate());
         assertNotNull(update.getRoot().getRuntimeField("twothing"));
         Mapper oneXyz = update.getRoot().getMapper("one_xyz");
-        assertThat(oneXyz, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) oneXyz).multiFields().iterator().hasNext());
+        assertThat(oneXyz, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) oneXyz).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) oneXyz).fieldType().usesBinaryDocValues());
     }
 
     public void testMatchAndUnmatchWithArrayOfFieldNamesWithMatchMappingType() throws IOException {

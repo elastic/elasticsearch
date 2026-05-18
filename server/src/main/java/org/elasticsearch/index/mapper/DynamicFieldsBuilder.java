@@ -329,7 +329,7 @@ final class DynamicFieldsBuilder {
                 return createDynamicField(new KeywordFieldMapper.Builder(name, context.indexSettings()), context, mapperBuilderContext);
             } else {
                 var indexSettings = context.indexSettings();
-                if (indexSettings.getDynamicStringsAutoKeyword()) {
+                if (indexSettings.getDynamicStringsAutoText()) {
                     return createDynamicField(
                         new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false).addMultiField(
                             new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)
@@ -338,12 +338,8 @@ final class DynamicFieldsBuilder {
                     );
                 } else {
                     return createDynamicField(
-                        new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false).docValues(
-                            new FieldMapper.DocValuesParameter.Values(
-                                true,
-                                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                                FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
-                            )
+                        new KeywordFieldMapper.Builder(name, indexSettings, false).docValues(
+                            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH
                         ),
                         context
                     );

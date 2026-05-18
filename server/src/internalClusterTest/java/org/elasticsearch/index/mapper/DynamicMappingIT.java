@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
@@ -102,12 +103,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
         FeatureService featureService = internalCluster().getInstance(FeatureService.class);
         assumeTrue(
             "cluster must advertise ingest.dynamic_strings.auto_keyword_setting",
-            featureService.clusterHasFeature(state, IngestFeatures.DYNAMIC_STRINGS_AUTO_KEYWORD_SETTING)
+            featureService.clusterHasFeature(state, IngestFeatures.DYNAMIC_STRINGS_AUTO_TEXT_SETTING)
         );
 
         assertAcked(
             indicesAdmin().prepareCreate("test-auto-kw-off")
-                .setSettings(Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD.getKey(), false))
+                .setSettings(Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false))
                 .get()
         );
         prepareIndex("test-auto-kw-off").setId("1").setSource("msg", "hello").get();
@@ -118,8 +119,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> props = (Map<String, Object>) source.get("properties");
         @SuppressWarnings("unchecked")
         Map<String, Object> msg = (Map<String, Object>) props.get("msg");
-        assertThat(msg.get("type"), equalTo("text"));
+        assertThat(msg.get("type"), equalTo("keyword"));
         assertThat(msg.containsKey("fields"), is(false));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> docValues = (Map<String, Object>) props.get("doc_values");
+        assertThat(docValues, notNullValue());
+        assertThat(docValues.get("cardinality"), is("high"));
     }
 
     public void testSimpleDynamicMappingsSuccessful() {

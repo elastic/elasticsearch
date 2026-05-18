@@ -1066,8 +1066,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(context.getDynamicMappers("items.id"), hasSize(1));
     }
 
-    private static Settings withoutDynamicStringsAutoKeyword() {
-        return Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD.getKey(), false).build();
+    private static Settings withoutDynamicStringsAutoText() {
+        return Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
     }
 
     /**
@@ -1076,13 +1076,14 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      */
     public void testDynamicFieldWithoutAutoKeywordSubfield() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createMapperService(withoutDynamicStringsAutoKeyword(), mapping(b -> {})).documentMapper();
+        DocumentMapper mapper = createMapperService(withoutDynamicStringsAutoText(), mapping(b -> {})).documentMapper();
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "bar")));
         assertNotNull(doc.dynamicMappingsUpdate());
         Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         Mapper foo = update.getRoot().getMapper("foo");
-        assertThat(foo, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) foo).multiFields().iterator().hasNext());
+        assertThat(foo, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) foo).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) foo).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("foo.keyword"));
     }
 
@@ -1093,7 +1094,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     public void testDynamicFieldWithoutAutoKeywordSubfieldWithExistingMapping() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper defaultMapper = createMapperService(
-            withoutDynamicStringsAutoKeyword(),
+            withoutDynamicStringsAutoText(),
             dynamicMapping("true", b -> b.startObject("field1").field("type", "text").endObject())
         ).documentMapper();
 
@@ -1107,8 +1108,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         Mapper field2 = update.getRoot().getMapper("field2");
-        assertThat(field2, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) field2).multiFields().iterator().hasNext());
+        assertThat(field2, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) field2).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) field2).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("field2.keyword"));
     }
 
@@ -1119,7 +1121,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     public void testDynamicFieldWithoutAutoKeywordSubfieldWithRuntimeField() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createMapperService(
-            withoutDynamicStringsAutoKeyword(),
+            withoutDynamicStringsAutoText(),
             dynamicMapping("true", b -> b.startObject("runtime_object").field("type", "object").field("dynamic", "runtime").endObject())
         ).documentMapper();
         ParsedDocument doc = mapper.parse(source(b -> {
@@ -1142,8 +1144,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ObjectMapper foo = (ObjectMapper) object.getMapper("foo");
         ObjectMapper bar = (ObjectMapper) foo.getMapper("bar");
         Mapper baz = bar.getMapper("baz");
-        assertThat(baz, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) baz).multiFields().iterator().hasNext());
+        assertThat(baz, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) baz).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) baz).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("object.foo.bar.baz.keyword"));
     }
 }

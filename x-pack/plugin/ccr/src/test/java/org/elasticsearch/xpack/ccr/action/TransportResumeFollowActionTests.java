@@ -358,7 +358,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         replicatedSettings.add(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
-        replicatedSettings.add(IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD);
+        replicatedSettings.add(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             // removed settings have no effect, they are only there for BWC

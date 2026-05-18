@@ -24,7 +24,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assume.assumeTrue;
 
 public class DynamicFieldsBuilderTests extends ESTestCase {
 
@@ -105,7 +104,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
 
     public void testCreateDynamicStringFieldWithoutAutoKeywordSubfield() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD.getKey(), false).build();
+        Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
         String source = "{\"f1\": \"foobar\"}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
         SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
@@ -125,8 +124,10 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         assertEquals(1, dynamicMappers.size());
         Mapper built = dynamicMappers.get(0).build(MapperBuilderContext.root(false, false));
         assertEquals("f1", built.fullPath());
-        assertEquals("text", built.typeName());
-        assertThat(built, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) built).multiFields().iterator().hasNext());
+        assertEquals("keyword", built.typeName());
+        assertThat(built, instanceOf(KeywordFieldMapper.class));
+        KeywordFieldMapper kwdBuilt = (KeywordFieldMapper) built;
+        assertFalse(kwdBuilt.multiFields().iterator().hasNext());
+        assertTrue(kwdBuilt.fieldType().usesBinaryDocValues());
     }
 }

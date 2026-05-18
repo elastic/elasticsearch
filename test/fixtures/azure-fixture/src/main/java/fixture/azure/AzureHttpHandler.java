@@ -62,6 +62,7 @@ public class AzureHttpHandler implements HttpHandler {
     static final String X_MS_BLOB_TYPE = "x-ms-blob-type";
     static final String X_MS_BLOB_CONTENT_LENGTH = "x-ms-blob-content-length";
     static final String X_MS_COPY_SOURCE = "x-ms-copy-source";
+    static final String X_MS_ACCESS_TIER = "x-ms-access-tier";
 
     private final String account;
     private final String container;
@@ -184,7 +185,7 @@ public class AzureHttpHandler implements HttpHandler {
                     .map(line -> line.substring(0, line.indexOf("</Latest>")))
                     .toList();
 
-                mockAzureBlobStore.putBlockList(blobPath(exchange), blockIds, leaseId(exchange));
+                mockAzureBlobStore.putBlockList(blobPath(exchange), blockIds, leaseId(exchange), accessTier(exchange));
                 exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 sendResponseHeadersWithTrace(exchange, RestStatus.CREATED.getStatus(), -1);
 
@@ -245,7 +246,8 @@ public class AzureHttpHandler implements HttpHandler {
                     final MockAzureBlobStore.CopyInfo copyInfo = mockAzureBlobStore.copyBlob(
                         blobPath(exchange),
                         sourceBlobPath,
-                        copySourceUrl
+                        copySourceUrl,
+                        accessTier(exchange)
                     );
                     exchange.getResponseHeaders().add("x-ms-copy-id", copyInfo.copyId());
                     exchange.getResponseHeaders().add("x-ms-copy-status", "success");
@@ -253,7 +255,15 @@ public class AzureHttpHandler implements HttpHandler {
                     sendResponseHeadersWithTrace(exchange, RestStatus.ACCEPTED.getStatus(), -1);
                 } else {
                     String blobType = requireHeader(exchange, X_MS_BLOB_TYPE);
-                    mockAzureBlobStore.putBlob(blobPath(exchange), contents, blobType, ifNoneMatch, leaseId(exchange), null);
+                    mockAzureBlobStore.putBlob(
+                        blobPath(exchange),
+                        contents,
+                        blobType,
+                        ifNoneMatch,
+                        leaseId(exchange),
+                        null,
+                        accessTier(exchange)
+                    );
                     exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                     sendResponseHeadersWithTrace(exchange, RestStatus.CREATED.getStatus(), -1);
                 }
@@ -270,6 +280,10 @@ public class AzureHttpHandler implements HttpHandler {
                 responseHeaders.add("ETag", "\"blockblob\"");
                 responseHeaders.add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)));
 
+                final String accessTier = blob.accessTier();
+                if (accessTier != null) {
+                    responseHeaders.add(X_MS_ACCESS_TIER, accessTier);
+                }
                 final MockAzureBlobStore.CopyInfo copyInfo = blob.copyInfo();
                 if (copyInfo != null) {
                     // Copy status polling requires these fields
@@ -333,6 +347,10 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
                 exchange.getResponseHeaders()
                     .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)));
+                final String blobAccessTier = blob.accessTier();
+                if (blobAccessTier != null) {
+                    exchange.getResponseHeaders().add(X_MS_ACCESS_TIER, blobAccessTier);
+                }
                 sendResponseHeadersWithTrace(
                     exchange,
                     successStatus.getStatus(),
@@ -374,14 +392,24 @@ public class AzureHttpHandler implements HttpHandler {
                             continue;
                         }
                     }
-                    list.append(String.format(Locale.ROOT, """
-                        <Blob>
-                           <Name>%s</Name>
-                           <Properties>
-                             <Content-Length>%s</Content-Length>
-                             <BlobType>BlockBlob</BlobType>
-                           </Properties>
-                        </Blob>""", blobPath, blob.getValue().getContents().length()));
+                    final String tier = blob.getValue().accessTier();
+                    list.append(
+                        String.format(
+                            Locale.ROOT,
+                            """
+                                <Blob>
+                                   <Name>%s</Name>
+                                   <Properties>
+                                     <Content-Length>%s</Content-Length>
+                                     <BlobType>BlockBlob</BlobType>
+                                     %s
+                                   </Properties>
+                                </Blob>""",
+                            blobPath,
+                            blob.getValue().getContents().length(),
+                            tier != null ? "<AccessTier>" + tier + "</AccessTier>" : ""
+                        )
+                    );
                 }
                 if (blobPrefixes.isEmpty() == false) {
                     blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));
@@ -571,8 +599,17 @@ public class AzureHttpHandler implements HttpHandler {
         return exchange.getRequestHeaders().getFirst(X_MS_LEASE_ID);
     }
 
+    @Nullable
+    private String accessTier(HttpExchange exchange) {
+        return exchange.getRequestHeaders().getFirst(X_MS_ACCESS_TIER);
+    }
+
     private String blobPath(HttpExchange exchange) {
         return stripPrefix("/" + account + "/" + container + "/", exchange.getRequestURI().getPath());
+    }
+
+    public MockAzureBlobStore getMockBlobStore() {
+        return mockAzureBlobStore;
     }
 
     public Map<String, BytesReference> blobs() {

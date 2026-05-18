@@ -276,7 +276,7 @@ public class IndexShardRoutingTable {
      * are probed ahead of measured nodes, but only while their in-flight request count stays
      * below {@code probeInflightCap}. The cap is enforced against both counts independently — a
      * node is gated if either the snapshot count (within-search shard wins) or the live count
-     * (real-time concurrent load across searches) reaches the cap.
+     * (cross-search load signal) reaches the cap.
      * <p>
      * When {@code warmupSamples > 0}, a peer is considered <em>warm</em> once its
      * {@link ResponseCollectorService.ComputedNodeStats#observationCount} reaches the threshold;
@@ -297,7 +297,7 @@ public class IndexShardRoutingTable {
      * @param nodeStats        per-node EWMA stats; {@code Optional.empty()} for nodes without stats
      * @param searchCounts     mutable per-search snapshot of in-flight counts used by the ARS
      *                         formula and local multi-shard spreading
-     * @param globalCounts     live (real-time) in-flight counts for the probe cap check
+     * @param globalCounts     in-flight counts for the probe cap check; see {@link OperationRouting.ArsContext#globalCounts()}
      * @param probeInflightCap maximum number of concurrent in-flight requests to a stat-less or
      *                         warming-up node before the in-flight gate kicks in
      * @param warmupSamples    minimum observation count for a peer to be considered warm; {@code 0}

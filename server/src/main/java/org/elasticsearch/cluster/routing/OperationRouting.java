@@ -54,8 +54,10 @@ public class OperationRouting {
      *                         single search; each search receives an independent copy, so
      *                         routing-time increments from concurrent searches are invisible to
      *                         each other
-     * @param globalCounts     live in-flight counts shared across all searches; used by the probe
-     *                         cap to see real concurrent load across searches
+     * @param globalCounts     best-effort live in-flight counts shared across all searches; used by
+     *                         the probe cap as an approximate cross-search load signal (the count is
+     *                         incremented at transport dispatch time, so concurrent routing decisions
+     *                         may transiently under-count)
      * @param probeEnabled     whether ARS probing of stat-less and warming-up nodes is active;
      *                         when {@code false} the original ARS behavior is preserved
      * @param probeInflightCap per-coordinator cap on in-flight requests to a stat-less or warming-up

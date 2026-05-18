@@ -33,6 +33,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -264,11 +265,34 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
 
     public static long extractBytesReadHeader(Client client) {
         Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-        assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
-        List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
+        assertThat(responseHeaders, hasKey("X-Elasticsearch-Search-Metrics"));
+        List<String> values = responseHeaders.get("X-Elasticsearch-Search-Metrics");
         assertThat("expected a single accumulated header value", values.size(), equalTo(1));
-        long total = Long.parseLong(values.get(0));
+
+        Map<String, Long> headerValues = parseHeader(values.get(0));
+        assertThat(headerValues, notNullValue());
+        assertThat(headerValues, hasKey("store_bytes_read"));
+        long total = headerValues.get("store_bytes_read");
         assertThat(total, greaterThan(0L));
+
         return total;
+    }
+
+    public static Map<String, Long> parseHeader(String headerValue) {
+        Map<String, Long> result = new HashMap<>();
+        for (String part : headerValue.split(";")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            int splitterPos = trimmed.indexOf('=');
+            if (splitterPos < 0) {
+                throw new IllegalArgumentException("invalid header entry [" + trimmed + "]");
+            }
+            String key = trimmed.substring(0, splitterPos).trim();
+            long value = Long.parseLong(trimmed.substring(splitterPos + 1).trim());
+            result.put(key, value);
+        }
+        return result;
     }
 }

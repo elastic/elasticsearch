@@ -40,6 +40,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.createResponseHeaderFromDirectoryMetrics;
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
 import static org.elasticsearch.core.Strings.format;
 
@@ -265,7 +266,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     ) {
         try {
             var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-            mergedDirectoryMetrics.entries().forEach(threadContext::addResponseHeader);
+            createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;

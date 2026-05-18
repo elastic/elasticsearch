@@ -19,7 +19,7 @@ import java.util.function.Supplier;
 
 public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {
     public static final String NAME = "store";
-    public static final String BYTES_READ_RESPONSE_HEADER = "X-Elasticsearch-Bytes-Read";
+    public static final String BYTES_READ_RESPONSE_HEADER = "store_bytes_read";
     public static final PluggableDirectoryMetricsHolder<StoreMetrics> NOOP_HOLDER = PluggableDirectoryMetricsHolder.noop(
         new StoreMetrics() {
             @Override

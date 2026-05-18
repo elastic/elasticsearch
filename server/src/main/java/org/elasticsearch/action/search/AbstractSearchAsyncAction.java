@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -76,6 +77,8 @@ import static org.elasticsearch.core.Strings.format;
  * distributed frequencies
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
+    public static final String RESPONSE_HEADER_SEARCH_METRICS = "X-Elasticsearch-Search-Metrics";
+
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
 
     private final Logger logger;
@@ -626,7 +629,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-        mergedDirectoryMetrics.entries().forEach(threadContext::addResponseHeader);
+        createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -644,6 +647,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     buildSearchContextId(failures)
                 )
             );
+        }
+    }
+
+    public static void createResponseHeaderFromDirectoryMetrics(ThreadContext threadContext, DirectoryMetrics directoryMetrics) {
+        if (directoryMetrics.isEmpty() == false) {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> entry : directoryMetrics.entries().entrySet()) {
+                if (sb.isEmpty() == false) sb.append(';');
+                sb.append(entry.getKey()).append('=').append(entry.getValue());
+            }
+            threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, sb.toString());
         }
     }
 

@@ -1176,7 +1176,11 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_TEXT = Setting.boolSetting(
         "index.mapping.dynamic_strings.auto_text",
-        true,
+        settings -> {
+            IndexMode mode = IndexSettings.MODE.get(settings);
+            boolean disableAutoTextByDefault = mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR;
+            return Boolean.toString(disableAutoTextByDefault == false);
+        },
         value -> {
             if (value == false && FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
                 throw new IllegalArgumentException(

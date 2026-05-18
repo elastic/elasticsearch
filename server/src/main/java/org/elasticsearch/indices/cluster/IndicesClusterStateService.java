@@ -617,6 +617,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // bumped primary term.
                         // Batch cluster state processing could cause the cluster state changed event to go straight from
                         // initializing (term1) -> initializing (term2). The stale shard should be cleaned up.
+                        assert newShardRouting.primary()
+                            : "new shard routing has same allocation id with higher new term but is not primary: " + newShardRouting;
                         logger.debug(
                             "{} removing shard (primary term bumped, current {}, new {})",
                             shardId,

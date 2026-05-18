@@ -1,6 +1,5 @@
 area: Vector Search
-issues:
- - 148980
+issues: []
 pr: 149054
 summary: Fix gpu close resource ordering
 type: bug

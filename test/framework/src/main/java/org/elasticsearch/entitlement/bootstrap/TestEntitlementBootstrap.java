@@ -179,8 +179,7 @@ public class TestEntitlementBootstrap {
      * into a single patch to be applied on top of the hardcoded server entitlements.
      */
     private static Policy parseTestServerPolicy() throws IOException {
-        var resources = EntitlementInitialization.class.getClassLoader()
-            .getResources("META-INF/test-server-entitlement-policy.yaml");
+        var resources = EntitlementInitialization.class.getClassLoader().getResources("META-INF/test-server-entitlement-policy.yaml");
         List<Scope> mergedScopes = new ArrayList<>();
         while (resources.hasMoreElements()) {
             try (var inputStream = getStream(resources.nextElement())) {

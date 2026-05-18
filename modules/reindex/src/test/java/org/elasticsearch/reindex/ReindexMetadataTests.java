@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
@@ -85,7 +86,9 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 request(),
                 listener(),
                 randomBoolean() ? null : Version.CURRENT,
-                randomPositiveTimeValue()
+                randomPositiveTimeValue(),
+                new ReindexSettings(),
+                new NoopCircuitBreaker("test")
             );
         }
 

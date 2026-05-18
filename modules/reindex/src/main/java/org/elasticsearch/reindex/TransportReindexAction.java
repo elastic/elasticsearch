@@ -27,6 +27,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -68,7 +69,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         @Nullable ReindexMetrics reindexMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this(
             ReindexAction.NAME,
@@ -86,7 +88,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             reindexMetrics,
             relocationNodePicker,
             featureService,
-            taskResultsService
+            taskResultsService,
+            circuitBreakerService
         );
     }
 
@@ -106,7 +109,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         @Nullable ReindexMetrics reindexMetrics,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -128,7 +132,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             transportService,
             relocationNodePicker,
             featureService,
-            taskResultsService
+            taskResultsService,
+            circuitBreakerService
         );
     }
 

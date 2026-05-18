@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.script.ScriptService;
@@ -29,6 +31,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
@@ -39,6 +42,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final ClusterService clusterService;
     private final DeleteByQueryMetrics deleteByQueryMetrics;
     private final TimeValue taskShutdownGracePeriod;
+    private final ReindexSettings reindexSettings;
+    private final CircuitBreaker requestBreaker;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -48,7 +53,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
-        @Nullable DeleteByQueryMetrics deleteByQueryMetrics
+        @Nullable DeleteByQueryMetrics deleteByQueryMetrics,
+        ReindexSettings reindexSettings,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -59,6 +66,12 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         // todo: if relocations are added to delete-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to delete-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
+        Objects.requireNonNull(circuitBreakerService, "circuitBreakerService must not be null");
+        this.requestBreaker = Objects.requireNonNull(
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
+            "REQUEST circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
+        );
     }
 
     @Override
@@ -91,7 +104,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                             deleteByQueryMetrics.recordTookTime(elapsedTime);
                         }
                     }),
-                    taskShutdownGracePeriod
+                    taskShutdownGracePeriod,
+                    reindexSettings,
+                    requestBreaker
                 ).start();
             }
         );

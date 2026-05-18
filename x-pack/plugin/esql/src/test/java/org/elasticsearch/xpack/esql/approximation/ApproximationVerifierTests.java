@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -31,7 +32,7 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_validQuery_oldDataNodes() {
-        TransportVersion OLD_VERSION = TransportVersion.zero();
+        TransportVersion OLD_VERSION = TransportVersionUtils.randomVersion();
         verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender", OLD_VERSION);
         verify("FROM test | EVAL x=1 | DROP emp_no | STATS sum=SUM(salary) BY x | CHANGE_POINT sum ON x", OLD_VERSION);
         verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000", OLD_VERSION);
@@ -57,14 +58,17 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
 
     public void testVerify_lookupJoin() {
         assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
-        verify("FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()");
+        verify(
+            "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
+            TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_approximation_lookup_join"))
+        );
     }
 
     public void testVerify_lookupJoin_oldDataNodes() {
         assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         assertError(
             "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
-            TransportVersion.zero(),
+            TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("esql_approximation_lookup_join")),
             equalTo(
                 "line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated on all nodes"
             )

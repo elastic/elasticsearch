@@ -691,3 +691,23 @@ count:long | category:keyword
          1 | .*?Disconnected.*?
 // end::docsCategorize-result[]
 ;
+
+docsCategorizeByTime
+required_capability: categorize_v6
+required_capability: categorize_multiple_groupings
+
+// tag::docsCategorizeByTime[]
+FROM sample_data
+| STATS count = COUNT(*) BY category = CATEGORIZE(message), time_bucket = BUCKET(@timestamp, 1 HOUR)
+| SORT time_bucket DESC, count DESC
+// end::docsCategorizeByTime[]
+;
+
+// tag::docsCategorizeByTime-result[]
+count:long | category:keyword         | time_bucket:datetime
+         3 | .*?Connection.+?error.*? | 2023-10-23T13:00:00.000Z
+         1 | .*?Connected.+?to.*?     | 2023-10-23T13:00:00.000Z
+         1 | .*?Disconnected.*?       | 2023-10-23T13:00:00.000Z
+         2 | .*?Connected.+?to.*?     | 2023-10-23T12:00:00.000Z
+// end::docsCategorizeByTime-result[]
+;

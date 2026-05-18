@@ -2159,6 +2159,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
+         * into one multi-valued row per series.
+         */
+        TS_COLLAPSE,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2594,7 +2600,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V6(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V7(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command

@@ -92,7 +92,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SEMANTIC_TEXT_USE_CASE;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -121,7 +121,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         Setting.Property.OperatorDynamic
     );
 
-    private static final String SEMANTIC_TEXT_INFERENCE_SOURCE = "semantic_text_bulk";
     private static final Object EXPLICIT_NULL = new Object();
     private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
@@ -567,7 +566,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             inferenceStats.requestCount()
                 .withModel(model)
                 .withThrowable(throwable)
-                .withAttribute(INFERENCE_SOURCE_ATTRIBUTE, SEMANTIC_TEXT_INFERENCE_SOURCE)
+                .withProductUseCase(SEMANTIC_TEXT_USE_CASE)
                 .incrementBy(incrementBy);
         }
 

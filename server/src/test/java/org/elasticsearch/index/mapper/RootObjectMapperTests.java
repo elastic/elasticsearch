@@ -677,8 +677,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            MapperService mapperService = createMapperService(settings, mapping(b -> {
-            }));
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
             assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
         }
     }

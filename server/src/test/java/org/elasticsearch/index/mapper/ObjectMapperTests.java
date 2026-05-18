@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;

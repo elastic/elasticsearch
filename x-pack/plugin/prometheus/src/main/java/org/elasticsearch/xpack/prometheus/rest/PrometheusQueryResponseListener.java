@@ -129,6 +129,27 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         builder.startObject("data");
         builder.field("resultType", mode == QueryMode.RANGE ? "matrix" : "vector");
         builder.startArray("result");
+        boolean truncated = writeResults(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
+        builder.endArray(); // result
+        builder.endObject(); // data
+        if (truncated) {
+            builder.startArray("warnings");
+            builder.value("results truncated due to limit");
+            builder.endArray();
+        }
+        builder.endObject(); // root
+        return builder;
+    }
+
+    private static boolean writeResults(
+        XContentBuilder builder,
+        EsqlResponse response,
+        QueryMode mode,
+        int limit,
+        List<? extends ColumnInfo> columns,
+        int stepColIdx,
+        boolean useSeriesCol
+    ) throws IOException {
         int seriesCount = 0;
         boolean truncated = false;
 
@@ -159,51 +180,70 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             }
 
             builder.startObject();
-
-            // metric labels
-            builder.startObject("metric");
-            if (useSeriesCol) {
-                String seriesJson = values[DIMENSION_COL_START_IDX] != null ? values[DIMENSION_COL_START_IDX].toString() : "{}";
-                writeMetricFromSeriesJson(builder, seriesJson);
-            } else {
-                for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-                    builder.field(columns.get(i).name(), values[i] != null ? values[i].toString() : "");
-                }
-            }
-            builder.endObject(); // metric
-
-            if (mode == QueryMode.RANGE) {
-                // values — parallel arrays of (timestamp_seconds, value_string)
-                builder.startArray("values");
-                for (int i = 0; i < valueList.size(); i++) {
-                    builder.startArray();
-                    builder.value(parseTimestamp(stepList.get(i)));
-                    builder.value(formatSampleValue(valueList.get(i)));
-                    builder.endArray();
-                }
-                builder.endArray(); // values
-            } else {
-                // Instant query: emit the last sample (rows arrive in ascending timestamp order)
-                int last = valueList.size() - 1;
-                builder.startArray("value");
-                builder.value(parseTimestamp(stepList.get(last)));
-                builder.value(formatSampleValue(valueList.get(last)));
-                builder.endArray(); // value
-            }
-
+            buildMetricLabels(builder, useSeriesCol, values, stepColIdx, columns);
+            buildMetricValues(mode, builder, valueList, stepList);
             builder.endObject(); // result entry
+
             seriesCount++;
         }
+        return truncated;
+    }
 
-        builder.endArray(); // result
-        builder.endObject(); // data
-        if (truncated) {
-            builder.startArray("warnings");
-            builder.value("results truncated due to limit");
-            builder.endArray();
+    private static void buildMetricLabels(
+        XContentBuilder builder,
+        boolean useSeriesCol,
+        Object[] values,
+        int stepColIdx,
+        List<? extends ColumnInfo> columns
+    ) throws IOException {
+        // metric labels
+        builder.startObject("metric");
+        if (useSeriesCol) {
+            String seriesJson = values[DIMENSION_COL_START_IDX] != null ? values[DIMENSION_COL_START_IDX].toString() : "{}";
+            writeMetricFromSeriesJson(builder, seriesJson);
+        } else {
+            for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
+                builder.field(columns.get(i).name(), values[i] != null ? values[i].toString() : "");
+            }
         }
-        builder.endObject(); // root
-        return builder;
+        builder.endObject(); // metric
+    }
+
+    private static void buildMetricValues(QueryMode mode, XContentBuilder builder, List<Object> valueList, List<Object> stepList)
+        throws IOException {
+        assert timestampsAreAscending(stepList) : "PROMQL response step timestamps must be ascending";
+        if (mode == QueryMode.RANGE) {
+            // values — parallel arrays of (timestamp_seconds, value_string)
+            builder.startArray("values");
+            for (int i = 0; i < valueList.size(); i++) {
+                builder.startArray();
+                builder.value(parseTimestamp(stepList.get(i)));
+                builder.value(formatSampleValue(valueList.get(i)));
+                builder.endArray();
+            }
+            builder.endArray(); // values
+        } else {
+            // Instant query: emit the last sample (rows arrive in ascending timestamp order)
+            // This is a temporary approximation for a range query and there may be multiple samples.
+            // The proper implementation will guarantee that there will be just one sample.
+            int last = valueList.size() - 1;
+            builder.startArray("value");
+            builder.value(parseTimestamp(stepList.get(last)));
+            builder.value(formatSampleValue(valueList.get(last)));
+            builder.endArray(); // value
+        }
+    }
+
+    private static boolean timestampsAreAscending(List<Object> stepList) {
+        double previousTimestamp = Double.NEGATIVE_INFINITY;
+        for (Object step : stepList) {
+            double timestamp = parseTimestamp(step);
+            if (timestamp < previousTimestamp) {
+                return false;
+            }
+            previousTimestamp = timestamp;
+        }
+        return true;
     }
 
     private static Object[] toArray(Iterable<Object> row, int size) {

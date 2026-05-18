@@ -87,7 +87,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        FormatReaderRegistry formatReaderRegistry = ctx != null ? ctx.formatReaderRegistry() : null;
+        FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
         if (formatReaderRegistry == null) {
             return aggregateExec;
         }

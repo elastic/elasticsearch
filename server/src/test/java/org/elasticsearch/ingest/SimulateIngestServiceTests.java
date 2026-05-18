@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -165,6 +166,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
             client,
             null,
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.singleProject(projectId),
             new FeatureService(List.of()) {

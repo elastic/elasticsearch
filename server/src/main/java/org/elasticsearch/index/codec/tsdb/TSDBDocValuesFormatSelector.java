@@ -41,7 +41,7 @@ public final class TSDBDocValuesFormatSelector {
             && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
 
         if (useES95(indexSettings)) {
-            return ES95TSDBDocValuesFormatFactory.createDocValuesFormat(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
+            return ES95TSDBDocValuesFormatFactory.get(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
         }
         return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
             indexCreatedVersion,

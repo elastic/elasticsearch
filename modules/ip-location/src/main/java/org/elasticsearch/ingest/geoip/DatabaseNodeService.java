@@ -279,9 +279,8 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     public void shutdown() throws IOException {
         // this is a little 'fun' looking, but it's just adapting IOUtils.close() into something
         // that can call a bunch of shutdown methods (rather than close methods)
-        final var loadersToShutdown = databases.values()
+        final var loadersToShutdown = getAllDatabases()
             .stream()
-            .flatMap(map -> map.values().stream())
             .map(ShutdownCloseable::new)
             .toList();
         databases.clear();

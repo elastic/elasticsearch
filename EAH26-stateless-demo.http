@@ -1,4 +1,4 @@
-### Create index (Run with IntelliJ IDEA)
+### Create index (Run with IntelliJ IDEA; first `rm -rf build/runStatelessTask/repo/stateless; ./gradlew runStateless`)
 PUT http://localhost:9200/demo-semantic
 Content-Type: application/json
 Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
@@ -48,3 +48,23 @@ Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
     }
   }
 }
+
+### Cat nodes
+GET http://localhost:9200/_cat/nodes?v&h=ip,heap.percent,ram.percent,cpu,disk.total,disk.used,disk.avail,dup,load_1m,node.role,master,name
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+### Get node settings
+GET http://localhost:9200/_nodes/settings?flat_settings=true&filter_path=nodes.*.name,nodes.*.roles,nodes.*.settings.path*,nodes.*.settings.data_streams*,nodes.*.settings.stateless*
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+### Get shards
+GET http://localhost:9200/_cat/shards?v=true
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+### Get ML stats
+GET http://localhost:9200/_ml/trained_models/_stats
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk

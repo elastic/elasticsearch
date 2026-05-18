@@ -134,6 +134,7 @@ toc:
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
                   - file: esql/commands/ts-info.md
+                  - file: esql/commands/ts_collapse.md
                   - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
@@ -191,6 +192,7 @@ toc:
                   - file: esql/functions-operators/grouping-functions/bucket.md
                   - file: esql/functions-operators/grouping-functions/tbucket.md
                   - file: esql/functions-operators/grouping-functions/categorize.md
+                  - file: esql/functions-operators/grouping-functions/without.md
               - file: esql/functions-operators/conditional-functions-and-expressions.md
                 children:
                   - file: esql/functions-operators/conditional-functions-and-expressions/case.md
@@ -213,6 +215,8 @@ toc:
                   - hidden: esql/functions-operators/date-time-functions/range_max.md
                   - hidden: esql/functions-operators/date-time-functions/range_min.md
                   - hidden: esql/functions-operators/date-time-functions/range_within.md
+                  - hidden: esql/functions-operators/date-time-functions/range_contains.md
+                  - hidden: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:
@@ -384,8 +388,9 @@ toc:
         children:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
-          - file: esql/esql-subquery.md
           - file: esql/esql-cross-serverless-projects.md
+          - file: esql/esql-subquery.md
+          - file: esql/esql-views.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md
@@ -408,6 +413,10 @@ toc:
           - file: esql/esql-query-log.md
           - file: esql/esql-task-management.md
       - file: esql/limitations.md
+  - file: promql.md
+    children:
+      - file: promql/promql-http-api.md
+      - file: promql/promql-limitations.md
   - file: sql.md
     children:
       - file: sql/sql-getting-started.md

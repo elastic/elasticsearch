@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -37,10 +39,13 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigur
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class TStepTests extends AbstractConfigurationFunctionTestCase {
+    private static final DataType[] TIME_RANGE_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS, DataType.KEYWORD };
+    private static final DataType[] TIMESTAMP_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS };
+    private static final DataType[] COUNT_STEP_TYPES = { DataType.INTEGER, DataType.LONG };
+
     public TStepTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -48,98 +53,225 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        dateCasesWithStep(
+        casesWithStep(
             suppliers,
             "5 minute step uses query now",
+            DataType.DATETIME,
             () -> Instant.parse("2024-01-01T12:09:00Z").toEpochMilli(),
             Duration.ofMinutes(5),
             Instant.parse("2024-01-01T12:12:00Z")
         );
-        dateCasesWithStep(
-            suppliers,
-            "30 second step uses query now",
-            () -> Instant.parse("2024-01-01T12:01:01Z").toEpochMilli(),
-            Duration.ofSeconds(30),
-            Instant.parse("2024-01-01T12:02:00Z")
-        );
-        dateCasesWithStep(
-            suppliers,
-            "1 hour step uses query now",
-            () -> Instant.parse("2024-01-01T14:23:00Z").toEpochMilli(),
-            Duration.ofHours(1),
-            Instant.parse("2024-01-01T15:00:00Z")
-        );
-        dateCasesWithStep(
-            suppliers,
-            "1 day step uses query now",
-            () -> Instant.parse("2024-01-02T09:30:00Z").toEpochMilli(),
-            Duration.ofDays(1),
-            Instant.parse("2024-01-03T00:00:00Z")
-        );
-        dateNanosCasesWithStep(
+        casesWithStep(
             suppliers,
             "date_nanos 30 second step uses query now",
+            DataType.DATE_NANOS,
             () -> DateUtils.toLong(Instant.parse("2024-01-01T12:01:01Z")),
             Duration.ofSeconds(30),
             Instant.parse("2024-01-01T12:02:00Z")
         );
-        dateNanosCasesWithStep(
+        casesWithExplicitBounds(
             suppliers,
-            "date_nanos 5 minute step uses query now",
+            "explicit bounds 1 hour step",
+            DataType.DATETIME,
+            () -> Instant.parse("2024-01-01T12:45:00Z").toEpochMilli(),
+            Duration.ofHours(1),
+            Instant.parse("2024-01-01T12:15:00Z"),
+            Instant.parse("2024-01-01T13:55:00Z")
+        );
+        casesWithExplicitBounds(
+            suppliers,
+            "date_nanos explicit bounds 5 minute step",
+            DataType.DATE_NANOS,
             () -> DateUtils.toLong(Instant.parse("2024-01-01T12:09:00Z")),
             Duration.ofMinutes(5),
-            Instant.parse("2024-01-01T12:12:00Z")
+            Instant.parse("2024-01-01T12:04:00Z"),
+            Instant.parse("2024-01-01T12:32:00Z")
+        );
+        // count=2 over a 1h40m range -> derives exact 50 minute step from the requested range
+        casesWithTargetBucketCount(
+            suppliers,
+            "bucket count 2 over 1h40m range gives 50 minute step",
+            DataType.DATETIME,
+            () -> Instant.parse("2024-01-01T12:45:00Z").toEpochMilli(),
+            2,
+            Instant.parse("2024-01-01T12:15:00Z"),
+            Instant.parse("2024-01-01T13:55:00Z"),
+            Instant.parse("2024-01-01T13:05:00Z")
+        );
+        casesWithTargetBucketCount(
+            suppliers,
+            "date_nanos bucket count 2 over 1h40m range gives 50 minute step",
+            DataType.DATE_NANOS,
+            () -> DateUtils.toLong(Instant.parse("2024-01-01T12:45:00Z")),
+            2,
+            Instant.parse("2024-01-01T12:15:00Z"),
+            Instant.parse("2024-01-01T13:55:00Z"),
+            Instant.parse("2024-01-01T13:05:00Z")
+        );
+        casesWithTargetBucketCount(
+            suppliers,
+            "bucket count rounds derived step up to whole seconds",
+            DataType.DATETIME,
+            () -> Instant.parse("2024-01-01T10:01:00Z").toEpochMilli(),
+            10,
+            Instant.parse("2024-01-01T10:00:00Z"),
+            Instant.parse("2024-01-01T10:10:01Z"),
+            Instant.parse("2024-01-01T10:01:01Z")
+        );
+        casesWithTargetBucketCount(
+            suppliers,
+            "date_nanos bucket count rounds derived step up to whole seconds",
+            DataType.DATE_NANOS,
+            () -> DateUtils.toLong(Instant.parse("2024-01-01T10:01:00Z")),
+            10,
+            Instant.parse("2024-01-01T10:00:00Z"),
+            Instant.parse("2024-01-01T10:10:01Z"),
+            Instant.parse("2024-01-01T10:01:01Z")
+        );
+        casesWithTargetBucketCount(
+            suppliers,
+            "misaligned bucket count 60 over 1h range keeps 1 minute step",
+            DataType.DATETIME,
+            () -> Instant.parse("2024-01-01T10:01:10Z").toEpochMilli(),
+            60,
+            Instant.parse("2024-01-01T10:00:30Z"),
+            Instant.parse("2024-01-01T11:00:30Z"),
+            Instant.parse("2024-01-01T10:01:30Z")
+        );
+        casesWithTargetBucketCount(
+            suppliers,
+            "date_nanos misaligned bucket count 60 over 1h range keeps 1 minute step",
+            DataType.DATE_NANOS,
+            () -> DateUtils.toLong(Instant.parse("2024-01-01T10:01:10Z")),
+            60,
+            Instant.parse("2024-01-01T10:00:30Z"),
+            Instant.parse("2024-01-01T11:00:30Z"),
+            Instant.parse("2024-01-01T10:01:30Z")
         );
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static void dateCasesWithStep(
+    private static void casesWithStep(
         List<TestCaseSupplier> suppliers,
         String name,
+        DataType timestampType,
         LongSupplier timestamp,
         Duration step,
         Instant now
     ) {
-        suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, DataType.DATETIME), () -> {
+        suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, timestampType), () -> {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
-            args.add(new TestCaseSupplier.TypedData(timestamp.getAsLong(), DataType.DATETIME, "@timestamp"));
+            args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
             return new TestCaseSupplier.TestCase(
                 args,
-                Matchers.startsWith("AddDatetimesEvaluator["),
-                DataType.DATETIME,
-                resultsMatcher(args, step.toMillis(), now)
+                timestampType == DataType.DATE_NANOS
+                    ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
+                    : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                timestampType,
+                matcher(args, step.toMillis(), now)
             ).withConfiguration(
                 TEST_SOURCE,
-                randomConfigurationBuilder().query(TEST_SOURCE.text()).now(now).zoneId(ZoneOffset.ofHours(5)).build()
+                randomConfigurationBuilder().query(TEST_SOURCE.text())
+                    .now(now)
+                    .zoneId(timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
+                    .build()
             );
         }));
     }
 
-    private static void dateNanosCasesWithStep(
+    private static void casesWithExplicitBounds(
         List<TestCaseSupplier> suppliers,
         String name,
-        LongSupplier timestampNanos,
+        DataType timestampType,
+        LongSupplier timestamp,
         Duration step,
-        Instant now
+        Instant start,
+        Instant end
     ) {
-        suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, DataType.DATE_NANOS), () -> {
-            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-            args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
-            args.add(new TestCaseSupplier.TypedData(timestampNanos.getAsLong(), DataType.DATE_NANOS, "@timestamp"));
-            return new TestCaseSupplier.TestCase(
-                args,
-                Matchers.startsWith("AddDateNanosEvaluator["),
-                DataType.DATE_NANOS,
-                resultsMatcher(args, step.toMillis(), now)
-            ).withConfiguration(
-                TEST_SOURCE,
-                randomConfigurationBuilder().query(TEST_SOURCE.text()).now(now).zoneId(ZoneOffset.ofHours(-7)).build()
-            );
-        }));
+        for (DataType fromType : TIME_RANGE_TYPES) {
+            for (DataType toType : TIME_RANGE_TYPES) {
+                suppliers.add(new TestCaseSupplier(name, List.of(DataType.TIME_DURATION, fromType, toType, timestampType), () -> {
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
+                    args.add(createTypedData("from", fromType, start));
+                    args.add(createTypedData("to", toType, end));
+                    args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
+                    long expectedMillis = alignedBucketEnd(
+                        timestampType == DataType.DATE_NANOS ? DateUtils.toMilliSeconds(timestamp.getAsLong()) : timestamp.getAsLong(),
+                        start.toEpochMilli(),
+                        step.toMillis()
+                    );
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        timestampType == DataType.DATE_NANOS
+                            ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
+                            : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                        timestampType,
+                        equalTo(encodedTimestamp(expectedMillis, timestampType))
+                    ).withConfiguration(
+                        TEST_SOURCE,
+                        randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
+                    );
+                }));
+            }
+        }
     }
 
-    private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData, long stepMillis, Instant now) {
+    private static void casesWithTargetBucketCount(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        DataType timestampType,
+        LongSupplier timestamp,
+        int count,
+        Instant start,
+        Instant end,
+        Instant expectedBucket
+    ) {
+        for (DataType stepType : COUNT_STEP_TYPES) {
+            for (DataType fromType : TIME_RANGE_TYPES) {
+                for (DataType toType : TIME_RANGE_TYPES) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(stepType, fromType, toType, timestampType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        Object stepValue = stepType == DataType.LONG ? (long) count : count;
+                        args.add(new TestCaseSupplier.TypedData(stepValue, stepType, "step").forceLiteral());
+                        args.add(createTypedData("from", fromType, start));
+                        args.add(createTypedData("to", toType, end));
+                        args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            timestampType == DataType.DATE_NANOS
+                                ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
+                                : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                            timestampType,
+                            equalTo(encodedTimestamp(expectedBucket.toEpochMilli(), timestampType))
+                        ).withConfiguration(
+                            TEST_SOURCE,
+                            randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
+                        );
+                    }));
+                }
+            }
+        }
+    }
+
+    private static TestCaseSupplier.TypedData createTypedData(String name, DataType type, Instant instant) {
+        Object value;
+        if (type == DataType.DATETIME) {
+            value = instant.toEpochMilli();
+        } else if (type == DataType.DATE_NANOS) {
+            value = DateUtils.toLong(instant);
+        } else {
+            value = new BytesRef(instant.toString());
+        }
+        return new TestCaseSupplier.TypedData(value, type, name).forceLiteral();
+    }
+
+    private static TestCaseSupplier.TypedData createTypedData(String name, DataType type, long value) {
+        return new TestCaseSupplier.TypedData(value, type, name);
+    }
+
+    private static Matcher<Object> matcher(List<TestCaseSupplier.TypedData> typedData, long stepMillis, Instant now) {
         if (typedData.get(1).type() == DataType.DATE_NANOS) {
             long tsNanos = ((Number) typedData.get(1).data()).longValue();
             long expectedMillis = alignedBucketEnd(DateUtils.toMilliSeconds(tsNanos), now.toEpochMilli(), stepMillis);
@@ -151,6 +283,9 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        if (args.size() == 4) {
+            return new TStep(source, args.get(0), args.get(1), args.get(2), args.get(3), configuration);
+        }
         var anchor = configuration.now();
         return new TStep(source, args.get(0), args.get(1), configuration).withTimestampBounds(
             Literal.dateTime(source, anchor),
@@ -164,39 +299,42 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params, hasSize(2));
-        assertThat(params.get(1).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
-        return List.of(params.get(0));
+        assertThat(params.size(), anyOf(equalTo(2), equalTo(4)));
+        int tsIndex = params.size() - 1;
+        assertThat(params.get(tsIndex).dataType(), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+        return params.subList(0, tsIndex);
     }
 
-    public void testBucketBoundariesAlignToRangeStart() {
-        Duration step = Duration.ofMinutes(5);
-        Instant start = Instant.parse("2024-01-01T12:04:00Z");
-        Instant end = Instant.parse("2024-01-01T12:32:00Z");
+    public void testAnchorsGridAtRangeStart() {
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Duration step = Duration.ofMinutes(5);
+            Instant start = Instant.parse("2024-01-01T12:04:00Z");
+            Instant end = Instant.parse("2024-01-01T12:32:00Z");
 
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:04:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:04:00Z"))
-        );
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:06:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:09:00Z"))
-        );
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:08:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:09:00Z"))
-        );
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:32:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:34:00Z"))
-        );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:04:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:04:00Z"), timestampType))
+            );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:06:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:09:00Z"), timestampType))
+            );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:08:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:09:00Z"), timestampType))
+            );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:32:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:34:00Z"), timestampType))
+            );
+        }
     }
 
-    public void testTStepDiffersFromTBucket() {
+    public void testUsesRangeStartAnchoringUnlikeTBucket() {
         Duration step = Duration.ofMinutes(5);
         Instant start = Instant.parse("2024-01-01T12:02:00Z");
         Instant end = Instant.parse("2024-01-01T12:02:00Z");
-        long timestamp = millis("2024-01-01T12:06:00Z");
+        Instant timestamp = Instant.parse("2024-01-01T12:06:00Z");
 
         long tstepBucket = evaluateWithBounds(step, start, end, timestamp, DataType.DATETIME, ZoneOffset.UTC);
 
@@ -207,128 +345,144 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             null,
             null,
             ConfigurationAware.CONFIGURATION_MARKER,
-            0L
+            0L,
+            Rounding.RoundingConvention.DOWN
         );
-        long tbucketBucket = tbucket.getDateRounding(FoldContext.small(), null, null).round(timestamp);
+        long tbucketBucket = tbucket.getDateRounding(FoldContext.small(), null, null).round(timestamp.toEpochMilli());
 
         assertThat(tstepBucket, equalTo(millis("2024-01-01T12:07:00Z")));
         assertThat(tbucketBucket, equalTo(millis("2024-01-01T12:05:00Z")));
         assertThat(tstepBucket, not(equalTo(tbucketBucket)));
     }
 
-    public void testTimezoneInvariance() {
-        Duration step = Duration.ofMinutes(5);
-        Instant start = Instant.parse("2024-01-01T12:02:00Z");
-        Instant end = Instant.parse("2024-01-01T12:02:00Z");
-        long timestamp = millis("2024-01-01T12:08:00Z");
-        long expected = evaluateWithBounds(step, start, end, timestamp, DataType.DATETIME, ZoneOffset.UTC);
+    public void testUsesUtcGridRegardlessOfQueryZone() {
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Duration step = Duration.ofMinutes(5);
+            Instant start = Instant.parse("2024-01-01T12:02:00Z");
+            Instant end = Instant.parse("2024-01-01T12:02:00Z");
+            Instant timestamp = Instant.parse("2024-01-01T12:08:00Z");
+            long expected = evaluateWithBounds(step, start, end, timestamp, timestampType, ZoneOffset.UTC);
 
-        for (ZoneId zone : List.of(
-            ZoneOffset.UTC,
-            ZoneOffset.ofHours(5),
-            ZoneOffset.ofHours(-7),
-            ZoneId.of("America/New_York"),
-            ZoneId.of("Europe/Berlin")
-        )) {
+            for (ZoneId zone : List.of(
+                ZoneOffset.UTC,
+                ZoneOffset.ofHours(5),
+                ZoneOffset.ofHours(-7),
+                ZoneId.of("America/New_York"),
+                ZoneId.of("Europe/Berlin")
+            )) {
+                assertThat(
+                    "zone " + zone + " should produce same bucket",
+                    evaluateWithBounds(step, start, end, timestamp, timestampType, zone),
+                    equalTo(expected)
+                );
+            }
+        }
+    }
+
+    public void testReturnsSingleRightLabeledBucketWhenStepExceedsRange() {
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Duration step = Duration.ofHours(2);
+            Instant start = Instant.parse("2024-01-01T12:00:00Z");
+            Instant end = Instant.parse("2024-01-01T12:30:00Z");
+
             assertThat(
-                "zone " + zone + " should produce same bucket",
-                evaluateWithBounds(step, start, end, timestamp, DataType.DATETIME, zone),
-                equalTo(expected)
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:00:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:00:00Z"), timestampType))
+            );
+            long bucket = evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:15:00Z"), timestampType, ZoneOffset.UTC);
+            assertThat(bucket, equalTo(encodedTimestamp(Instant.parse("2024-01-01T14:00:00Z"), timestampType)));
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:15:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(bucket)
+            );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T12:29:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(bucket)
             );
         }
     }
 
-    public void testSingleBucketWhenStepExceedsRange() {
-        Duration step = Duration.ofHours(2);
-        Instant start = Instant.parse("2024-01-01T12:00:00Z");
-        Instant end = Instant.parse("2024-01-01T12:30:00Z");
-
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:00:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:00:00Z"))
-        );
-        long bucket = evaluateWithBounds(step, start, end, millis("2024-01-01T12:15:00Z"), DataType.DATETIME, ZoneOffset.UTC);
-        assertThat(bucket, equalTo(millis("2024-01-01T14:00:00Z")));
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:15:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(bucket)
-        );
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:29:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(bucket)
-        );
-    }
-
-    public void testTimestampExactlyAtEnd() {
-        Duration step = Duration.ofMinutes(5);
-        Instant start = Instant.parse("2024-01-01T12:00:00Z");
-        Instant end = Instant.parse("2024-01-01T12:10:00Z");
-
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:10:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:10:00Z"))
-        );
-    }
-
-    public void testRightClosedBoundary() {
+    public void testUsesLeftOpenRightClosedIntervals() {
         // Grid anchored at 12:15 with 1h step: boundaries at 12:15, 13:15, 14:15, ...
         // Intervals are (left, right]: t exactly on a boundary belongs to that bucket.
-        Duration step = Duration.ofHours(1);
-        Instant start = Instant.parse("2024-01-01T12:15:00Z");
-        Instant end = Instant.parse("2024-01-01T15:15:00Z");
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Duration step = Duration.ofHours(1);
+            Instant start = Instant.parse("2024-01-01T12:15:00Z");
+            Instant end = Instant.parse("2024-01-01T15:15:00Z");
 
-        // t = 13:15 exactly: right boundary of (12:15, 13:15] -> label 13:15
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T13:15:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T13:15:00Z"))
-        );
-        // t = 14:15 exactly: right boundary of (13:15, 14:15] -> label 14:15
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T14:15:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T14:15:00Z"))
-        );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T13:15:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T13:15:00Z"), timestampType))
+            );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T14:15:00Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T14:15:00Z"), timestampType))
+            );
+            assertThat(
+                evaluateWithBounds(step, start, end, Instant.parse("2024-01-01T13:15:00.001Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T14:15:00Z"), timestampType))
+            );
+        }
     }
 
-    public void testJustPastBoundaryGoesToNextBucket() {
-        // t one millisecond past a grid boundary falls into the next bucket.
-        Duration step = Duration.ofHours(1);
-        Instant start = Instant.parse("2024-01-01T12:15:00Z");
-        Instant end = Instant.parse("2024-01-01T15:15:00Z");
+    public void testOneMillisecondStepPreservesTimestamp() {
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Duration step = Duration.ofMillis(1);
+            Instant start = Instant.parse("2024-01-01T12:00:00Z");
+            Instant end = Instant.parse("2024-01-01T12:00:00Z");
+            Instant timestamp = Instant.parse("2024-01-01T12:34:56.789Z");
 
-        // t = 13:15:00.001: just past 13:15 boundary -> in (13:15, 14:15] -> label 14:15
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T13:15:00.001Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T14:15:00Z"))
-        );
+            assertThat(
+                evaluateWithBounds(step, start, end, timestamp, timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(timestamp, timestampType))
+            );
+        }
     }
 
-    public void testMidBucketValue() {
-        // t in the middle of a bucket maps to the right boundary.
-        Duration step = Duration.ofHours(1);
-        Instant start = Instant.parse("2024-01-01T12:15:00Z");
-        Instant end = Instant.parse("2024-01-01T15:15:00Z");
+    public void testBucketCountPreservesSubSecondDerivedStep() {
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Instant start = Instant.parse("2024-01-01T12:00:00.100Z");
+            Instant end = Instant.parse("2024-01-01T12:00:01.000Z");
 
-        // t = 14:00: in (13:15, 14:15] -> label 14:15
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T14:00:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T14:15:00Z"))
-        );
+            assertThat(
+                evaluateWithBucketCount(3, start, end, Instant.parse("2024-01-01T12:00:00.450Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:00:00.700Z"), timestampType))
+            );
+        }
     }
 
-    public void testOneMillisStep() {
-        Duration step = Duration.ofMillis(1);
-        Instant start = Instant.parse("2024-01-01T12:00:00Z");
-        Instant end = Instant.parse("2024-01-01T12:00:00Z");
-        long ts = millis("2024-01-01T12:34:56.789Z");
+    public void testBucketCountDoesNotRoundExactOneSecondStep() {
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Instant start = Instant.parse("2024-01-01T12:00:00.000Z");
+            Instant end = Instant.parse("2024-01-01T12:00:03.000Z");
 
-        assertThat(evaluateWithBounds(step, start, end, ts, DataType.DATETIME, ZoneOffset.UTC), equalTo(ts));
+            assertThat(
+                evaluateWithBucketCount(3, start, end, Instant.parse("2024-01-01T12:00:01.500Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:00:02.000Z"), timestampType))
+            );
+        }
+    }
+
+    public void testBucketCountFallsBackToOneMillisecondWhenRangeIsZero() {
+        for (DataType timestampType : TIMESTAMP_TYPES) {
+            Instant start = Instant.parse("2024-01-01T12:00:00.000Z");
+
+            assertThat(
+                evaluateWithBucketCount(10, start, start, start, timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(start, timestampType))
+            );
+            assertThat(
+                evaluateWithBucketCount(10, start, start, Instant.parse("2024-01-01T12:00:00.007Z"), timestampType, ZoneOffset.UTC),
+                equalTo(encodedTimestamp(Instant.parse("2024-01-01T12:00:00.007Z"), timestampType))
+            );
+        }
     }
 
     private static long evaluateWithBounds(
         Duration step,
         Instant start,
         Instant end,
-        long timestamp,
+        Instant timestamp,
         DataType timestampType,
         ZoneId zoneId
     ) {
@@ -339,8 +493,37 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         return ((Number) tStep.surrogate().fold(FoldContext.small())).longValue();
     }
 
+    private static long evaluateWithBucketCount(
+        int count,
+        Instant start,
+        Instant end,
+        Instant timestamp,
+        DataType timestampType,
+        ZoneId zoneId
+    ) {
+        Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(zoneId).build();
+        Literal timestampLiteral = timestampLiteral(timestamp, timestampType);
+        TStep tStep = new TStep(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, count, DataType.INTEGER),
+            timestampLiteral(start, timestampType),
+            timestampLiteral(end, timestampType),
+            timestampLiteral,
+            configuration
+        );
+        return ((Number) tStep.surrogate().fold(FoldContext.small())).longValue();
+    }
+
     private static Literal timestampLiteral(Instant instant, DataType type) {
         return timestampLiteral(type == DataType.DATE_NANOS ? DateUtils.toLong(instant) : instant.toEpochMilli(), type);
+    }
+
+    private static long encodedTimestamp(Instant instant, DataType type) {
+        return encodedTimestamp(instant.toEpochMilli(), type);
+    }
+
+    private static long encodedTimestamp(long epochMillis, DataType type) {
+        return type == DataType.DATE_NANOS ? DateUtils.toNanoSeconds(epochMillis) : epochMillis;
     }
 
     private static Literal timestampLiteral(long value, DataType type) {

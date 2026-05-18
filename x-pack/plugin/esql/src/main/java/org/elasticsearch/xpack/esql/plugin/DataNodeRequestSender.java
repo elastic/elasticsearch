@@ -87,7 +87,7 @@ abstract class DataNodeRequestSender {
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final TransportService transportService;
-    private final Executor esqlExecutor;
+    private final Executor searchExecutor;
     private final CancellableTask rootTask;
 
     private final String clusterAlias;
@@ -109,7 +109,7 @@ abstract class DataNodeRequestSender {
         ClusterService clusterService,
         ProjectResolver projectResolver,
         TransportService transportService,
-        Executor esqlExecutor,
+        Executor searchExecutor,
         CancellableTask rootTask,
         OriginalIndices originalIndices,
         QueryBuilder requestFilter,
@@ -121,7 +121,7 @@ abstract class DataNodeRequestSender {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.transportService = transportService;
-        this.esqlExecutor = esqlExecutor;
+        this.searchExecutor = searchExecutor;
         this.rootTask = rootTask;
         this.originalIndices = originalIndices;
         this.requestFilter = requestFilter;
@@ -135,7 +135,6 @@ abstract class DataNodeRequestSender {
 
     final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(
-            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION
@@ -196,7 +195,7 @@ abstract class DataNodeRequestSender {
     }
 
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {
-        assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME, ThreadPool.Names.SEARCH);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         changed.set(true);
         final ActionListener<Void> listener = computeListener.acquireAvoid();
         try {
@@ -418,7 +417,7 @@ abstract class DataNodeRequestSender {
         ShardId shardId,
         List<DiscoveryNode> remainingNodes,
         AliasFilter aliasFilter,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {}
 
     record NodeRequest(DiscoveryNode node, List<DataNodeRequest.Shard> shards, Map<Index, AliasFilter> aliasFilters) {}
@@ -452,7 +451,7 @@ abstract class DataNodeRequestSender {
                 DiscoveryNode node = nodesIt.next();
                 List<DataNodeRequest.Shard> pendingRequest = nodeToShardMetadata.get(node);
                 if (pendingRequest != null) {
-                    pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.reshardSplitShardCountSummary));
+                    pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.splitShardCountSummary));
                     nodesIt.remove();
                     shardsIt.remove();
                     break;
@@ -461,7 +460,7 @@ abstract class DataNodeRequestSender {
                 if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
                     if (nodePermits.computeIfAbsent(node, n -> new Semaphore(1)).tryAcquire()) {
                         pendingRequest = new ArrayList<>();
-                        pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.reshardSplitShardCountSummary));
+                        pendingRequest.add(new DataNodeRequest.Shard(shard.shardId, shard.splitShardCountSummary));
                         nodeToShardMetadata.put(node, pendingRequest);
 
                         nodesIt.remove();
@@ -521,7 +520,7 @@ abstract class DataNodeRequestSender {
                     allocatedNodes.add(nodes.get(n));
                 }
                 AliasFilter aliasFilter = resp.getAliasFilters().get(shardId.getIndex().getUUID());
-                shards.put(shardId, new TargetShard(shardId, allocatedNodes, aliasFilter, group.reshardSplitShardCountSummary()));
+                shards.put(shardId, new TargetShard(shardId, allocatedNodes, aliasFilter, group.splitShardCountSummary()));
             }
             return new TargetShards(shards, totalShards, skippedShards);
         });
@@ -540,7 +539,7 @@ abstract class DataNodeRequestSender {
             searchShardsRequest,
             rootTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, esqlExecutor)
+            new ActionListenerResponseHandler<>(searchShardsListener, SearchShardsResponse::new, searchExecutor)
         );
     }
 

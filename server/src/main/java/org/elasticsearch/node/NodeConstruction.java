@@ -63,6 +63,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -160,6 +161,7 @@ import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.injection.guice.Key;
 import org.elasticsearch.injection.guice.Module;
 import org.elasticsearch.injection.guice.ModulesBuilder;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -181,6 +183,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.IpLocationServiceProvider;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -634,7 +637,8 @@ class NodeConstruction {
                 searchModule.getNamedXContents().stream(),
                 pluginsService.flatMap(Plugin::getNamedXContent),
                 ClusterModule.getNamedXWriteables().stream(),
-                HealthNodeTaskExecutor.getNamedXContentParsers().stream()
+                HealthNodeTaskExecutor.getNamedXContentParsers().stream(),
+                IndexBalanceMetricsTaskExecutor.getNamedXContentParsers().stream()
             ).flatMap(Function.identity()).toList()
         );
         modules.add(b -> {
@@ -759,6 +763,9 @@ class NodeConstruction {
         UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
             p -> p.createRegistry(environment)
         ).orElse(UserAgentParserRegistry.NOOP);
+        IpLocationService ipLocationService = getSinglePlugin(IpLocationServiceProvider.class).map(
+            p -> p.createIpLocationService(environment, client, threadPool.generic()::execute, clusterService, projectResolver)
+        ).orElse(IpLocationService.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -769,6 +776,7 @@ class NodeConstruction {
             client,
             matcherWatchdog,
             userAgentParserRegistry,
+            ipLocationService,
             failureStoreMetrics,
             projectResolver,
             featureService
@@ -1003,9 +1011,9 @@ class NodeConstruction {
             .orElseGet(() -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
 
         final var projectRoutingResolver = pluginsService.loadSingletonServiceProvider(
-            ProjectRoutingResolver.class,
-            () -> ProjectRoutingResolver.NOOP
-        );
+            ProjectRoutingResolver.Provider.class,
+            () -> ProjectRoutingResolver.Provider.NOOP_PROVIDER
+        ).create(threadPool);
         AtomicReference<TransportService> transportServiceRef = new AtomicReference<>();
         var remoteTransportClient = new RemoteTransportClient() {
             @Override
@@ -1326,7 +1334,8 @@ class NodeConstruction {
                 threadPool,
                 clusterModule.getIndexNameExpressionResolver(),
                 persistentTasksService,
-                taskLifecycleManager
+                taskLifecycleManager,
+                telemetryProvider.getMeterRegistry()
             )
         );
 
@@ -1392,6 +1401,7 @@ class NodeConstruction {
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
             b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
+            b.bind(IpLocationService.class).toInstance(ipLocationService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -1852,7 +1862,8 @@ class NodeConstruction {
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         PersistentTasksService persistentTasksService,
-        PersistentTaskLifecycleManager persistentTaskLifecycleManager
+        PersistentTaskLifecycleManager persistentTaskLifecycleManager,
+        MeterRegistry meterRegistry
     ) {
         HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService);
         persistentTaskLifecycleManager.registerClusterTask(
@@ -1860,7 +1871,16 @@ class NodeConstruction {
             HealthNodeTaskExecutor.ENABLED_SETTING,
             () -> HealthNodeTaskParams.INSTANCE
         );
-        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
+        IndexBalanceMetricsTaskExecutor indexBalanceMetricsTaskExecutor = new IndexBalanceMetricsTaskExecutor(
+            clusterService,
+            meterRegistry
+        );
+        persistentTaskLifecycleManager.registerClusterTask(
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING,
+            () -> IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE
+        );
+        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor, indexBalanceMetricsTaskExecutor);
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
             .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, indexNameExpressionResolver))

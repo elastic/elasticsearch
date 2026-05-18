@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.injection.guice.Inject;
@@ -38,6 +38,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final DeleteByQueryMetrics deleteByQueryMetrics;
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
 
     @Inject
@@ -48,7 +50,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
-        @Nullable DeleteByQueryMetrics deleteByQueryMetrics
+        @Nullable DeleteByQueryMetrics deleteByQueryMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -56,6 +59,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.deleteByQueryMetrics = deleteByQueryMetrics;
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
         // todo: if relocations are added to delete-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to delete-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
@@ -63,11 +67,11 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             DeleteByQueryAction.INSTANCE,
             listener,
             client,
@@ -76,10 +80,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
-                    bulkByScrollTask
+                    bulkByPaginatedSearchTask
                 );
                 new AsyncDeleteByQueryAction(
-                    bulkByScrollTask,
+                    bulkByPaginatedSearchTask,
                     logger,
                     assigningClient,
                     threadPool,
@@ -91,6 +95,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                             deleteByQueryMetrics.recordTookTime(elapsedTime);
                         }
                     }),
+                    bulkByScrollSearchContextMetrics,
                     taskShutdownGracePeriod
                 ).start();
             }

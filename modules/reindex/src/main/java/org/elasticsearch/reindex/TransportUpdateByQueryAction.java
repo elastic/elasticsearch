@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -48,6 +48,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final UpdateByQueryMetrics updateByQueryMetrics;
+    @Nullable
+    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
 
     @Inject
@@ -58,7 +60,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
-        @Nullable UpdateByQueryMetrics updateByQueryMetrics
+        @Nullable UpdateByQueryMetrics updateByQueryMetrics,
+        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -66,6 +69,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.updateByQueryMetrics = updateByQueryMetrics;
+        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
         // todo: if relocations are added to update-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to update-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
@@ -73,11 +77,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             UpdateByQueryAction.INSTANCE,
             listener,
             client,
@@ -86,10 +90,10 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
-                    bulkByScrollTask
+                    bulkByPaginatedSearchTask
                 );
                 new AsyncIndexBySearchAction(
-                    bulkByScrollTask,
+                    bulkByPaginatedSearchTask,
                     logger,
                     assigningClient,
                     threadPool,
@@ -101,7 +105,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                             updateByQueryMetrics.recordTookTime(elapsedTime);
                         }
                     }),
-                    taskShutdownGracePeriod
+                    taskShutdownGracePeriod,
+                    bulkByScrollSearchContextMetrics
                 ).start();
             }
         );
@@ -113,14 +118,15 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
         AsyncIndexBySearchAction(
-            BulkByScrollTask task,
+            BulkByPaginatedSearchTask task,
             Logger logger,
             ParentTaskAssigningClient client,
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
             ActionListener<BulkByScrollResponse> listener,
-            TimeValue maxTaskShutdownGracePeriod
+            TimeValue maxTaskShutdownGracePeriod,
+            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
         ) {
             super(
                 task,
@@ -135,6 +141,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 listener,
                 scriptService,
                 null,
+                bulkByScrollSearchContextMetrics,
+                BulkByScrollSearchContextMetrics.TaskKind.UPDATE_BY_QUERY,
+                false,
                 maxTaskShutdownGracePeriod
             );
         }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
@@ -26,6 +27,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,6 +39,7 @@ import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -72,6 +76,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramT
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
@@ -184,6 +189,15 @@ public final class CsvAssert {
                     blockType
                 );
             }
+        }
+    }
+
+    public static void assertDocumentsFound(String expected, long actual) {
+        if (expected != null) {
+            assertTrue(
+                format(null, "Different numbers of documents found; expected {} but actual was {}", expected, actual),
+                CsvAssert.equals(CsvTestUtils.Type.LONG.convert(expected), actual, false)
+            );
         }
     }
 
@@ -589,7 +603,7 @@ public final class CsvAssert {
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
         };
     }
 
@@ -610,6 +624,22 @@ public final class CsvAssert {
                 String.class,
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
+            case FLATTENED -> {
+                if (actualValue instanceof Map<?, ?> map) {
+                    // REST tests come back as a LinkedHashMap and our assertions are json strings.
+                    // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> typedMap = (Map<String, Object>) map;
+                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                        builder.map(typedMap);
+                        yield BytesReference.bytes(builder).utf8ToString();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+                // CsvIT: value is already a JSON string from the block loader — compare directly
+                yield actualValue;
+            }
             default -> actualValue;
         };
     }

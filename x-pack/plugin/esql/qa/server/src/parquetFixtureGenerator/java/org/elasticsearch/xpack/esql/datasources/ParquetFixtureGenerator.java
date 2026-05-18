@@ -29,7 +29,16 @@ import java.util.List;
 
 /**
  * Build-time generator for Parquet fixture files. Converts CSV to Parquet.
- * Accepts source CSV path and output Parquet path as arguments.
+ * <p>
+ * Single-file mode: {@code <source-csv> <output.parquet> [codec]}
+ * <br>
+ * Split mode:       {@code <source-csv> <output-dir> <num-parts> [codec]} — writes
+ * {@code <basename>_00.parquet}, {@code <basename>_01.parquet}, … into the directory.
+ * <p>
+ * The optional {@code codec} argument selects the Parquet internal compression codec
+ * (e.g. {@code SNAPPY}, {@code GZIP}, {@code ZSTD}, {@code LZ4_RAW}).
+ * When omitted, {@code UNCOMPRESSED} is used.
+ * <p>
  * Uses {@link CsvFixtureParser} for bracket-aware CSV parsing with correct multi-value handling.
  */
 public final class ParquetFixtureGenerator {
@@ -38,25 +47,69 @@ public final class ParquetFixtureGenerator {
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
-            System.err.println("Usage: ParquetFixtureGenerator <source-csv-path> <output-parquet-path>");
+        if (args.length == 2 || (args.length == 3 && isCodecName(args[2]))) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputPath = Path.of(args[1]);
+            CompressionCodecName codec = args.length == 3 ? CompressionCodecName.valueOf(args[2]) : CompressionCodecName.UNCOMPRESSED;
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            Files.createDirectories(outputPath.getParent());
+            byte[] parquetBytes = generateFromCsv(sourcePath, 0, Integer.MAX_VALUE, codec);
+            Files.write(outputPath, parquetBytes);
+            System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
+        } else if (args.length == 3 || args.length == 4) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            int numParts = Integer.parseInt(args[2]);
+            CompressionCodecName codec = args.length == 4 ? CompressionCodecName.valueOf(args[3]) : CompressionCodecName.UNCOMPRESSED;
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            Files.createDirectories(outputDir);
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
+            int total = result.rows().size();
+            int partSize = (total + numParts - 1) / numParts;
+            for (int part = 0; part < numParts; part++) {
+                int from = part * partSize;
+                int to = Math.min(from + partSize, total);
+                String fileName = String.format(java.util.Locale.ROOT, "%s_%02d.parquet", baseName, part);
+                Path outputPath = outputDir.resolve(fileName);
+                byte[] parquetBytes = generateFromRows(result, from, to, codec);
+                Files.write(outputPath, parquetBytes);
+                System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
+            }
+        } else {
+            System.err.println("Usage: ParquetFixtureGenerator <source-csv> <output.parquet> [codec]");
+            System.err.println("       ParquetFixtureGenerator <source-csv> <output-dir> <num-parts> [codec]");
+            System.err.println("Codecs: UNCOMPRESSED (default), SNAPPY, GZIP, ZSTD, LZ4_RAW");
             System.exit(1);
         }
-        Path sourcePath = Path.of(args[0]);
-        Path outputPath = Path.of(args[1]);
-        if (Files.exists(sourcePath) == false) {
-            throw new IOException("Source CSV not found: " + sourcePath);
-        }
-        Files.createDirectories(outputPath.getParent());
-        byte[] parquetBytes = generateFromCsv(sourcePath);
-        Files.write(outputPath, parquetBytes);
-        System.out.println("Generated Parquet fixture: " + outputPath);
     }
 
-    private static byte[] generateFromCsv(Path sourcePath) throws IOException {
-        CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
+    /**
+     * Returns true when the string is one of the supported Parquet compression codec names.
+     * Used to disambiguate the 3-arg form (single-file + codec) from the 3-arg split form
+     * (split mode with num-parts).
+     */
+    private static boolean isCodecName(String s) {
+        for (CompressionCodecName c : CompressionCodecName.values()) {
+            if (c.name().equals(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static byte[] generateFromCsv(Path sourcePath, int from, int to, CompressionCodecName codec) throws IOException {
+        return generateFromRows(CsvFixtureParser.parseCsvFile(sourcePath), from, to, codec);
+    }
+
+    private static byte[] generateFromRows(CsvFixtureParser.CsvFixtureResult result, int from, int to, CompressionCodecName codec)
+        throws IOException {
         List<CsvFixtureParser.ColumnSpec> columns = result.schema();
-        List<Object[]> rows = result.rows();
+        List<Object[]> rows = result.rows().subList(from, Math.min(to, result.rows().size()));
 
         boolean[] isListColumn = new boolean[columns.size()];
         for (int c = 0; c < columns.size(); c++) {
@@ -73,12 +126,7 @@ public final class ParquetFixtureGenerator {
         OutputFile outputFile = createOutputFile(baos);
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
 
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .build()
-        ) {
+        try (ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile).withType(schema).withCompressionCodec(codec).build()) {
             for (Object[] row : rows) {
                 Group g = factory.newGroup();
                 for (int i = 0; i < columns.size(); i++) {

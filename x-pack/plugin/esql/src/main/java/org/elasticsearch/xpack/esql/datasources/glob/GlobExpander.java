@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
@@ -57,14 +56,6 @@ public final class GlobExpander {
             return FileListCompactor.compact(basePath, generic);
         }
         return raw;
-    }
-
-    /** Returns a copy of the file list with per-file schema reconciliation info attached. */
-    public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        if (fileList instanceof GenericFileList generic) {
-            return generic.withSchemaInfo(schemaInfo);
-        }
-        return fileList;
     }
 
     /**
@@ -124,16 +115,35 @@ public final class GlobExpander {
         };
     }
 
+    /**
+     * Returns true if the given path string represents multiple files — either because it contains
+     * glob metacharacters in the path component, or because it is a comma-separated list.
+     *
+     * IPv6 host literals in URL authorities (e.g. {@code http://[::1]/data/*.parquet}) use bracket
+     * notation per RFC 3986 §3.2.2. Those brackets are parsed as part of the authority, not the
+     * path, so they are not treated as glob character-class syntax.
+     */
     public static boolean isMultiFile(String path) {
         if (path == null) {
             return false;
         }
-        for (char c : StoragePath.GLOB_METACHARACTERS) {
-            if (path.indexOf(c) >= 0) {
-                return true;
-            }
+        if (path.indexOf(',') >= 0) {
+            return true;
         }
-        return path.indexOf(',') >= 0;
+        // Only scan the path component for glob metacharacters, not the full URL string.
+        // This prevents IPv6 bracket notation in the authority from being mistaken for
+        // a glob character class.
+        try {
+            return StoragePath.of(path).isPattern();
+        } catch (IllegalArgumentException e) {
+            // Not a parseable URL; fall back to scanning the whole string
+            for (char c : StoragePath.GLOB_METACHARACTERS) {
+                if (path.indexOf(c) >= 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     public static FileList expandGlob(String pattern, StorageProvider provider) throws IOException {
@@ -196,8 +206,8 @@ public final class GlobExpander {
                 return FileList.UNRESOLVED;
             }
             // Hints resolved all wildcards to a concrete path — resolve via exists()
-            if (provider.exists(storagePath)) {
-                var obj = provider.newObject(storagePath);
+            var obj = provider.newObject(storagePath);
+            if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
                 PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), hivePartitioning, partitionConfig, config);
                 return new GenericFileList(List.of(entry), pattern, partitionMetadata);
@@ -216,8 +226,8 @@ public final class GlobExpander {
                 String prefixStr = prefix.toString();
                 for (String candidate : candidates) {
                     StoragePath fullPath = StoragePath.of(prefixStr + candidate);
-                    if (provider.exists(fullPath)) {
-                        var obj = provider.newObject(fullPath);
+                    var obj = provider.newObject(fullPath);
+                    if (obj.exists()) {
                         matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
                     }
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
@@ -370,8 +380,8 @@ public final class GlobExpander {
                     allEntries.addAll(g.files());
                 }
             } else {
-                if (provider.exists(segmentPath)) {
-                    var obj = provider.newObject(segmentPath);
+                var obj = provider.newObject(segmentPath);
+                if (obj.exists()) {
                     allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified()));
                     checkDiscoveredFilesLimit(allEntries.size(), maxDiscoveredFiles);
                 }

@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -438,22 +439,30 @@ public final class DocumentParser {
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        boolean sliceEnabled = context.indexSettings().isSliceEnabled() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
         if (nested.isIncludeInParent()) {
-            addFields(indexVersion, nestedDoc, parentDoc);
+            addFields(indexVersion, nestedDoc, parentDoc, sliceEnabled);
         }
         if (nested.isIncludeInRoot()) {
             LuceneDocument rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
-                addFields(indexVersion, nestedDoc, rootDoc);
+                addFields(indexVersion, nestedDoc, rootDoc, sliceEnabled);
             }
         }
     }
 
-    private static void addFields(IndexVersion indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
+    private static void addFields(
+        IndexVersion indexCreatedVersion,
+        LuceneDocument nestedDoc,
+        LuceneDocument rootDoc,
+        boolean sliceEnabled
+    ) {
         String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (field.name().equals(nestedPathFieldName) == false && field.name().equals(IdFieldMapper.NAME) == false) {
+            if (field.name().equals(nestedPathFieldName) == false
+                && field.name().equals(IdFieldMapper.NAME) == false
+                && (sliceEnabled == false || field.name().equals(RoutingFieldMapper.NAME) == false)) {
                 rootDoc.add(field);
             }
         }

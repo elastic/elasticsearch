@@ -57,6 +57,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.exponentialhistogram",
         "org.elasticsearch.geo",
         "org.elasticsearch.grok",
+        "org.elasticsearch.iplocation.api",
         "org.elasticsearch.logging",
         "org.elasticsearch.lz4",
         "org.elasticsearch.nativeaccess",

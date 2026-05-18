@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.ArrayList;
@@ -97,7 +98,7 @@ public class ApproximationGoldenTests extends GoldenTestCase {
               | LOOKUP JOIN languages_lookup ON language_code
               | EVAL length = LENGTH(language_name)
               | STATS AVG(length)
-            """, STAGES);
+            """, STAGES, TransportVersion.fromName("esql_approximation_lookup_join"));
     }
 
     public void testFork() {

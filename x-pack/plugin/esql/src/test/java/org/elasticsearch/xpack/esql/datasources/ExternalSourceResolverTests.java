@@ -279,6 +279,52 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * FFW resolution must populate schemaMap with one identity-mapped FileSchemaInfo entry per
+     * discovered file, each carrying the anchor schema verbatim. Closest-layer assertion that the
+     * planner's per-file pinning is wired correctly: this is what {@code FileSplitProvider} reads
+     * to bake {@code FileSplit.readSchema} for every split, which in turn pins the reader.
+     */
+    public void testFirstFileWinsPopulatesSchemaMapForEveryFile() throws Exception {
+        List<Attribute> anchorSchema = List.of(attr("col0", DataType.KEYWORD), attr("col1", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/b.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.INTEGER)));
+        schemasByPath.put("s3://bucket/data/c.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.KEYWORD)));
+
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            ),
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertEquals("schemaMap must have one entry per matched file", 3, schemaMap.size());
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
+            assertEquals(
+                "every FFW per-file entry carries the anchor schema verbatim, regardless of the file's own inference",
+                anchorSchema,
+                e.getValue().fileSchema().attributes()
+            );
+            ColumnMapping mapping = e.getValue().mapping();
+            assertNotNull("FFW entries carry an identity ColumnMapping", mapping);
+            assertTrue("FFW per-file mapping is identity", mapping.isIdentity());
+            assertEquals(
+                "identity mapping matches anchor schema width",
+                new ColumnMapping(identityIndex(anchorSchema.size()), null),
+                mapping
+            );
+        }
+    }
+
+    /**
      * The schemaMap contract differs by code path and is asserted here under both:
      * <ul>
      *   <li>FFW: every entry's {@code fileSchema} is the anchor's schema <em>verbatim</em>
@@ -326,16 +372,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     assertEquals(
                         "[FFW] " + e.getKey() + ": entry must carry the anchor schema verbatim",
                         anchorSchema,
-                        e.getValue().fileSchema()
+                        e.getValue().fileSchema().attributes()
                     );
-                    SchemaReconciliation.ColumnMapping mapping = e.getValue().mapping();
+                    ColumnMapping mapping = e.getValue().mapping();
                     assertNotNull("[FFW] " + e.getKey() + ": ColumnMapping must be set", mapping);
                     assertEquals(
                         "[FFW] " + e.getKey() + ": identity mapping length matches anchor schema width",
                         anchorSchema.size(),
-                        mapping.columnCount()
+                        mapping.width()
                     );
-                    for (int i = 0; i < mapping.columnCount(); i++) {
+                    for (int i = 0; i < mapping.width(); i++) {
                         assertEquals("[FFW] " + e.getKey() + ": localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
                         assertNull("[FFW] " + e.getKey() + ": no casts at position " + i, mapping.cast(i));
                     }
@@ -373,17 +419,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     assertEquals(
                         "[" + strategy + "] " + pathStr + ": fileSchema must equal the file's own schema",
                         expectedFileSchemas.get(pathStr),
-                        e.getValue().fileSchema()
+                        e.getValue().fileSchema().attributes()
                     );
-                    SchemaReconciliation.ColumnMapping mapping = e.getValue().mapping();
+                    ColumnMapping mapping = e.getValue().mapping();
                     assertNotNull("[" + strategy + "] " + pathStr + ": ColumnMapping must be set", mapping);
                     int[] expected = expectedLocalIndices.get(pathStr);
                     assertEquals(
                         "[" + strategy + "] " + pathStr + ": mapping width = unified schema width",
                         unifiedSchema.size(),
-                        mapping.columnCount()
+                        mapping.width()
                     );
-                    for (int i = 0; i < mapping.columnCount(); i++) {
+                    for (int i = 0; i < mapping.width(); i++) {
                         assertEquals("[" + strategy + "] " + pathStr + ": localIndex(" + i + ")", expected[i], mapping.localIndex(i));
                         // No type drift in this fixture → no casts under UBN.
                         assertNull("[" + strategy + "] " + pathStr + ": no casts at position " + i, mapping.cast(i));
@@ -566,17 +612,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
         assertEquals("single-file schemaMap must have exactly one entry", 1, schemaMap.size());
         SchemaReconciliation.FileSchemaInfo info = schemaMap.values().iterator().next();
-        assertEquals("fileSchema must equal metadata schema verbatim", schema, info.fileSchema());
-        SchemaReconciliation.ColumnMapping mapping = info.mapping();
+        assertEquals("fileSchema must equal metadata schema verbatim", schema, info.fileSchema().attributes());
+        ColumnMapping mapping = info.mapping();
         assertNotNull("single-file entry carries an identity ColumnMapping", mapping);
-        assertEquals("identity mapping length matches schema width", schema.size(), mapping.columnCount());
-        for (int i = 0; i < mapping.columnCount(); i++) {
-            assertEquals("identity mapping localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
-            assertNull("identity mapping has no casts at position " + i, mapping.cast(i));
-        }
+        assertTrue("single-file mapping is identity", mapping.isIdentity());
+        assertEquals("identity mapping matches schema width", new ColumnMapping(identityIndex(schema.size()), null), mapping);
     }
 
-    // ===== Schema type preservation =====
+    // ===== ExternalSchema type preservation =====
 
     public void testSchemaTypesPreserved() throws Exception {
         List<Attribute> schema = List.of(
@@ -1068,6 +1111,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private static int[] identityIndex(int size) {
+        int[] idx = new int[size];
+        for (int i = 0; i < size; i++) {
+            idx[i] = i;
+        }
+        return idx;
     }
 
     private static StorageEntry entry(String path, long length) {

@@ -132,7 +132,7 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
         if (k <= 0) {
             return;
         }
-        if (anySubRunTooShort(k, valueCount)) {
+        if (hasShortSubRun(k, valueCount)) {
             return;
         }
 
@@ -251,7 +251,7 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
         return k;
     }
 
-    private boolean anySubRunTooShort(final int k, final int valueCount) {
+    private boolean hasShortSubRun(final int k, final int valueCount) {
         int prevEnd = 0;
         for (int j = 0; j < k; j++) {
             if (splits[j] - prevEnd < 2) {

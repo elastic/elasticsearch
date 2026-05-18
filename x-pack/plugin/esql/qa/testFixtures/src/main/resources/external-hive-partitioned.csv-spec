@@ -1,0 +1,54 @@
+// End-to-end tests for Hive-style partition discovery against the employees fixture re-laid-out as
+// lang=1/, lang=2/, ..., lang=5/, lang=__HIVE_DEFAULT_PARTITION__/. The {{employees_hive}} template
+// resolves to hive-partitioned/lang=*/*.parquet. The partition column `lang` is the directory-encoded
+// shadow of the payload column `languages`; rows in lang=__HIVE_DEFAULT_PARTITION__ are exactly the
+// rows where the payload's languages column is also null. Bucket sizes: 15/19/17/18/21/10.
+
+hivePartitionStatsByLang
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| STATS count = COUNT(*) BY lang
+| SORT lang NULLS LAST;
+
+count:long | lang:integer
+15         | 1
+19         | 2
+17         | 3
+18         | 4
+21         | 5
+10         | null
+;
+
+hivePartitionWhereIsNull
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| WHERE lang IS NULL
+| STATS count = COUNT(*);
+
+count:long
+10
+;
+
+hivePartitionWhereEquals
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| WHERE lang == 3
+| STATS count = COUNT(*);
+
+count:long
+17
+;
+
+hivePartitionConsistentWithPayload
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| WHERE lang IS NULL AND languages IS NULL
+| STATS count = COUNT(*);
+
+count:long
+10
+;

@@ -575,3 +575,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.CorruptionIT
   method: testConcurrentOperations
   issue: https://github.com/elastic/elasticsearch/issues/149342
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogLocalFailureOnlyStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/149343

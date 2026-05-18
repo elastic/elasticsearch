@@ -525,20 +525,17 @@ public class ExternalSourceResolver {
         return result;
     }
 
-    /** Cache-aware single-file resolve; mirrors the FFW cache pattern. */
-    private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) {
+    /** Cache-aware single-file resolve; mirrors the FFW cache pattern. Exceptions from the
+     *  cache layer or the underlying resolve propagate to the caller (same as FFW) so a real
+     *  cache bug fails loud instead of degrading silently to N footer reads per warm query. */
+    private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
         String formatType = detectFormatType(filePath);
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
-        try {
-            SchemaCacheEntry entry = cacheService.getOrComputeSchema(
-                schemaKey,
-                k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
-            );
-            return buildMetadataFromCache(entry, entry.toAttributes(), config);
-        } catch (Exception e) {
-            LOGGER.debug(() -> "Schema cache miss + fallback for [" + filePath + "]: " + e.getMessage());
-            return resolveSingleSource(filePath.toString(), config);
-        }
+        SchemaCacheEntry entry = cacheService.getOrComputeSchema(
+            schemaKey,
+            k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
+        );
+        return buildMetadataFromCache(entry, entry.toAttributes(), config);
     }
 
     /**
@@ -547,8 +544,9 @@ public class ExternalSourceResolver {
      * then merges all maps using {@link SourceStatisticsSerializer#mergeStatistics}.
      * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
      */
+    // package-private for direct test coverage of the cached/uncached shape branch.
     @Nullable
-    private static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
+    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         for (SourceMetadata meta : allMetadata) {
             // Cached entries arrive with stats already embedded as flat keys in sourceMetadata();

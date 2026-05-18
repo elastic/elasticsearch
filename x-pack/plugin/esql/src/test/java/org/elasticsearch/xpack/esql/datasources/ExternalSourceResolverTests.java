@@ -1005,6 +1005,107 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@link ExternalSourceResolver#aggregateFileStatistics} accepts two distinct
+     * {@link SourceMetadata} shapes — cached entries arrive with stats already embedded as flat
+     * keys in {@code sourceMetadata()}, uncached entries arrive with typed {@code statistics()}
+     * — and merges both into a single flat stats map. Pinned independently of the full resolver
+     * flow so the shape branch (the load-bearing piece of the reconciliation fix) regresses
+     * loudly if either arm breaks.
+     */
+    public void testAggregateFileStatisticsAcceptsCachedAndUncachedShapes() {
+        long uncachedRowCount = 42L;
+        long cachedRowCount = 58L;
+
+        SourceMetadata uncached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/uncached.parquet";
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.of(statsOf(uncachedRowCount));
+            }
+        };
+
+        Map<String, Object> cachedFlatStats = SourceStatisticsSerializer.embedStatistics(Map.of(), statsOf(cachedRowCount));
+        SourceMetadata cached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/cached.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return cachedFlatStats;
+            }
+        };
+
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        assertNotNull("merging cached and uncached shapes must succeed", merged);
+        assertEquals(
+            "merged row count must sum both shapes",
+            uncachedRowCount + cachedRowCount,
+            ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+
+        SourceMetadata missing = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/missing.parquet";
+            }
+        };
+        assertNull(
+            "aggregate must return null when any entry lacks both flat-embedded stats and typed statistics()",
+            ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing))
+        );
+    }
+
+    private static SourceStatistics statsOf(long rowCount) {
+        return new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(rowCount);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.empty();
+            }
+        };
+    }
+
     public void testSingleFileSchemaCacheHitAfterMiss() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();

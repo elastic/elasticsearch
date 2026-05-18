@@ -89,10 +89,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         byte[] parquetData = createMultiRowGroupFile(wideSchema, 5000, 50 * 1024);
         // Add DEFAULT_WINDOW_SIZE so the window fits; the remaining ~2 MB budget is still tight
         // enough that decode or prefetch allocations may trip the breaker.
-        var breaker = new TrackingBreaker(
-            "test",
-            ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 2 * 1024 * 1024)
-        );
+        var breaker = new TrackingBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 2 * 1024 * 1024));
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
 
         StorageObject storage = createAsyncStorageObject(parquetData);

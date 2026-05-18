@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.List;
-
 /**
  * Direct unit tests for {@link ColumnMapping#pruneToPerFileQuery} — the fused method that
  * narrows a per-file mapping from (Unified width, file-natural source positions) to
@@ -115,19 +113,4 @@ public class ColumnMappingTests extends ESTestCase {
     private static Attribute attr(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD, Nullability.TRUE, null, false);
     }
-
-    static {
-        // Ensure assertions are enabled in this test class so the precondition guard actually fires.
-        ColumnMappingTests.class.getClassLoader();
-    }
-
-    public void testAssertionsEnabled() {
-        boolean assertionsEnabled = false;
-        assert (assertionsEnabled = true);
-        assertTrue("assertions must be enabled for the precondition test above to be meaningful", assertionsEnabled);
-    }
-
-    // List import sanity: keep at least one use so the import doesn't get pruned.
-    @SuppressWarnings("unused")
-    private static final List<String> SENTINEL = List.of();
 }

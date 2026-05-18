@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +28,22 @@ import java.util.stream.Collectors;
 public final class ExternalSchema implements Iterable<Attribute> {
 
     public static final ExternalSchema EMPTY = new ExternalSchema(List.of());
+
+    /**
+     * Returns the data-attribute view of {@code attributes} as an {@link ExternalSchema}: the
+     * input list with {@link MetadataAttribute} instances filtered out, relative order preserved.
+     * Used by external-source operator factories on the data node to derive the data-only schema
+     * once at construction rather than re-slicing per page.
+     */
+    public static ExternalSchema dataAttributesOf(List<Attribute> attributes) {
+        List<Attribute> data = new ArrayList<>(attributes.size());
+        for (Attribute attr : attributes) {
+            if (attr instanceof MetadataAttribute == false) {
+                data.add(attr);
+            }
+        }
+        return new ExternalSchema(data);
+    }
 
     private final List<Attribute> attributes;
     private final Set<String> names;

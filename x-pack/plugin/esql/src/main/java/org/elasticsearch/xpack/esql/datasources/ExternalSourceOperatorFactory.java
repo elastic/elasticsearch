@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -251,7 +250,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
             this.attributes = attributes;
-            this.queryDataSchema = dataAttributesOf(attributes);
+            this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
             this.batchSize = batchSize;
             this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
@@ -366,19 +365,5 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             return "SliceQueueSourceOperator";
         }
 
-        /**
-         * Returns the data attributes of {@code attributes} as a {@link ExternalSchema}, with metadata
-         * attributes filtered out. Data attributes always come first in {@code ExternalSourceExec}'s
-         * output, so the result preserves their relative order.
-         */
-        private static ExternalSchema dataAttributesOf(List<Attribute> attributes) {
-            List<Attribute> data = new ArrayList<>(attributes.size());
-            for (Attribute attr : attributes) {
-                if (attr instanceof MetadataAttribute == false) {
-                    data.add(attr);
-                }
-            }
-            return new ExternalSchema(data);
-        }
     }
 }

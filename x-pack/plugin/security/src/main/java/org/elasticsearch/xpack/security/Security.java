@@ -61,7 +61,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
@@ -125,6 +124,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
+import org.elasticsearch.xpack.core.crypto.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
@@ -625,6 +626,7 @@ public class Security extends Plugin
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
+    private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
@@ -772,8 +774,7 @@ public class Security extends Plugin
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
                 services.crossProjectModeDecider(),
-                services.projectRoutingResolver(),
-                services.encryptedDataHandlerRegistry()
+                services.projectRoutingResolver()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -797,8 +798,7 @@ public class Security extends Plugin
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver,
-        EncryptedDataHandlerRegistry encryptedDataHandlerRegistry
+        ProjectRoutingResolver projectRoutingResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1285,19 +1285,21 @@ public class Security extends Plugin
 
         if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
             PrimaryEncryptionKeyService pekService = PrimaryEncryptionKeyService.create(clusterService, projectResolver);
+            List<EncryptedDataHandler> encryptedDataHandlers = encryptedDataHandlerProviders.stream()
+                .flatMap(p -> p.getHandlers().stream())
+                .toList();
             KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
                 clusterService,
                 threadPool,
                 projectResolver,
                 featureService,
-                encryptedDataHandlerRegistry,
+                encryptedDataHandlers,
                 settings
             );
             AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(pekService);
             components.add(new PluginComponentBinding<>(EncryptionService.class, encryptionService));
             components.add(pekService);
             components.add(coordinator);
-            components.add(encryptedDataHandlerRegistry);
         }
 
         setClosableAndReloadableComponents(components);
@@ -2600,6 +2602,7 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+        encryptedDataHandlerProviders.addAll(loader.loadExtensions(EncryptedDataHandlerProvider.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, bulkPutRoleRequestBuilderFactory, BulkPutRoleRequestBuilderFactory.class);

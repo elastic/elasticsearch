@@ -4,23 +4,23 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.security.crypto;
+package org.elasticsearch.xpack.security.encryption.spi.test;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.encryption.EncryptedDataHandler;
-import org.elasticsearch.encryption.EncryptedDataHandlerProvider;
+import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
+import org.elasticsearch.xpack.core.crypto.EncryptedDataHandlerProvider;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Discovered by {@code PluginsService.loadServiceProviders} via the {@code META-INF/services} entry in this test module's resources.
- * Registers a no-op {@link TestSpiHandler} so {@link EncryptedDataHandlerProviderSpiIT} can verify the SPI wiring works end-to-end.
+ * Discovered via {@code ExtensiblePlugin.loadExtensions} by the security plugin. Registers a single no-op handler that increments
+ * an in-JVM counter so the IT can verify the SPI is wired end-to-end.
  */
 public class TestEncryptedDataHandlerProvider implements EncryptedDataHandlerProvider {
 
-    /** Incremented once per {@code reEncrypt} invocation across all instances. Tests read it to verify the SPI handler ran. */
+    /** Bumped once per {@code reEncrypt} invocation; readable from the cluster JVM via the test plugin's REST handler. */
     public static final AtomicInteger INVOCATIONS = new AtomicInteger();
 
     @Override

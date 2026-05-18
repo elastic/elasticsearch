@@ -10,12 +10,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.encryption.EncryptedDataHandler;
-import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
+import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.junit.Before;
@@ -81,8 +80,8 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         for (String nodeName : internalCluster().getNodeNames()) {
             EncryptionService service = internalCluster().getInstance(EncryptionService.class, nodeName);
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
-            EncryptedDataHandlerRegistry registry = internalCluster().getInstance(EncryptedDataHandlerRegistry.class, nodeName);
-            registry.register(new TestHandler(service, threadPool, state));
+            KeyRotationCoordinator coordinator = internalCluster().getInstance(KeyRotationCoordinator.class, nodeName);
+            coordinator.register(new TestHandler(service, threadPool, state));
         }
         return state;
     }

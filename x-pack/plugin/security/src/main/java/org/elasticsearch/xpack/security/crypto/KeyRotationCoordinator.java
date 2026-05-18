@@ -27,22 +27,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.encryption.EncryptedDataHandler;
-import org.elasticsearch.encryption.EncryptedDataHandlerRegistry;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 
 import java.io.Closeable;
 import java.security.SecureRandom;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -121,7 +122,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     private final MasterServiceTaskQueue<KeyRotationTask> taskQueue;
     private final TimeValue rotationInterval;
     private final TimeValue checkInterval;
-    private final EncryptedDataHandlerRegistry handlerRegistry;
+    private final List<EncryptedDataHandler> handlers;
 
     // Only accessed inside synchronized startSchedule/stopSchedule/close, so plain mutable is fine.
     private Scheduler.Cancellable scheduledTask;
@@ -137,7 +138,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         FeatureService featureService,
-        EncryptedDataHandlerRegistry handlerRegistry,
+        Collection<EncryptedDataHandler> handlers,
         Settings settings
     ) {
         TimeValue rotationInterval = ROTATION_INTERVAL_SETTING.get(settings);
@@ -147,7 +148,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             threadPool,
             projectResolver,
             featureService,
-            handlerRegistry,
+            handlers,
             rotationInterval,
             checkInterval
         );
@@ -161,7 +162,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         FeatureService featureService,
-        EncryptedDataHandlerRegistry handlerRegistry,
+        Collection<EncryptedDataHandler> handlers,
         TimeValue rotationInterval,
         TimeValue checkInterval
     ) {
@@ -169,7 +170,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
-        this.handlerRegistry = handlerRegistry;
+        this.handlers = new CopyOnWriteArrayList<>(handlers);
         this.taskQueue = clusterService.createTaskQueue(
             "primary-encryption-key",
             Priority.NORMAL,
@@ -191,7 +192,8 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         stopSchedule();
     }
 
-    private void onClusterStateChanged(ClusterChangedEvent event) {
+    // package-private so unit tests can invoke the cluster-state-change handler directly
+    void onClusterStateChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
@@ -276,7 +278,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
                 )
             )
         ) {
-            for (EncryptedDataHandler handler : handlerRegistry.handlers()) {
+            for (EncryptedDataHandler handler : handlers) {
                 ActionListener<Void> l = listeners.acquire();
                 try {
                     handler.reEncrypt(activeKeyId, l);
@@ -292,6 +294,16 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         closed = true;
         clusterService.removeListener(this);
         stopSchedule();
+    }
+
+    /**
+     * Test-only same-package affordance for adding a handler after construction. Production code must pass handlers via the
+     * {@link #create(ClusterService, ThreadPool, ProjectResolver, FeatureService, Collection, Settings) create} factory; the public API
+     * of this class is constructor-only.
+     */
+    void register(EncryptedDataHandler handler) {
+        handlers.add(handler);
+        logger.debug("registered encrypted-data handler [{}]", handler.getClass().getSimpleName());
     }
 
     /**

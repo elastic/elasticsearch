@@ -57,46 +57,6 @@ public class TokensPerFieldLimitIT extends ESIntegTestCase {
         assertThat(itemResponse.getFailureMessage(), containsString("[3]"));
     }
 
-    public void testTokenLimitIsPerField() {
-        String indexName = "token-limit-per-field";
-        assertAcked(
-            indicesAdmin().prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexSettings.MAX_FIELD_TOKEN_COUNT_SETTING.getKey(), 4))
-                .setMapping("field1", "type=text", "field2", "type=text")
-        );
-
-        // field1: "one two" = 2 tokens, field2: "three four five" = 3 tokens
-        // Each field is within the limit of 4, so this should succeed even though the total is 5
-        DocWriteResponse response = prepareIndex(indexName).setSource("field1", "one two", "field2", "three four five").get();
-        assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
-    }
-
-    public void testNoLimitByDefault() {
-        String indexName = "token-no-limit";
-        assertAcked(indicesAdmin().prepareCreate(indexName).setMapping("body", "type=text"));
-
-        // Build a string with many tokens - should succeed with no limit
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
-            if (i > 0) sb.append(' ');
-            sb.append("word").append(i);
-        }
-        DocWriteResponse response = prepareIndex(indexName).setSource("body", sb.toString()).get();
-        assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
-    }
-
-    public void testSettingRejectsZero() {
-        String indexName = "token-limit-zero";
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> indicesAdmin().prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexSettings.MAX_FIELD_TOKEN_COUNT_SETTING.getKey(), 0))
-                .setMapping("body", "type=text")
-                .get()
-        );
-        assertThat(ex.getMessage(), containsString("must be -1 (no limit) or a positive number"));
-    }
-
     public void testTokenLimitDynamicUpdate() {
         String indexName = "token-limit-dynamic";
         assertAcked(

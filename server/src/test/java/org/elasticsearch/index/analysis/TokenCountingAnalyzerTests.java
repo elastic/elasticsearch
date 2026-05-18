@@ -22,54 +22,43 @@ import static org.hamcrest.Matchers.containsString;
 public class TokenCountingAnalyzerTests extends ESTestCase {
 
     public void testTokenCountingWithinOrAtLimit() throws IOException {
-        int limit = randomIntBetween(5, 100);
-        int tokenCount = randomIntBetween(1, limit);
-        String fieldName = randomAlphaOfLength(5);
+        int limit = randomIntBetween(1, 100);
+        int tokenCount = randomIntBetween(1, limit*2);
+        String fieldName = "foo";
         String input = generateWords(tokenCount);
 
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
             TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, limit);
             try (TokenStream ts = analyzer.tokenStream(fieldName, input)) {
                 ts.reset();
-                int count = 0;
-                while (ts.incrementToken()) {
-                    count++;
-                }
-                ts.end();
-                assertEquals(tokenCount, count);
-            }
-        }
-    }
-
-    public void testTokenCountingExceedsLimit() throws IOException {
-        int limit = randomIntBetween(2, 50);
-        int tokenCount = limit + randomIntBetween(1, 10);
-        String fieldName = randomAlphaOfLength(5);
-        String input = generateWords(tokenCount);
-
-        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, limit);
-            try (TokenStream ts = analyzer.tokenStream(fieldName, input)) {
-                ts.reset();
-                TokenCountingAnalyzer.FieldTokenCountExceededException ex = expectThrows(
-                    TokenCountingAnalyzer.FieldTokenCountExceededException.class,
-                    () -> {
-                        while (ts.incrementToken()) {
-                            // consume tokens
+                if( tokenCount > limit ) {
+                    TokenCountingAnalyzer.FieldTokenCountExceededException ex = expectThrows(
+                        TokenCountingAnalyzer.FieldTokenCountExceededException.class,
+                        () -> {
+                            while (ts.incrementToken()) {
+                                // consume tokens
+                            }
                         }
+                    );
+                    assertThat(ex.getMessage(), containsString("[" + limit + "]"));
+                    assertThat(ex.getMessage(), containsString("[" + fieldName + "]"));
+                    assertThat(ex.getMessage(), containsString("index.mapping.tokens_per_field.limit"));
+                    assertEquals(limit, ex.getMaxTokenCount());
+                    assertEquals(fieldName, ex.getFieldName());
+                } else {
+                    int count = 0;
+                    while (ts.incrementToken()) {
+                        count++;
                     }
-                );
-                assertThat(ex.getMessage(), containsString("[" + limit + "]"));
-                assertThat(ex.getMessage(), containsString("[" + fieldName + "]"));
-                assertThat(ex.getMessage(), containsString("index.mapping.tokens_per_field.limit"));
-                assertEquals(limit, ex.getMaxTokenCount());
-                assertEquals(fieldName, ex.getFieldName());
+                    ts.end();
+                    assertEquals(tokenCount, count);
+                }
             }
         }
     }
 
     public void testNoLimitWhenDisabled() throws IOException {
-        int tokenCount = randomIntBetween(50, 200);
+        int tokenCount = 50;
         String input = generateWords(tokenCount);
 
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {

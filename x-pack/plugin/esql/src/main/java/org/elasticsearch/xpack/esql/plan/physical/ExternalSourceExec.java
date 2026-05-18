@@ -451,6 +451,37 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * Returns a copy of this source with the given output attribute list. Used by
+     * {@code InsertExternalFieldExtraction} to narrow the source's projection (sort keys +
+     * predicate columns) and inject a synthetic {@code _rowPosition} attribute that the paired
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec} consumes.
+     * <p>
+     * Every other field — including pushed filter, pushed limit, splits, and the source path — is
+     * preserved. The new attribute list is not validated against the source's reader schema; the
+     * caller (the optimizer rule) is responsible for ensuring it is a valid subset plus
+     * {@code _rowPosition}. Serialization is unaffected because attributes are part of the wire
+     * format already.
+     */
+    public ExternalSourceExec withAttributes(List<Attribute> newAttributes) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            newAttributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            splits
+        );
+    }
+
+    /**
      * Returns a copy of this source annotated with the given Top-N grouping hint. See {@link #pushedTopN()}.
      */
     public ExternalSourceExec withPushedTopN(@Nullable BlockHash.TopNDef newPushedTopN) {

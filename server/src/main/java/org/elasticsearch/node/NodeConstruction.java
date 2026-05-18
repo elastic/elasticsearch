@@ -161,6 +161,7 @@ import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.injection.guice.Key;
 import org.elasticsearch.injection.guice.Module;
 import org.elasticsearch.injection.guice.ModulesBuilder;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -182,6 +183,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.IpLocationServiceProvider;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -761,6 +763,9 @@ class NodeConstruction {
         UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
             p -> p.createRegistry(environment)
         ).orElse(UserAgentParserRegistry.NOOP);
+        IpLocationService ipLocationService = getSinglePlugin(IpLocationServiceProvider.class).map(
+            p -> p.createIpLocationService(environment, client, threadPool.generic()::execute, clusterService, projectResolver)
+        ).orElse(IpLocationService.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -771,6 +776,7 @@ class NodeConstruction {
             client,
             matcherWatchdog,
             userAgentParserRegistry,
+            ipLocationService,
             failureStoreMetrics,
             projectResolver,
             featureService
@@ -1395,6 +1401,7 @@ class NodeConstruction {
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
             b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
+            b.bind(IpLocationService.class).toInstance(ipLocationService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());

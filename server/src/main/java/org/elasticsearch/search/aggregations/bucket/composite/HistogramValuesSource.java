@@ -48,7 +48,7 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     }
 
     private SortedNumericDoubleValues doubleMultiValues(SortedNumericDoubleValues values) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(values.isSingleton(), values.docIdIterator()) {
             @Override
             public double nextValue() throws IOException {
                 return Math.floor(values.nextValue() / interval) * interval;

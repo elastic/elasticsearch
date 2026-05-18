@@ -134,7 +134,8 @@ public class DataSourceService {
                         logger.warn(
                             "data-source secrets are being stored as PLAINTEXT in cluster state because "
                                 + "no encryption service is bound on this node. To encrypt at rest, enable xpack.security "
-                                + "and the primary-encryption-key feature flag. This message is logged at most once per master-instance lifetime."
+                                + "and the primary-encryption-key feature flag. This message is logged at most once "
+                                + "per master-instance lifetime."
                         );
                     }
                     stored = validated.settings();

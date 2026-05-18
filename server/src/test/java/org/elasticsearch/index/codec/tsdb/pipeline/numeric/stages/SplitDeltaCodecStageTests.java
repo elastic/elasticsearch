@@ -123,6 +123,33 @@ public class SplitDeltaCodecStageTests extends AbstractTransformStageTestCase {
         assertTransformRoundTrip(defaultStage(), values);
     }
 
+    public void testAscendingBoundaryBlockRoundTrip() throws IOException {
+        final int blockSize = 128;
+        final long[] values = new long[blockSize];
+        final int firstFlip = blockSize / 2;
+        for (int i = 0; i < firstFlip; i++) {
+            values[i] = 2_000_000L + i;
+        }
+        for (int i = firstFlip; i < blockSize; i++) {
+            values[i] = 1_000_000L + (i - firstFlip);
+        }
+        assertTransformRoundTrip(defaultStage(), values);
+    }
+
+    public void testAscendingMultiFlipRoundTrip() throws IOException {
+        final int blockSize = 128;
+        final long[] values = piecewiseAscending(blockSize, 3);
+        assertTransformRoundTrip(defaultStage(), values);
+    }
+
+    public void testAscendingKMaxFlipsRoundTrip() throws IOException {
+        final int kMax = randomIntBetween(2, 8);
+        final SplitDeltaCodecStage stage = new SplitDeltaCodecStage(kMax);
+        final int blockSize = 128;
+        final long[] values = piecewiseAscending(blockSize, kMax);
+        assertTransformRoundTrip(stage, values);
+    }
+
     public void testFlatStepsInsideSubRunRoundTrip() throws IOException {
         final long[] values = new long[16];
         values[0] = 1000;
@@ -186,6 +213,26 @@ public class SplitDeltaCodecStageTests extends AbstractTransformStageTestCase {
                 values[pos++] = start - i;
             }
             start = values[pos - 1] + 500_000L;
+        }
+        return values;
+    }
+
+    private static long[] piecewiseAscending(int valueCount, int flips) {
+        if (valueCount < (flips + 1) * 2) {
+            throw new IllegalArgumentException("valueCount=" + valueCount + " too small for flips=" + flips);
+        }
+        final long[] values = new long[valueCount];
+        final int subRunCount = flips + 1;
+        final int baseSubRunLen = valueCount / subRunCount;
+        final int remainder = valueCount % subRunCount;
+        long start = 1_000_000_000L;
+        int pos = 0;
+        for (int s = 0; s < subRunCount; s++) {
+            final int subRunLen = baseSubRunLen + (s < remainder ? 1 : 0);
+            for (int i = 0; i < subRunLen; i++) {
+                values[pos++] = start + i;
+            }
+            start = values[pos - 1] - 500_000L;
         }
         return values;
     }

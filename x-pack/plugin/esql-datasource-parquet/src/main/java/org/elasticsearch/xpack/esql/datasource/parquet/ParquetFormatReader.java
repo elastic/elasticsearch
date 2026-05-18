@@ -657,7 +657,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         long rangeStart = context.rangeStart();
         long rangeEnd = context.rangeEnd();
 
-        ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart, blockFactory.arrowAllocator());
+        ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(
+            object,
+            rangeEnd - rangeStart,
+            blockFactory.arrowAllocator()
+        );
         ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
         // Footer resolution order:
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map

@@ -22,6 +22,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FIX_SUM_AGG_LONG_OVERFLOW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CERTIFIED_COLUMN_PREFIX;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
@@ -142,6 +143,10 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Approximation casts integer SUM to double, preventing long overflow",
             testCase.requiredCapabilities.contains(FIX_SUM_AGG_LONG_OVERFLOW.capabilityName())
+        );
+        assumeFalse(
+            "Subqueries in approximation require inline stats capability",
+            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName()) && APPROXIMATION_INLINE_STATS_V2.isEnabled() == false
         );
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
     }

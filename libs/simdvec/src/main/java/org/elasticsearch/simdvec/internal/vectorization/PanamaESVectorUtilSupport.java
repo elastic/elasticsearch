@@ -13,6 +13,8 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.ShortVector;
+import jdk.incubator.vector.Vector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
@@ -30,18 +32,21 @@ import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 import java.nio.ByteOrder;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
+import static jdk.incubator.vector.VectorOperators.AND;
 import static jdk.incubator.vector.VectorOperators.ASHR;
 import static jdk.incubator.vector.VectorOperators.LSHL;
+import static jdk.incubator.vector.VectorOperators.LSHR;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
 import static jdk.incubator.vector.VectorOperators.OR;
+import static jdk.incubator.vector.VectorOperators.REVERSE_BYTES;
 
-public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport permits Panama22ESVectorUtilSupport {
+public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport permits Native22ESVectorUtilSupport {
 
     static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
 
-    static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
-    static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
+    private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
     private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
@@ -62,14 +67,91 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
     }
 
+    // BFloats (2 bytes) needs to be half the float vector bitsize
+    private static final VectorSpecies<Short> BFLOAT_SPECIES;
+    private static final VectorSpecies<Byte> BFLOAT_BYTE_SPECIES;
+
+    static {
+        VectorSpecies<Short> bfloats;
+        VectorSpecies<Byte> bytes;
+        try {
+            bfloats = VectorSpecies.of(short.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / 2));
+            bytes = bfloats.vectorShape().withLanes(byte.class);
+        } catch (IllegalArgumentException e) {
+            bfloats = null;
+            bytes = null;
+        }
+        BFLOAT_SPECIES = bfloats;
+        BFLOAT_BYTE_SPECIES = bytes;
+    }
+
     @Override
     public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfloats, int bfloatOffset, int count, ByteOrder byteOrder) {
-        DefaultESVectorUtilSupport.floatToBFloat16Impl(floats, floatOffset, bfloats, bfloatOffset, count, byteOrder);
+        if (BFLOAT_SPECIES == null) {
+            DefaultESVectorUtilSupport.floatToBFloat16Impl(floats, floatOffset, bfloats, bfloatOffset, count, byteOrder);
+        } else {
+            final int vectorEnd = FLOAT_SPECIES.loopBound(count);
+
+            for (int i = 0; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+                IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i + floatOffset).reinterpretAsInts();
+                // roundingBias = 0x7fff + ((bits >> 16) & 1)
+                IntVector bias = bits.lanewise(LSHR, 16).lanewise(AND, 1).add(0x7fff);
+                bits = bits.add(bias);
+                // vals = (short)(bits >>> 16);
+                Vector<Short> vals = bits.lanewise(LSHR, 16).convertShape(VectorOperators.I2S, BFLOAT_SPECIES, 0);
+                if (byteOrder == ByteOrder.BIG_ENDIAN) {
+                    // reinterpretAsInts explicitly uses little-endian order, so convert if big-endian is requested
+                    vals = vals.lanewise(REVERSE_BYTES);
+                }
+                vals.reinterpretAsBytes().intoArray(bfloats, i * Short.BYTES + bfloatOffset);
+            }
+
+            if (vectorEnd < count) {
+                // scalar tail
+                DefaultESVectorUtilSupport.floatToBFloat16Impl(
+                    floats,
+                    vectorEnd + floatOffset,
+                    bfloats,
+                    vectorEnd * Short.BYTES + bfloatOffset,
+                    count - vectorEnd,
+                    byteOrder
+                );
+            }
+        }
     }
 
     @Override
     public void bFloat16ToFloat(byte[] bfloats, int bfloatOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
-        DefaultESVectorUtilSupport.bFloat16ToFloatImpl(bfloats, bfloatOffset, floats, floatOffset, count, byteOrder);
+        if (BFLOAT_SPECIES == null) {
+            DefaultESVectorUtilSupport.bFloat16ToFloatImpl(bfloats, bfloatOffset, floats, floatOffset, count, byteOrder);
+        } else {
+            int vectorEnd = BFLOAT_SPECIES.loopBound(count);
+
+            for (int i = 0; i < vectorEnd; i += BFLOAT_SPECIES.length()) {
+                ShortVector sv = ByteVector.fromArray(BFLOAT_BYTE_SPECIES, bfloats, i * Short.BYTES + bfloatOffset).reinterpretAsShorts();
+                if (byteOrder == ByteOrder.BIG_ENDIAN) {
+                    // reinterpretAsShorts explicitly uses little-endian order, so convert if big-endian is specified
+                    sv = sv.lanewise(REVERSE_BYTES);
+                }
+                // (int)sv << 16
+                sv.convertShape(VectorOperators.ZERO_EXTEND_S2I, INTEGER_SPECIES, 0)
+                    .lanewise(LSHL, 16)
+                    .reinterpretAsFloats()
+                    .intoArray(floats, i + floatOffset);
+            }
+
+            if (vectorEnd < count) {
+                // scalar tail
+                DefaultESVectorUtilSupport.bFloat16ToFloatImpl(
+                    bfloats,
+                    vectorEnd * Short.BYTES + bfloatOffset,
+                    floats,
+                    vectorEnd + floatOffset,
+                    count - vectorEnd,
+                    byteOrder
+                );
+            }
+        }
     }
 
     @Override

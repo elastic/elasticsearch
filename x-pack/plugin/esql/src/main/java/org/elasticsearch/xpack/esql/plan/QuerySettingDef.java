@@ -30,7 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * A setting is a typed knob. Users always supply it via in-query {@code SET}. For tooling that
  * builds requests programmatically, a setting can also be exposed in the request body. We declare
- * the knob once; the framework wires both surfaces and gives downstream code one typed read.
+ * the knob once; the framework wires both surfaces, resolves precedence automatically
+ * ({@code default < body < SET}), and gives downstream code one typed read.
  *
  * <h2>What you specify</h2>
  *
@@ -52,8 +53,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>{@code withPreview}, {@code withSnapshotOnly}, {@code withServerlessOnly} — lifecycle.</li>
  * </ul>
  *
- * Inferred: registration, body parser wiring, {@code SET} dispatch, the precedence fold, the read
- * API. You write no code outside the one declaration.
+ * Inferred: registration, body parser wiring, {@code SET} dispatch, the precedence fold
+ * ({@code default < body < SET}, applied per setting via its reconciler), the read API. You write
+ * no code outside the one declaration.
  *
  * <h2>How to declare a setting</h2>
  *

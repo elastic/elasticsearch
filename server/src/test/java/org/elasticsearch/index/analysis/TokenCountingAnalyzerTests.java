@@ -23,7 +23,6 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
     public void testTokenCountingBelowLimit() throws IOException {
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
             TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 100);
-            analyzer.resetTokenCount();
             try (TokenStream ts = analyzer.tokenStream("field", "hello world foo bar")) {
                 ts.reset();
                 int count = 0;
@@ -32,7 +31,6 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
                 }
                 ts.end();
                 assertEquals(4, count);
-                assertEquals(4, analyzer.getTokenCount());
             }
         }
     }
@@ -40,11 +38,10 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
     public void testTokenCountingExceedsLimit() throws IOException {
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
             TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 3);
-            analyzer.resetTokenCount();
             try (TokenStream ts = analyzer.tokenStream("field", "hello world foo bar baz")) {
                 ts.reset();
-                TokenCountingAnalyzer.DocumentTokenCountExceededException ex = expectThrows(
-                    TokenCountingAnalyzer.DocumentTokenCountExceededException.class,
+                TokenCountingAnalyzer.FieldTokenCountExceededException ex = expectThrows(
+                    TokenCountingAnalyzer.FieldTokenCountExceededException.class,
                     () -> {
                         while (ts.incrementToken()) {
                             // consume tokens
@@ -52,18 +49,20 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
                     }
                 );
                 assertThat(ex.getMessage(), containsString("[3]"));
-                assertThat(ex.getMessage(), containsString("index.mapping.total_tokens_per_document.limit"));
+                assertThat(ex.getMessage(), containsString("[field]"));
+                assertThat(ex.getMessage(), containsString("index.mapping.tokens_per_field.limit"));
                 assertEquals(3, ex.getMaxTokenCount());
+                assertEquals("field", ex.getFieldName());
             }
         }
     }
 
-    public void testTokenCountAccumulatesAcrossFields() throws IOException {
+    public void testCounterResetsPerField() throws IOException {
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 5);
-            analyzer.resetTokenCount();
+            // Limit of 3: each field has 3 tokens, should succeed because counter resets per field
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 3);
 
-            // First field: 3 tokens
+            // First field: 3 tokens (at the limit)
             try (TokenStream ts = analyzer.tokenStream("field1", "one two three")) {
                 ts.reset();
                 while (ts.incrementToken()) {
@@ -71,22 +70,63 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
                 }
                 ts.end();
             }
-            assertEquals(3, analyzer.getTokenCount());
 
-            // Second field: 2 more tokens (total 5, at the limit)
-            try (TokenStream ts = analyzer.tokenStream("field2", "four five")) {
+            // Second field: 3 tokens again — should succeed because counter resets
+            try (TokenStream ts = analyzer.tokenStream("field2", "four five six")) {
                 ts.reset();
                 while (ts.incrementToken()) {
                     // consume
                 }
                 ts.end();
             }
-            assertEquals(5, analyzer.getTokenCount());
+        }
+    }
 
-            // Third field: 1 more token should exceed limit
-            try (TokenStream ts = analyzer.tokenStream("field3", "six")) {
+    public void testCounterResetsOnSameFieldNameReuse() throws IOException {
+        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
+            // With PER_FIELD_REUSE_STRATEGY, the same field name reuses the same TokenStreamComponents
+            // (and thus the same filter instance). Verify that reset() properly zeroes the counter.
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 3);
+
+            // First use: 3 tokens (at the limit)
+            try (TokenStream ts = analyzer.tokenStream("field", "one two three")) {
                 ts.reset();
-                expectThrows(TokenCountingAnalyzer.DocumentTokenCountExceededException.class, () -> {
+                while (ts.incrementToken()) {
+                    // consume
+                }
+                ts.end();
+            }
+
+            // Second use of same field name: 3 tokens again — should succeed because reset() zeroes counter
+            try (TokenStream ts = analyzer.tokenStream("field", "four five six")) {
+                ts.reset();
+                while (ts.incrementToken()) {
+                    // consume
+                }
+                ts.end();
+            }
+        }
+    }
+
+    public void testExactBoundary() throws IOException {
+        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 5);
+
+            // Exactly at the limit: 5 tokens with limit 5 should succeed
+            try (TokenStream ts = analyzer.tokenStream("field", "one two three four five")) {
+                ts.reset();
+                int count = 0;
+                while (ts.incrementToken()) {
+                    count++;
+                }
+                ts.end();
+                assertEquals(5, count);
+            }
+
+            // One over the limit: 6 tokens with limit 5 should fail
+            try (TokenStream ts = analyzer.tokenStream("field", "one two three four five six")) {
+                ts.reset();
+                expectThrows(TokenCountingAnalyzer.FieldTokenCountExceededException.class, () -> {
                     while (ts.incrementToken()) {
                         // consume
                     }
@@ -95,32 +135,18 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testResetClearsCounter() throws IOException {
+    public void testNoLimitWhenDisabled() throws IOException {
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 3);
-
-            // Use up the limit
-            analyzer.resetTokenCount();
-            try (TokenStream ts = analyzer.tokenStream("field", "one two three")) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                    // consume
-                }
-                ts.end();
-            }
-            assertEquals(3, analyzer.getTokenCount());
-
-            // Reset and verify we can analyze again
-            analyzer.resetTokenCount();
-            assertEquals(0, analyzer.getTokenCount());
-            try (TokenStream ts = analyzer.tokenStream("field", "a b c")) {
+            // -1 means no limit
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, -1);
+            try (TokenStream ts = analyzer.tokenStream("field", "one two three four five six seven eight nine ten")) {
                 ts.reset();
                 int count = 0;
                 while (ts.incrementToken()) {
                     count++;
                 }
                 ts.end();
-                assertEquals(3, count);
+                assertEquals(10, count);
             }
         }
     }
@@ -129,7 +155,6 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
         // Verify the wrapper properly delegates to the underlying analyzer
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
             TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, 1000);
-            analyzer.resetTokenCount();
             try (TokenStream ts = analyzer.tokenStream("test_field", "hello world")) {
                 ts.reset();
                 CharTermAttribute attr = ts.addAttribute(CharTermAttribute.class);

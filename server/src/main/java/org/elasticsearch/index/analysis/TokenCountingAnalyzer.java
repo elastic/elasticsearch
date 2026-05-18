@@ -16,32 +16,29 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.suggest.document.CompletionTokenStream;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
- * An analyzer wrapper that counts the total number of tokens produced across all fields of a single document.
- * This protects against "monster documents" that can cause out-of-memory errors when Lucene's analysis phase
- * produces an excessive number of tokens (e.g. large text fields with n-gram analyzers).
+ * An analyzer wrapper that limits the number of tokens produced per field during indexing.
+ * This protects against "monster documents" that can cause out-of-memory errors when Lucene's
+ * analysis phase produces an excessive number of tokens (e.g. large text fields with n-gram analyzers).
  *
- * <p>The counter is stored in a thread-local and must be {@link #resetTokenCount() reset} before each document
- * is indexed. Since Lucene's {@code IndexWriter.addDocument()} processes all fields of a single document
- * sequentially on the calling thread, using a thread-local counter is safe.
- *
- * <p>When the token limit is exceeded, a {@link DocumentTokenCountExceededException} is thrown from within
- * Lucene's analysis pipeline, which propagates out of the {@code addDocument()} call.
+ * <p>Each field's {@link TokenCountingTokenFilter} resets its counter in {@link TokenFilter#reset()},
+ * counts tokens during {@link TokenFilter#incrementToken()}, and throws a
+ * {@link FieldTokenCountExceededException} if the limit is exceeded. The limit is read from the
+ * supplier once per field (in {@code reset()}) so dynamic setting changes take effect immediately
+ * without engine restart.
  */
 public final class TokenCountingAnalyzer extends AnalyzerWrapper {
 
     private final Analyzer delegate;
     private final LongSupplier maxTokenCountSupplier;
-    private final ThreadLocal<AtomicLong> tokenCounter = ThreadLocal.withInitial(AtomicLong::new);
 
     /**
      * Creates a new token-counting analyzer wrapper.
      *
      * @param delegate              the underlying analyzer to wrap
-     * @param maxTokenCountSupplier supplies the maximum number of tokens allowed per document;
+     * @param maxTokenCountSupplier supplies the maximum number of tokens allowed per field;
      *                              a value of -1 or less means no limit is enforced
      */
     public TokenCountingAnalyzer(Analyzer delegate, LongSupplier maxTokenCountSupplier) {
@@ -54,7 +51,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
      * Creates a new token-counting analyzer wrapper with a fixed limit.
      *
      * @param delegate      the underlying analyzer to wrap
-     * @param maxTokenCount the maximum number of tokens allowed per document across all fields
+     * @param maxTokenCount the maximum number of tokens allowed per field
      */
     public TokenCountingAnalyzer(Analyzer delegate, long maxTokenCount) {
         this(delegate, () -> maxTokenCount);
@@ -73,54 +70,68 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
         if (components.getTokenStream() instanceof CompletionTokenStream) {
             return components;
         }
-        return new TokenStreamComponents(components.getSource(), new TokenCountingTokenFilter(components.getTokenStream()));
+        return new TokenStreamComponents(
+            components.getSource(),
+            new TokenCountingTokenFilter(components.getTokenStream(), fieldName, maxTokenCountSupplier)
+        );
     }
 
     /**
-     * Resets the per-document token counter. Must be called before each document is indexed.
-     */
-    public void resetTokenCount() {
-        tokenCounter.get().set(0);
-    }
-
-    /**
-     * Returns the current token count for the current thread/document.
-     */
-    public long getTokenCount() {
-        return tokenCounter.get().get();
-    }
-
-    /**
-     * Exception thrown when a document exceeds the maximum allowed token count during indexing.
+     * Exception thrown when a field exceeds the maximum allowed token count during indexing.
      * This is an {@link IllegalArgumentException} because the document itself is invalid for the
      * configured limits, similar to how other mapping limit violations are reported.
      */
-    public static final class DocumentTokenCountExceededException extends IllegalArgumentException {
+    public static final class FieldTokenCountExceededException extends IllegalArgumentException {
 
         private final long maxTokenCount;
+        private final String fieldName;
 
-        public DocumentTokenCountExceededException(long maxTokenCount) {
+        public FieldTokenCountExceededException(String fieldName, long maxTokenCount) {
             super(
-                "The number of tokens produced while indexing this document has exceeded the allowed maximum of ["
+                "The number of tokens produced while analyzing field ["
+                    + fieldName
+                    + "] has exceeded the allowed maximum of ["
                     + maxTokenCount
-                    + "]. This limit can be set by changing the [index.mapping.total_tokens_per_document.limit] index level setting."
+                    + "]. This limit can be set by changing the [index.mapping.tokens_per_field.limit] index level setting."
             );
             this.maxTokenCount = maxTokenCount;
+            this.fieldName = fieldName;
         }
 
         public long getMaxTokenCount() {
             return maxTokenCount;
         }
+
+        public String getFieldName() {
+            return fieldName;
+        }
     }
 
     /**
-     * A token filter that increments a shared counter for each token and throws
-     * {@link DocumentTokenCountExceededException} when the limit is exceeded.
+     * A token filter that counts tokens for a single field and throws
+     * {@link FieldTokenCountExceededException} when the limit is exceeded.
+     *
+     * <p>The counter resets to zero in {@link #reset()} (called by Lucene before each field's
+     * token stream starts) and the limit is cached from the supplier at that point.
      */
-    private final class TokenCountingTokenFilter extends TokenFilter {
+    private static final class TokenCountingTokenFilter extends TokenFilter {
 
-        TokenCountingTokenFilter(TokenStream input) {
+        private final String fieldName;
+        private final LongSupplier limitSupplier;
+        private long localCount;
+        private long cachedLimit;
+
+        TokenCountingTokenFilter(TokenStream input, String fieldName, LongSupplier limitSupplier) {
             super(input);
+            this.fieldName = fieldName;
+            this.limitSupplier = limitSupplier;
+        }
+
+        @Override
+        public void reset() throws IOException {
+            super.reset();
+            cachedLimit = limitSupplier.getAsLong();
+            localCount = 0;
         }
 
         @Override
@@ -128,11 +139,10 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
             if (input.incrementToken() == false) {
                 return false;
             }
-            long limit = maxTokenCountSupplier.getAsLong();
-            if (limit > 0) {
-                long count = tokenCounter.get().incrementAndGet();
-                if (count > limit) {
-                    throw new DocumentTokenCountExceededException(limit);
+            if (cachedLimit > 0) {
+                localCount++;
+                if (localCount > cachedLimit) {
+                    throw new FieldTokenCountExceededException(fieldName, cachedLimit);
                 }
             }
             return true;

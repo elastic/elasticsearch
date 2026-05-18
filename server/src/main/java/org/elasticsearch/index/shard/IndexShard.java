@@ -3930,11 +3930,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Builds the index analyzer, optionally wrapping it with a {@link TokenCountingAnalyzer}
-     * that enforces a per-document token limit.
+     * Builds the index analyzer, wrapping it with a {@link TokenCountingAnalyzer}
+     * that enforces a per-field token limit.
+     *
+     * <p>The wrapper is always applied, even when the limit is disabled (set to -1). This is because
+     * Lucene's {@code PER_FIELD_REUSE_STRATEGY} caches {@code TokenStreamComponents} per field name,
+     * so if we conditionally omitted the wrapper and the setting were later changed dynamically to a
+     * positive value, the cached components would lack the counting filter and the limit would not
+     * take effect until the engine was restarted. The overhead when disabled is a single branch
+     * ({@code if (cachedLimit > 0)}) per token, which is negligible.
      *
      * @param mapperService          the mapper service to use for field analyzer resolution
-     * @param maxTokenCountSupplier  supplies the maximum number of tokens allowed per document, or -1 for no limit
+     * @param maxTokenCountSupplier  supplies the maximum number of tokens allowed per field, or -1 for no limit
      * @return the analyzer to use for indexing, or null if no mapper service is available
      */
     static Analyzer buildIndexAnalyzer(MapperService mapperService, LongSupplier maxTokenCountSupplier) {
@@ -3971,7 +3978,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             warmer,
             store,
             indexSettings.getMergePolicy(isTimeBasedIndex),
-            buildIndexAnalyzer(mapperService, indexSettings::getMaxIndexTokenCount),
+            buildIndexAnalyzer(mapperService, indexSettings::getMaxFieldTokenCount),
             similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
             codecService,
             shardEventListener,

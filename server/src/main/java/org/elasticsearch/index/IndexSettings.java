@@ -193,13 +193,13 @@ public final class IndexSettings {
     );
 
     /**
-     * Index setting describing the maximum number of tokens that can be produced across all fields
-     * when indexing a single document. This protects against "monster documents" that can cause
+     * Index setting describing the maximum number of tokens that can be produced for any single field
+     * when indexing a document. This protects against "monster documents" that can cause
      * out-of-memory errors during Lucene analysis (e.g. large text fields with n-gram analyzers).
      * The default value of -1 means no limit is enforced.
      */
-    public static final Setting<Long> MAX_INDEX_TOKEN_COUNT_SETTING = Setting.longSetting(
-        "index.mapping.total_tokens_per_document.limit",
+    public static final Setting<Long> MAX_FIELD_TOKEN_COUNT_SETTING = Setting.longSetting(
+        "index.mapping.tokens_per_field.limit",
         -1L,
         -1L,
         Property.Dynamic,
@@ -1254,7 +1254,7 @@ public final class IndexSettings {
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
     private volatile int maxTokenCount;
-    private volatile long maxIndexTokenCount;
+    private volatile long maxFieldTokenCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
@@ -1459,7 +1459,7 @@ public final class IndexSettings {
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
         maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
-        setMaxIndexTokenCount(scopedSettings.get(MAX_INDEX_TOKEN_COUNT_SETTING));
+        setMaxFieldTokenCount(scopedSettings.get(MAX_FIELD_TOKEN_COUNT_SETTING));
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
@@ -1594,7 +1594,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_TOKEN_COUNT_SETTING, this::setMaxTokenCount);
-        scopedSettings.addSettingsUpdateConsumer(MAX_INDEX_TOKEN_COUNT_SETTING, this::setMaxIndexTokenCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_FIELD_TOKEN_COUNT_SETTING, this::setMaxFieldTokenCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
@@ -1977,20 +1977,20 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the maximum number of tokens that can be produced across all fields when indexing a single document.
+     * Returns the maximum number of tokens that can be produced for any single field when indexing a document.
      * Returns -1 if no limit is enforced.
      */
-    public long getMaxIndexTokenCount() {
-        return maxIndexTokenCount;
+    public long getMaxFieldTokenCount() {
+        return maxFieldTokenCount;
     }
 
-    private void setMaxIndexTokenCount(long maxIndexTokenCount) {
-        if (maxIndexTokenCount == 0) {
+    private void setMaxFieldTokenCount(long maxFieldTokenCount) {
+        if (maxFieldTokenCount == 0) {
             throw new IllegalArgumentException(
-                "the value of [index.mapping.total_tokens_per_document.limit] must be -1 (no limit) or a positive number, got [0]"
+                "the value of [index.mapping.tokens_per_field.limit] must be -1 (no limit) or a positive number, got [0]"
             );
         }
-        this.maxIndexTokenCount = maxIndexTokenCount;
+        this.maxFieldTokenCount = maxFieldTokenCount;
     }
 
     /**

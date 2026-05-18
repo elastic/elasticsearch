@@ -99,6 +99,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER = new NodeFeature(
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
+    static final NodeFeature TOKENS_PER_FIELD_LIMIT = new NodeFeature("mapper.tokens_per_field_limit");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -169,7 +170,8 @@ public class MapperFeatures implements FeatureSpecification {
             KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             ROUTING_AS_DOC_VALUES,
-            ROUTING_AS_DOC_VALUES_BY_DEFAULT
+            ROUTING_AS_DOC_VALUES_BY_DEFAULT,
+            TOKENS_PER_FIELD_LIMIT
         );
     }
 }

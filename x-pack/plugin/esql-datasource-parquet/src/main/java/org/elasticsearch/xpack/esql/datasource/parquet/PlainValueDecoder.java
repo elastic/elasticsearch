@@ -14,15 +14,28 @@ import java.nio.ByteOrder;
 
 /**
  * Bulk PLAIN decoder over a little-endian value {@link ByteBuffer} for page-level Parquet reads.
- * Fixed-width types (INT32, INT64, FLOAT, DOUBLE) are read contiguously; BOOLEAN uses 1 byte
- * per value; BINARY is length-prefixed; FIXED_LEN_BYTE_ARRAY uses a fixed stride.
+ * Fixed-width types (INT32, INT64, FLOAT, DOUBLE) are read contiguously; BOOLEAN is bit-packed
+ * (1 bit per value); BINARY is length-prefixed; FIXED_LEN_BYTE_ARRAY uses a fixed stride.
  */
 final class PlainValueDecoder {
 
     private ByteBuffer buffer;
 
+    /**
+     * Bit offset within the current byte for boolean reads/skips. Parquet PLAIN booleans are
+     * bit-packed (8 values per byte) and interleaved skip/read calls (e.g. during sparse reads)
+     * can consume a non-multiple-of-8 count, leaving a partial byte. This field tracks how many
+     * bits of the current byte have already been consumed (range 0..7). Reset on {@link #init}.
+     */
+    private int boolBitOffset;
+
+    /**
+     * Initializes (or re-initializes) the decoder with a new value buffer. Must be called before
+     * each Parquet data page to reset internal state (including the boolean bit offset).
+     */
     void init(ByteBuffer valueBytes) {
         this.buffer = valueBytes.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+        this.boolBitOffset = 0;
     }
 
     void readInts(int[] values, int offset, int count) {
@@ -53,10 +66,12 @@ final class PlainValueDecoder {
     void readBooleans(boolean[] values, int offset, int count) {
         int basePos = buffer.position();
         for (int i = 0; i < count; i++) {
-            int pos = basePos + (i / 8);
-            values[offset + i] = ((buffer.get(pos) >>> (i % 8)) & 1) != 0;
+            int absoluteBit = boolBitOffset + i;
+            values[offset + i] = ((buffer.get(basePos + absoluteBit / 8) >>> (absoluteBit % 8)) & 1) != 0;
         }
-        buffer.position(basePos + (count + 7) / 8);
+        int totalBits = boolBitOffset + count;
+        buffer.position(basePos + totalBits / 8);
+        boolBitOffset = totalBits % 8;
     }
 
     /** Returned BytesRef instances share storage with the value buffer and must be copied before the buffer is reused. */
@@ -132,7 +147,9 @@ final class PlainValueDecoder {
     }
 
     void skipBooleans(int count) {
-        buffer.position(buffer.position() + (count + 7) / 8);
+        int totalBits = boolBitOffset + count;
+        buffer.position(buffer.position() + totalBits / 8);
+        boolBitOffset = totalBits % 8;
     }
 
     void skipBinaries(int count) {

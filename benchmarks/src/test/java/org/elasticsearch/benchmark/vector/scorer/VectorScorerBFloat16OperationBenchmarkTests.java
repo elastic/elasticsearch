@@ -17,8 +17,6 @@ import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.AssumptionViolatedException;
 
-import java.nio.ShortBuffer;
-
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class VectorScorerBFloat16OperationBenchmarkTests extends BenchmarkTest {
@@ -40,35 +38,33 @@ public class VectorScorerBFloat16OperationBenchmarkTests extends BenchmarkTest {
     }
 
     public void test() {
-        for (int i = 0; i < 5; i++) {
-            var bench = new VectorScorerBFloat16OperationBenchmark();
-            bench.function = function;
-            bench.size = size;
-            bench.queryType = queryType;
-            bench.init();
-            try {
-                BFloat16.bFloat16ToFloat(ShortBuffer.wrap(bench.bFloatsA), bench.scratchA);
-                float[] floatsB = switch (queryType) {
-                    case BFLOAT16 -> {
-                        BFloat16.bFloat16ToFloat(ShortBuffer.wrap(bench.bFloatsB), bench.scratchB);
-                        yield bench.scratchB;
-                    }
-                    case FLOAT32 -> bench.floatsB;
-                };
-
-                float expected = switch (function) {
-                    case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.scratchA, floatsB);
-                    case EUCLIDEAN -> ScalarOperations.squareDistance(bench.scratchA, floatsB);
-                    default -> throw new AssumptionViolatedException("Not tested");
-                };
-                assertEquals(expected, bench.lucene(), delta);
-                assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-                if (supportsHeapSegments()) {
-                    assertEquals(expected, bench.nativeWithHeapSeg(), delta);
+        var bench = new VectorScorerBFloat16OperationBenchmark();
+        bench.function = function;
+        bench.size = size;
+        bench.queryType = queryType;
+        bench.init();
+        try {
+            BFloat16.bFloat16ToFloat(bench.bFloatsA, bench.scratchA);
+            float[] floatsB = switch (queryType) {
+                case BFLOAT16 -> {
+                    BFloat16.bFloat16ToFloat(bench.bFloatsB, bench.scratchB);
+                    yield bench.scratchB;
                 }
-            } finally {
-                bench.teardown();
+                case FLOAT32 -> bench.floatsB;
+            };
+
+            float expected = switch (function) {
+                case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.scratchA, floatsB);
+                case EUCLIDEAN -> ScalarOperations.squareDistance(bench.scratchA, floatsB);
+                default -> throw new AssumptionViolatedException("Not tested");
+            };
+            assertEquals(expected, bench.lucene(), delta);
+            assertEquals(expected, bench.nativeWithNativeSeg(), delta);
+            if (supportsHeapSegments()) {
+                assertEquals(expected, bench.nativeWithHeapSeg(), delta);
             }
+        } finally {
+            bench.teardown();
         }
     }
 

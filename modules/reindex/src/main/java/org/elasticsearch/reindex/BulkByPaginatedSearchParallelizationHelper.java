@@ -21,10 +21,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.LeaderBulkByPaginatedSearchTaskState;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,7 +39,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
 
 /**
  * Helps parallelize reindex requests using slices. This is search agnostic, working for both scrolls and PITs (point-in-times)
@@ -52,7 +51,7 @@ class BulkByPaginatedSearchParallelizationHelper {
     private BulkByPaginatedSearchParallelizationHelper() {}
 
     /**
-     * Takes an action created by a {@link BulkByScrollTask} and runs it with regard to whether the request is sliced or not.
+     * Takes an action created by a {@link BulkByPaginatedSearchTask} and runs it with regard to whether the request is sliced or not.
      *
      * If the request is not sliced (i.e. the number of slices is 1), the worker action in the given {@link Runnable} will be started on
      * the local node. If the request is sliced (i.e. the number of slices is more than 1), then a subrequest will be created for each
@@ -63,9 +62,9 @@ class BulkByPaginatedSearchParallelizationHelper {
      *
      * This method is equivalent to calling {@link #initTaskState} followed by {@link #executeSlicedAction}
      */
-    static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void startSlicedAction(
         Request request,
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         ActionType<BulkByScrollResponse> action,
         ActionListener<BulkByScrollResponse> listener,
         Client client,
@@ -83,7 +82,7 @@ class BulkByPaginatedSearchParallelizationHelper {
     }
 
     /**
-     * Takes an action and a {@link BulkByScrollTask} and runs it with regard to whether this task is a
+     * Takes an action and a {@link BulkByPaginatedSearchTask} and runs it with regard to whether this task is a
      * leader or worker.
      *
      * If this task is a worker, the worker action is invoked with the given {@code remoteVersion} (may be null
@@ -95,8 +94,8 @@ class BulkByPaginatedSearchParallelizationHelper {
      * @param remoteVersion the version of the remote cluster when reindexing from remote, or null for local reindex
      * @param workerAction  invoked when this task is a worker, with the remote version (or null)
      */
-    static <Request extends AbstractBulkByScrollRequest<Request>> void executeSlicedAction(
-        BulkByScrollTask task,
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void executeSlicedAction(
+        BulkByPaginatedSearchTask task,
         Request request,
         ActionType<BulkByScrollResponse> action,
         ActionListener<BulkByScrollResponse> listener,
@@ -115,15 +114,15 @@ class BulkByPaginatedSearchParallelizationHelper {
     }
 
     /**
-     * Takes a {@link BulkByScrollTask} and ensures that its initial task state (leader or worker) is set.
+     * Takes a {@link BulkByPaginatedSearchTask} and ensures that its initial task state (leader or worker) is set.
      *
      * If slices are set as {@code "auto"}, this method will resolve that to a specific number based on
      * characteristics of the source indices. A request with {@code "auto"} slices may end up being sliced or
      * unsliced. This method does not execute the action. In order to execute the action see
      * {@link #executeSlicedAction}
      */
-    static <Request extends AbstractBulkByScrollRequest<Request>> void initTaskState(
-        BulkByScrollTask task,
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void initTaskState(
+        BulkByPaginatedSearchTask task,
         Request request,
         Client client,
         ActionListener<Void> listener
@@ -147,9 +146,9 @@ class BulkByPaginatedSearchParallelizationHelper {
         }
     }
 
-    private static <Request extends AbstractBulkByScrollRequest<Request>> void setWorkerCount(
+    private static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void setWorkerCount(
         Request request,
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         int slices
     ) {
         if (slices > 1) {
@@ -169,11 +168,11 @@ class BulkByPaginatedSearchParallelizationHelper {
         return Math.min(leastShards, AUTO_SLICE_CEILING);
     }
 
-    private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
+    private static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void sendSubRequests(
         Client client,
         ActionType<BulkByScrollResponse> action,
         String localNodeId,
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         Request request,
         ActionListener<BulkByScrollResponse> listener
     ) {

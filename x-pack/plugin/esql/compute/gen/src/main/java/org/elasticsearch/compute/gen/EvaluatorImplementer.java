@@ -547,11 +547,7 @@ public class EvaluatorImplementer {
             builder.beginControlFlow("if (spunClassOpt.isPresent())");
             builder.addStatement("$T<? extends $T> spunClass = spunClassOpt.get()", ClassName.get(Class.class), implementation);
             builder.beginControlFlow("try");
-            builder.addStatement(
-                "return ($T) spunClass.getConstructors()[0].newInstance($L)",
-                implementation,
-                String.join(", ", ctorArgs)
-            );
+            builder.addStatement("return ($T) spunClass.getConstructors()[0].newInstance($L)", implementation, String.join(", ", ctorArgs));
             builder.nextControlFlow(
                 "catch ($T | $T | $T e)",
                 ClassName.get(InstantiationException.class),

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources.pushdown;
+package org.elasticsearch.xpack.esql.core.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;

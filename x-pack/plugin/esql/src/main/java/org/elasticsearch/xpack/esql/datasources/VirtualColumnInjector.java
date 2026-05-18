@@ -106,7 +106,9 @@ final class VirtualColumnInjector {
             case Long longVal -> blockFactory.newConstantLongBlockWith(longVal, positions);
             case Double doubleVal -> blockFactory.newConstantDoubleBlockWith(doubleVal, positions);
             case Boolean boolVal -> blockFactory.newConstantBooleanBlockWith(boolVal, positions);
-            case null -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(""), positions);
+            // Hive's __HIVE_DEFAULT_PARTITION__ sentinel is decoded to Java null by HivePartitionDetector;
+            // surface it as SQL NULL so IS NULL / STATS BY / type inference all behave correctly.
+            case null -> blockFactory.newConstantNullBlock(positions);
             default -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(value.toString()), positions);
         };
     }

@@ -1240,6 +1240,7 @@ cnt:long
 // -------------------------------------------------------------------------------
 
 isNotNullFilter
+required_capability: count_of_histogram_types
 required_capability: fix_histogram_blockloaders_isnull
 required_capability: count_of_histogram_types
 

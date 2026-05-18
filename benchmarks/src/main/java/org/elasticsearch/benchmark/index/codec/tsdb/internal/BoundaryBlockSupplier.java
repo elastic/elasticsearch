@@ -97,16 +97,13 @@ public class BoundaryBlockSupplier implements Supplier<long[]> {
 
     /** Builder for {@link BoundaryBlockSupplier}. All shape parameters are required. */
     public static class Builder {
-        private static final int UNSET_INT = -1;
-        private static final long UNSET_LONG = -1L;
-
         private final int seed;
         private final int size;
-        private int flips = UNSET_INT;
-        private long baseTimestamp = UNSET_LONG;
-        private long intervalMs = UNSET_LONG;
-        private long boundaryJumpMs = UNSET_LONG;
-        private long jitterMs = UNSET_LONG;
+        private int flips;
+        private long baseTimestamp;
+        private long intervalMs;
+        private long boundaryJumpMs;
+        private long jitterMs;
 
         private Builder(int seed, int size) {
             assert size >= 1 : "size must be positive";
@@ -187,12 +184,6 @@ public class BoundaryBlockSupplier implements Supplier<long[]> {
          * @return the configured supplier
          */
         public BoundaryBlockSupplier build() {
-            assert flips != UNSET_INT : "flips must be set via withFlips";
-            assert baseTimestamp != UNSET_LONG : "baseTimestamp must be set via withBaseTimestamp";
-            assert intervalMs != UNSET_LONG : "intervalMs must be set via withIntervalMs";
-            assert boundaryJumpMs != UNSET_LONG : "boundaryJumpMs must be set via withBoundaryJumpMs";
-            assert jitterMs != UNSET_LONG : "jitterMs must be set via withJitterMs";
-            assert jitterMs < intervalMs / 2 : "jitterMs must be strictly less than intervalMs / 2";
             return new BoundaryBlockSupplier(this);
         }
     }

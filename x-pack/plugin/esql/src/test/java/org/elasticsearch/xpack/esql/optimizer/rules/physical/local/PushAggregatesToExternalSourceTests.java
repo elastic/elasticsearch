@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -566,11 +567,11 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     }
 
     private static LocalPhysicalOptimizerContext buildContext(FormatReaderRegistry registry) {
-        return new LocalPhysicalOptimizerContext(null, null, null, null, null, registry);
+        return new LocalPhysicalOptimizerContext(null, null, null, null, null, new ExternalOptimizerContext(registry));
     }
 
     private static LocalPhysicalOptimizerContext nullRegistryContext() {
-        return new LocalPhysicalOptimizerContext(null, null, null, null, null, null);
+        return new LocalPhysicalOptimizerContext(null, null, null, null, null, ExternalOptimizerContext.NONE);
     }
 
     private static PhysicalPlan applyRule(AggregateExec agg) {

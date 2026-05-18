@@ -131,7 +131,7 @@ public class BulkKeywordLookup {
     public void initializeCaches(IndexReader indexReader) throws IOException {
         final Thread current = Thread.currentThread();
         final int numLeaves = indexReader.leaves().size();
-        if (termsEnumCache == null || creationThread != current || termsEnumCache.length != numLeaves) {
+        if (termsEnumCache == null || creationThread != current) {
             creationThread = current;
             termsEnumCache = new TermsEnum[numLeaves];
             postingsCache = new PostingsEnum[numLeaves];

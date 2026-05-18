@@ -3926,7 +3926,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
-        return buildIndexAnalyzer(mapperService, () -> -1L);
+        return buildIndexAnalyzer(mapperService, () -> -1);
     }
 
     /**
@@ -3944,7 +3944,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param maxTokenCountSupplier  supplies the maximum number of tokens allowed per field, or -1 for no limit
      * @return the analyzer to use for indexing, or null if no mapper service is available
      */
-    static Analyzer buildIndexAnalyzer(MapperService mapperService, LongSupplier maxTokenCountSupplier) {
+    static Analyzer buildIndexAnalyzer(MapperService mapperService, IntSupplier maxTokenCountSupplier) {
         if (mapperService == null) {
             return null;
         }

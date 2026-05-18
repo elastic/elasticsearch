@@ -16,7 +16,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.suggest.document.CompletionTokenStream;
 
 import java.io.IOException;
-import java.util.function.LongSupplier;
+import java.util.function.IntSupplier;
 
 /**
  * An analyzer wrapper that limits the number of tokens produced per field during indexing.
@@ -32,7 +32,7 @@ import java.util.function.LongSupplier;
 public final class TokenCountingAnalyzer extends AnalyzerWrapper {
 
     private final Analyzer delegate;
-    private final LongSupplier maxTokenCountSupplier;
+    private final IntSupplier maxTokenCountSupplier;
 
     /**
      * Creates a new token-counting analyzer wrapper.
@@ -41,7 +41,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
      * @param maxTokenCountSupplier supplies the maximum number of tokens allowed per field;
      *                              a value of -1 or less means no limit is enforced
      */
-    public TokenCountingAnalyzer(Analyzer delegate, LongSupplier maxTokenCountSupplier) {
+    public TokenCountingAnalyzer(Analyzer delegate, IntSupplier maxTokenCountSupplier) {
         super(delegate.getReuseStrategy());
         this.delegate = delegate;
         this.maxTokenCountSupplier = maxTokenCountSupplier;
@@ -53,7 +53,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
      * @param delegate      the underlying analyzer to wrap
      * @param maxTokenCount the maximum number of tokens allowed per field
      */
-    TokenCountingAnalyzer(Analyzer delegate, long maxTokenCount) {
+    TokenCountingAnalyzer(Analyzer delegate, int maxTokenCount) {
         this(delegate, () -> maxTokenCount);
     }
 
@@ -83,10 +83,10 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
      */
     public static final class FieldTokenCountExceededException extends IllegalArgumentException {
 
-        private final long maxTokenCount;
+        private final int maxTokenCount;
         private final String fieldName;
 
-        public FieldTokenCountExceededException(String fieldName, long maxTokenCount) {
+        public FieldTokenCountExceededException(String fieldName, int maxTokenCount) {
             super(
                 "The number of tokens produced while analyzing field ["
                     + fieldName
@@ -98,7 +98,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
             this.fieldName = fieldName;
         }
 
-        long getMaxTokenCount() {
+        int getMaxTokenCount() {
             return maxTokenCount;
         }
 
@@ -117,11 +117,11 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
     private static final class TokenCountingTokenFilter extends TokenFilter {
 
         private final String fieldName;
-        private final LongSupplier limitSupplier;
-        private long localCount;
-        private long cachedLimit;
+        private final IntSupplier limitSupplier;
+        private int localCount;
+        private int cachedLimit;
 
-        TokenCountingTokenFilter(TokenStream input, String fieldName, LongSupplier limitSupplier) {
+        TokenCountingTokenFilter(TokenStream input, String fieldName, IntSupplier limitSupplier) {
             super(input);
             this.fieldName = fieldName;
             this.limitSupplier = limitSupplier;
@@ -130,7 +130,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
         @Override
         public void reset() throws IOException {
             super.reset();
-            cachedLimit = limitSupplier.getAsLong();
+            cachedLimit = limitSupplier.getAsInt();
             localCount = 0;
         }
 

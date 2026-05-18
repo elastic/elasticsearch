@@ -198,10 +198,10 @@ public final class IndexSettings {
      * out-of-memory errors during Lucene analysis (e.g. large text fields with n-gram analyzers).
      * The default value of -1 means no limit is enforced.
      */
-    public static final Setting<Long> MAX_FIELD_TOKEN_COUNT_SETTING = Setting.longSetting(
+    public static final Setting<Integer> MAX_FIELD_TOKEN_COUNT_SETTING = Setting.intSetting(
         "index.mapping.tokens_per_field.limit",
-        -1L,
-        -1L,
+        -1,
+        -1,
         Property.Dynamic,
         Property.IndexScope,
         Property.ServerlessPublic
@@ -1254,7 +1254,7 @@ public final class IndexSettings {
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
     private volatile int maxTokenCount;
-    private volatile long maxFieldTokenCount;
+    private volatile int maxFieldTokenCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
@@ -1980,11 +1980,11 @@ public final class IndexSettings {
      * Returns the maximum number of tokens that can be produced for any single field when indexing a document.
      * Returns -1 if no limit is enforced.
      */
-    public long getMaxFieldTokenCount() {
+    public int getMaxFieldTokenCount() {
         return maxFieldTokenCount;
     }
 
-    private void setMaxFieldTokenCount(long maxFieldTokenCount) {
+    private void setMaxFieldTokenCount(int maxFieldTokenCount) {
         if (maxFieldTokenCount == 0) {
             throw new IllegalArgumentException(
                 "the value of [index.mapping.tokens_per_field.limit] must be -1 (no limit) or a positive number, got [0]"

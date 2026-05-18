@@ -535,6 +535,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     @Override
+    public boolean supportsWholeFileCompression() {
+        return false;
+    }
+
+    @Override
     public String formatName() {
         return "orc";
     }

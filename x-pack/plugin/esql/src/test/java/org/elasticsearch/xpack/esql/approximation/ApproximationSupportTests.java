@@ -299,10 +299,7 @@ public class ApproximationSupportTests extends ESTestCase {
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {
-        testAllClassesListed(
-            LogicalPlan.class,
-            List.of(ApproximationVerifier.SUPPORTED_COMMANDS, ApproximationVerifier.SUPPORTED_LIMITING_COMMANDS, UNSUPPORTED_COMMANDS)
-        );
+        testAllClassesListed(LogicalPlan.class, List.of(ApproximationVerifier.SUPPORTED_COMMANDS.keySet(), UNSUPPORTED_COMMANDS));
     }
 
     public void testAllAggregationsWhitelistedOrBlacklisted() throws Exception {

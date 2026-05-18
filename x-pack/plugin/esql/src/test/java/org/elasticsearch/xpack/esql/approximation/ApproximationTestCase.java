@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -53,8 +54,17 @@ public abstract class ApproximationTestCase extends ESTestCase {
         return ApproximationVerifier.verifyPlanOrThrow(getLogicalPlan(query));
     }
 
+    static ApproximationVerifier.QueryProperties verify(String query, TransportVersion minimumVersion) {
+        return ApproximationVerifier.verifyPlanOrThrow(getLogicalPlan(query), minimumVersion);
+    }
+
     static void assertError(String esql, Matcher<String> matcher) {
         Exception e = assertThrows(VerificationException.class, () -> verify(esql));
+        assertThat(e.getMessage(), matcher);
+    }
+
+    static void assertError(String esql, TransportVersion minimumVersion, Matcher<String> matcher) {
+        Exception e = assertThrows(VerificationException.class, () -> verify(esql, minimumVersion));
         assertThat(e.getMessage(), matcher);
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -29,6 +30,18 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10");
     }
 
+    public void testVerify_validQuery_oldDataNodes() {
+        TransportVersion OLD_VERSION = TransportVersion.zero();
+        verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender", OLD_VERSION);
+        verify("FROM test | EVAL x=1 | DROP emp_no | STATS sum=SUM(salary) BY x | CHANGE_POINT sum ON x", OLD_VERSION);
+        verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000", OLD_VERSION);
+        verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a", OLD_VERSION);
+        verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10", OLD_VERSION);
+        verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10", OLD_VERSION);
+        verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10", OLD_VERSION);
+        verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10", OLD_VERSION);
+    }
+
     public void testVerify_inlineStats() {
         assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
@@ -45,6 +58,17 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     public void testVerify_lookupJoin() {
         assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
         verify("FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()");
+    }
+
+    public void testVerify_lookupJoin_oldDataNodes() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assertError(
+            "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
+            TransportVersion.zero(),
+            equalTo(
+                "line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated on all nodes"
+            )
+        );
     }
 
     public void testVerify_lookupJoin_disabled() {

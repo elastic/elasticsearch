@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -62,10 +63,12 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -92,55 +95,65 @@ public class ApproximationVerifier {
 
     public record QueryProperties(Boolean hasGrouping, Boolean preservesRows, List<QueryProperties> forkBranchProperties) {}
 
+    private static final TransportVersion TRANSPORT_VERSION_LOOKUP_JOIN = TransportVersion.fromName("esql_approximation_lookup_join");
+
     /**
-     * These processing commands are fully supported.
+     * These processing commands are supported for query approximation.
+     * The transport version indicates which version is needed for all
+     * data nodes for the command to be supported.
      * <p>
      * When a command is not supported, it should be added to
      * ApproximationSupportTests.UNSUPPORTED_COMMANDS
      * to make sure all commands are captured.
      */
-    static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS;
+    static final Map<Class<? extends LogicalPlan>, TransportVersion> SUPPORTED_COMMANDS;
     static {
-        Set<Class<? extends LogicalPlan>> BUILDER = new HashSet<>(
-            List.of(
-                Aggregate.class,
-                Completion.class,
-                Dissect.class,
-                Enrich.class,
-                EsRelation.class,
-                Eval.class,
-                Filter.class,
-                Grok.class,
-                Insist.class,
-                LocalRelation.class,
-                MvExpand.class,
-                NamedSubquery.class,
-                OrderBy.class,
-                Project.class,
-                RegexExtract.class,
-                RegisteredDomain.class,
-                Rerank.class,
-                Row.class,
-                Sample.class,
-                SampledAggregate.class,
-                Subquery.class,
-                UriParts.class,
-                UnionAll.class,
-                UserAgent.class,
-                ViewUnionAll.class
+        Map<Class<? extends LogicalPlan>, TransportVersion> BUILDER = new HashMap<>(
+            Map.ofEntries(
+                new AbstractMap.SimpleImmutableEntry<>(Aggregate.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(ChangePoint.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Completion.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Dissect.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Enrich.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(EsRelation.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Eval.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Filter.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Grok.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Insist.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Limit.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(LimitBy.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(LocalRelation.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(MvExpand.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(OrderBy.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Project.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(RegexExtract.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(RegisteredDomain.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Rerank.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Row.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(Sample.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(SampledAggregate.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(TopN.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(TopNBy.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(UriParts.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(UnionAll.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(UserAgent.class, TransportVersion.zero()),
+                new AbstractMap.SimpleImmutableEntry<>(ViewUnionAll.class, TransportVersion.zero())
             )
         );
         if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled()) {
-            BUILDER.add(Join.class);
+            BUILDER.put(Join.class, TRANSPORT_VERSION_LOOKUP_JOIN);
         }
         if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled()) {
-            BUILDER.add(InlineJoin.class);
-            BUILDER.add(StubRelation.class);  // temporary node
+            BUILDER.put(InlineJoin.class, TransportVersion.zero());
+            BUILDER.put(StubRelation.class, TransportVersion.zero());  // temporary node
         }
         if (EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()) {
-            BUILDER.add(Fork.class);
+            BUILDER.put(Fork.class, TransportVersion.zero());
+            BUILDER.put(MMR.class, TransportVersion.zero());
+            BUILDER.put(NamedSubquery.class, TransportVersion.zero());
+            BUILDER.put(Subquery.class, TransportVersion.zero());
         }
-        SUPPORTED_COMMANDS = Collections.unmodifiableSet(BUILDER);
+        SUPPORTED_COMMANDS = Collections.unmodifiableMap(BUILDER);
     }
 
     /**
@@ -150,16 +163,14 @@ public class ApproximationVerifier {
      * It makes no sense to approximate stats on a limited result set, and
      * furthermore it breaks the estimation of the sample probability.
      */
-    static final Set<Class<? extends LogicalPlan>> SUPPORTED_LIMITING_COMMANDS;
-    static {
-        Set<Class<? extends LogicalPlan>> BUILDER = new HashSet<>(
-            List.of(ChangePoint.class, Limit.class, LimitBy.class, TopN.class, TopNBy.class)
-        );
-        if (EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()) {
-            BUILDER.add(MMR.class);
-        }
-        SUPPORTED_LIMITING_COMMANDS = Collections.unmodifiableSet(BUILDER);
-    }
+    private static final Set<Class<? extends LogicalPlan>> LIMITING_COMMANDS = Set.of(
+        ChangePoint.class,
+        Limit.class,
+        LimitBy.class,
+        MMR.class,
+        TopN.class,
+        TopNBy.class
+    );
 
     /**
      * These index modes of EsRelation are supported.
@@ -241,9 +252,9 @@ public class ApproximationVerifier {
      * @return the query properties relevant for approximation if it's suitable, or null otherwise
      * Adds warning headers as a side effect when the plan is not suitable
      */
-    public static QueryProperties verifyPlan(LogicalPlan logicalPlan) {
+    public static QueryProperties verifyPlan(LogicalPlan logicalPlan, TransportVersion minimumVersion) {
         try {
-            return verifyPlanOrThrow(logicalPlan);
+            return verifyPlanOrThrow(logicalPlan, minimumVersion);
         } catch (VerificationException e) {
             HeaderWarning.addWarning(e.getMessage());
             return null;
@@ -251,6 +262,10 @@ public class ApproximationVerifier {
     }
 
     static QueryProperties verifyPlanOrThrow(LogicalPlan logicalPlan) {
+        return verifyPlanOrThrow(logicalPlan, TransportVersion.current());
+    }
+
+    static QueryProperties verifyPlanOrThrow(LogicalPlan logicalPlan, TransportVersion minimumVersion) {
         // The plan must contain a STATS command.
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
             Location location = logicalPlan.collectLeaves().getFirst().source().source();
@@ -262,12 +277,19 @@ public class ApproximationVerifier {
         }
         // Verify that all commands are supported.
         logicalPlan.forEachUp(plan -> {
-            if ((SUPPORTED_COMMANDS.contains(plan.getClass()) == false && SUPPORTED_LIMITING_COMMANDS.contains(plan.getClass()) == false)
-                || (plan instanceof EsRelation esRelation && SUPPORTED_INDEX_MODES.contains(esRelation.indexMode()) == false)) {
+            boolean unsupportedIndexMode = plan instanceof EsRelation er && SUPPORTED_INDEX_MODES.contains(er.indexMode()) == false;
+            boolean isSupportedOnAllNodes = SUPPORTED_COMMANDS.containsKey(plan.getClass())
+                && minimumVersion.supports(SUPPORTED_COMMANDS.get(plan.getClass()))
+                && unsupportedIndexMode == false;
+            if (isSupportedOnAllNodes == false) {
+                boolean isSupportedOnCoordinator = SUPPORTED_COMMANDS.containsKey(plan.getClass()) && unsupportedIndexMode == false;
                 // TODO: ideally just return the command from the source
                 // this can give bad messages (e.g. for subqueries) or long ones (many irrelevant extras)
+                String message = isSupportedOnCoordinator == false
+                    ? "line {}:{}: approximation not supported: query with [{}] cannot be approximated"
+                    : "line {}:{}: approximation not supported: query with [{}] cannot be approximated on all nodes";
                 throw new VerificationException(
-                    "line {}:{}: approximation not supported: query with [{}] cannot be approximated",
+                    message,
                     plan.source().source().getLineNumber(),
                     plan.source().source().getColumnNumber(),
                     plan.sourceText()
@@ -354,7 +376,7 @@ public class ApproximationVerifier {
 
         logicalPlan.forEachUp(plan -> {
             if (encounteredStats.get() == false) {
-                if (SUPPORTED_LIMITING_COMMANDS.contains(plan.getClass())) {
+                if (LIMITING_COMMANDS.contains(plan.getClass())) {
                     throw new VerificationException(
                         "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
                         plan.source().source().getLineNumber(),

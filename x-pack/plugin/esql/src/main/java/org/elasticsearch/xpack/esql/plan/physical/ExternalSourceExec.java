@@ -498,6 +498,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }

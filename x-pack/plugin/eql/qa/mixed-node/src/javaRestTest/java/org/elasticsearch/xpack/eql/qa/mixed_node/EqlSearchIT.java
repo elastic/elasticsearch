@@ -7,21 +7,19 @@
 
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
-import org.elasticsearch.xpack.ql.TestNode;
-import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.junit.After;
 import org.junit.Before;
@@ -42,7 +40,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
 
 /**
@@ -61,23 +58,19 @@ public class EqlSearchIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    private static final String BWC_NODES_VERSION = Clusters.OLD_CLUSTER_VERSION;
-
     private static final String index = "test_eql_mixed_versions";
     private static int numShards;
     private static int numReplicas = 1;
     private static int numDocs;
-    private static TestNodes nodes;
-    private static List<TestNode> newNodes;
-    private static List<TestNode> bwcNodes;
+    private static HttpHost[] newNodeHosts;
+    private static HttpHost[] bwcNodeHosts;
 
     @Before
     public void createIndex() throws IOException {
-        nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
-        numShards = nodes.size();
+        numShards = 3;
         numDocs = randomIntBetween(numShards, 15);
-        newNodes = new ArrayList<>(nodes.getNewNodes());
-        bwcNodes = new ArrayList<>(nodes.getBWCNodes());
+        newNodeHosts = Clusters.newNodeAddresses(cluster);
+        bwcNodeHosts = Clusters.oldNodeAddresses(cluster);
 
         String mappings = readResource(EqlSearchIT.class.getResourceAsStream("/eql_mapping.json"));
         createIndex(index, indexSettings(numShards, numReplicas).build(), mappings);
@@ -91,19 +84,19 @@ public class EqlSearchIT extends ESRestTestCase {
     }
 
     public void testEventsWithRequestToOldNodes() throws Exception {
-        assertEventsQueryOnNodes(bwcNodes);
+        assertEventsQueryOnNodes(bwcNodeHosts);
     }
 
     public void testEventsWithRequestToUpgradedNodes() throws Exception {
-        assertEventsQueryOnNodes(newNodes);
+        assertEventsQueryOnNodes(newNodeHosts);
     }
 
     public void testSequencesWithRequestToOldNodes() throws Exception {
-        assertSequncesQueryOnNodes(bwcNodes);
+        assertSequncesQueryOnNodes(bwcNodeHosts);
     }
 
     public void testSequencesWithRequestToUpgradedNodes() throws Exception {
-        assertSequncesQueryOnNodes(newNodes);
+        assertSequncesQueryOnNodes(newNodeHosts);
     }
 
     /**
@@ -124,9 +117,7 @@ public class EqlSearchIT extends ESRestTestCase {
             .collect(Collectors.toSet());
         // each function has a query and query results associated to it
         Set<String> testedFunctions = new HashSet<>();
-        try (
-            RestClient client = buildClient(restClientSettings(), newNodes.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), newNodeHosts)) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._id";
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
@@ -282,12 +273,10 @@ public class EqlSearchIT extends ESRestTestCase {
         assertTrue(testedFunctions.containsAll(availableFunctions));
     }
 
-    private void assertEventsQueryOnNodes(List<TestNode> nodesList) throws Exception {
+    private void assertEventsQueryOnNodes(HttpHost[] nodeHosts) throws Exception {
         final String event = randomEvent();
         Map<String, Object> expectedResponse = prepareEventsTestData(event);
-        try (
-            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), nodeHosts)) {
             // filter only the relevant bits of the response
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
 
@@ -297,11 +286,9 @@ public class EqlSearchIT extends ESRestTestCase {
         }
     }
 
-    private void assertSequncesQueryOnNodes(List<TestNode> nodesList) throws Exception {
+    private void assertSequncesQueryOnNodes(HttpHost[] nodeHosts) throws Exception {
         Map<String, Object> expectedResponse = prepareSequencesTestData();
-        try (
-            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), nodeHosts)) {
             String filterPath = "filter_path=hits.sequences.join_keys,hits.sequences.events._id,hits.sequences.events._source";
             String query = "sequence by `sequence` with maxspan=100ms [success where true] by correlation_success1, correlation_success2 "
                 + "[failure where true] by correlation_failure1, correlation_failure2";

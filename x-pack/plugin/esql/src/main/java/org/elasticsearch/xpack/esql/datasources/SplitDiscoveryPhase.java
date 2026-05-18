@@ -103,7 +103,7 @@ public final class SplitDiscoveryPhase {
                 queryDataAttributes.add(attr);
             }
         }
-        Schema querySchema = new Schema(queryDataAttributes);
+        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             null,

@@ -92,7 +92,7 @@ public final class SchemaReconciliation {
      * @param unifiedSchema the merged/validated schema used for planning
      * @param perFileInfo per-file schema info keyed by file path
      */
-    public record Result(Schema unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo) {}
+    public record Result(ExternalSchema unifiedSchema, Map<StoragePath, FileSchemaInfo> perFileInfo) {}
 
     /**
      * Per-file schema information collected during reconciliation.
@@ -101,7 +101,7 @@ public final class SchemaReconciliation {
      * @param mapping column mapping from unified schema to file schema, null for identity mapping
      * @param statistics optional statistics from file metadata
      */
-    public record FileSchemaInfo(Schema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {}
+    public record FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {}
 
     /**
      * Safe type widening for schema reconciliation.
@@ -177,10 +177,10 @@ public final class SchemaReconciliation {
             for (int i = 0; i < identity.length; i++) {
                 identity[i] = i;
             }
-            perFileInfo.put(filePath, new FileSchemaInfo(new Schema(fileSchema), new ColumnMapping(identity, null), stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), new ColumnMapping(identity, null), stats));
         }
 
-        return new Result(new Schema(refSchema), Map.copyOf(perFileInfo));
+        return new Result(new ExternalSchema(refSchema), Map.copyOf(perFileInfo));
     }
 
     private static void validateStrictMatch(
@@ -320,10 +320,10 @@ public final class SchemaReconciliation {
             SourceStatistics stats = meta.statistics().orElse(null);
 
             ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(new Schema(fileSchema), mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
         }
 
-        return new Result(new Schema(unifiedSchema), Map.copyOf(perFileInfo));
+        return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));
     }
 
     static ColumnMapping computeMapping(List<Attribute> unifiedSchema, List<Attribute> fileSchema) {

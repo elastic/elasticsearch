@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.Schema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.List;
@@ -22,7 +22,7 @@ import java.util.Map;
  *
  * @param querySchema the post-prune Query schema (data attributes only, metadata stripped) the
  *        query actually materializes. Empty means either all columns are needed or the projection
- *        is unknown. Split providers use {@link Schema#names()} for membership tests when pruning
+ *        is unknown. Split providers use {@link ExternalSchema#names()} for membership tests when pruning
  *        per-file mappings or skipping files with no column overlap.
  * @param unifiedSchema the pre-prune Unified schema, or {@code null} when not available. Together
  *        with {@code querySchema} and each file's schema this lets split providers narrow per-file
@@ -35,8 +35,8 @@ public record SplitDiscoveryContext(
     Map<String, Object> config,
     PartitionMetadata partitionInfo,
     List<Expression> filterHints,
-    Schema querySchema,
-    @Nullable Schema unifiedSchema
+    ExternalSchema querySchema,
+    @Nullable ExternalSchema unifiedSchema
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -45,7 +45,7 @@ public record SplitDiscoveryContext(
         PartitionMetadata partitionInfo,
         List<Expression> filterHints
     ) {
-        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, Schema.EMPTY, null);
+        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, ExternalSchema.EMPTY, null);
     }
 
     public SplitDiscoveryContext(
@@ -54,7 +54,7 @@ public record SplitDiscoveryContext(
         Map<String, Object> config,
         PartitionMetadata partitionInfo,
         List<Expression> filterHints,
-        Schema querySchema
+        ExternalSchema querySchema
     ) {
         this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, querySchema, null);
     }
@@ -66,7 +66,7 @@ public record SplitDiscoveryContext(
         Map<String, Object> config,
         PartitionMetadata partitionInfo,
         List<Expression> filterHints,
-        Schema querySchema
+        ExternalSchema querySchema
     ) {
         this(metadata, fileList, schemaMap, config, partitionInfo, filterHints, querySchema, null);
     }
@@ -78,6 +78,6 @@ public record SplitDiscoveryContext(
         schemaMap = schemaMap != null ? schemaMap : Map.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         filterHints = filterHints != null ? List.copyOf(filterHints) : List.of();
-        querySchema = querySchema != null ? querySchema : Schema.EMPTY;
+        querySchema = querySchema != null ? querySchema : ExternalSchema.EMPTY;
     }
 }

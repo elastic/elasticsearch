@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.datasources.Schema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -84,7 +84,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     // projection prune of `attributes` so split discovery can narrow per-file ColumnMappings to
     // the post-prune Query schema without rebuilding Unified names from per-file mappings.
     @Nullable
-    private final Schema unifiedSchema;
+    private final ExternalSchema unifiedSchema;
     private final List<ExternalSplit> splits;
 
     public ExternalSourceExec(
@@ -149,7 +149,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * Public 13-arg ctor used by {@link #info()} (via constructor reference) and by tree tests.
      * Passes {@code null} for {@code unifiedSchema}; callers that need to carry the Unified schema
      * (e.g. {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec})
-     * apply it afterwards via {@link #withUnifiedSchema(Schema)}.
+     * apply it afterwards via {@link #withUnifiedSchema(ExternalSchema)}.
      */
     public ExternalSourceExec(
         Source source,
@@ -187,9 +187,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     /**
      * Primary constructor that also accepts the transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning
-     * and the coordinator-only {@link Schema} that carries the pre-prune Unified schema. Package-private on purpose
+     * and the coordinator-only {@link ExternalSchema} that carries the pre-prune Unified schema. Package-private on purpose
      * so the public, longest constructor (used by tooling and tree tests) remains the thirteen-arg one above.
-     * Use {@link #withPushedTopN(BlockHash.TopNDef)} and {@link #withUnifiedSchema(Schema)} from outside the package.
+     * Use {@link #withPushedTopN(BlockHash.TopNDef)} and {@link #withUnifiedSchema(ExternalSchema)} from outside the package.
      */
     ExternalSourceExec(
         Source source,
@@ -205,7 +205,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Integer estimatedRowSize,
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
-        @Nullable Schema unifiedSchema,
+        @Nullable ExternalSchema unifiedSchema,
         List<ExternalSplit> splits
     ) {
         super(source);
@@ -383,7 +383,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Nullable
-    public Schema unifiedSchema() {
+    public ExternalSchema unifiedSchema() {
         return unifiedSchema;
     }
 
@@ -510,7 +510,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * construction so the Unified schema does not appear in {@link #info()} (which would let the optimizer's
      * attribute-rewriting rules prune it along with {@code attributes}).
      */
-    public ExternalSourceExec withUnifiedSchema(@Nullable Schema newUnifiedSchema) {
+    public ExternalSourceExec withUnifiedSchema(@Nullable ExternalSchema newUnifiedSchema) {
         return new ExternalSourceExec(
             source(),
             sourcePath,

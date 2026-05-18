@@ -6,12 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -19,30 +15,24 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Canonical representation of a schema in the datasources subsystem: a positional list of
- * attributes paired with a name set for fast membership checks. Used across the four-schema
- * model (see {@link SchemaReconciliation}). Immutable and thread-safe; the name set is built
- * eagerly at construction. Wire format is identical to a bare {@code List<Attribute>}.
+ * Coordinator-only carrier for the four-schema-model units (File, Unified, Query, Per-file Query —
+ * see {@link SchemaReconciliation}) inside the datasources subsystem. Pairs a positional
+ * {@code List<Attribute>} with a name set built eagerly at construction for O(1) membership tests
+ * at the prune / skip / map-filter seams. Not a wire form — schemas that travel across nodes go
+ * through their own paths (post-prune {@code attributes} on {@code ExternalSourceExec} via the
+ * planner contract, and {@code FileSplit.readSchema} via primitive {@code (name, type, nullable)}
+ * tuples).
  */
-public final class Schema implements Writeable, Iterable<Attribute> {
+public final class ExternalSchema implements Iterable<Attribute> {
 
-    public static final Schema EMPTY = new Schema(List.of());
+    public static final ExternalSchema EMPTY = new ExternalSchema(List.of());
 
     private final List<Attribute> attributes;
     private final Set<String> names;
 
-    public Schema(List<Attribute> attributes) {
+    public ExternalSchema(List<Attribute> attributes) {
         this.attributes = List.copyOf(attributes);
         this.names = this.attributes.stream().map(Attribute::name).collect(Collectors.toUnmodifiableSet());
-    }
-
-    public Schema(StreamInput in) throws IOException {
-        this(in.readNamedWriteableCollectionAsList(Attribute.class));
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableCollection(attributes);
     }
 
     public List<Attribute> attributes() {
@@ -74,7 +64,7 @@ public final class Schema implements Writeable, Iterable<Attribute> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Schema schema = (Schema) o;
+        ExternalSchema schema = (ExternalSchema) o;
         return attributes.equals(schema.attributes);
     }
 
@@ -85,6 +75,6 @@ public final class Schema implements Writeable, Iterable<Attribute> {
 
     @Override
     public String toString() {
-        return "Schema" + attributes;
+        return "ExternalSchema" + attributes;
     }
 }

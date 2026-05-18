@@ -96,7 +96,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     // Data-attribute view of {@link #attributes} (metadata attributes stripped). Built once at
     // construction; used to shape pages handed to SchemaAdaptingIterator and to scope filter
     // adaptation in mapFilters.
-    private final Schema queryDataSchema;
+    private final ExternalSchema queryDataSchema;
     private final int batchSize;
     private final int maxBufferSize;
     private final int rowLimit;
@@ -1352,17 +1352,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Returns the data attributes of {@code attributes} as a {@link Schema}, with metadata
+     * Returns the data attributes of {@code attributes} as a {@link ExternalSchema}, with metadata
      * attributes filtered out. Data attributes always come first in {@code ExternalSourceExec}'s
      * output, so the result preserves their relative order.
      */
-    private static Schema dataAttributesOf(List<Attribute> attributes) {
+    private static ExternalSchema dataAttributesOf(List<Attribute> attributes) {
         List<Attribute> data = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
             if (attr instanceof MetadataAttribute == false) {
                 data.add(attr);
             }
         }
-        return new Schema(data);
+        return new ExternalSchema(data);
     }
 }

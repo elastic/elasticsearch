@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.datasources.Schema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Logical plan node for external data source relations (e.g., Iceberg table, Parquet file).
@@ -45,7 +47,7 @@ import java.util.Objects;
  * The source-specific metadata is stored in the {@link SourceMetadata} interface, which
  * provides:
  * <ul>
- *   <li>Schema attributes via {@link SourceMetadata#schema()}</li>
+ *   <li>ExternalSchema attributes via {@link SourceMetadata#schema()}</li>
  *   <li>Source type via {@link SourceMetadata#sourceType()}</li>
  *   <li>Configuration via {@link SourceMetadata#config()}</li>
  *   <li>Opaque source metadata via {@link SourceMetadata#sourceMetadata()}</li>
@@ -191,7 +193,28 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(new Schema(metadata.schema()));
+        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema()));
+    }
+
+    /**
+     * Returns the pre-enrichment Unified schema — the data-only view that {@link SchemaReconciliation}
+     * built the per-file {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s against. The
+     * post-enrichment {@code metadata.schema()} includes partition attributes appended by
+     * {@code ExternalSourceResolver#enrichSchemaWithPartitionColumns}, which is wider than the
+     * mapping. Seeding {@code ExternalSourceExec.unifiedSchema} from the wider view causes
+     * {@code ColumnMapping.pruneToPerFileQuery} to read past {@code index.length} when the
+     * optimizer also prunes the projection.
+     */
+    private List<Attribute> dataOnlyUnifiedSchema() {
+        PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
+        if (partitionInfo == null || partitionInfo.isEmpty()) {
+            return metadata.schema();
+        }
+        Set<String> partitionNames = partitionInfo.partitionColumns().keySet();
+        if (partitionNames.isEmpty()) {
+            return metadata.schema();
+        }
+        return metadata.schema().stream().filter(a -> partitionNames.contains(a.name()) == false).toList();
     }
 
     @Override

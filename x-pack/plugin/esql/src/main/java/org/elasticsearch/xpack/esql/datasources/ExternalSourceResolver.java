@@ -214,7 +214,7 @@ public class ExternalSourceResolver {
             return Map.of();
         }
         ColumnMapping identityMapping = new ColumnMapping(identityMapping(schema.size()), null);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new Schema(schema), identityMapping, null));
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -362,7 +362,7 @@ public class ExternalSourceResolver {
         if (dataOnlySchema != null && dataOnlySchema.isEmpty() == false) {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(listing.fileCount());
             ColumnMapping identityMapping = new ColumnMapping(identityMapping(dataOnlySchema.size()), null);
-            Schema dataOnly = new Schema(dataOnlySchema);
+            ExternalSchema dataOnly = new ExternalSchema(dataOnlySchema);
             for (int i = 0; i < listing.fileCount(); i++) {
                 perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(dataOnly, identityMapping, null));
             }

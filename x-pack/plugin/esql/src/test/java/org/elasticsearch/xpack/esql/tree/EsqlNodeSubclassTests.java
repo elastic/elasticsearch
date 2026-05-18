@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.Schema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -476,9 +476,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return StoragePath.of("s3://bucket/" + randomAlphaOfLength(8));
         } else if (argClass == SchemaReconciliation.FileSchemaInfo.class) {
             // Record with unmockable list-of-attribute parts; build a trivial instance for tree tests.
-            return new SchemaReconciliation.FileSchemaInfo(new Schema(List.of()), null, null);
-        } else if (argClass == Schema.class) {
-            return new Schema(List.of());
+            return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
+        } else if (argClass == ExternalSchema.class) {
+            return new ExternalSchema(List.of());
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));

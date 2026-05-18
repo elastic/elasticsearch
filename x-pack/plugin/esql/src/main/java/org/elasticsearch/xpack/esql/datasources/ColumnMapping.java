@@ -172,7 +172,9 @@ public final class ColumnMapping implements Writeable {
      * be two callers in lockstep, with no caller benefit. Returns {@code this} when nothing needs
      * to change ({@code querySchema} covers every unified column and the file reads it whole).
      */
-    ColumnMapping pruneToPerFileQuery(Schema unifiedSchema, Schema fileSchema, Schema querySchema) {
+    ColumnMapping pruneToPerFileQuery(ExternalSchema unifiedSchema, ExternalSchema fileSchema, ExternalSchema querySchema) {
+        assert unifiedSchema.size() == index.length
+            : "unifiedSchema width [" + unifiedSchema.size() + "] disagrees with mapping width [" + index.length + "]";
         if (unifiedSchema.isEmpty() || querySchema.isEmpty()) {
             return this;
         }
@@ -257,7 +259,7 @@ public final class ColumnMapping implements Writeable {
      * @param filters     pushed conjuncts, in the query's per-file-query-schema shape
      * @param querySchema the per-file query schema (one attribute per position in this mapping)
      */
-    List<Expression> mapFilters(List<Expression> filters, Schema querySchema) {
+    List<Expression> mapFilters(List<Expression> filters, ExternalSchema querySchema) {
         if (hasMissingColumns() == false && hasCasts() == false) {
             return filters;
         }

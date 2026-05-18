@@ -185,7 +185,7 @@ public class FileSplitProvider implements SplitProvider {
         // Strip partition columns from the Query schema before per-file work: their values come
         // from the storage path, not from file bytes, so they don't participate in the file-read
         // narrowing or in the no-overlap skip check.
-        Schema fileBackedQuerySchema = stripPartitionColumns(context.querySchema(), partitionInfo);
+        ExternalSchema fileBackedQuerySchema = stripPartitionColumns(context.querySchema(), partitionInfo);
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = context.schemaMap();
 
         // Side effect: validates optional {@link #CONFIG_TARGET_SPLIT_SIZE} when users pass WITH options.
@@ -210,7 +210,7 @@ public class FileSplitProvider implements SplitProvider {
         // Unified schema for the prune-to-per-file-query transformation. When null (legacy
         // callers, data-node paths) the per-file mapping stays at Unified width — the data node
         // still works, the on-wire cost is just slightly higher.
-        Schema unifiedSchema = context.unifiedSchema();
+        ExternalSchema unifiedSchema = context.unifiedSchema();
 
         // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
         // build the list of FileTask items that need I/O (footer reads, boundary scans).
@@ -884,7 +884,7 @@ public class FileSplitProvider implements SplitProvider {
      * Returns the Query schema with partition columns removed — those columns' values come from
      * paths, not file bytes, so they don't participate in file-read narrowing.
      */
-    static Schema stripPartitionColumns(Schema querySchema, @Nullable PartitionMetadata partitionInfo) {
+    static ExternalSchema stripPartitionColumns(ExternalSchema querySchema, @Nullable PartitionMetadata partitionInfo) {
         if (querySchema.isEmpty() || partitionInfo == null || partitionInfo.isEmpty()) {
             return querySchema;
         }
@@ -901,14 +901,14 @@ public class FileSplitProvider implements SplitProvider {
         if (filtered.size() == querySchema.size()) {
             return querySchema;
         }
-        return new Schema(filtered);
+        return new ExternalSchema(filtered);
     }
 
     /**
      * Returns {@code true} when the file's data columns have zero overlap with the query schema,
      * meaning this file would produce only NULL rows for all needed columns.
      */
-    static boolean skipIfNoColumnOverlap(Schema fileSchema, Schema querySchema) {
+    static boolean skipIfNoColumnOverlap(ExternalSchema fileSchema, ExternalSchema querySchema) {
         Set<String> queryNames = querySchema.names();
         for (Attribute attr : fileSchema) {
             if (queryNames.contains(attr.name())) {

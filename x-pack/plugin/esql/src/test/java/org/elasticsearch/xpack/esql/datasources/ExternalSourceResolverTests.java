@@ -619,7 +619,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("identity mapping matches schema width", new ColumnMapping(identityIndex(schema.size()), null), mapping);
     }
 
-    // ===== Schema type preservation =====
+    // ===== ExternalSchema type preservation =====
 
     public void testSchemaTypesPreserved() throws Exception {
         List<Attribute> schema = List.of(

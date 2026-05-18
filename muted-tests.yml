@@ -199,9 +199,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
-- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
-  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
-  issue: https://github.com/elastic/elasticsearch/issues/146314
 - class: org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtilsTests
   method: testBudgetAccountingAcrossAsyncBoundaries
   issue: https://github.com/elastic/elasticsearch/issues/147065
@@ -521,15 +518,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/149130
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormatTests;
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/149168
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es92.ES920DiskBBQVectorsFormatTests;
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/149168
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests;
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/149168
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
@@ -566,3 +554,24 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
   method: testOneRepeatedVector
   issue: https://github.com/elastic/elasticsearch/issues/149254
+- class: org.elasticsearch.repositories.SnapshotMetricsIT
+  method: testSnapshotAPMMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/149256
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testPitRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/149271
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149272
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testReshardedLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149273
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testIpLocationServiceLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/149284
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/149285
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:tdigest.isNotNullFilter (timeseries mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/149293

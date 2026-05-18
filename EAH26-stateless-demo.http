@@ -1,0 +1,50 @@
+### Create index (Run with IntelliJ IDEA)
+PUT http://localhost:9200/demo-semantic
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+{
+  "mappings": {
+    "properties": {
+      "text": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
+### Index a couple of documents
+POST http://localhost:9200/demo-semantic/_doc/1
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+{
+  "text": "Elasticsearch helps you build search and AI applications."
+}
+
+### Index a couple of documents
+POST http://localhost:9200/demo-semantic/_doc/2
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+{
+  "text": "Kibana is used to visualize and explore data."
+}
+
+### Refresh
+POST http://localhost:9200/demo-semantic/_refresh
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+### Run semantic search
+GET http://localhost:9200/demo-semantic/_search
+Content-Type: application/json
+Authorization: Basic ZWxhc3RpYy1hZG1pbjplbGFzdGljLXBhc3N3b3Jk
+
+{
+  "query": {
+    "match": {
+      "text": "tools for AI-powered search"
+    }
+  }
+}

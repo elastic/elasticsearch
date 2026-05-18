@@ -174,6 +174,9 @@ public class CsvTestsDataLoader {
         "k8s-downsampled-mappings.json",
         "k8s-downsampled.csv"
     ).withSetting("k8s-downsampled-settings.json");
+    private static final TestDataset STORED_SOURCE_K8S = new TestDataset("stored_source_k8s", "k8s-mappings.json", "k8s.csv").withSetting(
+        "k8s-stored-source-settings.json"
+    );
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
@@ -255,6 +258,7 @@ public class CsvTestsDataLoader {
         Map.entry(K8S.indexName, K8S),
         Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
         Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
+        Map.entry(STORED_SOURCE_K8S.indexName, STORED_SOURCE_K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),

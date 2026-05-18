@@ -566,3 +566,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
   method: testReshardedLongLivedPitRelocation
   issue: https://github.com/elastic/elasticsearch/issues/149273
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testIpLocationServiceLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/149284

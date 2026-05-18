@@ -58,7 +58,7 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'employees.csv', 'web_logs.csv', 'books.csv'
+    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv'
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }

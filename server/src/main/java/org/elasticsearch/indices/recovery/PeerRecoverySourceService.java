@@ -229,6 +229,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
     }
 
+    // TODO: add actual metrics for how many recoveries are queued vs ongoing.
     final class OngoingRecoveries {
 
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();

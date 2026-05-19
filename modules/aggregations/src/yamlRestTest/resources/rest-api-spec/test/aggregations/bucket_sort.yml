@@ -534,6 +534,49 @@ invalid path fails:
                       - garbage
 
 ---
+missing bucket key at runtime applies gap_policy=skip:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                inner_terms:
+                  terms:
+                    field: g
+                sort:
+                  bucket_sort:
+                    sort:
+                      - "inner_terms['nonexistent']._count": desc
+
+  - length: { aggregations.timestamp.buckets: 0 }
+
+---
+missing bucket key at runtime applies gap_policy=insert_zeros:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                inner_terms:
+                  terms:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: insert_zeros
+                    sort:
+                      - "inner_terms['nonexistent']._count": desc
+
+  - length: { aggregations.timestamp.buckets: 3 }
+
+---
 top level fails:
   - do:
       catch: /bucket_sort aggregation \[bad\] must be declared inside of another aggregation/

@@ -569,7 +569,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final var clusterService = mock(ClusterService.class);
         final var settings = Settings.builder()
             .put(NodeRoles.dataNode())
-            .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING.getKey(), 2)
+            .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 2)
             .build();
         when(clusterService.getSettings()).thenReturn(settings);
         when(indicesService.clusterService()).thenReturn(clusterService);

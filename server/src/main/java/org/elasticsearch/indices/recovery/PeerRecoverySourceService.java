@@ -60,12 +60,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
-    /// Maximum number of outbound peer recoveries a node may run concurrently as a source.
+    /// Maximum number of outgoing peer recoveries a node may run concurrently as a source.
     /// Requests that arrive when all slots are occupied are queued in FIFO order and started as slots free up.
     ///
     /// TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` before we start elasticsearch-team#2805
-    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING = Setting.intSetting(
-        "indices.recovery.max_concurrent_outbound_recoveries",
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING = Setting.intSetting(
+        "indices.recovery.max_concurrent_outgoing_recoveries",
         // Throttling handled by master allocation for now.
         Integer.MAX_VALUE,
         1,
@@ -83,7 +83,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
 
-    // TODO: make this value dynamic once we register `INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING`
+    // TODO: make this value dynamic once we register `INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING`
     private final int maxConcurrentOutboundRecoveries;
 
     // visible for testing
@@ -101,7 +101,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
-        this.maxConcurrentOutboundRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING.get(
+        this.maxConcurrentOutboundRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(
             clusterService.getSettings()
         );
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source

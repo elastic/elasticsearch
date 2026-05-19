@@ -73,7 +73,7 @@ public final class InternalSettingsPlugin extends Plugin {
             IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
             IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
             FsService.ALWAYS_REFRESH_SETTING,
-            PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING
+            PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING
         );
     }
 }

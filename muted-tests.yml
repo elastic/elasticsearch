@@ -533,15 +533,6 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149256
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testPitRelocationDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/149271
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149272
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testReshardedLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149273
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testIpLocationServiceLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/149284

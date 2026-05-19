@@ -144,8 +144,6 @@ import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.shuffle;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -416,7 +414,7 @@ public abstract class EngineTestCase extends ESTestCase {
             seqID,
             id,
             routing,
-            Arrays.asList(document),
+            List.of(document),
             source,
             XContentType.JSON,
             mappingUpdate,
@@ -774,12 +772,6 @@ public abstract class EngineTestCase extends ESTestCase {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final Engine.EventListener eventListener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
-        final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
-            ? emptyList()
-            : Collections.singletonList(externalRefreshListener);
-        final List<ReferenceManager.RefreshListener> intRefreshListenerList = internalRefreshListener == null
-            ? emptyList()
-            : Collections.singletonList(internalRefreshListener);
         final LongSupplier globalCheckpointSupplier;
         final Supplier<RetentionLeases> retentionLeasesSupplier;
         if (maybeGlobalCheckpointSupplier == null) {
@@ -817,8 +809,8 @@ public abstract class EngineTestCase extends ESTestCase {
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
-            .externalRefreshListener(extRefreshListenerList)
-            .internalRefreshListener(intRefreshListenerList)
+            .externalRefreshListener(externalRefreshListener == null ? List.of() : List.of(externalRefreshListener))
+            .internalRefreshListener(internalRefreshListener == null ? List.of() : List.of(internalRefreshListener))
             .indexSort(indexSort)
             .circuitBreakerService(breakerService)
             .globalCheckpointSupplier(globalCheckpointSupplier)
@@ -1079,8 +1071,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 firstOpWithSeqNo++;
             }
             // shuffle ops but make sure legacy ops are first
-            shuffle(ops.subList(0, firstOpWithSeqNo), random());
-            shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
+            Collections.shuffle(ops.subList(0, firstOpWithSeqNo), random());
+            Collections.shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
         }
         boolean firstOp = true;
         for (Engine.Operation op : ops) {

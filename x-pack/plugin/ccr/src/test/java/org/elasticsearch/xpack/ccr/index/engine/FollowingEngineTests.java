@@ -67,7 +67,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -274,8 +273,8 @@ public class FollowingEngineTests extends ESTestCase {
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
-            .externalRefreshListener(Collections.emptyList())
-            .internalRefreshListener(Collections.emptyList())
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
             .circuitBreakerService(new NoneCircuitBreakerService())
             .globalCheckpointSupplier(globalCheckpoint::longValue)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)

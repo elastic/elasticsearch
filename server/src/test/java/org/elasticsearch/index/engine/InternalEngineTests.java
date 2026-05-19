@@ -179,7 +179,6 @@ import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
@@ -2107,7 +2106,7 @@ public class InternalEngineTests extends EngineTestCase {
         // insert some duplicates
         randomSubsetOf(allOps).forEach(op -> allOps.add(seqNoUpdater.apply(op, op.seqNo())));
 
-        shuffle(allOps, random());
+        Collections.shuffle(allOps, random());
         concurrentlyApplyOps(allOps, engine);
 
         engine.refresh("test");
@@ -2406,7 +2405,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         // other version types don't support out of order processing.
         if (versionType == VersionType.EXTERNAL) {
-            shuffle(ops, random());
+            Collections.shuffle(ops, random());
         }
         long highestOpVersion = Versions.NOT_FOUND;
         long seqNo = -1;
@@ -2508,7 +2507,7 @@ public class InternalEngineTests extends EngineTestCase {
             // delete
             lastFieldValue = null;
         }
-        shuffle(ops, random());
+        Collections.shuffle(ops, random());
         concurrentlyApplyOps(ops, engine);
 
         assertVisibleCount(engine, lastFieldValue == null ? 0 : 1);
@@ -2799,7 +2798,7 @@ public class InternalEngineTests extends EngineTestCase {
             ReplicationTracker gcpTracker = (ReplicationTracker) initialEngine.config().getGlobalCheckpointSupplier();
             gcpTracker.updateFromMaster(
                 1L,
-                new HashSet<>(Collections.singletonList(primary.allocationId().getId())),
+                new HashSet<>(List.of(primary.allocationId().getId())),
                 new IndexShardRoutingTable.Builder(shardId).addShard(primary).build()
             );
             gcpTracker.activatePrimaryMode(primarySeqNo);
@@ -2814,7 +2813,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             gcpTracker.updateFromMaster(
                 2L,
-                new HashSet<>(Collections.singletonList(primary.allocationId().getId())),
+                new HashSet<>(List.of(primary.allocationId().getId())),
                 new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(initializingReplica).build()
             );
             gcpTracker.initiateTracking(initializingReplica.allocationId().getId());
@@ -5817,7 +5816,7 @@ public class InternalEngineTests extends EngineTestCase {
                 seqID,
                 id,
                 "routing",
-                Collections.singletonList(document),
+                List.of(document),
                 source,
                 XContentType.JSON,
                 null,
@@ -6597,7 +6596,7 @@ public class InternalEngineTests extends EngineTestCase {
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final AtomicLong retentionLeasesVersion = new AtomicLong();
         final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
-            new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList())
+            new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), List.of())
         );
         final List<Engine.Operation> operations = generateSingleDocHistory(
             true,

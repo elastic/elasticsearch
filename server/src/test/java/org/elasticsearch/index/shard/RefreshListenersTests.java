@@ -72,8 +72,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -164,8 +162,8 @@ public class RefreshListenersTests extends ESTestCase {
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
-            .externalRefreshListener(Collections.singletonList(listeners))
-            .internalRefreshListener(Collections.emptyList())
+            .externalRefreshListener(List.of(listeners))
+            .internalRefreshListener(List.of())
             .circuitBreakerService(new NoneCircuitBreakerService())
             .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
@@ -585,7 +583,7 @@ public class RefreshListenersTests extends ESTestCase {
             seqID,
             id,
             null,
-            Arrays.asList(document),
+            List.of(document),
             source,
             XContentType.JSON,
             null,

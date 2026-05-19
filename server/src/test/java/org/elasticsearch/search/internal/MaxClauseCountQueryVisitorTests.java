@@ -15,7 +15,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
@@ -110,8 +109,8 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
     public void testVisitLeafThrowsWhenClauseCountExceeded() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(2);
-        visitor.visitLeaf(new MatchAllDocsQuery());
-        visitor.visitLeaf(new MatchAllDocsQuery());
+        visitor.visitLeaf(ALL_DOCS_INSTANCE);
+        visitor.visitLeaf(ALL_DOCS_INSTANCE);
 
         expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> visitor.visitLeaf(ALL_DOCS_INSTANCE));
     }
@@ -126,16 +125,16 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
     public void testConsumeTermsMatchingThrowsOnOverflow() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(1);
-        visitor.consumeTermsMatching(new MatchAllDocsQuery(), "f", () -> null);
+        visitor.consumeTermsMatching(ALL_DOCS_INSTANCE, "f", () -> null);
         expectThrows(
             IndexSearcher.TooManyNestedClauses.class,
-            () -> visitor.consumeTermsMatching(new MatchAllDocsQuery(), "f", () -> null)
+            () -> visitor.consumeTermsMatching(ALL_DOCS_INSTANCE, "f", () -> null)
         );
     }
 
     public void testIndexOrDocValuesQueryThrowsOnOverflow() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(0);
-        IndexOrDocValuesQuery iodv = new IndexOrDocValuesQuery(new MatchAllDocsQuery(), ALL_DOCS_INSTANCE);
+        IndexOrDocValuesQuery iodv = new IndexOrDocValuesQuery(ALL_DOCS_INSTANCE, ALL_DOCS_INSTANCE);
         expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> iodv.visit(visitor));
     }
 
@@ -164,10 +163,10 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
     public void testMergeThrowsOnClauseOverflow() {
         MaxClauseCountQueryVisitor outer = new MaxClauseCountQueryVisitor(1);
-        outer.visitLeaf(new MatchAllDocsQuery());
+        outer.visitLeaf(ALL_DOCS_INSTANCE);
 
         MaxClauseCountQueryVisitor inner = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
-        inner.visitLeaf(new MatchAllDocsQuery());
+        inner.visitLeaf(ALL_DOCS_INSTANCE);
 
         expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> outer.merge(inner));
     }

@@ -78,10 +78,21 @@ final class VirtualColumnInjector {
         int positions = dataPage.getPositionCount();
         Block[] blocks = new Block[fullOutput.size()];
 
+        // Format readers (e.g. parquet) emit a placeholder block for every entry in their
+        // attribute list, including partition columns that aren't actually in the file (see
+        // ParquetFormatReader.buildProjectedAttributes — when projectedColumns is empty it falls
+        // back to all resolved attributes, and the iterator's null-fill loop produces a
+        // ConstantNullBlock for the missing partition column slot). Those placeholder blocks are
+        // owned by dataPage; if we silently drop dataPage we leak them. So we retain the data
+        // blocks we actually want via incRef and then release dataPage, which decRefs everything
+        // — net effect: kept blocks survive, placeholder/unused blocks are released.
         int dataBlockIdx = 0;
         for (int idx : dataColumnIndices) {
-            blocks[idx] = dataPage.getBlock(dataBlockIdx++);
+            Block b = dataPage.getBlock(dataBlockIdx++);
+            b.incRef();
+            blocks[idx] = b;
         }
+        dataPage.releaseBlocks();
 
         for (int idx : partitionColumnIndices) {
             Attribute attr = fullOutput.get(idx);

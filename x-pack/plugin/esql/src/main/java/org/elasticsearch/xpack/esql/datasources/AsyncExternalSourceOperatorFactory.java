@@ -374,7 +374,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     private VirtualColumnInjector buildInjector(DriverContext driverContext) {
         if (partitionColumnNames.isEmpty() == false) {
-            return new VirtualColumnInjector(attributes, partitionColumnNames, partitionValues, driverContext.blockFactory());
+            // VirtualColumnInjector.inject() runs on the producer thread, not the driver thread, so it
+            // must allocate against the root (request-level) block factory rather than the driver's
+            // local child factory (which is bound to a single driver thread).
+            return new VirtualColumnInjector(attributes, partitionColumnNames, partitionValues, driverContext.blockFactory().parent());
         }
         return null;
     }
@@ -796,11 +799,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FileSplit fileSplit = (FileSplit) leaf;
         VirtualColumnInjector injector = null;
         if (partitionColumnNames.isEmpty() == false) {
+            // See buildInjector() — inject() runs on the producer thread, so the root factory is required.
             injector = new VirtualColumnInjector(
                 attributes,
                 partitionColumnNames,
                 fileSplit.partitionValues(),
-                state.driverContext.blockFactory()
+                state.driverContext.blockFactory().parent()
             );
         }
         List<String> cols = projectedColumns(injector);

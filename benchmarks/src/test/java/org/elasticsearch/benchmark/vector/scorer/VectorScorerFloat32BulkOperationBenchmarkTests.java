@@ -13,19 +13,19 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
-public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
+public class VectorScorerFloat32BulkOperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final int dims;
 
-    public VectorScorerInt8BulkOperationBenchmarkTests(VectorSimilarityType function, int dims) {
+    public VectorScorerFloat32BulkOperationBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
     }
 
-    private VectorScorerInt8BulkOperationBenchmark newBench() {
-        var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
-        var bench = new VectorScorerInt8BulkOperationBenchmark();
+    private VectorScorerFloat32BulkOperationBenchmark newBench() {
+        var vectorData = new VectorScorerFloat32BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
+        var bench = new VectorScorerFloat32BulkOperationBenchmark();
         bench.function = function;
         bench.dims = dims;
         bench.numVectors = 1000;
@@ -81,8 +81,8 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
         return generateParameters(
-            VectorScorerInt8BulkOperationBenchmark.class.getField("function"),
-            VectorScorerInt8BulkOperationBenchmark.class.getField("dims")
+            VectorScorerFloat32BulkOperationBenchmark.class.getField("function"),
+            VectorScorerFloat32BulkOperationBenchmark.class.getField("dims")
         );
     }
 }

@@ -488,9 +488,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
   issue: https://github.com/elastic/elasticsearch/issues/149028
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
-  method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
-  issue: https://github.com/elastic/elasticsearch/issues/149032
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testConcurrentRolloverDuringTransition
   issue: https://github.com/elastic/elasticsearch/issues/149039

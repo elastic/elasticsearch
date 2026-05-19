@@ -747,6 +747,21 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(body, not(containsString("project_routing")));
     }
 
+    public void testPitSearchForwardsTrackTotalHitsFromSource() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().trackTotalHits(true));
+        Request request = pitSearchWithDefaults(searchRequest, null);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"track_total_hits\":" + Integer.MAX_VALUE));
+    }
+
+    /// Follow-up PIT batches call `trackTotalHits(false)` on the source; verify that's forwarded as `-1` in the body.
+    public void testPitSearchForwardsDisabledTrackTotalHitsFromSource() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().trackTotalHits(false));
+        Request request = pitSearchWithDefaults(searchRequest, null);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"track_total_hits\":-1"));
+    }
+
     /**
      * Verifies that pitSearch throws when query is malformed or contains multiple objects.
      */

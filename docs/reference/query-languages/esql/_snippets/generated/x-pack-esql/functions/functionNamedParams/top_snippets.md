@@ -37,3 +37,9 @@ Only applies when highlight is true. Defaults to `default`.
 :   (keyword) Order of returned snippets: `score` (default, by relevance) or `none` (original text order).
 
 
+`analyzer` {applies_to}`stack: preview 9.5.0`
+:   (keyword) Name of the analyzer to use for scoring and highlighting. When omitted, defaults to the standard
+analyzer. The name must match a registered analyzer (prebuilt or plugin-contributed), such as
+`standard`, `whitespace`, `simple`, `keyword`, `english`, `french`, `german`, `spanish`, etc.
+
+

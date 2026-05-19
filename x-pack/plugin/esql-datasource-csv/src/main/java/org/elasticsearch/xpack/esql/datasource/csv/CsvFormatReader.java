@@ -28,11 +28,13 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -88,7 +90,7 @@ import java.util.regex.Pattern;
  * {@code ip}, {@code version} ({@code v}), {@code null} ({@code n}).
  *
  * <h2>Configurable options</h2>
- * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
+ * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(Map)}.
  *
  * <table>
  *   <caption>CSV options</caption>
@@ -158,6 +160,35 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /** Sentinel passed to {@link CsvBatchIterator#onRowError} when the offending row could not be tokenised. */
     private static final String[] EMPTY_ROW = new String[0];
+
+    static final String CONFIG_DELIMITER = "delimiter";
+    static final String CONFIG_QUOTE = "quote";
+    static final String CONFIG_ESCAPE = "escape";
+    static final String CONFIG_COMMENT = "comment";
+    static final String CONFIG_NULL_VALUE = "null_value";
+    static final String CONFIG_ENCODING = "encoding";
+    static final String CONFIG_DATETIME_FORMAT = "datetime_format";
+    static final String CONFIG_MAX_FIELD_SIZE = "max_field_size";
+    static final String CONFIG_MULTI_VALUE_SYNTAX = "multi_value_syntax";
+    static final String CONFIG_HEADER_ROW = "header_row";
+    static final String CONFIG_COLUMN_PREFIX = "column_prefix";
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(
+        CONFIG_DELIMITER,
+        CONFIG_QUOTE,
+        CONFIG_ESCAPE,
+        CONFIG_COMMENT,
+        CONFIG_NULL_VALUE,
+        CONFIG_ENCODING,
+        CONFIG_DATETIME_FORMAT,
+        CONFIG_MAX_FIELD_SIZE,
+        CONFIG_MULTI_VALUE_SYNTAX,
+        CONFIG_HEADER_ROW,
+        CONFIG_COLUMN_PREFIX,
+        CONFIG_SCHEMA_SAMPLE_SIZE
+    );
 
     private final BlockFactory blockFactory;
     private final CsvMapper sharedCsvMapper;
@@ -232,20 +263,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * is overridden.
      */
     private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
-        char delimiter = parseChar(config.get("delimiter"), baseline.delimiter());
-        char quoteChar = parseChar(config.get("quote"), baseline.quoteChar());
-        char escapeChar = parseChar(config.get("escape"), baseline.escapeChar());
-        String commentPrefix = parseString(config.get("comment"), baseline.commentPrefix());
-        String nullValue = parseString(config.get("null_value"), baseline.nullValue());
-        Charset encoding = parseEncoding(config.get("encoding"), baseline.encoding());
-        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get("datetime_format"), baseline.datetimeFormatter());
-        int maxFieldSize = parseInt(config.get("max_field_size"), baseline.maxFieldSize());
+        char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
+        char quoteChar = parseChar(config.get(CONFIG_QUOTE), baseline.quoteChar());
+        char escapeChar = parseChar(config.get(CONFIG_ESCAPE), baseline.escapeChar());
+        String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
+        String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
+        Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
+        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
+        int maxFieldSize = parseInt(config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
         CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(
-            config.get("multi_value_syntax"),
+            config.get(CONFIG_MULTI_VALUE_SYNTAX),
             baseline.multiValueSyntax()
         );
-        boolean headerRow = parseBooleanOption("header_row", config.get("header_row"), baseline.headerRow());
-        String columnPrefix = parseString(config.get("column_prefix"), baseline.columnPrefix());
+        boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
+        String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
 
         CsvFormatOptions merged = new CsvFormatOptions(
             delimiter,
@@ -322,7 +353,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Parse a WITH-clause boolean option leniently:
+     * Parse a configuration boolean option leniently:
      * <ul>
      *   <li>{@code null} → {@code defaultValue} (option absent).</li>
      *   <li>Native {@link Boolean} (e.g. JSON {@code true}/{@code false}) is returned as-is.</li>
@@ -385,13 +416,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            return this;
+            return Configured.empty(this);
         }
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
-        int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
+        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
         if (newSampleSize != result.schemaSampleSize || resolvedPolicy != result.effectivePolicy) {
@@ -405,7 +436,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 resolvedPolicy
             );
         }
-        return result;
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     @Override
@@ -730,21 +761,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         List<Attribute> effectiveSchema;
-        if (context.firstSplit()) {
-            // First split carries the file's leading bytes, including the header (if any).
-            // The chunk-0 bound-schema fast path only applies when an upstream coordinator has
-            // pre-bound the FULL file schema — signalled by recordAligned=true. The streaming
-            // parallel coordinator infers the schema from chunk 0 on its own thread and calls
-            // withSchema(...) before any chunk is dispatched; binding is observed here so the
-            // iterator can skip its own per-chunk inference (which would otherwise re-sample on
-            // potentially malformed bytes and crash before any data is emitted).
-            //
-            // For single-shot reads (firstSplit=true, recordAligned=false), resolvedSchema may
-            // still be non-null because the planner calls withSchema(projectedAttributes) at
-            // operator-factory time; that list is the projected output, not the file's column
-            // layout, and using it as the iterator's positional schema would mis-align column
-            // indices and trigger spurious row-shape errors. Treat the whole-file read like
-            // main: ignore resolvedSchema and let the iterator parse the header itself.
+        List<Attribute> readSchema = context.readSchema();
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "CSV read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
+                object.path(),
+                readSchema == null ? "null" : "present(" + readSchema.size() + ")",
+                context.firstSplit(),
+                context.recordAligned(),
+                context.projectedColumns() == null ? "null" : context.projectedColumns().size()
+            );
+        }
+        if (readSchema != null) {
+            if (context.firstSplit() && options.headerRow()) {
+                skipHeaderLine(reader);
+            }
+            effectiveSchema = readSchema;
+        } else if (context.firstSplit()) {
+            // resolvedSchema from withSchema(...) is the projected output, not the file's column
+            // layout — using it as positional schema would mis-align columns. Only trust it when
+            // recordAligned=true (streaming-parallel pre-bound the FULL file schema from chunk 0).
             if (context.recordAligned() && resolvedSchema != null) {
                 if (options.headerRow()) {
                     skipHeaderLine(reader);
@@ -754,14 +790,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 effectiveSchema = null;
             }
         } else if (context.recordAligned()) {
-            // Non-first split that the caller guarantees starts on a record boundary
-            // (e.g. streaming-parallel chunks sliced on \n). No partial line to drop, no header
-            // to parse — use the pre-bound schema directly.
+            // Streaming-parallel chunk sliced on a record boundary; no partial line, no header.
             effectiveSchema = resolvedSchema;
         } else {
-            // Non-first byte-range split (e.g. bzip2 / zstd-indexed macro-split). The leading
-            // bytes belong to the previous split's trailing record and have already been emitted
-            // there; drop them here.
+            // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
+            // the prior split.
             reader.readLine();
             effectiveSchema = resolvedSchema;
         }
@@ -790,6 +823,55 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int markLimit = recordBoundaryMarkLimit();
         long maxMvcSuffixBytes = Math.max(0L, markLimit - 1L);
         return findNextRecordBoundaryBracketCommaMvc(bis, markLimit, maxMvcSuffixBytes);
+    }
+
+    /**
+     * Override the SPI default for the QuotedFieldsOnly path so the streaming segmentator gets a
+     * single-pass answer instead of dispatching the per-record scanner once per record.
+     * Bracket-comma MVC stays on the inherited default — its scanner has no per-call bulk
+     * allocation, and the bracket-region state machine (depth, leading-whitespace gating,
+     * mark limit) is non-trivial to fold into a single pass.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
+            return findLastRecordBoundaryQuotedFieldsOnly(buf, length);
+        }
+        return SegmentableFormatReader.super.findLastRecordBoundary(buf, length);
+    }
+
+    /**
+     * Quoting contract mirrors {@link #findNextRecordBoundaryQuotedFieldsOnly}: {@code quoteChar}
+     * toggles {@code inQuotes}, doubled quote is a literal, {@code \n} outside quotes terminates.
+     * An unpaired opening quote leaves {@code inQuotes == true} for the rest of the buffer, so
+     * any {@code \n} inside the unterminated tail is skipped and the returned offset stays before
+     * the open region — the open-tail rule the segmentator's grow loop requires.
+     */
+    private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
+        if (length <= 0) {
+            return -1;
+        }
+        int lastBoundary = -1;
+        boolean inQuotes = false;
+        byte quoteAsByte = (byte) options.quoteChar();
+        for (int i = 0; i < length; i++) {
+            byte b = buf[i];
+            if (b == quoteAsByte) {
+                if (inQuotes) {
+                    if (i + 1 < length && buf[i + 1] == quoteAsByte) {
+                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    inQuotes = true;
+                }
+            } else if (b == '\n' && inQuotes == false) {
+                lastBoundary = i;
+            }
+        }
+        return lastBoundary;
     }
 
     /**
@@ -911,53 +993,46 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
+    /**
+     * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
+     * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
+     * Mirrors the structure of {@link #findNextRecordBoundaryBracketCommaMvc} for the no-bracket-MVC
+     * quoting contract.
+     */
     private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
+        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
         long consumed = 0;
         boolean inQuotes = false;
         byte quoteAsByte = (byte) options.quoteChar();
-        byte[] buf = new byte[8192];
-        int bytesRead;
-        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
-            for (int i = 0; i < bytesRead; i++) {
-                consumed++;
-                byte b = buf[i];
-                if (b == quoteAsByte) {
-                    if (inQuotes) {
-                        if (i + 1 < bytesRead) {
-                            if (buf[i + 1] == quoteAsByte) {
-                                i++;
-                                consumed++;
-                                continue;
-                            }
-                            inQuotes = false;
-                            if (buf[i + 1] == '\n') {
-                                consumed++;
-                                return consumed;
-                            }
-                            continue;
-                        }
-                        int next = stream.read();
-                        if (next == -1) {
-                            return -1;
-                        }
-                        consumed++;
-                        if (next == quoteAsByte) {
-                            continue;
-                        }
-                        inQuotes = false;
-                        if (next == '\n') {
-                            return consumed;
-                        }
-                        continue;
-                    } else {
-                        inQuotes = true;
+        while (true) {
+            int ib = bis.read();
+            if (ib == -1) {
+                return -1;
+            }
+            consumed++;
+            byte b = (byte) ib;
+            if (b == quoteAsByte) {
+                if (inQuotes) {
+                    int next = bis.read();
+                    if (next == -1) {
+                        return -1;
                     }
-                } else if (b == '\n' && inQuotes == false) {
-                    return consumed;
+                    consumed++;
+                    if ((byte) next == quoteAsByte) {
+                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
+                        continue;
+                    }
+                    inQuotes = false;
+                    if (next == '\n') {
+                        return consumed;
+                    }
+                } else {
+                    inQuotes = true;
                 }
+            } else if (b == '\n' && inQuotes == false) {
+                return consumed;
             }
         }
-        return -1;
     }
 
     @Override
@@ -1023,7 +1098,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String trimmedType = parts[1].trim();
             String typeName = trimmedType.toUpperCase(Locale.ROOT);
             DataType dataType = parseDataType(typeName);
-            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, dataType));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, dataType, Nullability.TRUE, null, false));
         }
         return attributes;
     }

@@ -18,9 +18,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -75,6 +78,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final BlockHash.TopNDef pushedTopN;
     private final Integer estimatedRowSize;
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
+    // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+    // Coordinator-only — not serialized. The pre-prune Unified schema. Survives the optimizer's
+    // projection prune of `attributes` so split discovery can narrow per-file ColumnMappings to
+    // the post-prune Query schema without rebuilding Unified names from per-file mappings.
+    @Nullable
+    private final ExternalSchema unifiedSchema;
     private final List<ExternalSplit> splits;
 
     public ExternalSourceExec(
@@ -96,9 +106,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             fileList,
+            Map.of(),
             List.of()
         );
     }
@@ -128,10 +140,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedLimit,
             estimatedRowSize,
             fileList,
+            Map.of(),
             splits
         );
     }
 
+    /**
+     * Public 13-arg ctor used by {@link #info()} (via constructor reference) and by tree tests.
+     * Passes {@code null} for {@code unifiedSchema}; callers that need to carry the Unified schema
+     * (e.g. {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec})
+     * apply it afterwards via {@link #withUnifiedSchema(ExternalSchema)}.
+     */
     public ExternalSourceExec(
         Source source,
         String sourcePath,
@@ -144,6 +163,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         int pushedLimit,
         Integer estimatedRowSize,
         FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         List<ExternalSplit> splits
     ) {
         this(
@@ -159,14 +179,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             null,
             estimatedRowSize,
             fileList,
+            schemaMap,
+            null,
             splits
         );
     }
 
     /**
-     * Primary constructor that also accepts a transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning.
-     * Package-private on purpose so the public, longest constructor (used by tooling and tree tests) remains
-     * the twelve-arg one above. Use {@link #withPushedTopN(BlockHash.TopNDef)} from optimizer rules.
+     * Primary constructor that also accepts the transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning
+     * and the coordinator-only {@link ExternalSchema} that carries the pre-prune Unified schema. Package-private on purpose
+     * so the public, longest constructor (used by tooling and tree tests) remains the thirteen-arg one above.
+     * Use {@link #withPushedTopN(BlockHash.TopNDef)} and {@link #withUnifiedSchema(ExternalSchema)} from outside the package.
      */
     ExternalSourceExec(
         Source source,
@@ -181,6 +204,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         @Nullable BlockHash.TopNDef pushedTopN,
         Integer estimatedRowSize,
         FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        @Nullable ExternalSchema unifiedSchema,
         List<ExternalSplit> splits
     ) {
         super(source);
@@ -204,6 +229,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.pushedTopN = pushedTopN;
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
+        this.schemaMap = schemaMap != null ? schemaMap : Map.of();
+        this.unifiedSchema = unifiedSchema;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
     }
 
@@ -225,9 +252,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             List.of()
         );
     }
@@ -249,9 +278,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             List.of()
         );
     }
@@ -278,9 +309,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             splits
         );
     }
@@ -345,6 +378,15 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return fileList;
     }
 
+    public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap() {
+        return schemaMap;
+    }
+
+    @Nullable
+    public ExternalSchema unifiedSchema() {
+        return unifiedSchema;
+    }
+
     public List<ExternalSplit> splits() {
         return splits;
     }
@@ -363,6 +405,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
+            unifiedSchema,
             newSplits
         );
     }
@@ -381,6 +425,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -399,6 +445,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -417,6 +465,40 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
+            unifiedSchema,
+            splits
+        );
+    }
+
+    /**
+     * Returns a copy of this source with the given output attribute list. Used by
+     * {@code InsertExternalFieldExtraction} to narrow the source's projection (sort keys +
+     * predicate columns) and inject a synthetic {@code _rowPosition} attribute that the paired
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec} consumes.
+     * <p>
+     * Every other field — including pushed filter, pushed limit, splits, and the source path — is
+     * preserved. The new attribute list is not validated against the source's reader schema; the
+     * caller (the optimizer rule) is responsible for ensuring it is a valid subset plus
+     * {@code _rowPosition}. Serialization is unaffected because attributes are part of the wire
+     * format already.
+     */
+    public ExternalSourceExec withAttributes(List<Attribute> newAttributes) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            newAttributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -438,6 +520,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newPushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -450,6 +534,32 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     @Nullable
     public BlockHash.TopNDef pushedTopN() {
         return pushedTopN;
+    }
+
+    /**
+     * Returns a copy of this source carrying the given pre-prune Unified schema. See {@link #unifiedSchema()}.
+     * Applied by {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} after
+     * construction so the Unified schema does not appear in {@link #info()} (which would let the optimizer's
+     * attribute-rewriting rules prune it along with {@code attributes}).
+     */
+    public ExternalSourceExec withUnifiedSchema(@Nullable ExternalSchema newUnifiedSchema) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            newUnifiedSchema,
+            splits
+        );
     }
 
     @Override
@@ -473,17 +583,20 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             newEstimatedRowSize,
             fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        // pushedTopN is intentionally excluded from info(): it is a transient local-execution hint set after the
-        // plan has been distributed, and including it here would (a) require a public 13-arg ctor that breaks the
-        // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters and (b) leak the hint into any
-        // generic transform-based plan rewrite. The hint is preserved by the explicit with* methods that need it
-        // and is rendered in nodeString() for debuggability.
+        // pushedTopN: excluded — transient local-execution hint; including it would break the
+        // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters. Preserved via
+        // explicit with* methods; rendered in nodeString() for debuggability.
+        // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
+        // in info() and would prune the Unified schema along with `attributes`, defeating its
+        // whole purpose. Preserved through with* methods which carry it explicitly.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -497,6 +610,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedLimit,
             estimatedRowSize,
             fileList,
+            schemaMap,
             splits
         );
     }
@@ -515,6 +629,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
+            schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -541,6 +657,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(pushedTopN, other.pushedTopN)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileList, other.fileList)
+            && Objects.equals(schemaMap, other.schemaMap)
+            && Objects.equals(unifiedSchema, other.unifiedSchema)
             && Objects.equals(splits, other.splits);
     }
 

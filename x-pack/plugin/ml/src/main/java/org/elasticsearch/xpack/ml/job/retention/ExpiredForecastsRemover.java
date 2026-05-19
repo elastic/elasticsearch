@@ -19,7 +19,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -208,7 +208,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
     private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids, ArrayList<String> indicesToQuery) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
-        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         request.setTimeout(DEFAULT_MAX_DURATION);
 
         request.indices(indicesToQuery.toArray(new String[0]));

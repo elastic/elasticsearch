@@ -46,19 +46,19 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
-import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
-import org.elasticsearch.ingest.geoip.IpDatabase;
-import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
-import org.elasticsearch.ingest.geoip.IpLocationServiceAdapter;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.geoip.IpDatabase;
+import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
+import org.elasticsearch.ingest.geoip.IpLocationServiceAdapter;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -715,11 +715,7 @@ public final class EsqlTestUtils {
         }
     );
 
-    public static final EsqlParser TEST_PARSER = new EsqlParser(
-        new EsqlConfig(TEST_FUNCTION_REGISTRY),
-        TEST_IP_LOCATION_SERVICE,
-        null
-    );
+    public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY), TEST_IP_LOCATION_SERVICE, null);
 
     public static final Verifier TEST_VERIFIER = new Verifier(
         new Metrics(TEST_FUNCTION_REGISTRY, true, true),

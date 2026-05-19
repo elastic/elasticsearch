@@ -1685,15 +1685,15 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         final int numOfDocs = scaledRandomIntBetween(10, 100);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(INDEX_NAME, client(), numOfDocs)) {
+        try (final var indexer = new BackgroundIndexer(INDEX_NAME, client(), numOfDocs)) {
             waitForDocs(numOfDocs, indexer);
         }
 
         refresh(INDEX_NAME);
         assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
 
-        final CountDownLatch recoveryStartedLatch = new CountDownLatch(1);
-        final CountDownLatch allowRecoveryToCompleteLatch = new CountDownLatch(1);
+        final var recoveryStartedLatch = new CountDownLatch(1);
+        final var allowRecoveryToCompleteLatch = new CountDownLatch(1);
 
         final var transportService = MockTransportService.getInstance(node);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
@@ -1710,10 +1710,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         safeAwait(recoveryStartedLatch);
 
         final Index index = resolveIndex(INDEX_NAME);
-        final IndicesService indicesServiceA = internalCluster().getInstance(IndicesService.class, node);
-        final IndexShard primaryShard = indicesServiceA.indexServiceSafe(index).getShard(0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, node);
+        final IndexShard primaryShard = indicesService.indexServiceSafe(index).getShard(0);
 
-        assertBusy(() -> assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(1)));
+        assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(1));
         indicesAdmin().prepareDelete(INDEX_NAME).get();
 
         allowRecoveryToCompleteLatch.countDown();

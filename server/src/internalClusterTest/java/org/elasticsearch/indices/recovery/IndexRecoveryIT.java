@@ -1685,7 +1685,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         final int numOfDocs = scaledRandomIntBetween(10, 100);
-        try (final var indexer = new BackgroundIndexer(INDEX_NAME, client(), numOfDocs)) {
+        try (var indexer = new BackgroundIndexer(INDEX_NAME, client(), numOfDocs)) {
             waitForDocs(numOfDocs, indexer);
         }
 

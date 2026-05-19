@@ -654,6 +654,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /**
      * Extracts the OTel HTTP server SemConv {@code server.port}: checks {@code Forwarded} host= (RFC 7239), then {@code X-Forwarded-Host/Port}, then {@code Host}, then the local socket.
      * When an address comes from a forwarding header without a port, the socket port is not used as a fallback.
+     * {@code X-Forwarded-Port} is only consulted when {@code X-Forwarded-Host} is also present; a standalone {@code X-Forwarded-Port} is ignored.
      */
     static Integer extractServerPort(RestRequest req, HttpChannel httpChannel, String forwarded) {
         if (forwarded != null) {

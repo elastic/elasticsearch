@@ -108,6 +108,11 @@ public class RestControllerTracingTests extends ESTestCase {
         assertEquals("https", RestController.extractScheme(req, forwarded(req)));
     }
 
+    public void testExtractSchemeForwardedNormalizesCase() {
+        final var req = requestWith(Map.of("Forwarded", List.of("proto=HTTPS")));
+        assertEquals("https", RestController.extractScheme(req, forwarded(req)));
+    }
+
     public void testExtractSchemeForwardedBeatsXForwardedProto() {
         final var req = requestWith(Map.of("Forwarded", List.of("proto=https"), "X-Forwarded-Proto", List.of("http")));
         assertEquals("https", RestController.extractScheme(req, forwarded(req)));
@@ -192,9 +197,14 @@ public class RestControllerTracingTests extends ESTestCase {
         assertEquals(Integer.valueOf(8443), RestController.extractServerPort(req, null, null));
     }
 
-    public void testExtractServerPortFromXForwardedPortAlone() {
+    public void testExtractServerPortFromXForwardedPortWhenXForwardedHostHasNoPort() {
         final var req = requestWith(Map.of("X-Forwarded-Host", List.of("proxy.com"), "X-Forwarded-Port", List.of("8443")));
         assertEquals(Integer.valueOf(8443), RestController.extractServerPort(req, null, null));
+    }
+
+    public void testXForwardedPortWithoutXForwardedHostIsIgnored() {
+        final var req = requestWith(Map.of("X-Forwarded-Port", List.of("8443")));
+        assertNull(RestController.extractServerPort(req, null, null));
     }
 
     public void testExtractServerPortFromHostHeader() {

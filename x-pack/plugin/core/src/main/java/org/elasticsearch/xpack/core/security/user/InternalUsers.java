@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
@@ -176,7 +177,8 @@ public class InternalUsers {
                             DownsampleAction.NAME,
                             TransportAddIndexBlockAction.TYPE.name(),
                             IndicesSegmentsAction.NAME,
-                            ModifyDataStreamsAction.NAME
+                            ModifyDataStreamsAction.NAME,
+                            TransportResizeAction.TYPE.name()
                         )
                     )
                     .allowRestrictedIndices(false)

@@ -43,6 +43,7 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
     public static TemporaryFolder repoDir = new TemporaryFolder();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
         .module("analysis-common")
         .module("data-streams")
         .module("searchable-snapshots")
@@ -190,7 +191,7 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
               "template": {
                 "settings": {
                   "number_of_shards": 1,
-                  "number_of_replicas": 0
+                  "number_of_replicas": 1
                 },
                 "lifecycle": {
                   "data_retention": "90d",

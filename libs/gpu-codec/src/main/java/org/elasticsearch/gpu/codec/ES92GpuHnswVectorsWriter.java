@@ -608,17 +608,14 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         return graph;
     }
 
-    private void buildCpuGraphAndWriteMeta(FieldInfo fieldInfo, List<float[]> vectors, VectorSimilarityFunction similarityFunction)
+    private void buildCpuGraphAndWriteMeta(FieldInfo fieldInfo, List<float[]> vectors, VectorSimilarityFunction similarity)
         throws IOException {
         int numVectors = vectors.size();
         int dims = fieldInfo.getVectorDimension();
         var flatVectorsScorer = flatVectorWriter.getFlatVectorScorer();
-        var scorerSupplier = flatVectorsScorer.getRandomVectorScorerSupplier(
-            similarityFunction,
-            FloatVectorValues.fromFloats(vectors, dims)
-        );
-        OnHeapHnswGraph cpuGraph = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed, numVectors)
-            .build(numVectors);
+        var scorerSupplier = flatVectorsScorer.getRandomVectorScorerSupplier(similarity, FloatVectorValues.fromFloats(vectors, dims));
+        var graphBuilder = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed, numVectors);
+        OnHeapHnswGraph cpuGraph = graphBuilder.build(numVectors);
 
         long vectorIndexOffset = vectorIndex.getFilePointer();
         int[][] graphLevelNodeOffsets = new int[cpuGraph.numLevels()][];

@@ -15,7 +15,20 @@ set -euo pipefail
 
 env_id_baseline=$(python3 -c 'import uuid; print(uuid.uuid4())')
 env_id_contender=$(python3 -c 'import uuid; print(uuid.uuid4())')
-merge_base=$(git merge-base "origin/${GITHUB_PR_TARGET_BRANCH}" HEAD)
+
+resolve_merge_base_target() {
+  local target_branch="$1"
+  if git rev-parse --verify "${target_branch}^{commit}" >/dev/null 2>&1; then
+    printf '%s' "$target_branch"
+    return
+  fi
+
+  git fetch --no-tags origin "$target_branch"
+  printf '%s' "FETCH_HEAD"
+}
+
+target_ref=$(resolve_merge_base_target "${GITHUB_PR_TARGET_BRANCH}")
+merge_base=$(git merge-base "$target_ref" HEAD)
 
 # PR comment
 buildkite-agent meta-data set pr_comment:early_comment_job_id "$BUILDKITE_JOB_ID"

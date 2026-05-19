@@ -2032,6 +2032,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.timeout(source.timeout());
         }
         context.terminateAfter(source.terminateAfter());
+        if (source.sizeInBytes() != null) {
+            context.sizeInBytes(source.sizeInBytes().getBytes());
+        }
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
                 indicesService.getAnalysis(),

@@ -38,6 +38,18 @@ import java.util.Objects;
 abstract class FetchPhaseDocsIterator {
 
     /**
+     * Fixed per-hit overhead added to {@code _source} length when accounting towards {@code size_in_bytes}.
+     * Covers {@code _id}, routing, sort values, stored/fetch fields, and highlight that {@code _source} alone
+     * does not include. Per-shard enforcement only; coordinator total can be {@code numShards × sizeInBytesLimit}.
+     */
+    static final int PER_HIT_OVERHEAD_BYTES = 256;
+
+    /**
+     * Per-shard byte cap for the fetch phase. -1 means no cap. Set by FetchPhase before calling iterate().
+     */
+    long sizeInBytesLimit = -1;
+
+    /**
      * Accounts for FetchPhase memory usage.
      * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
      */
@@ -116,6 +128,7 @@ abstract class FetchPhaseDocsIterator {
                 return new IterateResult(new SearchHit[0]);
             }
 
+            long accumulatedBytes = 0;
             for (int i = 0; i < docs.length; i++) {
                 try {
                     if (i >= endReaderIdx) {
@@ -128,6 +141,14 @@ abstract class FetchPhaseDocsIterator {
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;
                     searchHits[docs[i].index] = nextDoc(docs[i].docId);
+                    if (sizeInBytesLimit > 0) {
+                        var sourceRef = searchHits[docs[i].index].getSourceRef();
+                        accumulatedBytes += (sourceRef != null ? sourceRef.length() : 0) + PER_HIT_OVERHEAD_BYTES;
+                        if (accumulatedBytes >= sizeInBytesLimit) {
+                            querySearchResult.terminatedEarly(true);
+                            return new IterateResult(stripNulls(searchHits));
+                        }
+                    }
                 } catch (ContextIndexSearcher.TimeExceededException e) {
                     if (allowPartialResults == false) {
                         purgeSearchHits(searchHits);

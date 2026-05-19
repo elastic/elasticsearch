@@ -242,6 +242,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void terminateAfter(int terminateAfter);
 
+    public abstract long sizeInBytes();
+
+    public abstract void sizeInBytes(long sizeInBytes);
+
     /**
      * Indicates if the current index should perform frequent low level search cancellation check.
      *

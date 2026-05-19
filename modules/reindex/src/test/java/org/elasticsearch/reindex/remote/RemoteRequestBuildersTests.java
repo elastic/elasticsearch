@@ -18,6 +18,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -865,5 +867,56 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             searchAfter,
             version
         );
+    }
+
+    /**
+     * {@code size_in_bytes} URL param is sent to remotes on or after 9.5.
+     */
+    public void testInitialSearchIncludesSizeInBytesOnRemoteAfter95() {
+        ByteSizeValue cap = ByteSizeValue.of(50, ByteSizeUnit.MB);
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sizeInBytes(cap));
+        Map<String, String> params = initialSearch(searchRequest, new BytesArray("{}"), Version.V_9_5_0).getParameters();
+        assertThat(params, hasEntry("size_in_bytes", cap.getStringRep()));
+    }
+
+    /**
+     * {@code size_in_bytes} URL param is withheld from remotes before 9.5 to avoid 400 errors.
+     */
+    public void testInitialSearchOmitsSizeInBytesOnRemoteBefore95() {
+        ByteSizeValue cap = ByteSizeValue.of(50, ByteSizeUnit.MB);
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sizeInBytes(cap));
+        Map<String, String> params = initialSearch(searchRequest, new BytesArray("{}"), Version.V_7_10_0).getParameters();
+        assertThat(params, not(hasKey("size_in_bytes")));
+    }
+
+    /**
+     * {@code size_in_bytes} is not sent when it was not set on the search source.
+     */
+    public void testInitialSearchOmitsSizeInBytesWhenNotSet() {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        Map<String, String> params = initialSearch(searchRequest, new BytesArray("{}"), Version.CURRENT).getParameters();
+        assertThat(params, not(hasKey("size_in_bytes")));
+    }
+
+    /**
+     * PIT search sends {@code size_in_bytes} in the request body for remotes on or after 9.5.
+     */
+    public void testPitSearchIncludesSizeInBytesOnRemoteAfter95() throws IOException {
+        ByteSizeValue cap = ByteSizeValue.of(75, ByteSizeUnit.MB);
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sizeInBytes(cap));
+        Request request = pitSearchWithDefaults(searchRequest, null, Version.V_9_5_0);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"size_in_bytes\":\"" + cap.getStringRep() + "\""));
+    }
+
+    /**
+     * PIT search withholds {@code size_in_bytes} from remotes before 9.5.
+     */
+    public void testPitSearchOmitsSizeInBytesOnRemoteBefore95() throws IOException {
+        ByteSizeValue cap = ByteSizeValue.of(75, ByteSizeUnit.MB);
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sizeInBytes(cap));
+        Request request = pitSearchWithDefaults(searchRequest, null, Version.V_7_10_0);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, not(containsString("size_in_bytes")));
     }
 }

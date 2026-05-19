@@ -10,6 +10,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
@@ -129,6 +131,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     public static final ParseField RETRIEVER = new ParseField("retriever");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
+    public static final ParseField SIZE_IN_BYTES_FIELD = new ParseField("size_in_bytes");
+
+    private static final TransportVersion SEARCH_SOURCE_SIZE_IN_BYTES = TransportVersion.fromName("search_source_size_in_bytes");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
@@ -180,6 +185,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private TimeValue timeout = null;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
+    private ByteSizeValue sizeInBytes = null;
 
     private StoredFieldsContext storedFieldsContext;
     private List<FieldAndFormat> docValueFields;
@@ -273,6 +279,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         skipInnerHits = in.readBoolean();
+        if (in.getTransportVersion().supports(SEARCH_SOURCE_SIZE_IN_BYTES)) {
+            sizeInBytes = in.readOptionalWriteable(ByteSizeValue::readFrom);
+        }
     }
 
     @Override
@@ -336,6 +345,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(knnSearch);
         out.writeOptionalNamedWriteable(rankBuilder);
         out.writeBoolean(skipInnerHits);
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_SIZE_IN_BYTES)) {
+            out.writeOptionalWriteable(sizeInBytes);
+        }
     }
 
     /**
@@ -577,6 +589,25 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public int terminateAfter() {
         return terminateAfter;
+    }
+
+    /**
+     * Sets a per-shard cap on the total bytes of {@code _source} (plus a fixed per-hit overhead) returned by the fetch phase.
+     * When the accumulated source bytes exceed this limit the fetch phase stops early, and {@code terminated_early} is set to
+     * {@code true} in the response. Null means no cap (default).
+     * <p>
+     * Note: enforcement is per-shard, so coordinator total can be up to {@code numShards × sizeInBytes}.
+     */
+    public SearchSourceBuilder sizeInBytes(ByteSizeValue sizeInBytes) {
+        this.sizeInBytes = sizeInBytes;
+        return this;
+    }
+
+    /**
+     * Gets the per-shard byte cap for fetch-phase source data, or null if no cap is set.
+     */
+    public ByteSizeValue sizeInBytes() {
+        return sizeInBytes;
     }
 
     /**
@@ -1274,6 +1305,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
         rewrittenBuilder.skipInnerHits = skipInnerHits;
+        rewrittenBuilder.sizeInBytes = sizeInBytes;
         return rewrittenBuilder;
     }
 
@@ -1393,6 +1425,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     terminateAfter(parser.intValue());
                     searchUsage.trackSectionUsage(TERMINATE_AFTER_FIELD.getPreferredName());
+                } else if (SIZE_IN_BYTES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    sizeInBytes(ByteSizeValue.parseBytesSizeValue(parser.text(), SIZE_IN_BYTES_FIELD.getPreferredName()));
                 } else if (MIN_SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     minScore = parser.floatValue();
                     searchUsage.trackSectionUsage(MIN_SCORE_FIELD.getPreferredName());
@@ -1723,6 +1757,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
             builder.field(TERMINATE_AFTER_FIELD.getPreferredName(), terminateAfter);
+        }
+
+        if (sizeInBytes != null) {
+            builder.field(SIZE_IN_BYTES_FIELD.getPreferredName(), sizeInBytes.getStringRep());
         }
 
         if (retrieverBuilder != null) {
@@ -2160,7 +2198,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             trackTotalHitsUpTo,
             pointInTimeBuilder,
             runtimeMappings,
-            skipInnerHits
+            skipInnerHits,
+            sizeInBytes
         );
     }
 
@@ -2206,7 +2245,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(runtimeMappings, other.runtimeMappings)
-            && Objects.equals(skipInnerHits, other.skipInnerHits);
+            && Objects.equals(skipInnerHits, other.skipInnerHits)
+            && Objects.equals(sizeInBytes, other.sizeInBytes);
     }
 
     @Override

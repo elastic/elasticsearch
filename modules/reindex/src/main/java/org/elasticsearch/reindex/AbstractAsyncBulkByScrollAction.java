@@ -263,20 +263,29 @@ public abstract class AbstractAsyncBulkByScrollAction<
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         this.remoteVersion = remoteVersion;
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
-        paginatedHitSource = buildScrollableResultSource(
-            backoffPolicy,
-            prepareSearchRequest(
-                mainRequest,
-                needsSourceDocumentVersions,
-                needsSourceDocumentSeqNoAndPrimaryTerm,
-                needsVectors,
-                remoteVersion
-            )
+        SearchRequest preparedSearchRequest = prepareSearchRequest(
+            mainRequest,
+            needsSourceDocumentVersions,
+            needsSourceDocumentSeqNoAndPrimaryTerm,
+            needsVectors,
+            remoteVersion
         );
+        // Set a per-search byte cap if the user has not specified one. This prevents a single search response from
+        // allocating an unbounded amount of heap during reindex / update-by-query / delete-by-query.
+        if (preparedSearchRequest.source() != null && preparedSearchRequest.source().sizeInBytes() == null) {
+            long cap = Math.min(
+                reindexSettings.getSearchResponseMaxBytes(),
+                (long) (circuitBreaker.getLimit() * reindexSettings.getSearchResponseBreakerFraction())
+            );
+            if (cap > 0) {
+                preparedSearchRequest.source().sizeInBytes(ByteSizeValue.ofBytes(cap));
+            }
+        }
+        paginatedHitSource = buildScrollableResultSource(backoffPolicy, preparedSearchRequest);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
-        this.reindexSettings = Objects.requireNonNull(reindexSettings);
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */

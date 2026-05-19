@@ -12,6 +12,8 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -67,6 +69,9 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("source").get();
 
         DeleteByQueryRequest request = new DeleteByQueryRequest("source").setQuery(QueryBuilders.matchAllQuery());
+        // Disable the auto-cap so all IDs are fetched and the bulk-request reservation trips the breaker
+        // (not the per-search size cap, which is orthogonal to what this test verifies).
+        request.getSearchRequest().source().sizeInBytes(ByteSizeValue.of(1, ByteSizeUnit.GB));
 
         ExecutionException thrown = expectThrows(
             ExecutionException.class,

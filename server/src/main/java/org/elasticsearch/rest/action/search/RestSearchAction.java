@@ -360,6 +360,10 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
+        if (request.hasParam("size_in_bytes")) {
+            searchSourceBuilder.sizeInBytes(request.paramAsSize("size_in_bytes", null));
+        }
+
         String sSorts = request.param("sort");
         if (sSorts != null) {
             String[] sorts = Strings.splitStringByCommaToArray(sSorts);

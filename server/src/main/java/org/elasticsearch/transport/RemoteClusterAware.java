@@ -24,7 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Base class for services and components that utilize linked projects.
@@ -145,6 +144,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
      * This method supports excluding clusters by using the {@code -cluster:*} index expression.
+     * Expressions are processed left to right, and order is significant: a cluster can only be excluded if it has been included
+     * by a preceding expression, and including a cluster after it has been excluded adds it back.
      * For example, if requestIndices is [blogs, *:blogs, -remote1:*] and *:blogs resolves to "remote1:blogs, remote2:blogs"
      * the map returned by the function will not have the remote1 entry. It will have only {"":blogs, remote2:blogs}.
      * The index for the excluded cluster must be '*' to clarify that the entire cluster should be removed.
@@ -159,7 +160,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      */
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
-        Set<String> clustersToRemove = new HashSet<>();
+        Set<String> everIncluded = new HashSet<>();
+        boolean hasExclusions = false;
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
             // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
@@ -190,14 +192,30 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                     }
                     if (selectorString != null) {
                         throw new IllegalArgumentException(
+                            Strings.format("To exclude a cluster you must not specify a selector, but found selector: [%s]", selectorString)
+                        );
+                    }
+                    hasExclusions = true;
+                    List<String> excludeFailed = new ArrayList<>();
+                    for (String cluster : clusters) {
+                        perClusterIndices.remove(cluster);
+                        if (everIncluded.contains(cluster) == false) {
+                            excludeFailed.add(cluster);
+                        }
+                    }
+                    if (excludeFailed.isEmpty() == false) {
+                        throw new IllegalArgumentException(
                             Strings.format(
-                                "To exclude a cluster you must not specify the a selector, but found selector: [%s]",
-                                selectorString
+                                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included"
+                                    + " (note: the \"include\" expression must precede the \"exclude\" expression)",
+                                excludeFailed.size() == 1 ? "" : "s",
+                                excludeFailed,
+                                excludeFailed.size() == 1 ? "it is" : "they are"
                             )
                         );
                     }
-                    clustersToRemove.addAll(clusters);
                 } else {
+                    everIncluded.addAll(clusters);
                     for (String clusterName : clusters) {
                         perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
                     }
@@ -206,25 +224,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
             }
         }
-        List<String> excludeFailed = new ArrayList<>();
-        for (String exclude : clustersToRemove) {
-            List<String> removed = perClusterIndices.remove(exclude);
-            if (removed == null) {
-                excludeFailed.add(exclude);
-            }
-        }
-        if (excludeFailed.size() > 0) {
-            String warning = Strings.format(
-                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included: %s. Input: [%s]",
-                excludeFailed.size() == 1 ? "" : "s",
-                excludeFailed,
-                excludeFailed.size() == 1 ? "it is" : "they are",
-                perClusterIndices.keySet().stream().map(s -> s.equals("") ? "(local)" : s).collect(Collectors.toList()),
-                String.join(",", requestIndices)
-            );
-            throw new IllegalArgumentException(warning);
-        }
-        if (clustersToRemove.size() > 0 && perClusterIndices.size() == 0) {
+        if (hasExclusions && perClusterIndices.isEmpty()) {
             throw new IllegalArgumentException(
                 "The '-' exclusions in the index expression list excludes all indexes. Nothing to search. Input: ["
                     + String.join(",", requestIndices)

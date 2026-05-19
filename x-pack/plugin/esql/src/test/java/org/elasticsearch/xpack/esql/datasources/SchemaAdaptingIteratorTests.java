@@ -36,7 +36,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testIdentityPassThrough() {
         List<Attribute> schema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 0, 1 }, null);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, null);
 
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(42, 3);
         Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("hello"), 3);
@@ -57,7 +57,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testColumnReorder() {
         List<Attribute> unified = List.of(attr("b", DataType.KEYWORD), attr("a", DataType.INTEGER));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 1, 0 }, null);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
 
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(10, 2);
         Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("x"), 2);
@@ -74,7 +74,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testMissingColumnNullFill() {
         List<Attribute> unified = List.of(attr("a", DataType.INTEGER), attr("missing", DataType.LONG), attr("b", DataType.KEYWORD));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 0, -1, 1 }, null);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1, 1 }, null);
 
         IntBlock aBlock = blockFactory.newConstantIntBlockWith(1, 4);
         Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("v"), 4);
@@ -93,10 +93,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testCastIntToLong() {
         List<Attribute> unified = List.of(attr("val", DataType.LONG));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(
-            new int[] { 0 },
-            new DataType[] { DataType.LONG }
-        );
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
 
         IntBlock intBlock = blockFactory.newConstantIntBlockWith(123, 2);
         Page inputPage = new Page(2, new Block[] { intBlock });
@@ -111,10 +108,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testCastIntToDouble() {
         List<Attribute> unified = List.of(attr("val", DataType.DOUBLE));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(
-            new int[] { 0 },
-            new DataType[] { DataType.DOUBLE }
-        );
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DOUBLE });
 
         IntBlock intBlock = blockFactory.newConstantIntBlockWith(42, 3);
         Page inputPage = new Page(3, new Block[] { intBlock });
@@ -129,10 +123,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testCastDatetimeToDateNanos() {
         List<Attribute> unified = List.of(attr("ts", DataType.DATE_NANOS));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(
-            new int[] { 0 },
-            new DataType[] { DataType.DATE_NANOS }
-        );
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
 
         long millisValue = 1711800000000L;
         LongBlock datetimeBlock = blockFactory.newConstantLongBlockWith(millisValue, 2);
@@ -146,9 +137,121 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         }
     }
 
+    // --- UNION_BY_NAME explicit-scenario tests ---
+    //
+    // In UBN, the planner builds a unified schema across all files (e.g. [a, b, c]) and each file
+    // has its own local physical schema (e.g. [a, b]). The reader honors the file-local schema
+    // verbatim and emits a page in that local shape; the SchemaAdaptingIterator then applies the
+    // ColumnMapping recipe to produce a page in the unified shape. The three UBN-specific recipe
+    // operations are: null-fill for columns missing from the file, reorder when the file's column
+    // order differs from unified, and widening cast when the file's local type is narrower than
+    // unified. The tests below name each scenario explicitly, plus one combined scenario.
+
+    /**
+     * UBN scenario — missing column. File-local schema is [a, b]; unified is [a, b, c].
+     * ColumnMapping marks c as missing (localIndex = -1). Adapter null-fills c.
+     */
+    public void testUnionByNameMissingColumn() {
+        List<Attribute> unified = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD), attr("c", DataType.LONG));
+        // Reader emits a page in file-local layout [a, b]; mapping says c is missing.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1, -1 }, null);
+
+        IntBlock aBlock = blockFactory.newConstantIntBlockWith(7, 3);
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("hello"), 3);
+        Page inputPage = new Page(3, new Block[] { aBlock, bBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
+            Page result = iter.next();
+            assertThat(result.getBlockCount(), equalTo(3));
+            assertThat(result.getPositionCount(), equalTo(3));
+
+            IntBlock resultA = result.getBlock(0);
+            assertThat(resultA.getInt(0), equalTo(7));
+            Block resultC = result.getBlock(2);
+            for (int i = 0; i < 3; i++) {
+                assertTrue("missing column c must be null at position " + i, resultC.isNull(i));
+            }
+        }
+    }
+
+    /**
+     * UBN scenario — reordered columns. File-local schema is [b, a]; unified is [a, b].
+     * ColumnMapping says a is at local index 1, b is at local index 0.
+     */
+    public void testUnionByNameReorderedColumns() {
+        List<Attribute> unified = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
+        // File emits [b, a]; mapping reorders to [a, b] for unified output.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
+
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("greetings"), 2);
+        IntBlock aBlock = blockFactory.newConstantIntBlockWith(99, 2);
+        Page inputPage = new Page(2, new Block[] { bBlock, aBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
+            Page result = iter.next();
+            assertThat(result.getBlockCount(), equalTo(2));
+            IntBlock resultA = result.getBlock(0);
+            assertThat(resultA.getInt(0), equalTo(99));
+            assertThat(resultA.getInt(1), equalTo(99));
+        }
+    }
+
+    /**
+     * UBN scenario — widening cast. File-local has a:INTEGER; unified has a:LONG.
+     * ColumnMapping casts INT → LONG.
+     */
+    public void testUnionByNameWideningIntToLong() {
+        List<Attribute> unified = List.of(attr("a", DataType.LONG));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG });
+
+        IntBlock aBlock = blockFactory.newConstantIntBlockWith(2_000_000_001, 2);
+        Page inputPage = new Page(2, new Block[] { aBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
+            Page result = iter.next();
+            LongBlock longA = result.getBlock(0);
+            assertThat(longA.getLong(0), equalTo(2_000_000_001L));
+            assertThat(longA.getLong(1), equalTo(2_000_000_001L));
+        }
+    }
+
+    /**
+     * UBN scenario — all three recipe operations in one file. File-local schema is [b, a_int];
+     * unified is [a:LONG, b:KEYWORD, c:KEYWORD]. Mapping reorders (a at local 1, b at local 0),
+     * widens (a INT → LONG), and null-fills (c missing).
+     */
+    public void testUnionByNameMixedReorderMissingAndWidening() {
+        List<Attribute> unified = List.of(attr("a", DataType.LONG), attr("b", DataType.KEYWORD), attr("c", DataType.KEYWORD));
+        // unified[0]=a → local 1 with cast to LONG; unified[1]=b → local 0, no cast; unified[2]=c → missing.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0, -1 }, new DataType[] { DataType.LONG, null, null });
+
+        Block bBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("x"), 2);
+        IntBlock aBlock = blockFactory.newConstantIntBlockWith(123_456, 2);
+        Page inputPage = new Page(2, new Block[] { bBlock, aBlock });
+
+        try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
+            Page result = iter.next();
+            assertThat(result.getBlockCount(), equalTo(3));
+            assertThat(result.getPositionCount(), equalTo(2));
+
+            // a widened from INT to LONG, reordered from local position 1 to unified position 0.
+            LongBlock resultA = result.getBlock(0);
+            assertThat(resultA.getLong(0), equalTo(123_456L));
+
+            // b kept as KEYWORD, reordered from local position 0 to unified position 1.
+            Block resultB = result.getBlock(1);
+            assertFalse(resultB.isNull(0));
+
+            // c missing from file, null-filled at unified position 2.
+            Block resultC = result.getBlock(2);
+            assertTrue(resultC.isNull(0));
+            assertTrue(resultC.isNull(1));
+        }
+    }
+
     public void testEmptyPage() {
         List<Attribute> unified = List.of(attr("a", DataType.INTEGER), attr("b", DataType.LONG));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 0, -1 }, null);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, -1 }, null);
 
         IntBlock emptyBlock = blockFactory.newConstantIntBlockWith(0, 0);
         Page inputPage = new Page(0, new Block[] { emptyBlock });
@@ -162,10 +265,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     public void testMemoryCleanupOnFailure() {
         List<Attribute> unified = List.of(attr("a", DataType.INTEGER), attr("b", DataType.LONG));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(
-            new int[] { 0, 1 },
-            new DataType[] { null, DataType.DATE_NANOS }
-        );
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.DATE_NANOS });
 
         IntBlock intBlock1 = blockFactory.newConstantIntBlockWith(1, 2);
         IntBlock intBlock2 = blockFactory.newConstantIntBlockWith(2, 2);
@@ -173,13 +273,13 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), unified, mapping, blockFactory)) {
             RuntimeException e = expectThrows(RuntimeException.class, iter::next);
-            assertThat(e.getMessage(), containsString("Failed to adapt page"));
+            assertThat(e.getMessage(), containsString("Failed to map page"));
         }
     }
 
     public void testCloseDelegation() {
         List<Attribute> unified = List.of(attr("a", DataType.INTEGER));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 0 }, null);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, null);
 
         AtomicBoolean closed = new AtomicBoolean(false);
         CloseableIterator<Page> delegate = new CloseableIterator<>() {
@@ -207,12 +307,12 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     /**
      * Mirrors production usage: full attributes include partition columns appended after
-     * data columns, but only the data prefix is passed to SchemaAdaptingIterator via
-     * {@code attributes.subList(0, mapping.columnCount())}.
+     * data columns, but only the data prefix is passed to SchemaAdaptingIterator (callers
+     * derive the data-attribute view from their own attribute list, not from the mapping).
      */
     public void testDataColumnSubListWithPartitionSuffix() {
         List<Attribute> dataColumns = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 1, 0 }, null);
+        ColumnMapping mapping = new ColumnMapping(new int[] { 1, 0 }, null);
 
         IntBlock idBlock = blockFactory.newConstantIntBlockWith(7, 2);
         Block nameBlock = blockFactory.newConstantBytesRefBlockWith(new org.apache.lucene.util.BytesRef("Alice"), 2);
@@ -223,7 +323,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
             attr("name", DataType.KEYWORD),
             attr("year", DataType.INTEGER)
         );
-        List<Attribute> subList = fullAttributes.subList(0, mapping.columnCount());
+        List<Attribute> subList = fullAttributes.subList(0, dataColumns.size());
         assertThat(subList.size(), equalTo(2));
 
         try (SchemaAdaptingIterator iter = new SchemaAdaptingIterator(singlePageIterator(inputPage), subList, mapping, blockFactory)) {
@@ -243,7 +343,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
      */
     public void testConstructorRejectsMismatchedSchemaSize() {
         List<Attribute> threeColumnSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD), attr("c", DataType.LONG));
-        SchemaReconciliation.ColumnMapping twoColumnMapping = new SchemaReconciliation.ColumnMapping(new int[] { 0, 1 }, null);
+        ColumnMapping twoColumnMapping = new ColumnMapping(new int[] { 0, 1 }, null);
 
         CloseableIterator<Page> emptyIter = new CloseableIterator<>() {
             @Override
@@ -264,7 +364,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new SchemaAdaptingIterator(emptyIter, threeColumnSchema, twoColumnMapping, blockFactory)
         );
-        assertThat(ex.getMessage(), containsString("Schema size [3] does not match mapping column count [2]"));
+        assertThat(ex.getMessage(), containsString("output schema size [3] does not match mapping width [2]"));
         assertThat(ex.getMessage(), containsString("partition columns"));
     }
 

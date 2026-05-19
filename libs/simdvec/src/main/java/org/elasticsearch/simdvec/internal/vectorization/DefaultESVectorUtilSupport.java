@@ -19,9 +19,9 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-import java.nio.ShortBuffer;
+import java.nio.ByteOrder;
 
-final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
+public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {
         if (Constants.HAS_FAST_SCALAR_FMA) {
@@ -31,26 +31,28 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    static void floatToBFloat16(float[] floats, ShortBuffer bFloats, int startOffset) {
-        for (int i = startOffset; i < floats.length; i++) {
-            bFloats.put(BFloat16Support.floatToBFloat16(floats[i]));
+    static void floatToBFloat16Impl(float[] floats, int floatOffset, byte[] bFloats, int bfloatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            arrayAccess.set(bFloats, i * Short.BYTES + bfloatOffset, BFloat16Support.floatToBFloat16(floats[i + floatOffset]));
         }
     }
 
-    static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats, int startOffset) {
-        for (int i = startOffset; i < floats.length; i++) {
-            floats[i] = BFloat16Support.bFloat16ToFloat(bFloats.get());
+    static void bFloat16ToFloatImpl(byte[] bFloats, int bfOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            floats[i + floatOffset] = BFloat16Support.bFloat16ToFloat((short) arrayAccess.get(bFloats, i * Short.BYTES + bfOffset));
         }
     }
 
     @Override
-    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        floatToBFloat16(floats, bFloats, 0);
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        floatToBFloat16Impl(floats, 0, bfBytes, 0, floatCount, byteOrder);
     }
 
     @Override
-    public void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
-        bFloat16ToFloat(bFloats, floats, 0);
+    public void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        bFloat16ToFloatImpl(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
     }
 
     @Override
@@ -84,14 +86,31 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return VectorUtil.dotProduct(a, b);
     }
 
-    @Override
-    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+    static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         float sum = 0f;
         for (float[] floats : query) {
             float max = Float.NEGATIVE_INFINITY;
             var vectorValues = source.vectorValues();
             while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
             }
             sum += max;
         }
@@ -100,12 +119,16 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         float sum = 0f;
-        for (float[] floats : query) {
+        for (byte[] bytes : query) {
             float max = Float.NEGATIVE_INFINITY;
             var vectorValues = source.vectorValues();
             while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+                max = Math.max(max, VectorUtil.dotProduct(bytes, vectorValues.next()));
             }
             sum += max;
         }
@@ -114,16 +137,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
-        float sum = 0f;
-        for (byte[] bytes : query) {
-            float max = Float.NEGATIVE_INFINITY;
-            var vectorValues = source.vectorValues();
-            while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(bytes, vectorValues.next()));
-            }
-            sum += max;
-        }
-        return sum;
+        return maxSimDotProductImpl(source, query, scoresScratch);
     }
 
     @Override

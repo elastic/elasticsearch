@@ -163,6 +163,7 @@ class DLMFrozenTransitionExecutor {
                 logger.debug("Starting transition for index [{}]", indexName);
                 task.run();
                 logger.debug("Transition completed for index [{}]", indexName);
+                transitionsMap.remove(indexName);
             } catch (DLMUnrecoverableException err) {
                 logger.debug(
                     "DLM encountered an unrecoverable error while converting [{}] "
@@ -175,14 +176,20 @@ class DLMFrozenTransitionExecutor {
                         task.getProjectId(),
                         task.getIndexName(),
                         ActionListener.wrap(
-                            resp -> logger.debug("DLM successfully unmarked index [{}] for frozen conversion", indexName),
-                            exception -> errorStore.recordAndLogError(
-                                task.getProjectId(),
-                                indexName,
-                                exception,
-                                Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
-                                frozenTransitionSettings.getErrorRetryInterval()
-                            )
+                            resp -> {
+                                logger.debug("DLM successfully unmarked index [{}] for frozen conversion", indexName);
+                                transitionsMap.remove(indexName);
+                            },
+                            exception -> {
+                                errorStore.recordAndLogError(
+                                    task.getProjectId(),
+                                    indexName,
+                                    exception,
+                                    Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
+                                    frozenTransitionSettings.getErrorRetryInterval()
+                                );
+                                transitionsMap.remove(indexName);
+                            }
                         )
                     ),
                     null
@@ -200,7 +207,6 @@ class DLMFrozenTransitionExecutor {
                         frozenTransitionSettings.getErrorRetryInterval()
                     );
                 }
-            } finally {
                 transitionsMap.remove(indexName);
             }
         }

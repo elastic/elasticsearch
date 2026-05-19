@@ -40,7 +40,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -142,7 +142,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Settings settings,
         TransportVersion version,
         ThreadPool threadPool,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService
@@ -358,7 +358,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return connectionProfile;
     }
 
-    protected Recycler<BytesRef> createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
+    protected Recycler<BytesRef> createRecycler(Settings settings, PageRecycler pageCacheRecycler) {
         return new BytesRefRecycler(pageCacheRecycler);
     }
 

@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpInfo;
@@ -94,7 +94,7 @@ public class NetworkModuleTests extends ESTestCase {
             public Map<String, Supplier<Transport>> getTransports(
                 Settings settings,
                 ThreadPool threadPool,
-                PageCacheRecycler pageCacheRecycler,
+                PageRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService
@@ -119,7 +119,7 @@ public class NetworkModuleTests extends ESTestCase {
                 Settings settings,
                 ThreadPool threadPool,
                 BigArrays bigArrays,
-                PageCacheRecycler pageCacheRecycler,
+                PageRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
@@ -153,7 +153,7 @@ public class NetworkModuleTests extends ESTestCase {
             public Map<String, Supplier<Transport>> getTransports(
                 Settings settings,
                 ThreadPool threadPool,
-                PageCacheRecycler pageCacheRecycler,
+                PageRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService
@@ -166,7 +166,7 @@ public class NetworkModuleTests extends ESTestCase {
                 Settings settings,
                 ThreadPool threadPool,
                 BigArrays bigArrays,
-                PageCacheRecycler pageCacheRecycler,
+                PageRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
@@ -198,7 +198,7 @@ public class NetworkModuleTests extends ESTestCase {
             public Map<String, Supplier<Transport>> getTransports(
                 Settings settings,
                 ThreadPool threadPool,
-                PageCacheRecycler pageCacheRecycler,
+                PageRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
                 NetworkService networkService
@@ -211,7 +211,7 @@ public class NetworkModuleTests extends ESTestCase {
                 Settings settings,
                 ThreadPool threadPool,
                 BigArrays bigArrays,
-                PageCacheRecycler pageCacheRecycler,
+                PageRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,

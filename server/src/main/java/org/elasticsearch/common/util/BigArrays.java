@@ -478,7 +478,7 @@ public class BigArrays {
     }
 
     @Nullable
-    final PageCacheRecycler recycler;
+    final PageRecycler recycler;
     final BytesRefRecycler bytesRefRecycler;
     @Nullable
     private final CircuitBreakerService breakerService;
@@ -488,13 +488,13 @@ public class BigArrays {
     private final BigArrays circuitBreakingInstance;
     private final String breakerName;
 
-    public BigArrays(@Nullable PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
+    public BigArrays(@Nullable PageRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
         // Checking the breaker is disabled if not specified
         this(recycler, breakerService, breakerName, false);
     }
 
     protected BigArrays(
-        @Nullable PageCacheRecycler recycler,
+        @Nullable PageRecycler recycler,
         @Nullable final CircuitBreakerService breakerService,
         String breakerName,
         boolean checkBreaker
@@ -604,7 +604,7 @@ public class BigArrays {
     }
 
     /** Returns the page cache recycler, may be null */
-    public PageCacheRecycler recycler() {
+    public PageRecycler recycler() {
         return recycler;
     }
 

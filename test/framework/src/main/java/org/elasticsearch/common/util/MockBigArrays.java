@@ -83,7 +83,7 @@ public class MockBigArrays extends BigArrays {
     private static final Logger logger = LogManager.getLogger(MockBigArrays.class);
 
     /**
-     * Error message thrown by {@link BigArrays} produced with {@link MockBigArrays#MockBigArrays(PageCacheRecycler, ByteSizeValue)}.
+     * Error message thrown by {@link BigArrays} produced with {@link MockBigArrays#MockBigArrays(PageRecycler, ByteSizeValue)}.
      */
     public static final String ERROR_MESSAGE = "over test limit";
 
@@ -170,14 +170,14 @@ public class MockBigArrays extends BigArrays {
     /**
      * Create {@linkplain BigArrays} with a configured limit.
      */
-    public MockBigArrays(PageCacheRecycler recycler, ByteSizeValue limit) {
+    public MockBigArrays(PageRecycler recycler, ByteSizeValue limit) {
         this(recycler, LimitedBreaker.service(CircuitBreaker.REQUEST, limit), true);
     }
 
     /**
      * Create {@linkplain BigArrays} with a provided breaker service. The breaker is not enable by default.
      */
-    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
+    public MockBigArrays(PageRecycler recycler, CircuitBreakerService breakerService) {
         this(recycler, breakerService, false);
     }
 
@@ -185,7 +185,7 @@ public class MockBigArrays extends BigArrays {
      * Create {@linkplain BigArrays} with a provided breaker service. The breaker can be enabled with the
      * {@code checkBreaker} flag.
      */
-    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+    public MockBigArrays(PageRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
         super(MockPageCacheRecycler.wrap(recycler), breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.breakerService = breakerService;
         final CircuitBreaker breaker = breakerService == null ? null : breakerService.getBreaker(CircuitBreaker.REQUEST);

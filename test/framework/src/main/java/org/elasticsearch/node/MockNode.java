@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -98,11 +99,7 @@ public class MockNode extends Node {
         }
 
         @Override
-        BigArrays newBigArrays(
-            PluginsService pluginsService,
-            PageCacheRecycler pageCacheRecycler,
-            CircuitBreakerService circuitBreakerService
-        ) {
+        BigArrays newBigArrays(PluginsService pluginsService, PageRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
             if (pluginsService.filterPlugins(NodeMocksPlugin.class).findAny().isEmpty()) {
                 return super.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
             }
@@ -110,11 +107,11 @@ public class MockNode extends Node {
         }
 
         @Override
-        PageCacheRecycler newPageCacheRecycler(PluginsService pluginsService, Settings settings) {
+        PageRecycler newPageCacheRecycler(PluginsService pluginsService, Settings settings) {
             if (pluginsService.filterPlugins(NodeMocksPlugin.class).findAny().isEmpty()) {
                 return super.newPageCacheRecycler(pluginsService, settings);
             }
-            return new MockPageCacheRecycler(settings);
+            return MockPageCacheRecycler.wrap(new PageCacheRecycler(settings));
         }
 
         @Override

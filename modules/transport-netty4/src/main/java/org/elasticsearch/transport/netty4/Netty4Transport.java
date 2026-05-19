@@ -35,7 +35,7 @@ import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
@@ -86,7 +86,7 @@ public class Netty4Transport extends TcpTransport {
         TransportVersion version,
         ThreadPool threadPool,
         NetworkService networkService,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         NamedWriteableRegistry namedWriteableRegistry,
         CircuitBreakerService circuitBreakerService,
         SharedGroupFactory sharedGroupFactory
@@ -113,7 +113,7 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected Recycler<BytesRef> createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
+    protected Recycler<BytesRef> createRecycler(Settings settings, PageRecycler pageCacheRecycler) {
         return Netty4Utils.createRecycler(settings);
     }
 

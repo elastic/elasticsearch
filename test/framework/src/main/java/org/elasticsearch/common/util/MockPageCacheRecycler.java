@@ -22,15 +22,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-/// A [PageCacheRecycler] wrapper for tests that delegates all page allocations to an inner
-/// [PageCacheRecycler] and adds two test-time safeguards on top:
+/// A [PageRecycler] wrapper for tests that delegates all page allocations to an inner
+/// [PageRecycler] and adds two test-time safeguards on top:
 ///
 /// - Leak tracking: every outstanding page is recorded in a static set so that [#ensureAllPagesAreReleased] can detect
 ///   unreleased pages synchronously at teardown, without relying on garbage collection. This mirrors the
 ///   `ACQUIRED_ARRAYS` pattern in [MockBigArrays].
 /// - Double-release detection: closing a page twice throws [IllegalStateException].
 ///
-public class MockPageCacheRecycler extends PageCacheRecycler {
+public class MockPageCacheRecycler implements PageRecycler {
 
     private static final Set<Object> ACQUIRED_PAGES = ConcurrentHashMap.newKeySet();
 
@@ -48,12 +48,12 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         }
     }
 
-    private final PageCacheRecycler delegate;
+    private final PageRecycler delegate;
     private final Random random;
 
     /// Returns `recycler` unchanged if it is already a [MockPageCacheRecycler]; otherwise wraps
     /// it so that every page allocation is tracked and double-releases are caught.
-    public static MockPageCacheRecycler wrap(PageCacheRecycler recycler) {
+    public static MockPageCacheRecycler wrap(PageRecycler recycler) {
         return recycler instanceof MockPageCacheRecycler mock ? mock : new MockPageCacheRecycler(recycler);
     }
 
@@ -61,11 +61,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         this(new PageCacheRecycler(settings));
     }
 
-    private MockPageCacheRecycler(PageCacheRecycler delegate) {
-        // Initialize the superclass with a zero-capacity recycler. All page operations are
-        // forwarded to `delegate` via the overridden bytePage / objectPage methods.
-        // TODO: extract PageCacheRecycler in its own interface
-        super(Settings.builder().put(PageCacheRecycler.LIMIT_HEAP_SETTING.getKey(), "0%").build());
+    private MockPageCacheRecycler(PageRecycler delegate) {
         this.delegate = delegate;
         // we always initialize with 0 here since we really only wanna have some random bytes / ints / longs
         // and given the fact that it's called concurrently it won't reproduces anyway the same order other than in a unittest

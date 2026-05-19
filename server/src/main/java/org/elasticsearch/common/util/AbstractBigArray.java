@@ -22,7 +22,7 @@ import java.util.Arrays;
 abstract class AbstractBigArray extends AbstractArray {
 
     @Nullable
-    protected final PageCacheRecycler recycler;
+    protected final PageRecycler recycler;
     private Recycler.V<?>[] cache;
 
     private final int pageShift;

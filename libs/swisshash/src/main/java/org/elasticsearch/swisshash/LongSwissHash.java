@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -104,7 +105,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
     private BigCore bigCore;
     private final List<Releasable> toClose = new ArrayList<>();
 
-    LongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
+    LongSwissHash(PageRecycler recycler, CircuitBreaker breaker) {
         super(recycler, breaker, INITIAL_CAPACITY, LongSwissHash.SmallCore.FILL_FACTOR);
         boolean success = false;
         try {

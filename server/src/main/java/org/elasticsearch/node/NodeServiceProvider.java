@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -116,15 +117,11 @@ class NodeServiceProvider {
         return service;
     }
 
-    PageCacheRecycler newPageCacheRecycler(PluginsService pluginsService, Settings settings) {
+    PageRecycler newPageCacheRecycler(PluginsService pluginsService, Settings settings) {
         return new PageCacheRecycler(settings);
     }
 
-    BigArrays newBigArrays(
-        PluginsService pluginsService,
-        PageCacheRecycler pageCacheRecycler,
-        CircuitBreakerService circuitBreakerService
-    ) {
+    BigArrays newBigArrays(PluginsService pluginsService, PageRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -181,7 +182,7 @@ public class BytesBuilderBenchmark {
         private final PagedBytesCursor scratch = new PagedBytesCursor();
         private final PagedBytesCursor sliceScratch = new PagedBytesCursor();
 
-        Paged(PageCacheRecycler recycler, NoopCircuitBreaker breaker, int initialCapacity) {
+        Paged(PageRecycler recycler, NoopCircuitBreaker breaker, int initialCapacity) {
             builder = new PagedBytesBuilder(recycler, breaker, "benchmark", initialCapacity);
         }
 

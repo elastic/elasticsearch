@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,7 +34,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
-    private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+    private final PageRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
     public void testBreakOnBuild() {
         String label = randomAlphaOfLength(4);

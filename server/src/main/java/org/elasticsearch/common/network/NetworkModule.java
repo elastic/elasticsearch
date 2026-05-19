@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.http.HttpPreRequest;
@@ -122,7 +122,7 @@ public final class NetworkModule {
         List<NetworkPlugin> plugins,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NamedXContentRegistry xContentRegistry,

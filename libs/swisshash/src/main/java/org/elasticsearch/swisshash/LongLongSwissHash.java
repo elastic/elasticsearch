@@ -18,6 +18,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -82,11 +83,11 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     private final int bulkThreshold;
     private final List<Releasable> toClose = new ArrayList<>();
 
-    LongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
+    LongLongSwissHash(PageRecycler recycler, CircuitBreaker breaker) {
         this(recycler, breaker, DEFAULT_BULK_THRESHOLD);
     }
 
-    LongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, int bulkThreshold) {
+    LongLongSwissHash(PageRecycler recycler, CircuitBreaker breaker, int bulkThreshold) {
         super(recycler, breaker, INITIAL_CAPACITY, LongSwissHash.SmallCore.FILL_FACTOR);
         this.bulkThreshold = bulkThreshold;
         boolean success = false;

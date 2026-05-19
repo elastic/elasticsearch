@@ -12,6 +12,7 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 
 public class BytesRefRecycler implements Recycler<BytesRef> {
 
@@ -22,9 +23,9 @@ public class BytesRefRecycler implements Recycler<BytesRef> {
     // TODO move to test framework?
     public static final BytesRefRecycler NON_RECYCLING_INSTANCE = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
-    private final PageCacheRecycler recycler;
+    private final PageRecycler recycler;
 
-    public BytesRefRecycler(PageCacheRecycler recycler) {
+    public BytesRefRecycler(PageRecycler recycler) {
         this.recycler = recycler;
     }
 

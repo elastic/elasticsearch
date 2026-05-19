@@ -13,7 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,7 +34,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
         final TransportVersion version,
         final ThreadPool threadPool,
         final NetworkService networkService,
-        final PageCacheRecycler pageCacheRecycler,
+        final PageRecycler pageCacheRecycler,
         final NamedWriteableRegistry namedWriteableRegistry,
         final CircuitBreakerService circuitBreakerService,
         @Nullable final IPFilter authenticator,

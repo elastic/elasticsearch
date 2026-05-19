@@ -57,14 +57,11 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
         this.clusterService.getMasterService().setClusterStatePublisher((event, publishListener, ackListener) -> {
             ClusterServiceUtils.setAllElapsedMillis(event);
             ackListener.onCommit(TimeValue.ZERO);
-            clusterService.getClusterApplierService().onNewClusterState(
-                "mock_publish_to_self[" + event.getSummary() + "]",
-                event::getNewState,
-                ActionListener.wrap(ignored -> {
+            clusterService.getClusterApplierService()
+                .onNewClusterState("mock_publish_to_self[" + event.getSummary() + "]", event::getNewState, ActionListener.wrap(ignored -> {
                     ackListener.onNodeAck(event.getNewState().nodes().getLocalNode(), null);
                     publishListener.onResponse(null);
-                }, publishListener::onFailure)
-            );
+                }, publishListener::onFailure));
         });
         this.transitionSettings = DLMFrozenTransitionSettings.create(clusterService);
     }

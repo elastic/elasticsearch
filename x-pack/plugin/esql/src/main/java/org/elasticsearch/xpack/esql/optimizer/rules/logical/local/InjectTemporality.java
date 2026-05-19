@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -23,13 +25,26 @@ public final class InjectTemporality extends OptimizerRules.OptimizerRule<TimeSe
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate tsAgg) {
         TimeSeriesAggregate transformed;
-        transformed = (TimeSeriesAggregate) tsAgg.transformExpressionsOnly(AggregateFunction.class, agg -> {
+        transformed = replaceMergeWithMergeOverTime(tsAgg);
+        transformed = (TimeSeriesAggregate) transformed.transformExpressionsOnly(AggregateFunction.class, agg -> {
             if (agg instanceof TemporalityAware temporalityAware && temporalityAware.temporality() == null) {
                 return temporalityAware.withTemporality(new TemporalityAttribute(agg.source()));
             }
             return agg;
         });
         return injectTemporalityAttributesIntoEsRelation(transformed);
+    }
+
+    // Replaces HistogramMerge in timeseries aggregations with merge_over_time which loads the temporality column
+    // and ignores non-delta temporalities with a warning
+    // This is done in local planning for backwards compatibility: Older versions would use HistogramMerge as the
+    // per-time series aggregation. As we might be running in a CCS scenario where the older node still does this
+    // we have to fix it in local planning here
+    private TimeSeriesAggregate replaceMergeWithMergeOverTime(TimeSeriesAggregate tsAgg) {
+        return (TimeSeriesAggregate) tsAgg.transformExpressionsOnly(
+            HistogramMerge.class,
+            agg -> new DeltaOnlyHistogramMergeOverTime(agg.source(), agg.field(), agg.filter(), agg.window())
+        );
     }
 
     private static TimeSeriesAggregate injectTemporalityAttributesIntoEsRelation(TimeSeriesAggregate tsAgg) {

@@ -163,7 +163,8 @@ final class CanMatchPreFilterSearchPhase {
         boolean includeSkippedShardsInIterators
     ) {
         if (shardsIts.isEmpty()) {
-            return SubscribableListener.newSucceeded(new CanMatchResult(Collections.emptyList(), Collections.emptyMap()));
+            // Must be mutable: callers fold per-cluster skip counts into this map via Map#merge.
+            return SubscribableListener.newSucceeded(new CanMatchResult(Collections.emptyList(), new HashMap<>()));
         }
         final SubscribableListener<CanMatchResult> listener = new SubscribableListener<>();
         long phaseStartTimeInNanos = System.nanoTime();

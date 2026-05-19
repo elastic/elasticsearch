@@ -289,7 +289,7 @@ public class ViewResolver {
         ActionListener<LogicalPlan> listener
     ) {
         // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
-        var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
+        var patterns = Arrays.stream(patterns(unresolvedRelation))
             .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.contains(pattern) == false)
             .toArray(String[]::new);
         if (patterns.length == 0) {
@@ -311,7 +311,7 @@ public class ViewResolver {
         // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
         // the resolver behaves as if shadows are simply not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
-        String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
+        String[] urPatterns = patterns(unresolvedRelation);
 
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
@@ -689,8 +689,17 @@ public class ViewResolver {
 
     /** Merge the unresolved relation unless the index patterns contain matching index names. */
     private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
-        for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
-            for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
+        var mainPatterns = patterns(main);
+        var otherPatterns = patterns(other);
+
+        // can not merge if any contains exclusion. This risk expanding scope of exclusion to unrelated pattern
+        if (patternsContainsExclusion(mainPatterns) || patternsContainsExclusion(otherPatterns)) {
+            return null;
+        }
+
+        // can not merge if same expression is present in both patterns as it would be deduplicated by FieldCaps in the final result set
+        for (String mainPattern : mainPatterns) {
+            for (String otherPattern : otherPatterns) {
                 if (mainPattern.equals(otherPattern)) {
                     return null;
                 }
@@ -749,7 +758,7 @@ public class ViewResolver {
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
         LogicalPlan subquery = parser.apply(view.query(), view.name());
-        if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
+        if (subquery instanceof UnresolvedRelation ur && patternsContainsExclusion(patterns(ur)) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
             // together and avoid branched plans. But exclusion patterns must stay scoped to the
             // view body — a bare UnresolvedRelation with an exclusion that gets merged with sibling
@@ -764,12 +773,16 @@ public class ViewResolver {
         }
     }
 
-    private static boolean containsExclusion(UnresolvedRelation ur) {
-        for (String pattern : ur.indexPattern().indexPattern().split(",")) {
+    private static boolean patternsContainsExclusion(String[] patterns) {
+        for (String pattern : patterns) {
             if (patternIsExclusion(pattern)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static String[] patterns(UnresolvedRelation ur) {
+        return ur.indexPattern().indexPattern().split(",");
     }
 }

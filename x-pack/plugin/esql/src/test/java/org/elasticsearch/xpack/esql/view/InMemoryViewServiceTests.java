@@ -376,6 +376,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*,-donotexist")));
     }
 
+    public void testPositionalExclusion() {
+        addIndex("data-ll");
+        addIndex("data-rr");
+        addView("data-l", "FROM index-l");
+        addView("data-r", "FROM index-r");
+        LogicalPlan plan = query("FROM -*l,data-*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-l,index-r),(FROM -*l,data-*)")));
+    }
+
     public void testFailureSelector() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");

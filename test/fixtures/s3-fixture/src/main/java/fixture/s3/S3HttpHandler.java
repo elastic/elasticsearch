@@ -57,7 +57,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
+import static org.hamcrest.Matchers.oneOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -329,6 +331,13 @@ public class S3HttpHandler implements HttpHandler {
                     );
 
                     if (updateResponseCode == RestStatus.OK) {
+                        assertThat(
+                            exchange.getRequestHeaders().getFirst("x-amz-content-sha256"),
+                            oneOf(
+                                "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
+                                MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))
+                            )
+                        );
                         exchange.getResponseHeaders().add("ETag", blob.v1());
                     }
                     exchange.sendResponseHeaders(updateResponseCode.getStatus(), -1);

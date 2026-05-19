@@ -611,6 +611,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     @Override
+    public boolean supportsWholeFileCompression() {
+        return false;
+    }
+
+    @Override
     public String formatName() {
         return FormatNameResolver.FORMAT_PARQUET;
     }

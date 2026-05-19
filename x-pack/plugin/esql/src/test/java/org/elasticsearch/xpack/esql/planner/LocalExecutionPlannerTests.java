@@ -485,6 +485,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ByteSizeValue.ofMb(1),
             10_000,
             ByteSizeValue.ofMb(1),
+            false,
             between(1, 10000),
             randomDoubleBetween(0.1, 1.0, true),
             between(0, 1000),

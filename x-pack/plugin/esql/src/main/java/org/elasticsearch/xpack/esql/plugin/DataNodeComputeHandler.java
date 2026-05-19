@@ -120,6 +120,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
         Runnable runOnTaskFailure,
+        RemoteFetchService.TrackedSessions remoteFetchSessions,
         ActionListener<ComputeResponse> outListener
     ) {
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
@@ -196,6 +197,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .equals(connection.getNode().getId());
                             boolean enableReduceNodeLateMaterialization = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION
                                 .isEnabled();
+                            boolean supportsRetainedSearchContexts = connection.getTransportVersion()
+                                .supports(DataNodeRequest.ESQL_REMOTE_FETCH_RETAINED_CONTEXTS);
+                            boolean retainSearchContexts = remoteFetchSessions != null
+                                && computeService.plannerSettings().get().remoteFetchLateMaterialization()
+                                && supportsRetainedSearchContexts;
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -210,8 +216,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                false
+                                retainSearchContexts
                             );
+                            if (retainSearchContexts) {
+                                remoteFetchSessions.track(connection.getNode(), nodeReduceSessionId(childSessionId));
+                            }
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -787,6 +796,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 plan,
                 request.runNodeLevelReduction(),
                 request.reductionLateMaterialization(),
+                request.retainSearchContexts(),
                 planTimeProfile
             );
         } else {

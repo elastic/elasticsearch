@@ -323,6 +323,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     originalIndices,
                     exchangeSource,
                     cancelQueryOnFailure,
+                    null,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
                         return r.getCompletionInfo();

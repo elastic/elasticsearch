@@ -184,6 +184,33 @@ public class SplitDeltaStorageComparisonTests extends ESTestCase {
         }
     }
 
+    public void testBoundaryPositionSweep() throws IOException {
+        final long[] expectedMaxSplitDelta = { 19, 20, 20, 20 };
+        final long[] expectedTrailingSize = { 186, 714, 1546, 3082 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int blockSize = BLOCK_SIZES[i];
+            long maxSplitDelta = 0;
+            for (int split = 2; split < blockSize - 1; split++) {
+                final long[] values = tsdbBoundaryBlock(blockSize, split);
+                final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
+                final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
+                assertTrue(
+                    "SplitDelta must beat baseline at split=" + split + " bs=" + blockSize + " (splitDelta=" + splitDeltaSize + ", delta="
+                        + deltaSize + ")",
+                    splitDeltaSize < deltaSize
+                );
+                maxSplitDelta = Math.max(maxSplitDelta, splitDeltaSize);
+            }
+            assertEquals("max SplitDelta size across sweep (bs=" + blockSize + ")", expectedMaxSplitDelta[i], maxSplitDelta);
+
+            final long[] trailing = tsdbBoundaryBlock(blockSize, blockSize - 1);
+            final long trailingSplitDelta = encodeBlockSize(splitDeltaPipeline(blockSize), trailing);
+            final long trailingDelta = encodeBlockSize(deltaPipeline(blockSize), trailing);
+            assertEquals(expectedTrailingSize[i], trailingSplitDelta);
+            assertEquals("trailing flip must skip and match baseline (bs=" + blockSize + ")", trailingDelta, trailingSplitDelta);
+        }
+    }
+
     private static PipelineConfig deltaPipeline(int blockSize) {
         return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
     }

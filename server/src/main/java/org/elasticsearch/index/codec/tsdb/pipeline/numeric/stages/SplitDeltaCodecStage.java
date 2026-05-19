@@ -209,8 +209,11 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
 
     // NOTE: Direction changes are committed lazily so the canonical TSDB pattern
     // [desc, ..., UP, desc, ...] resolves to one split (the UP value joins the next
-    // sub-run) instead of two splits around a length-1 middle sub-run. Without this,
-    // every _tsid boundary would double its per-block metadata and trip hasShortSubRun.
+    // sub-run) instead of two splits around a middle sub-run of length 1. A flip
+    // pending at the end of the loop is committed too, otherwise a trailing _tsid
+    // transition would silently stay inside the last sub-run and poison the bit-pack
+    // width. hasShortSubRun then catches the case where committing leaves a tail of
+    // length 1 and rejects the block back to the baseline pipeline.
     private int countFlips(final long[] values, final int valueCount) {
         int k = 0;
         int prev = 0;
@@ -243,18 +246,44 @@ public final class SplitDeltaCodecStage implements NumericCodecStage {
             pendingFlip = -1;
             pendingDir = 0;
         }
+        // TODO: Consider preserving SplitDelta on blocks that have a single anomalous
+        // value (e.g., a trailing flip on the last value, or a one-off outlier inside
+        // an otherwise monotonic run). Today such blocks fall through to the rest of
+        // the pipeline because hasShortSubRun rejects the length 1 tail, losing the
+        // SplitDelta storage win on that block. One viable mechanism: replace the
+        // anomalous value with its neighbor at encode time (so its delta is small)
+        // and store the original as a literal. This could be flagged compactly by
+        // reusing the sign of the split index (ZInt) to distinguish "normal split"
+        // from "literal replacement at this position". Very unlikely in practice for
+        // the trailing case (a _tsid transition would have to land exactly on the
+        // last value of a block). Left as an idea for a follow-up.
+        if (pendingFlip > 0) {
+            if (k == kMax) {
+                return -1;
+            }
+            splits[k++] = pendingFlip;
+        }
         return k;
     }
 
+    // NOTE: countFlips guarantees consecutive splits are at least two values apart,
+    // so only the trailing sub-run can degenerate to length one. The assert pins
+    // the internal invariant against any future change to countFlips.
     private boolean hasShortSubRun(final int k, final int valueCount) {
+        assert k > 0 : "hasShortSubRun called with k=" + k;
+        assert internalSubRunsAreAtLeastTwo(k) : "internal sub-runs must be at least two values long, k=" + k;
+        return valueCount - splits[k - 1] < 2;
+    }
+
+    private boolean internalSubRunsAreAtLeastTwo(final int k) {
         int prevEnd = 0;
         for (int j = 0; j < k; j++) {
             if (splits[j] - prevEnd < 2) {
-                return true;
+                return false;
             }
             prevEnd = splits[j];
         }
-        return valueCount - prevEnd < 2;
+        return true;
     }
 
     private void deltaEncodeSubRun(final long[] values, int lo, int hi, int j) {

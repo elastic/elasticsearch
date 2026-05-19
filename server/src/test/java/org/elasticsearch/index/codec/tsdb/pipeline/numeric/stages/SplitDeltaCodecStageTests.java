@@ -213,6 +213,41 @@ public class SplitDeltaCodecStageTests extends AbstractTransformStageTestCase {
         assertMultiBlockTransformRoundTrip(defaultStage(), blocks);
     }
 
+    public void testFlipPositionSweepRoundTrip() throws IOException {
+        final int blockSize = 128;
+        for (int p = 2; p < blockSize - 1; p++) {
+            final long[] values = blockWithFlipAt(blockSize, p);
+            assertTransformRoundTrip(defaultStage(), values);
+        }
+        final long[] trailing = blockWithFlipAt(blockSize, blockSize - 1);
+        assertStageSkipped(defaultStage(), trailing, blockSize);
+    }
+
+    public void testTrailingFlipAfterMidFlipSkips() {
+        final long[] values = { 3L, 2L, 1L, 0L, 6L, 5L, 4L, 999L };
+        assertStageSkipped(defaultStage(), values, values.length);
+    }
+
+    public void testKMaxFlipsWithTrailingFlipDeclines() {
+        final int blockSize = 128;
+        final long[] values = piecewiseDescending(blockSize, StageSpec.SplitDeltaStage.DEFAULT_K_MAX);
+        values[blockSize - 1] = values[blockSize - 2] + 999_999_999L;
+        assertStageSkipped(defaultStage(), values, blockSize);
+    }
+
+    private static long[] blockWithFlipAt(final int blockSize, final int flipPosition) {
+        final long[] values = new long[blockSize];
+        final long anchorA = 1_000_000_000L;
+        final long anchorB = 2_000_000_000L;
+        for (int i = 0; i < flipPosition; i++) {
+            values[i] = anchorA - i;
+        }
+        for (int i = flipPosition; i < blockSize; i++) {
+            values[i] = anchorB - (i - flipPosition);
+        }
+        return values;
+    }
+
     public void testPartialBlockRoundTrip() throws IOException {
         final int blockSize = 128;
         final int count = randomIntBetween(8, blockSize - 1);

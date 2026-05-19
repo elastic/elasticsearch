@@ -24,10 +24,10 @@ Use when you want to run flakiness detection against a hand-picked list of class
 
 Build environment variables:
 
-| Variable | Required | Description |
-|---|---|---|
-| `FLAKINESS_CLASSES` | yes | Newline- or comma-separated list of FQCNs. Each spec is one of: `org.foo.BarTests` (whole class), `org.foo.BarTests.testFoo` (resolves to class — method-level filtering deferred), or `org.foo.YamlIT.test {yaml=/10_apm/Test name}` (specific yaml case). |
-| `FLAKINESS_ITERS` | no | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-rest-test.sh` loop count. Defaults: 100 / 20 / 10 respectively. |
+| Variable            | Required | Description                                                                                                                                                                                                                                                 |
+|---------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `FLAKINESS_CLASSES` | yes      | Newline- or comma-separated list of FQCNs. Each spec is one of: `org.foo.BarTests` (whole class), `org.foo.BarTests.testFoo` (resolves to class — method-level filtering deferred), or `org.foo.YamlIT.test {yaml=/10_apm/Test name}` (specific yaml case). |
+| `FLAKINESS_ITERS`   | no       | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-rest-test.sh` loop count. Defaults: 100 / 20 / 10 respectively.                                                                                              |
 
 Driver: `entrypoints/manual.ts` invoked from `.buildkite/pipelines/flakiness-detection-manual.yml`. Pipeline registered in `catalog-info.yaml`.
 
@@ -65,11 +65,11 @@ Four modules form a one-way pipeline. Each module owns a single responsibility a
 
 Each detector takes an input shape specific to its trigger and emits `ClassifiedTest[]` plus an optional list of unresolvable inputs. All three are pure functions of their inputs (no I/O); the calling entrypoint reads files / runs git and passes strings in.
 
-| File | Input | Used by |
-|---|---|---|
-| `detectors/changed-files.ts` | List of file paths (typically from `git diff --name-only`) | `entrypoints/pr.ts` |
-| `detectors/unmutes.ts` | Old + new `muted-tests.yml` text + tracked repo files | `entrypoints/pr.ts` |
-| `detectors/explicit-list.ts` | Array of spec strings | `entrypoints/manual.ts`, `entrypoints/local.ts` |
+| File                         | Input                                                      | Used by                                         |
+|------------------------------|------------------------------------------------------------|-------------------------------------------------|
+| `detectors/changed-files.ts` | List of file paths (typically from `git diff --name-only`) | `entrypoints/pr.ts`                             |
+| `detectors/unmutes.ts`       | Old + new `muted-tests.yml` text + tracked repo files      | `entrypoints/pr.ts`                             |
+| `detectors/explicit-list.ts` | Array of spec strings                                      | `entrypoints/manual.ts`, `entrypoints/local.ts` |
 
 A `ClassifiedTest` (defined in `domain.ts`) carries the gradle project, the source set, the test kind, and the targeting hint (FQCN, yaml suite path, or parameterised case descriptor).
 
@@ -97,10 +97,10 @@ Two implementations, one contract — both consume `RunnableCommand[]`:
 
 Runs **after** the batches complete. Reads JUnit XML written by Gradle (`*/build/test-results/*/TEST-*.xml`), classifies each failure entry, and aggregates per `(class, method)` summaries.
 
-| File | Responsibility |
-|---|---|
+| File                  | Responsibility                                                                                                                                                                                    |
+|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `analyzer/analyze.ts` | Walk the workspace for JUnit XML, parse via `fast-xml-parser`, classify failures, produce `FlakinessReport`. Pure; takes an optional `minMtimeMs` to skip pre-existing reports during local runs. |
-| `analyzer/render.ts` | `FlakinessReport → markdown`. `severity()` derives the Buildkite annotation style. |
+| `analyzer/render.ts`  | `FlakinessReport → markdown`. `severity()` derives the Buildkite annotation style.                                                                                                                |
 
 Failure classification (`classifyFailure`):
 
@@ -110,19 +110,6 @@ Failure classification (`classifyFailure`):
 - `"other"` — everything else.
 
 This mirrors the failure shapes randomised-runner emits when `@TimeoutSuite` fires.
-
-## Target switching (CI vs local)
-
-`BatchingConfig.target` controls whether `generateBatchCommand` emits the BK-agent wrapper or a direct gradle invocation:
-
-| Target | Gradle wrapper |
-|---|---|
-| `"buildkite"` (default) | `.ci/scripts/run-gradle.sh ...` — copies `init.gradle`, computes `MAX_WORKERS`, reads `ldd` version. Linux/BK-agent only. |
-| `"local"` | `./gradlew ...` — direct invocation, portable. |
-
-The `.ci/scripts/repeat-rest-test.sh` loop wrapper is portable bash and is used for both targets.
-
-`entrypoints/local.ts` sets `target: "local"` in its config; the other entrypoints inherit `"buildkite"` from `DEFAULT_BATCHING_CONFIG`.
 
 ## File layout
 
@@ -149,9 +136,3 @@ flakiness-detection/
 ```
 
 Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && bun test scripts/flakiness-detection`.
-
-## Extending the package
-
-- **New input source** (e.g. "tests from a Jira ticket"): add a new file under `detectors/`, take the source-specific input, return `{ located: ClassifiedTest[]; unlocated: ... }`. Wire it into a new or existing entrypoint.
-- **New execution target** (e.g. a different CI provider): add a new file under `runners/`, consume `RunnableCommand[]`. The command-creator stays unchanged. You may also want a new value for `BatchingConfig.target` if the gradle wrapper differs.
-- **Tune defaults**: edit `DEFAULT_BATCHING_CONFIG` and `DEFAULT_AGENT_CONFIG` in `domain.ts`. Each entrypoint can spread+override these for its own context (see `entrypoints/local.ts` for the pattern).

@@ -29,7 +29,7 @@ export function run(): void {
   if (unlocated.length > 0) {
     console.error(`Could not resolve ${unlocated.length} spec(s) to a source file:`);
     for (const u of unlocated) console.error(`  - ${u.spec}`);
-    process.exit(1); // fail-fast on typos (per design)
+    process.exit(1); // fail-fast on typos
   }
 
   const itersRaw = process.env.FLAKINESS_ITERS;

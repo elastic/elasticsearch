@@ -49,6 +49,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchIdleIT extends ESSingleNodeTestCase {
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        // because checkSearchIdleBoolQueryMatchOneIndex(...) creates a tsdb index
+        return false;
+    }
+
     public void testAutomaticRefreshSearch() throws InterruptedException {
         runTestAutomaticRefresh(numDocs -> SearchResponseUtils.getTotalHitsValue(client().prepareSearch("test")));
     }

@@ -485,7 +485,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .setPatterns(Collections.singletonList("*"))
                 .setOrder(0)
                 .setSettings(randomSettingsBuilder);
-            useColumnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomlyUseColumnarId() && randomBoolean();
+            useColumnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled()
+                && isSuiteScopedTest(getTestClass()) == false // requires more logic to handle suite scoped tests
+                && randomlyUseColumnarId()
+                && randomBoolean();
             if (useColumnarId) {
                 putTemplate.setMapping("""
                      {

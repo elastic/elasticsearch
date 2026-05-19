@@ -310,6 +310,9 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
             }
             """;
         var expectedMapping = XContentHelper.convertToMap(JsonXContent.jsonXContent, expectedMappingStr, false);
+        if (useColumnarId) {
+            expectedMapping.put("_id", Map.of("mode", "columnar"));
+        }
         assertEquals(expectedMapping, destMappings);
     }
 }

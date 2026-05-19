@@ -29,6 +29,7 @@ import java.util.concurrent.Callable;
 
 public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
+    private static final int SQR_BULK_SIZE = 8;
     private static final int M = 8;
     private static final int EF_CONSTRUCTION = 150;
 
@@ -58,12 +59,12 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
         for (int i = 0; i < k; i++) {
             neighborQueues[i] = new NeighborQueue(clustersPerNeighborhood, true);
         }
-        final float[] scores = new float[8];
-        final int limit = k - 7;
+        final float[] scores = new float[SQR_BULK_SIZE];
+        final int limit = k - SQR_BULK_SIZE - 1;
         for (int i = 0; i < k - 1; i++) {
             float[] center = centers[i];
             int j = i + 1;
-            for (; j < limit; j += 8) {
+            for (; j < limit; j += SQR_BULK_SIZE) {
                 ESVectorUtil.squareDistanceBulk(
                     center,
                     centers[j],
@@ -77,7 +78,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                     0,
                     scores
                 );
-                for (int h = 0; h < 8; h++) {
+                for (int h = 0; h < SQR_BULK_SIZE; h++) {
                     neighborQueues[j + h].insertWithOverflow(i, scores[h]);
                     neighborQueues[i].insertWithOverflow(j + h, scores[h]);
                 }
@@ -204,7 +205,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
         CentersScorerSupplier(float[][] centers) {
             this(centers, new UpdateableRandomVectorScorer() {
                 private int scoringOrdinal;
-                private final float[] distances = new float[8];
+                private final float[] distances = new float[SQR_BULK_SIZE];
 
                 @Override
                 public float score(int node) {
@@ -214,9 +215,9 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                 @Override
                 public float bulkScore(int[] nodes, float[] scores, int numNodes) {
                     int i = 0;
-                    final int limit = numNodes - 7;
+                    final int limit = numNodes & -SQR_BULK_SIZE;
                     float max = Float.NEGATIVE_INFINITY;
-                    for (; i < limit; i += 8) {
+                    for (; i < limit; i += SQR_BULK_SIZE) {
                         ESVectorUtil.squareDistanceBulk(
                             centers[scoringOrdinal],
                             centers[nodes[i]],
@@ -230,7 +231,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
                             0,
                             distances
                         );
-                        for (int j = 0; j < 8; j++) {
+                        for (int j = 0; j < SQR_BULK_SIZE; j++) {
                             scores[i + j] = VectorUtil.normalizeDistanceToUnitInterval(distances[j]);
                             max = Math.max(max, scores[i + j]);
                         }

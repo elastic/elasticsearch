@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -186,6 +187,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1474,11 +1476,19 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-        Set<String> partitionColumnNames = Set.of();
+        // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
+        // plus always-on _file.* metadata. Passed through SourceOperatorContext.partitionColumnNames
+        // (legacy method name kept to avoid an SPI rename on this PR).
+        Set<String> virtualColumnNames = new LinkedHashSet<>();
         if (fileList != null) {
             PartitionMetadata pm = fileList.partitionMetadata();
             if (pm != null && pm.isEmpty() == false) {
-                partitionColumnNames = pm.partitionColumns().keySet();
+                virtualColumnNames.addAll(pm.partitionColumns().keySet());
+            }
+        }
+        for (Attribute attr : externalSource.output()) {
+            if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
+                virtualColumnNames.add(attr.name());
             }
         }
 
@@ -1498,7 +1508,7 @@ public class LocalExecutionPlanner {
             .pushedExpressions(externalSource.pushedExpressions())
             .fileList(fileList)
             .schemaMap(externalSource.schemaMap())
-            .partitionColumnNames(partitionColumnNames)
+            .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
             .parallelism(instanceCount)

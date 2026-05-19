@@ -27,6 +27,14 @@ import java.util.TreeMap;
 public class FieldArrayContext {
 
     protected static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
+
+    // Sentinel ord, representing a slot whose source value was {@code null}.
+    public static final int NULL_ORD = -1;
+
+    public static String offsetsFieldName(String fieldName) {
+        return fieldName + OFFSETS_FIELD_NAME_SUFFIX;
+    }
+
     protected final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
     public void recordOffset(String field, Comparable<?> value) {
@@ -73,7 +81,7 @@ public class FieldArrayContext {
             currentOrd++;
         }
         for (var nullOffset : offset.nullValueOffsets) {
-            offsetToOrd[nullOffset] = -1;
+            offsetToOrd[nullOffset] = NULL_ORD;
         }
 
         int expectedSize = offsetToOrd.length + 1; // Initialize buffer to avoid unnecessary resizing, assume 1 byte per offset + size.
@@ -104,6 +112,30 @@ public class FieldArrayContext {
         IndexVersion indexCreatedVersion,
         IndexVersion minSupportedVersionMain
     ) {
+        return getOffsetsFieldName(
+            context,
+            indexSourceKeepMode,
+            hasDocValues,
+            isStored,
+            fieldMapperBuilder,
+            indexCreatedVersion,
+            minSupportedVersionMain,
+            false,
+            false
+        );
+    }
+
+    public static String getOffsetsFieldName(
+        MapperBuilderContext context,
+        Mapper.SourceKeepMode indexSourceKeepMode,
+        boolean hasDocValues,
+        boolean isStored,
+        FieldMapper.Builder fieldMapperBuilder,
+        IndexVersion indexCreatedVersion,
+        IndexVersion minSupportedVersionMain,
+        boolean isColumnar,
+        boolean multiValue
+    ) {
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
         if (context.isSourceSynthetic()
             && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
@@ -119,10 +151,19 @@ public class FieldArrayContext {
 
             // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
             // (if field is stored then there is no point of doing this)
-            return context.buildFullName(fieldMapperBuilder.leafName() + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
-        } else {
-            return null;
-        }
+            return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
+        } else if (context.isSourceSynthetic()
+            && multiValue
+            && isColumnar
+            && hasDocValues
+            && isStored == false
+            && context.isInNestedContext() == false) {
+                // Columnar multi-value path: ordering preservation is implicit on every eligible field, so we don't require
+                // source_keep_mode=ARRAYS, copy_to to be empty, or multi-fields to be empty.
+                return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
+            } else {
+                return null;
+            }
     }
 
     private static boolean indexVersionSupportStoringArraysNatively(

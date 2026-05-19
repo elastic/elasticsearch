@@ -35,7 +35,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -68,6 +67,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
@@ -81,6 +81,7 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -93,11 +94,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1252,7 +1251,28 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         @Override
+        protected BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext, String fieldName) {
+            if (preserveLeafArrays == PreserveLeafArrays.EXACT) {
+                // When preserveLeafArrays is EXACT, docs with only null values have no keyed
+                // doc values entries but do have offset entries. Match all docs so the source
+                // reader checks every document.
+                return BlockSourceReader.lookupMatchingAll();
+            }
+            return super.sourceBlockLoaderLookup(blContext, fieldName);
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            BlockLoaderFunctionConfig functionConfig = blContext == null ? null : blContext.blockLoaderFunctionConfig();
+            if (functionConfig instanceof ExtractFlattenedSubfieldConfig(String key)) {
+                if (hasDocValues() == false) {
+                    throw new IllegalStateException(
+                        "ExtractFlattenedSubfieldConfig requires doc values on flattened root [" + name() + "]"
+                    );
+                }
+                return new KeyedFlattenedDocValuesBlockLoader(name() + KEYED_FIELD_SUFFIX, key, usesBinaryDocValues);
+            }
+
             // If a value trips ignore_above, it is stored in the fallback binary doc values field only if synthetic source is enabled.
             // Otherwise, that value only exists in stored _source.
             final boolean docValuesContainAllValues = ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled;
@@ -1269,23 +1289,21 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 );
             }
 
-            SourceValueFetcher fetcher = new SourceValueFetcher(
+            FlattenedSourceValueFetcher fetcher = new FlattenedSourceValueFetcher(
                 blContext.sourcePaths(name()),
                 nullValue,
-                blContext.indexSettings().getIgnoredSourceFormat()
-            ) {
-                @Override
-                @SuppressWarnings("unchecked")
-                protected Object parseSourceValue(Object value) {
-                    try {
-                        return Strings.toString(XContentFactory.jsonBuilder().map((Map<String, Object>) value));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-            };
+                blContext.indexSettings().getIgnoredSourceFormat(),
+                preserveLeafArrays == PreserveLeafArrays.EXACT
+            );
 
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext, name()));
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference) {
+            // Only the field_extract sub-key fusion is supported on the flattened root for now,
+            // and only when doc values are available (so we can use the keyed sub-field loader).
+            return config instanceof ExtractFlattenedSubfieldConfig && hasDocValues();
         }
 
         @Override

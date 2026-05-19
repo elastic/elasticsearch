@@ -13,8 +13,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 
@@ -44,7 +44,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             TimeValue thisTook = timeValueMillis(i == tookIndex ? took : between(0, took));
             // The actual status doesn't matter too much - we test merging those elsewhere
             String thisReasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
-            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
                 i,
                 0,
                 0,
@@ -89,7 +89,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         BytesReference pitId = new BytesArray("merged-pit-id".getBytes(StandardCharsets.UTF_8));
         List<BulkByScrollResponse> responses = new ArrayList<>();
         for (int i = 0; i < between(2, 5); i++) {
-            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
                 i,
                 0,
                 0,

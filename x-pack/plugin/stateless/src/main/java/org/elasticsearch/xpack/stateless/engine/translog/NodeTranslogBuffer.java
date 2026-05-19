@@ -118,7 +118,7 @@ public class NodeTranslogBuffer implements Releasable {
             var syncedLocations = new HashMap<ShardId, ShardSyncState.SyncMarker>();
             var compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
             var headerStream = new ReleasableBytesStreamOutput(bigArrays);
-            Releasable releaseStreams = () -> Releasables.close(headerStream, compoundTranslogStream);
+            boolean success = false;
             try {
                 for (var state : activeShards) {
                     ShardId shardId = state.getShardId();
@@ -152,9 +152,8 @@ public class NodeTranslogBuffer implements Releasable {
 
                 TranslogReplicator.CompoundTranslogBytes compoundTranslogBytes = new TranslogReplicator.CompoundTranslogBytes(
                     CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
-                    releaseStreams
+                    () -> Releasables.close(headerStream, compoundTranslogStream)
                 );
-                releaseStreams = null;
 
                 // We do not need to store totalOps when they are equal to zero as it can simply be assumed when there is no entry
                 // for a specified ShardId. Storing them has a memory cost that is non-negligible in some scenarios.
@@ -171,9 +170,12 @@ public class NodeTranslogBuffer implements Releasable {
                     syncedLocations
                 );
 
+                success = true;
                 return new TranslogReplicator.CompoundTranslog(compoundMetadata, compoundTranslogBytes);
             } finally {
-                Releasables.close(releaseStreams);
+                if (success == false) {
+                    Releasables.close(headerStream, compoundTranslogStream);
+                } // else compoundTranslogBytes is responsible for closing the streams
             }
         } finally {
             buffers.clear();

@@ -68,7 +68,7 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     private static final ParseField GENERATED_AT_FIELD = new ParseField("generated_at");
 
     /**
-     * A single key with its generation timestamp. Equality is by content (byte-array contents + timestamp), not array identity.
+     * A single key with its generation timestamp
      */
     public record KeyEntry(byte[] bytes, long generatedAt) implements Writeable {
 

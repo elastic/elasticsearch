@@ -13,8 +13,7 @@ package org.elasticsearch.xpack.core.crypto;
  * encrypted payload so that features can store both.
  *
  * <p>Features that store encrypted data must register an {@code EncryptedDataHandler} so that their data can be re-encrypted under
- * a new key when the primary encryption key rotates. Registration is done via the {@code EncryptedDataHandlerProvider} SPI
- * (see {@code org.elasticsearch.encryption} in server).
+ * a new key when the primary encryption key rotates. Registration is done via the {@code EncryptedDataHandlerProvider} SPI.
  */
 public interface EncryptionService {
 

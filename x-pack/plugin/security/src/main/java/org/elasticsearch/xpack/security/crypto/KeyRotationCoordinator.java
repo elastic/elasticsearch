@@ -124,11 +124,8 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     private final TimeValue checkInterval;
     private final List<EncryptedDataHandler> handlers;
 
-    // Only accessed inside synchronized startSchedule/stopSchedule/close, so plain mutable is fine.
     private Scheduler.Cancellable scheduledTask;
-    // Read lock-free from tick(); written from synchronized close().
     private volatile boolean closed = false;
-    // CAS'd from rotate() on the scheduler thread; reset from a runAfter callback that may run on a handler's thread.
     private final AtomicBoolean rotating = new AtomicBoolean(false);
     // Used for logging when a rotation is in progress for an unexpectedly long time. Same access pattern as `rotating`.
     private final AtomicLong rotatingSince = new AtomicLong(0L);
@@ -192,7 +189,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         stopSchedule();
     }
 
-    // package-private so unit tests can invoke the cluster-state-change handler directly
+    // package-private for testing
     void onClusterStateChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -296,19 +293,12 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         stopSchedule();
     }
 
-    /**
-     * Test-only same-package affordance for adding a handler after construction. Production code must pass handlers via the
-     * {@link #create(ClusterService, ThreadPool, ProjectResolver, FeatureService, Collection, Settings) create} factory; the public API
-     * of this class is constructor-only.
-     */
+    // visible for testing
     void register(EncryptedDataHandler handler) {
         handlers.add(handler);
         logger.debug("registered encrypted-data handler [{}]", handler.getClass().getSimpleName());
     }
 
-    /**
-     * Reads the current {@link PrimaryEncryptionKeyMetadata} from cluster state, or {@code null} if no key has been installed yet.
-     */
     @Nullable
     public PrimaryEncryptionKeyMetadata getCurrentMetadata(ClusterState state) {
         return projectResolver.getProjectState(state).metadata().custom(PrimaryEncryptionKeyMetadata.TYPE);

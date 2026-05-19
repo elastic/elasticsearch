@@ -210,53 +210,55 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
-    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
         DoubleVector count = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == seen.getPositionCount();
-        return new AddInput() {
-            @Override
-            public void add(int positionOffset, IntArrayBlock groups) {
-                for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-                    if (groups.isNull(groupPosition)) {
-                        continue;
-                    }
-                    int groupStart = groups.getFirstValueIndex(groupPosition);
-                    int groupEnd = groupStart + groups.getValueCount(groupPosition);
-                    for (int g = groupStart; g < groupEnd; g++) {
-                        int groupId = groups.getInt(g);
-                        state.increment(groupId, count.getDouble(groupPosition + positionOffset));
-                    }
-                }
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            if (groups.isNull(groupPosition)) {
+                continue;
             }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groups) {
-                for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-                    if (groups.isNull(groupPosition)) {
-                        continue;
-                    }
-                    int groupStart = groups.getFirstValueIndex(groupPosition);
-                    int groupEnd = groupStart + groups.getValueCount(groupPosition);
-                    for (int g = groupStart; g < groupEnd; g++) {
-                        int groupId = groups.getInt(g);
-                        state.increment(groupId, count.getDouble(groupPosition + positionOffset));
-                    }
-                }
+            int groupStart = groups.getFirstValueIndex(groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
+            for (int g = groupStart; g < groupEnd; g++) {
+                int groupId = groups.getInt(g);
+                state.increment(groupId, count.getDouble(groupPosition + positionOffset));
             }
+        }
+    }
 
-            @Override
-            public void add(int positionOffset, IntVector groups) {
-                for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-                    state.increment(groups.getInt(groupPosition), count.getDouble(groupPosition + positionOffset));
-                }
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+        assert channels.size() == intermediateBlockCount();
+        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
+        DoubleVector count = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
+        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+        assert count.getPositionCount() == seen.getPositionCount();
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            if (groups.isNull(groupPosition)) {
+                continue;
             }
+            int groupStart = groups.getFirstValueIndex(groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
+            for (int g = groupStart; g < groupEnd; g++) {
+                int groupId = groups.getInt(g);
+                state.increment(groupId, count.getDouble(groupPosition + positionOffset));
+            }
+        }
+    }
 
-            @Override
-            public void close() {}
-        };
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+        assert channels.size() == intermediateBlockCount();
+        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
+        DoubleVector count = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
+        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+        assert count.getPositionCount() == seen.getPositionCount();
+        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+            state.increment(groups.getInt(groupPosition), count.getDouble(groupPosition + positionOffset));
+        }
     }
 
     @Override

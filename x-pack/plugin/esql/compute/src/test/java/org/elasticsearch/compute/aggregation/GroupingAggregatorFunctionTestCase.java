@@ -820,54 +820,56 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
                     @Override
                     public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
-                        AddInput delegateAddInput = delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
-                        return new AddInput() {
-                            @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
-                                addChunked(positionOffset, groupIds);
-                            }
+                        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
+                    }
 
-                            @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                                addChunked(positionOffset, groupIds);
-                            }
+                    @Override
+                    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIds, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds, page);
+                    }
 
-                            @Override
-                            public void add(int positionOffset, IntVector groupIds) {
-                                addChunked(positionOffset, groupIds.asBlock());
-                            }
+                    @Override
+                    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIds, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds, page);
+                    }
 
-                            private void addChunked(int positionOffset, IntBlock groupIds) {
-                                BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-                                int[] chunk = new int[emitChunkSize];
-                                int chunkPosition = 0;
-                                int offset = 0;
-                                for (int position = 0; position < groupIds.getPositionCount(); position++) {
-                                    if (groupIds.isNull(position)) {
-                                        continue;
-                                    }
-                                    int firstValueIndex = groupIds.getFirstValueIndex(position);
-                                    int valueCount = groupIds.getValueCount(position);
-                                    assert valueCount == 1;
+                    @Override
+                    public void addIntermediateInput(int positionOffset, IntVector groupIds, Page page) {
+                        addIntermediateInputInternal(positionOffset, groupIds.asBlock(), page);
+                    }
 
-                                    int groupId = groupIds.getInt(firstValueIndex);
-                                    chunk[chunkPosition++] = groupId;
-                                    if (chunkPosition == emitChunkSize) {
-                                        delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, chunkPosition));
-                                        chunkPosition = 0;
-                                        offset = position + 1;
-                                    }
-                                }
-                                if (chunkPosition > 0) {
-                                    delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, chunkPosition));
-                                }
+                    public void addIntermediateInputInternal(int positionOffset, IntBlock groupIds, Page page) {
+                        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+                        int[] chunk = new int[emitChunkSize];
+                        int chunkPosition = 0;
+                        int offset = 0;
+                        for (int position = 0; position < groupIds.getPositionCount(); position++) {
+                            if (groupIds.isNull(position)) {
+                                continue;
                             }
+                            int firstValueIndex = groupIds.getFirstValueIndex(position);
+                            int valueCount = groupIds.getValueCount(position);
+                            assert valueCount == 1; // Multi-values make chunking more complex, and it's not a real case yet
 
-                            @Override
-                            public void close() {
-                                delegateAddInput.close();
+                            int groupId = groupIds.getInt(firstValueIndex);
+                            chunk[chunkPosition++] = groupId;
+                            if (chunkPosition == emitChunkSize) {
+                                delegate.addIntermediateInput(
+                                    positionOffset + offset,
+                                    blockFactory.newIntArrayVector(chunk, chunkPosition),
+                                    page
+                                );
+                                chunkPosition = 0;
+                                offset = position + 1;
                             }
-                        };
+                        }
+                        if (chunkPosition > 0) {
+                            delegate.addIntermediateInput(
+                                positionOffset + offset,
+                                blockFactory.newIntArrayVector(chunk, chunkPosition),
+                                page
+                            );
+                        }
                     }
 
                     @Override

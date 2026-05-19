@@ -388,37 +388,17 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     }
 
     @Override
-    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
-        return new AddInput() {
-            @Override
-            public void add(int positionOffset, IntArrayBlock groups) {
-                addIntermediateInput(positionOffset, groups, page);
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groups) {
-                addIntermediateInput(positionOffset, groups, page);
-            }
-
-            @Override
-            public void add(int positionOffset, IntVector groups) {
-                addIntermediateInput(positionOffset, groups, page);
-            }
-
-            @Override
-            public void close() {}
-        };
-    }
-
-    private void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
         addIntermediateInputBlock(positionOffset, groups, page);
     }
 
-    private void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
         addIntermediateInputBlock(positionOffset, groups, page);
     }
 
-    private void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         LongBlock timestamps = page.getBlock(channels.get(0));
         LongBlock values = page.getBlock(channels.get(1));

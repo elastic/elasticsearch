@@ -200,35 +200,35 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
         BytesRefBlock valuesBlock = page.getBlock(channel);
         if (valuesBlock.areAllValuesNull()) {
-            return null;
+            return;
+        }
+        addInputValuesBlock(positionOffset, groups, valuesBlock);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+        BytesRefBlock valuesBlock = page.getBlock(channel);
+        if (valuesBlock.areAllValuesNull()) {
+            return;
+        }
+        addInputValuesBlock(positionOffset, groups, valuesBlock);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+        BytesRefBlock valuesBlock = page.getBlock(channel);
+        if (valuesBlock.areAllValuesNull()) {
+            return;
         }
         var valuesVector = valuesBlock.asVector();
-        return new AddInput() {
-            @Override
-            public void add(int positionOffset, IntArrayBlock groups) {
-                addInputValuesBlock(positionOffset, groups, valuesBlock);
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groups) {
-                addInputValuesBlock(positionOffset, groups, valuesBlock);
-            }
-
-            @Override
-            public void add(int positionOffset, IntVector groups) {
-                if (valuesVector != null) {
-                    addInputValuesVector(positionOffset, groups, valuesVector);
-                } else {
-                    addInputValuesBlock(positionOffset, groups, valuesBlock);
-                }
-            }
-
-            @Override
-            public void close() {}
-        };
+        if (valuesVector != null) {
+            addInputValuesVector(positionOffset, groups, valuesVector);
+        } else {
+            addInputValuesBlock(positionOffset, groups, valuesBlock);
+        }
     }
 
     @Override

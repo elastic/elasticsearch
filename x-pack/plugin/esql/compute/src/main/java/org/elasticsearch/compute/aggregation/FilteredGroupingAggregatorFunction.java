@@ -111,6 +111,21 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
     public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx

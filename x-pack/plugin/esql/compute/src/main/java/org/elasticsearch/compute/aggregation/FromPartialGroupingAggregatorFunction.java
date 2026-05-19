@@ -41,8 +41,6 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        final CompositeBlock inputBlock = page.getBlock(inputChannel);
-        AddInput intermediateAddInput = delegate.prepareProcessIntermediateInputPage(seenGroupIds, inputBlock.asPage());
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntBlock groupIds) {
@@ -64,13 +62,11 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
 
             @Override
             public void add(int positionOffset, IntVector groupIds) {
-                intermediateAddInput.add(positionOffset, groupIds);
+                addIntermediateInput(positionOffset, groupIds, page);
             }
 
             @Override
-            public void close() {
-                intermediateAddInput.close();
-            }
+            public void close() {}
         };
     }
 
@@ -81,8 +77,25 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
 
     @Override
     public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
         final CompositeBlock inputBlock = page.getBlock(inputChannel);
-        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, inputBlock.asPage());
+        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        final CompositeBlock inputBlock = page.getBlock(inputChannel);
+        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        final CompositeBlock inputBlock = page.getBlock(inputChannel);
+        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
     }
 
     @Override

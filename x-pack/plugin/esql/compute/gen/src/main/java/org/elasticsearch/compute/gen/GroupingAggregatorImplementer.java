@@ -246,7 +246,9 @@ public class GroupingAggregatorImplementer {
             }
             builder.addMethod(addIntermediateInput(groupIdClass));
         }
-        builder.addMethod(prepareProcessIntermediateInputPage());
+        if (aggState.declaredType().isPrimitive()) {
+            builder.addMethod(prepareProcessIntermediateInputPage());
+        }
         builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(prepareEvaluateIntermediate());
@@ -645,47 +647,20 @@ public class GroupingAggregatorImplementer {
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds");
         builder.addParameter(PAGE, "page");
 
-        if (aggState.declaredType().isPrimitive()) {
-            int seenIndex = -1;
-            for (int i = 0; i < intermediateState.size(); i++) {
-                if (intermediateState.get(i).name().equals("seen")) {
-                    seenIndex = i;
-                    break;
-                }
+        int seenIndex = -1;
+        for (int i = 0; i < intermediateState.size(); i++) {
+            if (intermediateState.get(i).name().equals("seen")) {
+                seenIndex = i;
+                break;
             }
-            builder.addStatement(
-                "$T seen = (($T) page.getBlock(channels.get($L))).asVector()",
-                BOOLEAN_VECTOR,
-                Types.BOOLEAN_BLOCK,
-                seenIndex
-            );
-            builder.beginControlFlow("if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false)");
-            builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
-            builder.endControlFlow();
-        } else {
-            builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
         }
+        builder.addStatement("$T seen = (($T) page.getBlock(channels.get($L))).asVector()", BOOLEAN_VECTOR, Types.BOOLEAN_BLOCK, seenIndex);
+        builder.beginControlFlow("if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false)");
+        builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+        builder.endControlFlow();
 
-        TypeSpec addInputImpl = intermediateAddInput();
-        builder.addStatement("return $L", addInputImpl);
+        builder.addStatement("return new $T.IntermediateAddInput(this, seenGroupIds, page)", GROUPING_AGGREGATOR_FUNCTION);
         return builder.build();
-    }
-
-    private TypeSpec intermediateAddInput() {
-        TypeSpec.Builder typeBuilder = TypeSpec.anonymousClassBuilder("");
-        typeBuilder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
-
-        for (ClassName groupIdsType : GROUP_IDS_CLASSES) {
-            MethodSpec.Builder addMethod = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-            addMethod.addParameter(TypeName.INT, "positionOffset").addParameter(groupIdsType, "groupIds");
-            addMethod.addStatement("addIntermediateInput(positionOffset, groupIds, page)");
-            typeBuilder.addMethod(addMethod.build());
-        }
-
-        MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        typeBuilder.addMethod(close.build());
-
-        return typeBuilder.build();
     }
 
     private MethodSpec selectedMayContainUnseenGroups() {
@@ -699,7 +674,7 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addIntermediateInput(TypeName groupsType) {
         boolean groupsIsBlock = groupsType.toString().endsWith("Block");
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
-        builder.addModifiers(Modifier.PRIVATE);
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(TypeName.INT, "positionOffset");
         builder.addParameter(groupsType, "groups");
         builder.addParameter(PAGE, "page");

@@ -148,7 +148,8 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
     }
   }
 
-  private void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block fbitUncast = page.getBlock(channels.get(0));
@@ -233,7 +234,8 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
     }
   }
 
-  private void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block fbitUncast = page.getBlock(channels.get(0));
@@ -304,7 +306,8 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
     }
   }
 
-  private void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block fbitUncast = page.getBlock(channels.get(0));
@@ -341,32 +344,6 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
       int valuesPosition = groupPosition + positionOffset;
       CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
     }
-  }
-
-  @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
-      SeenGroupIds seenGroupIds, Page page) {
-    state.enableGroupIdTracking(seenGroupIds);
-    return new GroupingAggregatorFunction.AddInput() {
-      @Override
-      public void add(int positionOffset, IntArrayBlock groupIds) {
-        addIntermediateInput(positionOffset, groupIds, page);
-      }
-
-      @Override
-      public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addIntermediateInput(positionOffset, groupIds, page);
-      }
-
-      @Override
-      public void add(int positionOffset, IntVector groupIds) {
-        addIntermediateInput(positionOffset, groupIds, page);
-      }
-
-      @Override
-      public void close() {
-      }
-    };
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock vBlock) {

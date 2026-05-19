@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -68,6 +70,21 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
         final CompositeBlock inputBlock = page.getBlock(channels.get(0));
         return delegate.prepareProcessIntermediateInputPage(seenGroupIds, inputBlock.asPage());
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override

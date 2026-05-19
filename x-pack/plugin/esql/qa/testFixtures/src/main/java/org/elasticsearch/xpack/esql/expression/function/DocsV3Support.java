@@ -416,10 +416,10 @@ public abstract class DocsV3Support {
 
     protected final String category;
     protected final String name;
+    protected final Class<?> testClass;
     protected final FunctionDefinition definition;
     protected final Supplier<Set<TypeSignature>> signatures;
     protected final Callbacks callbacks;
-    protected final Class<?> testClass;
     private final LicenseRequirementChecker licenseChecker;
     private final KibanaSignaturePatcher kibanaSignaturePatcher;
 
@@ -443,10 +443,10 @@ public abstract class DocsV3Support {
     ) {
         this.category = category;
         this.name = name;
+        this.testClass = testClass;
         this.definition = definition == null ? definition(name) : definition;
         this.signatures = signatures;
         this.callbacks = callbacks;
-        this.testClass = testClass;
         this.licenseChecker = new LicenseRequirementChecker(testClass);
         this.kibanaSignaturePatcher = new KibanaSignaturePatcher(testClass);
     }

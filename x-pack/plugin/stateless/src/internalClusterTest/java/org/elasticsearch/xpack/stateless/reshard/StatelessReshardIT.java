@@ -52,11 +52,14 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -1830,7 +1833,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(iae.getMessage(), equalTo("Requested new shard count [4] does not match required new shard count [2]"));
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.stateless.commits:debug", reason = "Issue #6241")
     public void testReshardFailsDuringResize() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -2260,11 +2262,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 columnarLogsdbIndexName,
                 Settings.builder()
                     .put(indexSettings(randomIntBetween(1, 5), 0).build())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
                     .build()
             );
             ensureGreen(columnarLogsdbIndexName);
-            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.COLUMNAR_LOGSDB);
+            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
         }
     }
 
@@ -3551,7 +3553,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         waitForReshardCompletion(indexName);
 
         var telemetryPlugin = getTelemetryPlugin(indexNode);
-        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, getTelemetryPlugin(indexNode)), equalTo(1L));
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, telemetryPlugin), equalTo(1L));
 
         var reshardTargetShardCountHistogram = telemetryPlugin.getLongHistogramMeasurement(ReshardMetrics.RESHARD_TARGET_SHARD_COUNT);
         assertEquals(List.of((long) numShardsAfter), reshardTargetShardCountHistogram.stream().map(Measurement::getLong).toList());
@@ -4557,6 +4559,45 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testHealthNeverGoesRedDuringResharding() {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numShards, 1).build());
+        ensureGreen(indexName);
+
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var projectId = clusterService.state().metadata().getProject().id();
+        final AtomicReference<AssertionError> failure = new AtomicReference<>();
+        ClusterStateListener listener = event -> {
+            var health = new ClusterStateHealth(event.state(), new String[] { indexName }, projectId);
+            if (health.getStatus() == ClusterHealthStatus.RED) {
+                failure.compareAndSet(null, new AssertionError("cluster turned red during reshard:\n" + event.state().routingTable()));
+            }
+        };
+        clusterService.addListener(listener);
+
+        try {
+            int numDocs = randomIntBetween(10, 100);
+            indexDocs(indexName, numDocs);
+            refresh(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+
+            client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            waitForReshardCompletion(indexName);
+            ensureGreen(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+        } finally {
+            clusterService.removeListener(listener);
+        }
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
@@ -4691,19 +4732,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
-    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expected_shards) {
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(expected_shards)
-        );
+    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expectedShards) {
+        ReshardingTestHelpers.checkNumberOfShardsSetting(client(indexNode), indexName, expectedShards);
     }
 
     public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {

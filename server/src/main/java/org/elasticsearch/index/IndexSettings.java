@@ -30,6 +30,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -54,6 +55,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -853,13 +855,10 @@ public final class IndexSettings {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         var indexMode = MODE.get(s);
         if (indexMode == IndexMode.TIME_SERIES) {
-            if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
-                return "true";
-            }
-            return "false";
+            return Boolean.toString(iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB));
         }
-        if (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB) {
-            return iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB) ? "true" : "false";
+        if (indexMode == IndexMode.LOGSDB || indexMode.isStrictColumnar()) {
+            return Boolean.toString(iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB));
         }
         return "false";
     }, Property.IndexScope, Property.Final);
@@ -1078,7 +1077,7 @@ public final class IndexSettings {
     );
 
     static boolean indexModeSupportsSeqNoDocValuesOnly(IndexMode indexMode, IndexVersion indexVersionCreated) {
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB) {
+        if (indexMode.isStrictColumnar()) {
             return true;
         }
         return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
@@ -1113,7 +1112,7 @@ public final class IndexSettings {
             return Boolean.FALSE.toString();
         }
         IndexMode indexMode = IndexSettings.MODE.get(settings);
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB) {
+        if (indexMode.isStrictColumnar()) {
             var indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
             // Only enable by default if the index version supports it
             if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)) {
@@ -1171,6 +1170,25 @@ public final class IndexSettings {
             return list.iterator();
         }
     }, Property.IndexScope, Property.Final);
+
+    public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_TEXT = Setting.boolSetting(
+        "index.mapping.dynamic_strings.auto_text",
+        settings -> {
+            IndexMode mode = IndexSettings.MODE.get(settings);
+            boolean disableAutoTextByDefault = mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR;
+            return Boolean.toString(disableAutoTextByDefault == false);
+        },
+        value -> {
+            if (value == false && FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
+                        + " extended_doc_values_options feature flag is enabled"
+                );
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     private final Index index;
     private final IndexVersion version;
@@ -1251,6 +1269,7 @@ public final class IndexSettings {
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedParentsLimit;
     private volatile long mappingNestedDocsLimit;
+    private volatile long mappingArrayObjectsLimit;
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile boolean ignoreDynamicFieldNamesBeyondLimit;
@@ -1260,6 +1279,7 @@ public final class IndexSettings {
     private volatile boolean requestCacheEnabled;
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
+    private volatile boolean dynamicStringsAutoText;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
@@ -1457,6 +1477,7 @@ public final class IndexSettings {
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         mappingNestedParentsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        mappingArrayObjectsLimit = scopedSettings.get(INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
@@ -1525,6 +1546,7 @@ public final class IndexSettings {
             }
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
+        dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1598,6 +1620,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING, this::setMappingNestedParentsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING, this::setMappingArrayObjectsLimit);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
@@ -1619,6 +1642,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
+        scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2151,6 +2175,14 @@ public final class IndexSettings {
         this.mappingNestedDocsLimit = value;
     }
 
+    public long getMappingArrayObjectsLimit() {
+        return mappingArrayObjectsLimit;
+    }
+
+    private void setMappingArrayObjectsLimit(long value) {
+        this.mappingArrayObjectsLimit = value;
+    }
+
     public long getMappingTotalFieldsLimit() {
         return mappingTotalFieldsLimit;
     }
@@ -2374,5 +2406,16 @@ public final class IndexSettings {
 
     public boolean sequenceNumbersDisabled() {
         return disableSequenceNumbers;
+    }
+
+    private void setDynamicStringsAutoText(boolean enabled) {
+        this.dynamicStringsAutoText = enabled;
+    }
+
+    /**
+     * Returns <code>true</code> if dynamically mapped strings should be mapped with a keyword subfield.
+     */
+    public boolean getDynamicStringsAutoText() {
+        return dynamicStringsAutoText;
     }
 }

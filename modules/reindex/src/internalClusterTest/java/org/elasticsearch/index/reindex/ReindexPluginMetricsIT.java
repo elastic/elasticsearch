@@ -94,10 +94,14 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     @After
     public void tearDown() throws Exception {
         try {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                    .setPersistentSettings(Settings.builder().putNull(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
-            );
+            // Tests that skip via assumeTrue before starting a node leave the cluster empty;
+            // the persistent setting reset would then fail with "no node found".
+            if (internalCluster().size() > 0) {
+                assertAcked(
+                    clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        .setPersistentSettings(Settings.builder().putNull(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
+                );
+            }
         } finally {
             SearchContextFailureInjectionPlugin.CONFIG.set(null);
             SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
@@ -353,7 +357,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow();
 
-        reindex().source("source").destination("dest_auto").setSlices(AbstractBulkByScrollRequest.AUTO_SLICES).get();
+        reindex().source("source").destination("dest_auto").setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES).get();
 
         assertBusy(() -> {
             testTelemetryPlugin.collect();

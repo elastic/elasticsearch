@@ -788,6 +788,17 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                     )
                             );
                         } else if (stage == Stage.PAUSED) {
+                            // Master may reassign or already reassigned the shard snapshot
+                            if (masterShard.state() == ShardState.PAUSED_FOR_NODE_REMOVAL
+                                || clusterService.localNode().getId().equals(masterShard.nodeId()) == false) {
+                                logger.debug(
+                                    "shard {} snapshot [{}] skipping pause resync, master shard status [{}]",
+                                    shardId,
+                                    snapshot.snapshot(),
+                                    masterShard
+                                );
+                                continue;
+                            }
                             // but we think the shard has paused - we need to make new master know that
                             logger.debug("""
                                 new master thinks that shard [{}] snapshot [{}], with shard generation [{}], is still running, but the \

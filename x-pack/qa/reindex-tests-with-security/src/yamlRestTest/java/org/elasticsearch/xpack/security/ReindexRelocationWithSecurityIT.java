@@ -7,13 +7,16 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
@@ -23,23 +26,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
 
-    private static final String USER = "test_admin";
+    private static final String ADMIN_USER = "test_admin";
+    private static final String REINDEX_USER = "test_reindex_user";
+    private static final String RETHROTTLE_USER = "test_rethrottle_user";
+    private static final String LIST_USER = "test_list_user";
+    private static final String GET_USER = "test_get_user";
     private static final String PASS = "x-pack-test-password";
 
     private static final int MASTER_NODE = 0;
     private static final int DATA_NODE = 1;
     private static final int COORD_NODE = 2;
 
-    private static final String SOURCE = "reindex-relocation-source";
-    private static final String DEST = "reindex-relocation-dest";
+    private static final String SOURCE = "source";
+    private static final String DEST = "dest";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -61,7 +71,12 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.autoconfiguration.enabled", "false")
-        .user(USER, PASS, "superuser", false)
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user(ADMIN_USER, PASS, "superuser", false)
+        .user(REINDEX_USER, PASS, "minimal", false)
+        .user(RETHROTTLE_USER, PASS, "reindex_rethrottle_only", false)
+        .user(LIST_USER, PASS, "reindex_list_only", false)
+        .user(GET_USER, PASS, "reindex_get_only", false)
         .build();
 
     @Override
@@ -70,8 +85,17 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
     }
 
     @Override
+    protected Settings restAdminSettings() {
+        return restClientSettingsForUser(ADMIN_USER);
+    }
+
+    @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return restClientSettingsForUser(REINDEX_USER);
+    }
+
+    private static Settings restClientSettingsForUser(String user) {
+        String token = basicAuthHeaderValue(user, new SecureString(PASS.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
@@ -82,6 +106,10 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             "reindex resilience endpoints must be available",
             clusterHasCapability("GET", "/_reindex/{task_id}", List.of(), List.of("reindex_management_api")).orElse(false)
         );
+        // The test cluster framework's Process.destroy() maps to TerminateProcess on Windows, which kills the JVM without running
+        // shutdown hooks. As a result ShutdownPrepareService.prepareForShutdown() never fires, the reindex-stop hook never marks the
+        // task for relocation, and the assertions below cannot be satisfied.
+        assumeFalse("graceful JVM shutdown is not deliverable on Windows by the test cluster framework", Constants.WINDOWS);
 
         final int numDocs = 30;
         createSourceIndexAndPopulate(numDocs);
@@ -96,8 +124,8 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         final String taskId;
         try (RestClient coordClient = buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(coordHttpAddress) })) {
             taskId = startThrottledReindex(coordClient);
-            waitForRootReindexTaskOn(coordNodeId, taskId);
         }
+        waitForRootReindexTaskOn(coordNodeId, taskId);
 
         // Stage 1: tell the cluster the coordinator is going away. This populates NodesShutdownMetadata which gives the rest of the
         // cluster a chance to drain shards/PITs off the coordinator (it has none here, but it sets the right precondition for relocation).
@@ -111,12 +139,13 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         stopThread.start();
 
         try {
-            // Stage 3: rethrottle to unlimited via a *non-coordinator* node, since the coordinator's HTTP transport is being torn down.
-            // The rethrottle is dispatched via internal transport (which is still up on the coordinator during the relocation hook),
-            // and lets the throttled reindex advance past its current sleep so it can pick up the relocation flag.
-            rethrottleViaSurvivingNode(dataNodeAddress, taskId);
+            // Stage 3: assert that the list API works
+            assertListViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 4: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
+            // Stage 4: rethrottle to unlimited via a *non-coordinator* node, since the coordinator's HTTP transport is being torn down.
+            unthrottleViaSurvivingNode(dataNodeAddress, taskId);
+
+            // Stage 5: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
             // successfully. Without the fix, the resume action is rejected by RBAC and this never happens.
             assertReindexCompletesOnDataNode(dataNodeAddress, taskId, numDocs);
         } finally {
@@ -155,7 +184,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
     }
 
     private String lookupNodeId(String nodeName) throws IOException {
-        final ObjectPath nodes = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes/" + nodeName)));
+        final ObjectPath nodes = ObjectPath.createFromResponse(adminClient().performRequest(new Request("GET", "/_nodes/" + nodeName)));
         final Map<String, Object> nodesMap = nodes.evaluate("nodes");
         assertThat("expected exactly one node matching name " + nodeName, nodesMap.size(), equalTo(1));
         return nodesMap.keySet().iterator().next();
@@ -192,7 +221,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             final Request listTasks = new Request("GET", "/_tasks");
             listTasks.addParameter("actions", "indices:data/write/reindex");
             listTasks.addParameter("detailed", "true");
-            final ObjectPath tasks = ObjectPath.createFromResponse(client().performRequest(listTasks));
+            final ObjectPath tasks = ObjectPath.createFromResponse(adminClient().performRequest(listTasks));
             final Map<String, Object> nodes = tasks.evaluate("nodes");
             assertThat("expected reindex task to appear in cluster", nodes, notNullValue());
             assertThat(
@@ -211,23 +240,52 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
               "reason": "ReindexRelocationWithSecurityIT - shutting down coordinator to trigger relocation"
             }
             """);
-        client().performRequest(shutdown);
+        adminClient().performRequest(shutdown);
     }
 
-    private void rethrottleViaSurvivingNode(String dataNodeAddress, String taskId) throws Exception {
+    private void assertListViaSurvivingNode(String dataNodeAddress, String taskId) throws IOException {
         // Use the data node address captured before coordinator shutdown so the fixture is not asked to resolve a dead node.
-        try (RestClient dataClient = buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(dataNodeAddress) })) {
-            // retry in case the reindex task is not initialized and ready to be rethrottled yet
+        try (
+            RestClient dataClient = buildClient(restClientSettingsForUser(LIST_USER), new HttpHost[] { HttpHost.create(dataNodeAddress) })
+        ) {
+            Request list = new Request("GET", "/_reindex");
+            Response response = dataClient.performRequest(list);
+            ObjectPath body = ObjectPath.createFromResponse(response);
+            // Surface fan-out failures up front so that an unexpectedly empty `reindex` array points at the real cause (e.g. the
+            // coordinator going unreachable mid-list) rather than a bare hasSize(1) mismatch.
+            assertThat(body.<List<?>>evaluate("node_failures"), anyOf(nullValue(), empty()));
+            assertThat(body.<List<?>>evaluate("task_failures"), anyOf(nullValue(), empty()));
+            assertThat(body.<List<?>>evaluate("reindex"), hasSize(1));
+            assertThat(body.evaluate("reindex.0.id"), equalTo(taskId));
+        }
+    }
+
+    private void unthrottleViaSurvivingNode(String dataNodeAddress, String taskId) throws Exception {
+        // Use the data node address captured before coordinator shutdown so the fixture is not asked to resolve a dead node.
+        try (
+            RestClient dataClient = buildClient(
+                restClientSettingsForUser(RETHROTTLE_USER),
+                new HttpHost[] { HttpHost.create(dataNodeAddress) }
+            )
+        ) {
             assertBusy(() -> {
                 final Request rethrottle = new Request("POST", "/_reindex/" + taskId + "/_rethrottle");
-                rethrottle.addParameter("requests_per_second", "-1");
-                dataClient.performRequest(rethrottle);
-            }, 15, TimeUnit.SECONDS);
+                // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
+                rethrottle.addParameter("requests_per_second", String.valueOf(Float.POSITIVE_INFINITY));
+                try {
+                    dataClient.performRequest(rethrottle);
+                } catch (Exception e) {
+                    // Translate transient server errors to AssertionError so assertBusy will retry
+                    throw new AssertionError("rethrottle failed", e);
+                }
+            });
         }
     }
 
     private void assertReindexCompletesOnDataNode(String dataNodeAddress, String originalTaskId, int numDocs) throws Exception {
-        try (RestClient dataClient = buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(dataNodeAddress) })) {
+        try (
+            RestClient dataClient = buildClient(restClientSettingsForUser(GET_USER), new HttpHost[] { HttpHost.create(dataNodeAddress) })
+        ) {
             assertBusy(() -> {
                 // Look up the original (relocated) task in the .tasks index via the dedicated GET /_reindex/{task_id} endpoint;
                 // it follows the relocated_task_id chain server-side and returns the final task once completed.

@@ -123,7 +123,7 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
                 List<Map<String, Object>> indices = dataStream.evaluate("data_streams.0.indices");
                 boolean hasFrozenIndex = indices.stream().anyMatch(idx -> idx.get("index_name").equals(expectedFrozenIndexName));
                 assertTrue("frozen index [" + expectedFrozenIndexName + "] is not present on data stream", hasFrozenIndex);
-            }, 300, TimeUnit.SECONDS);
+            }, 1, TimeUnit.MINUTES);
 
             // Verify cleanup
             assertBusy(() -> assertNoIndexExists(candidateIndex));

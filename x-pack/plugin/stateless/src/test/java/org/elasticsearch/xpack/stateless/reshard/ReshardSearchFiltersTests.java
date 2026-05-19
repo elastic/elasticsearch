@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -36,6 +37,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -177,12 +179,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
 
             // Live docs with deletes of unowned documents applied.
             var liveDocs = wrapper.leaves().get(0).reader().getLiveDocs();
-
-            for (int i = 0; i < docs; i++) {
-                String id = Integer.toString(i);
-                boolean expected = routesToShard0.contains(id);
-                assertEquals(expected, liveDocs.get(i));
-            }
+            assertLiveDocsMatchShardOwnership(liveDocs, docs, routesToShard0);
 
             // Delete one of the owned documents.
             int deletedOwnedId = randomFrom(
@@ -309,17 +306,29 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 .settings(indexSettings(IndexVersion.current(), 2, 0))
                 .build();
             var query = new ShardSplittingQuery(indexMetadata, 0, false);
+            var routing = IndexRouting.fromIndexMetadata(indexMetadata);
+            var routesToShard0 = IntStream.range(0, docs)
+                .boxed()
+                .map(Object::toString)
+                .filter(id -> routing.getShard(id, null) == 0)
+                .collect(Collectors.toSet());
             try (
                 var wrapper1 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader1, query, cache);
                 var wrapper2 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader2, query, cache)
             ) {
-
-                wrapper1.leaves().get(0).reader().getLiveDocs();
+                var liveDocsOnMiss = wrapper1.leaves().get(0).reader().getLiveDocs();
+                assertEquals(routesToShard0.size(), wrapper1.numDocs());
+                assertLiveDocsMatchShardOwnership(liveDocsOnMiss, docs, routesToShard0);
 
                 Map<String, Object> afterFirst = cache.usageStats();
                 assertEquals(1L, afterFirst.get("misses"));
 
-                wrapper2.leaves().get(0).reader().getLiveDocs();
+                var liveDocsOnHit = wrapper2.leaves().get(0).reader().getLiveDocs();
+                assertEquals(wrapper1.numDocs(), wrapper2.numDocs());
+                assertLiveDocsMatchShardOwnership(liveDocsOnHit, docs, routesToShard0);
+                for (int i = 0; i < docs; i++) {
+                    assertEquals(liveDocsOnMiss.get(i), liveDocsOnHit.get(i));
+                }
 
                 Map<String, Object> afterSecond = cache.usageStats();
                 assertEquals(1L, afterSecond.get("misses"));
@@ -546,6 +555,12 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         );
         assertEquals(4, anotherSplitInProgressAdjusted.getNumberOfShards());
         assertEquals(relocatedReshardingMetadata, anotherSplitInProgressAdjusted.getReshardingMetadata());
+    }
+
+    private static void assertLiveDocsMatchShardOwnership(Bits liveDocs, int totalDocs, Set<String> ownedIds) {
+        for (int i = 0; i < totalDocs; i++) {
+            assertEquals(ownedIds.contains(Integer.toString(i)), liveDocs.get(i));
+        }
     }
 
     private ShardId testShardId(int shardNumber) {

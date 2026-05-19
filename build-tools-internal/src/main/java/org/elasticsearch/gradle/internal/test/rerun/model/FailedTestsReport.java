@@ -27,11 +27,12 @@ import java.util.List;
  * resource leaks detected after tests passed). This enables four-state logic in the
  * retry plugin:
  * <ul>
- *   <li>Task in workUnits: rerun only failed tests</li>
+ *   <li>Task in workUnits AND executedTestTasks: task completed with failures — rerun only failed tests</li>
+ *   <li>Task in workUnits but NOT executedTestTasks: task was interrupted — run all tests</li>
  *   <li>Task in failedTestTasks but not workUnits: run all tests (non-test failure)</li>
  *   <li>Task in executedTestTasks but not workUnits or failedTestTasks: skip (confirmed passed)</li>
  *   <li>Task not in executedTestTasks: run all tests (never executed)</li>
- *   <li>executedTestTasks is null: fallback to run all tests for unknown tasks</li>
+ *   <li>executedTestTasks is null: fallback — tasks with workUnits run all tests, others run all tests</li>
  * </ul>
  * <p>
  * <b>Null semantics:</b> {@code workUnits} is normalised to an empty list when the

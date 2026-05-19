@@ -20,6 +20,10 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.tasks.testing.Test;
+import org.gradle.api.tasks.testing.TestDescriptor;
+import org.gradle.api.tasks.testing.TestListener;
+import org.gradle.api.tasks.testing.TestResult;
 import org.gradle.build.event.BuildEventsListenerRegistry;
 import org.gradle.initialization.BuildCancellationToken;
 import org.gradle.tooling.events.FinishEvent;
@@ -33,11 +37,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.inject.Inject;
 
@@ -67,9 +74,7 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
         Provider<TaskStatusService> trackerProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent("taskStatusTracker", TaskStatusService.class, spec -> {
-                spec.getParameters()
-                    .getOutputFile()
-                    .set(project.getLayout().getBuildDirectory().file("task-status.json"));
+                spec.getParameters().getOutputFile().set(project.getLayout().getBuildDirectory().file("task-status.json"));
             });
 
         // Config-cache-safe: Gradle re-subscribes the service to task events each build.
@@ -90,6 +95,42 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
             token.addCallback(() -> trackerProvider.get().markCancelled());
         } catch (Exception e) {
             // graceful degradation: cancelled tasks appear as NOT_RUN
+        }
+
+        // Add a TestListener to every Test task across all projects. Results accumulate in the
+        // service and are flushed by writeReport(), including on GCP preemption.
+        project.allprojects(p -> p.getTasks().withType(Test.class).configureEach(test -> {
+            test.usesService(trackerProvider);
+            test.addTestListener(new TestResultListener(test.getPath(), trackerProvider));
+        }));
+    }
+
+    private static class TestResultListener implements TestListener {
+        private final String taskPath;
+        private final Provider<TaskStatusService> serviceProvider;
+
+        TestResultListener(String taskPath, Provider<TaskStatusService> serviceProvider) {
+            this.taskPath = taskPath;
+            this.serviceProvider = serviceProvider;
+        }
+
+        @Override
+        public void beforeSuite(TestDescriptor suite) {}
+
+        @Override
+        public void afterSuite(TestDescriptor suite, TestResult result) {}
+
+        @Override
+        public void beforeTest(TestDescriptor testDescriptor) {}
+
+        @Override
+        public void afterTest(TestDescriptor testDescriptor, TestResult result) {
+            // isComposite() is true for class-level and root suite descriptors; skip those.
+            if (testDescriptor.isComposite()) {
+                return;
+            }
+            String className = testDescriptor.getClassName() != null ? testDescriptor.getClassName() : "<unknown>";
+            serviceProvider.get().recordTestResult(taskPath, className, testDescriptor.getName(), result.getResultType().name());
         }
     }
 
@@ -115,6 +156,7 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
 
         private final Map<String, TaskOutcome> outcomes = new ConcurrentHashMap<>();
         private final Set<String> planned = ConcurrentHashMap.newKeySet();
+        private final Queue<TaskStatusReport.TestEntry> testEntries = new ConcurrentLinkedQueue<>();
         private volatile boolean cancelled = false;
 
         interface Params extends BuildServiceParameters {
@@ -140,6 +182,10 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
             cancelled = true;
         }
 
+        public void recordTestResult(String taskPath, String className, String methodName, String result) {
+            testEntries.add(new TaskStatusReport.TestEntry(taskPath, className, methodName, result));
+        }
+
         @Override
         public void onFinish(FinishEvent event) {
             if (event instanceof TaskFinishEvent taskEvent) {
@@ -147,9 +193,7 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
                 var result = taskEvent.getResult();
                 TaskOutcome outcome;
                 if (result instanceof TaskSuccessResult s) {
-                    outcome = s.isFromCache() ? TaskOutcome.FROM_CACHE
-                        : s.isUpToDate() ? TaskOutcome.UP_TO_DATE
-                        : TaskOutcome.SUCCESS;
+                    outcome = s.isFromCache() ? TaskOutcome.FROM_CACHE : s.isUpToDate() ? TaskOutcome.UP_TO_DATE : TaskOutcome.SUCCESS;
                 } else if (result instanceof TaskFailureResult) {
                     // cancelled flag is set only by explicit cancellation (Ctrl+C / BuildCancellationToken).
                     // A task that gets a failure result while the build is being cancelled was interrupted.
@@ -189,15 +233,23 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
             Set<String> allPaths = new TreeSet<>(planned);
             allPaths.addAll(outcomes.keySet());
 
-            List<TaskStatusReport.TaskEntry> entries = allPaths.stream()
+            List<TaskStatusReport.TaskEntry> taskEntries = allPaths.stream()
                 .map(path -> new TaskStatusReport.TaskEntry(path, outcomes.getOrDefault(path, fallback).name()))
+                .toList();
+
+            List<TaskStatusReport.TestEntry> tests = testEntries.stream()
+                .sorted(
+                    Comparator.comparing(TaskStatusReport.TestEntry::taskPath)
+                        .thenComparing(TaskStatusReport.TestEntry::className)
+                        .thenComparing(TaskStatusReport.TestEntry::methodName)
+                )
                 .toList();
 
             File outputFile = getParameters().getOutputFile().getAsFile().get();
             outputFile.getParentFile().mkdirs();
             try {
                 new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT)
-                    .writeValue(outputFile, new TaskStatusReport(entries, cancelled));
+                    .writeValue(outputFile, new TaskStatusReport(taskEntries, tests, cancelled));
             } catch (IOException e) {
                 LOGGER.warn("Failed to write task status report to {}", outputFile, e);
             }

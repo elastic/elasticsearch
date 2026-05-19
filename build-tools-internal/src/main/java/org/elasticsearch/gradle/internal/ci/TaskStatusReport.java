@@ -14,13 +14,23 @@ import java.util.List;
  * Written to {@code .task-status.json} at the end of every build by {@link TaskStatusTrackerPlugin}.
  *
  * @param tasks     every task in the execution graph, sorted by path, with its final outcome
+ * @param tests     every individual test method that completed before the build ended,
+ *                  sorted by task path then class then method name
  * @param cancelled {@code true} when the build was explicitly cancelled (Ctrl+C or preemption signal)
  */
-public record TaskStatusReport(List<TaskEntry> tasks, boolean cancelled) {
+public record TaskStatusReport(List<TaskEntry> tasks, List<TestEntry> tests, boolean cancelled) {
 
     /**
      * @param path    Gradle task path, e.g. {@code :server:test}
      * @param outcome the task's final execution outcome
      */
     public record TaskEntry(String path, String outcome) {}
+
+    /**
+     * @param taskPath   Gradle task path that ran this test, e.g. {@code :server:test}
+     * @param className  fully-qualified test class, e.g. {@code org.elasticsearch.FooTests}
+     * @param methodName test method name, including parameter description for parameterized tests
+     * @param result     {@code SUCCESS}, {@code FAILURE}, or {@code SKIPPED}
+     */
+    public record TestEntry(String taskPath, String className, String methodName, String result) {}
 }

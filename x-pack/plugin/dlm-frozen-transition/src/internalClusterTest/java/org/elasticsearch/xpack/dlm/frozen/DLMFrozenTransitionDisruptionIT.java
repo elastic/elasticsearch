@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -440,6 +441,46 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     }
 
     /**
+     * While the "take snapshot" phase is in progress (intercepted via {@link TransportGetSnapshotsAction}),
+     * stops the current master node to trigger a master failover.
+     * <p>
+     * Expected behaviour: the resulting transient master-failover exception is NOT recorded in the
+     * error store. Once a new master is elected the DLM service resumes and the frozen index
+     * eventually appears in the data stream.
+     */
+    public void testMasterFailoverDuringSnapshot() throws Exception {
+        String candidateIndex = setupClusterAndInfrastructure(3);
+
+        CountDownLatch latch = registerDisruptionInterceptor(TransportGetSnapshotsAction.TYPE.name(), () -> {
+            try {
+                internalCluster().stopCurrentMasterNode();
+            } catch (IOException e) {
+                logger.warn("Failed to stop current master node during disruption test", e);
+            }
+        }, true);
+        triggerRollover();
+
+        assertTrue("GetSnapshots request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
+        assertNoErrorRecorded(candidateIndex);
+
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        assertBusy(() -> {
+            var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject(Metadata.DEFAULT_PROJECT_ID);
+            assertThat(
+                "Frozen index should exist after master failover and transition retry",
+                projectMetadata.index(expectedFrozenIndexName),
+                notNullValue()
+            );
+        }, 120, TimeUnit.SECONDS);
+
+        logger.info("--> master-failover-during-snapshot disruption handled gracefully");
+    }
+
+    /**
      * While the frozen transition is in progress (force-merge phase), updates the lifecycle
      * policy to remove the frozenAfter setting. The service should not crash.
      */
@@ -482,7 +523,17 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Returns the name of the first backing index (candidate for frozen transition after rollover).
      */
     private String setupClusterAndInfrastructure() {
-        internalCluster().startMasterOnlyNode();
+        return setupClusterAndInfrastructure(1);
+    }
+
+    /**
+     * Starts {@code numMasterNodes} master-eligible nodes plus 2 data nodes and 1 frozen node,
+     * then sets up the data stream infrastructure.
+     * Use {@code numMasterNodes >= 3} for master-failover tests so the cluster retains quorum
+     * after stopping the current master.
+     */
+    private String setupClusterAndInfrastructure(int numMasterNodes) {
+        internalCluster().startMasterOnlyNodes(numMasterNodes);
         internalCluster().startDataOnlyNodes(2);
         startFrozenOnlyNode();
         int numReplicas = 1; // avoid unassigned shards with only 1 data node

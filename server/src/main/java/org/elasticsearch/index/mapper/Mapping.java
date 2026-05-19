@@ -31,9 +31,7 @@ import java.util.stream.Stream;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false, false)
-        ),
+        new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(MapperBuilderContext.root(false, false)),
         new MetadataFieldMapper[0],
         null
     );

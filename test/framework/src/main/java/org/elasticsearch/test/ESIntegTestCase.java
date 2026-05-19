@@ -119,6 +119,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -2992,10 +2993,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     @Override
-    protected boolean enableBigArraysReleasedCheck() {
+    protected boolean enableArraysReleasedCheck() {
         // checking that all big arrays have been released makes little sense for a still-running cluster, see comments in
         // #ensureAllArraysAreReleased for details
         return isSuiteScopedTest(getTestClass()) == false;
+    }
+
+    @Override
+    protected boolean enableAllPagesReleasedCheck() {
+        // Some classes hold pages in internal caches during operation (e.g. JoinValidationService caches a serialized
+        // cluster state) and release them asynchronously after `stop`, so this check would fire while the cluster
+        // is alive. afterClass() method calls ensureAllPagesAreReleased() after the cluster is fully shut down, which
+        // would catch subsequent leaks.
+        return false;
     }
 
     @AfterClass
@@ -3007,6 +3017,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 MockBigArrays.ensureAllArraysAreReleased();
+                MockPageCacheRecycler.ensureAllPagesAreReleased();
                 checkStaticState();
             }
         } finally {

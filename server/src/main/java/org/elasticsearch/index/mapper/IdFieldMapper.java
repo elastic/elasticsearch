@@ -97,12 +97,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String documentDescription(ParsedDocument parsedDocument);
 
     /**
-     * Build the {@code _id} to use on requests reindexing into indices using
-     * this {@code _id}.
-     */
-    public abstract String reindexId(String id);
-
-    /**
      * Returns {@code true} when the {@code _id} is stored as sorted doc values rather than a stored field.
      */
     public boolean isColumnarMode() {

@@ -43,6 +43,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
@@ -344,10 +345,19 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         };
     }
 
+    @Override
+    protected boolean enableAllPagesReleasedCheck() {
+        // CCR tests keep leader and follower clusters alive between test methods; cluster-internal
+        // page caches are live when after() fires. The check runs in stopClusters() instead,
+        // after all clusters are fully shut down.
+        return false;
+    }
+
     @AfterClass
-    public static void stopClusters() throws IOException {
+    public static void stopClusters() throws Exception {
         IOUtils.close(clusterGroup);
         clusterGroup = null;
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 
     protected int numberOfNodesPerCluster() {

@@ -344,11 +344,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return "[" + parsedDocument.id() + "]";
     }
 
-    @Override
-    public String reindexId(String id) {
-        return id;
-    }
-
     public static IndexableField columnarIdField(String id) {
         BytesRef encoded = Uid.encodeId(id);
         return new ColumnarIdField(NAME, encoded);

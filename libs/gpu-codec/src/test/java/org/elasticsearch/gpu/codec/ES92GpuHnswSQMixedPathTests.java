@@ -34,7 +34,6 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 public class ES92GpuHnswSQMixedPathTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

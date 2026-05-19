@@ -1,0 +1,16 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# Cross-compilation image using cargo-zigbuild.
+
+FROM docker.elastic.co/elasticsearch-dev/es-rust-cross-toolchain:1.95 AS toolchain
+
+RUN apt-get update && apt-get install -y --no-install-recommends python3-pip && rm -rf /var/lib/apt/lists/*
+RUN pip3 install ziglang==0.16.0 --break-system-packages
+RUN cargo install --locked --version 0.22.3 cargo-zigbuild

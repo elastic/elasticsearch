@@ -10,7 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -32,6 +32,7 @@ import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LO
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_RELOCATION_COUNTER;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_RELOCATION_STARTED_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.SlicingMode;
 
@@ -157,6 +158,27 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals("java.io.IOException", measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
     }
 
+    public void testRecordRelocationStarted() {
+        metrics.recordRelocationStarted();
+
+        List<Measurement> measurements = registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_STARTED_COUNTER);
+        assertEquals(1, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+
+        assertEquals(0, registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER).size());
+
+        metrics.recordRelocationStarted();
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_STARTED_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.get(1).getLong());
+        assertNull(measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+
+        assertEquals(0, registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER).size());
+    }
+
     public void testResolveSlicingModeNone() {
         ReindexRequest request = new ReindexRequest();
         assertEquals(SlicingMode.NONE, ReindexMetrics.resolveSlicingMode(request));
@@ -176,7 +198,7 @@ public class ReindexMetricsTests extends ESTestCase {
 
     public void testResolveSlicingModeAuto() {
         ReindexRequest request = new ReindexRequest();
-        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         assertEquals(SlicingMode.AUTO, ReindexMetrics.resolveSlicingMode(request));
     }
 

@@ -285,7 +285,7 @@ public class CuVSResourceManagerTests extends ESTestCase {
 
     // N threads tryAcquire concurrently: exactly capacity succeed, the rest get null
     public void testTryAcquireConcurrent() throws Exception {
-        int capacity= randomIntBetween(2, 4);
+        int capacity = randomIntBetween(2, 4);
         var mgr = new MockPoolingCuVSResourceManager(capacity);
         int numThreads = randomIntBetween(8, 12);
         CountDownLatch startLatch = new CountDownLatch(1);

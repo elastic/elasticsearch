@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
@@ -42,12 +42,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -95,8 +97,14 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
 
         // 1st rethrottle: change rate to 2x — exercises chain-following
         final int newRps = requestsPerSecond * 2;
+        final long timeMillisBeforeFirstRethrottle = System.currentTimeMillis();
         final Map<String, Object> rethrottleBody = rethrottleReindex(setup.originalTaskId, newRps);
-        assertRethrottleHasTasksAndNoFailures(rethrottleBody, setup.nodeAId);
+        assertRethrottleHasTasksAndNoFailures(
+            rethrottleBody,
+            setup.originalTaskId,
+            setup.originalStartTimeMillis,
+            timeMillisBeforeFirstRethrottle
+        );
 
         // GET by original task ID: verify the response shows the relocated task on nodeA
         final GetReindexResponse afterFirstRethrottle = getReindexWithWaitForCompletion(setup.originalTaskId, false);
@@ -113,17 +121,27 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
         assertRethrottledRps(afterRethrottleInfo.taskId(), newRps);
 
         // 2nd rethrottle: unlimited — exercises chain-following a second time
+        final long timeMillisBeforeSecondRethrottle = System.currentTimeMillis();
         final Map<String, Object> unthrottleBody = rethrottleReindex(setup.originalTaskId, -1);
-        assertRethrottleHasTasksAndNoFailures(unthrottleBody, setup.nodeAId);
+        assertRethrottleHasTasksAndNoFailures(
+            unthrottleBody,
+            setup.originalTaskId,
+            setup.originalStartTimeMillis,
+            timeMillisBeforeSecondRethrottle
+        );
 
-        // 15s timeout is well under the 60s the throttled reindex would take,
-        // so completing within this window proves the unlimited rate was applied
-        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(setup.originalTaskId, true);
+        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(
+            setup.originalTaskId,
+            true,
+            TimeValue.timeValueMinutes(1)
+        );
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(completedResponse);
         assertThat(responseMap.get("completed"), is(true));
         assertThat(responseMap.get("error"), is(nullValue()));
         assertThat(responseMap.get("id"), equalTo(setup.originalTaskId.toString()));
         assertThat(responseMap.get("start_time_in_millis"), equalTo(setup.originalStartTimeMillis));
+        assertThat(responseMap.get("original_task_id"), is(nullValue()));
+        assertThat(responseMap.get("original_start_time_in_millis"), is(nullValue()));
         assertThat(ObjectPath.eval("response.requests_per_second", responseMap), is(-1.0));
         assertThat(ObjectPath.eval("response.total", responseMap), is(numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(ObjectPath.eval("response.created", responseMap), is(numberOfDocumentsThatTakes60SecondsToIngest));
@@ -135,10 +153,26 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
         assertRethrottleNoTasksAndNodeFailure(postCompletionBody, setup.nodeBId);
     }
 
-    private void assertRethrottleHasTasksAndNoFailures(final Map<String, Object> body, String expectedNodeId) {
-        final Map<String, Object> tasks = ObjectPath.eval("nodes." + expectedNodeId + ".tasks", body);
-        assertThat("rethrottle response should have tasks on expected node", tasks, is(notNullValue()));
-        assertThat("rethrottle response should have exactly one task", tasks.size(), equalTo(1));
+    private void assertRethrottleHasTasksAndNoFailures(
+        final Map<String, Object> body,
+        final TaskId originalTaskId,
+        final long originalStartTimeMillis,
+        final long timeMillisBeforeRethrottle
+    ) {
+        final Map<String, Object> tasks = ObjectPath.eval("nodes." + originalTaskId.getNodeId() + ".tasks", body);
+        assertThat("rethrottle should have tasks on expected node", tasks, is(notNullValue()));
+        assertThat("rethrottle should have exactly one task", tasks.size(), equalTo(1));
+        final Map<String, Object> soleTask = ObjectPath.eval(originalTaskId.toString(), tasks);
+        assertThat("task body id", ((Number) soleTask.get("id")).longValue(), equalTo(originalTaskId.getId()));
+        assertThat("task body start_time_in_millis", soleTask.get("start_time_in_millis"), equalTo(originalStartTimeMillis));
+        final long runningNanos = ((Number) soleTask.get("running_time_in_nanos")).longValue();
+        // we have millisecond precision here, so leave space for 1ms because runningTimeInNanos has nanosecond resolution
+        final long expectedMinimumRunningTimeNanos = TimeUnit.MILLISECONDS.toNanos(
+            timeMillisBeforeRethrottle - originalStartTimeMillis - 1
+        );
+        assertThat(runningNanos, greaterThanOrEqualTo(expectedMinimumRunningTimeNanos));
+        assertThat("no originalTaskId", soleTask.get("original_task_id"), is(nullValue()));
+        assertThat("no originalStartTimeMillis", soleTask.get("original_start_time_in_millis"), is(nullValue()));
         final List<Object> taskFailures = ObjectPath.eval("task_failures", body);
         final List<Object> nodeFailures = ObjectPath.eval("node_failures", body);
         if (taskFailures != null) {
@@ -166,11 +200,9 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
      */
     private void assertRethrottledRps(final TaskId relocatedTaskId, final int expectedTotalRps) {
         if (numOfSlices == 1) {
-            final BulkByScrollTask.Status status = (BulkByScrollTask.Status) clusterAdmin().prepareGetTask(relocatedTaskId)
-                .get()
-                .getTask()
-                .getTask()
-                .status();
+            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(
+                relocatedTaskId
+            ).get().getTask().getTask().status();
             assertThat("non-sliced task should have the new RPS", (double) status.getRequestsPerSecond(), closeTo(expectedTotalRps, 0.001));
         } else {
             final ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();
@@ -182,7 +214,7 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
             assertThat("all slices should be registered", group.childTasks().size(), equalTo(numOfSlices));
             final float expectedPerSlice = (float) expectedTotalRps / numOfSlices;
             for (TaskGroup child : group.childTasks()) {
-                final BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) child.task().status();
+                final BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) child.task().status();
                 assertThat(
                     "slice " + sliceStatus + " should have the rethrottled RPS",
                     (double) sliceStatus.getRequestsPerSecond(),
@@ -251,10 +283,15 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
     }
 
     private GetReindexResponse getReindexWithWaitForCompletion(final TaskId taskId, final boolean waitForCompletion) {
-        return client().execute(
-            TransportGetReindexAction.TYPE,
-            new GetReindexRequest(taskId, waitForCompletion, TimeValue.timeValueSeconds(15))
-        ).actionGet();
+        return getReindexWithWaitForCompletion(taskId, waitForCompletion, TimeValue.timeValueSeconds(15));
+    }
+
+    private GetReindexResponse getReindexWithWaitForCompletion(
+        final TaskId taskId,
+        final boolean waitForCompletion,
+        final TimeValue timeout
+    ) {
+        return client().execute(TransportGetReindexAction.TYPE, new GetReindexRequest(taskId, waitForCompletion, timeout)).actionGet();
     }
 
     private Map<String, Object> rethrottleReindex(final TaskId taskId, final int requestsPerSecond) throws Exception {

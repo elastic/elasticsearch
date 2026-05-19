@@ -64,7 +64,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             var indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context.indexSettings().getIndexRouting();
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
-                || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+                || id.equals(
+                    indexRouting.createId(
+                        context.sourceToParse().source().xContentType(),
+                        context.sourceToParse().source().originalBytes(),
+                        suffix
+                    )
+                );
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             if (context.indexSettings().useTimeSeriesSyntheticId()) {
@@ -281,9 +287,4 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
     }
 
-    @Override
-    public String reindexId(String id) {
-        // null the _id so we recalculate it on write
-        return null;
-    }
 }

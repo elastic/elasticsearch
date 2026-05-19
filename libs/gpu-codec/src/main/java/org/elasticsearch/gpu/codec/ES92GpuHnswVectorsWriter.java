@@ -291,19 +291,32 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            try (var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset, fieldInfo)) {
+            var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset, fieldInfo);
+            try {
                 assert index != null : "GPU index should be built for field: " + fieldInfo.name;
-                var deviceGraph = index.getGraph();
-                var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
-                if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
-                    // If the graph is "small enough", copy it entirely to host memory so we can
-                    // release the associated resource early and increase parallelism.
-                    try (var hostGraph = deviceGraph.toHost()) {
-                        resourcesHolder.close();
-                        graph = writeGraph(hostGraph, graphLevelNodeOffsets);
+                try (var deviceGraph = index.getGraph();) {
+                    var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
+                    if (graphSize < DIRECT_COPY_THRESHOLD_IN_BYTES) {
+                        // Graph is small enough to copy to host, allowing us to free GPU resources
+                        // before the (relatively slow) disk write. Order matters: copy the graph,
+                        // close the index (frees device memory), then release the resource to the
+                        // pool so another thread can use it. Reversing this order causes a race:
+                        // CagraIndex.close() calls cuvsCagraIndexDestroy using the CuVSResources
+                        // context, which another thread may already be using if the resource was
+                        // returned to the pool first.
+                        try (var hostGraph = deviceGraph.toHost()) {
+                            index.close();
+                            index = null;
+                            resourcesHolder.close();
+                            graph = writeGraph(hostGraph, graphLevelNodeOffsets);
+                        }
+                    } else {
+                        graph = writeGraph(deviceGraph, graphLevelNodeOffsets);
                     }
-                } else {
-                    graph = writeGraph(deviceGraph, graphLevelNodeOffsets);
+                }
+            } finally {
+                if (index != null) {
+                    index.close();
                 }
             }
             long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
@@ -694,7 +707,22 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // TODO: revert to directly pass data mapped with DatasetUtils.getInstance() to generateGpuGraphAndWriteMeta
                 // when cuvs has fixed this problem
                 int packedRowSize = fieldInfo.getVectorDimension();
+                // Acquire the GPU resource first, before creating the potentially large
+                // temporary memory-mapped copy. This bounds the number of concurrent temp
+                // files to the number of GPU resources (MAX_RESOURCES), preventing the
+                // page thrashing that occurs when many merge threads each create multi-GB
+                // temp copies while waiting for a GPU slot.
                 try (
+                    var resourcesHolder = new ResourcesHolder(
+                        cuVSResourceManager,
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType,
+                            cagraIndexParams,
+                            "merge " + fieldInfo.name
+                        )
+                    );
                     var packedSegmentHolder = getContiguousPackedMemorySegment(
                         memorySegmentAccessInput,
                         mergeState.segmentInfo.dir,
@@ -708,10 +736,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                         numVectors,
                         packedRowSize,
                         dataType
-                    );
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge " + fieldInfo.name)
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -739,7 +763,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge " + fieldInfo.name)
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType,
+                            cagraIndexParams,
+                            "merge " + fieldInfo.name
+                        )
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -760,7 +790,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge " + fieldInfo.name)
+                    cuVSResourceManager.acquire(
+                        numVectors,
+                        fieldInfo.getVectorDimension(),
+                        dataType,
+                        cagraIndexParams,
+                        "merge " + fieldInfo.name
+                    )
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -787,19 +823,27 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             IndexInput slice = vectorValues.getSlice();
             var input = FilterIndexInput.unwrap(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
-                // Fast path, possible direct access to mmapped file
+                // Fast path, possible direct access to mmapped file.
+                // Acquire the GPU resource first to limit concurrent temp file creation
+                // (see mergeByteVectorField for full rationale).
                 try (
+                    var resourcesHolder = new ResourcesHolder(
+                        cuVSResourceManager,
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType,
+                            cagraIndexParams,
+                            "merge " + fieldInfo.name
+                        )
+                    );
                     var memorySegmentHolder = getContiguousMemorySegment(
                         memorySegmentAccessInput,
                         mergeState.segmentInfo.dir,
                         mergeState.segmentInfo.name
                     );
                     var dataset = DatasetUtils.getInstance()
-                        .fromInput(memorySegmentHolder.memorySegment(), numVectors, fieldInfo.getVectorDimension(), dataType);
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge " + fieldInfo.name)
-                    )
+                        .fromInput(memorySegmentHolder.memorySegment(), numVectors, fieldInfo.getVectorDimension(), dataType)
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                 }
@@ -824,7 +868,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge " + fieldInfo.name)
+                        cuVSResourceManager.acquire(
+                            numVectors,
+                            fieldInfo.getVectorDimension(),
+                            dataType,
+                            cagraIndexParams,
+                            "merge " + fieldInfo.name
+                        )
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -846,7 +896,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge " + fieldInfo.name)
+                    cuVSResourceManager.acquire(
+                        numVectors,
+                        fieldInfo.getVectorDimension(),
+                        dataType,
+                        cagraIndexParams,
+                        "merge " + fieldInfo.name
+                    )
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);

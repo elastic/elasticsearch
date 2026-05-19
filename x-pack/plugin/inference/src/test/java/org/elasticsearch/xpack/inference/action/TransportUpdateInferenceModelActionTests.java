@@ -54,10 +54,12 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -93,6 +95,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String TASK_SETTINGS_VALUE = "some_task_value";
     private static final String SECRET_SETTINGS_KEY = "some_secret_key";
     private static final String SECRET_SETTINGS_VALUE = "some_secret_value";
+    private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
+    private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -338,6 +342,84 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyModelRegistryUpdateInvoked();
     }
 
+    public void testMasterOperation_UnknownServiceSetting_ThrowsBadRequest() {
+        var serviceSettings = mock(ServiceSettings.class);
+        when(serviceSettings.updateServiceSettings(any())).thenAnswer(invocation -> serviceSettings);
+        var model = createMockedModel(serviceSettings, mock(TaskSettings.class), null);
+
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "service_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
+        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_ThrowsBadRequest() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
+        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_AllowedWhenParserUsedForTaskSettings() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        GoogleVertexAiEmbeddingsModel model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(model);
+        mockModelRegistryGetModelToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(response.getModel(), is(model.getConfigurations()));
+        verifyNoModelRegistryMutations();
+    }
+
     public void testMasterOperation_UpdatesModelSettingsSuccessfully() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
         mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
@@ -477,9 +559,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
-        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
-
-        var requestBody = """
+        return callMasterOperationWithRequestBody("""
             {
                 "task_type": "text_embedding",
                 "service_settings": {
@@ -490,7 +570,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                     "input_type": "ingest",
                     "auto_truncate": true
                 }
-            }""";
+            }
+            """);
+    }
+
+    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithRequestBody(String requestBody) {
+        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
 
         action.masterOperation(
             mock(Task.class),
@@ -505,6 +590,66 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener
         );
         return listener;
+    }
+
+    public void testValidateConsumedUpdateSettings_NullMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, null);
+    }
+
+    public void testValidateConsumedUpdateSettings_EmptyMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(
+            service,
+            SERVICE_NAME_VALUE,
+            new HashMap<>(),
+            new HashMap<>()
+        );
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownServiceSetting_ThrowsBadRequest() {
+        var serviceSettings = new HashMap<String, Object>();
+        serviceSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(
+                service,
+                SERVICE_NAME_VALUE,
+                serviceSettings,
+                null
+            )
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
+        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownTaskSetting_ThrowsWhenParserNotUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(false);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(
+                service,
+                SERVICE_NAME_VALUE,
+                null,
+                taskSettings
+            )
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
+        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownTaskSetting_AllowedWhenParserUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings);
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_NewConfigMapsAreNull_ReturnsExistingConfigs() {

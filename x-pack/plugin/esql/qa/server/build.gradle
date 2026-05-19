@@ -1,4 +1,9 @@
 apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 versions << [
   'hadoop' : '3.4.3',

@@ -520,7 +520,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     private boolean cachedValueIsConsistent(String nodeId, DoubleSupplier computeIfMissing) {
         final double computed = computeIfMissing.getAsDouble();
         final double cached = nodeMaxShardWriteLoadProportion.get(nodeId);
-        assert cached == computed
+        assert Math.abs(cached - computed) < 1e-9
             : "We cached a different value than we calculated for "
                 + nodeId
                 + ", this shouldn't happen. cached != computed: "

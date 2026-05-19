@@ -287,9 +287,4 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
     }
 
-    @Override
-    public String reindexId(String id) {
-        // null the _id so we recalculate it on write
-        return null;
-    }
 }

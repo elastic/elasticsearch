@@ -23,28 +23,42 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 
-public final class SortedSetOrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Releasable, Block.Builder {
+/**
+ * Builder that emits {@link OrdinalBytesRefBlock}s from a stream of ordinals into a backing {@link SortedSetDocValues}.
+ */
+final class OrdinalsBuilder implements BlockLoader.SortedSetOrdinalsBuilder, Releasable, Block.Builder {
+
     private final BlockFactory blockFactory;
     private final SortedSetDocValues docValues;
+    private final Block.MvOrdering mvOrdering;
+    private final IntBlock.Builder ordsBuilder;
     private int minOrd = Integer.MAX_VALUE;
     private int maxOrd = Integer.MIN_VALUE;
     private int totalValueCount;
-    private final IntBlock.Builder ordsBuilder;
 
-    public SortedSetOrdinalsBuilder(BlockFactory blockFactory, SortedSetDocValues docValues, int count) {
+    static OrdinalsBuilder sortedSet(BlockFactory blockFactory, SortedSetDocValues docValues, int count) {
+        return new OrdinalsBuilder(blockFactory, docValues, count, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+    }
+
+    static OrdinalsBuilder arrayOrder(BlockFactory blockFactory, SortedSetDocValues docValues, int count) {
+        return new OrdinalsBuilder(blockFactory, docValues, count, Block.MvOrdering.UNORDERED);
+    }
+
+    private OrdinalsBuilder(BlockFactory blockFactory, SortedSetDocValues docValues, int count, Block.MvOrdering mvOrdering) {
         this.blockFactory = blockFactory;
         this.docValues = docValues;
-        this.ordsBuilder = blockFactory.newIntBlockBuilder(count).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        this.mvOrdering = mvOrdering;
+        this.ordsBuilder = blockFactory.newIntBlockBuilder(count).mvOrdering(mvOrdering);
     }
 
     @Override
-    public SortedSetOrdinalsBuilder appendNull() {
+    public OrdinalsBuilder appendNull() {
         ordsBuilder.appendNull();
         return this;
     }
 
     @Override
-    public SortedSetOrdinalsBuilder appendOrd(int ord) {
+    public OrdinalsBuilder appendOrd(int ord) {
         minOrd = Math.min(minOrd, ord);
         maxOrd = Math.max(maxOrd, ord);
         ordsBuilder.appendInt(ord);
@@ -53,13 +67,13 @@ public final class SortedSetOrdinalsBuilder implements BlockLoader.SortedSetOrdi
     }
 
     @Override
-    public SortedSetOrdinalsBuilder beginPositionEntry() {
+    public OrdinalsBuilder beginPositionEntry() {
         ordsBuilder.beginPositionEntry();
         return this;
     }
 
     @Override
-    public SortedSetOrdinalsBuilder endPositionEntry() {
+    public OrdinalsBuilder endPositionEntry() {
         ordsBuilder.endPositionEntry();
         return this;
     }
@@ -127,7 +141,7 @@ public final class SortedSetOrdinalsBuilder implements BlockLoader.SortedSetOrdi
                     }
                 }
             }
-            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            builder.mvOrdering(mvOrdering);
             return builder.build();
         }
     }

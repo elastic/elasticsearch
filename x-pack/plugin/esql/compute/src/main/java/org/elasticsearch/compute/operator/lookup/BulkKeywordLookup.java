@@ -129,22 +129,21 @@ public class BulkKeywordLookup {
      * Initialize caches for the given index reader as necessary.
      * The current thread is tracked because Lucene only allows
      * TermsEnum and PostingsEnum to be used from the thread that creates them.
+     * Note: postingsCache[i] filled in processQuery.
      */
     public void initializeCaches(IndexReader indexReader) throws IOException {
         final Thread current = Thread.currentThread();
         final int numLeaves = indexReader.leaves().size();
-        if (termsEnumCache == null || creationThread != current || termsEnumCache.length != numLeaves) {
-
+        if (termsEnumCache == null || creationThread != current) {
             creationThread = current;
-            logger.debug("initializeCaches creationThread = ", creationThread);
-
             termsEnumCache = new TermsEnum[numLeaves];
             postingsCache = new PostingsEnum[numLeaves];
+
+            // Pre-populate caches with TermsEnum for each leaf
             for (int i = 0; i < numLeaves; i++) {
                 LeafReaderContext leafContext = indexReader.leaves().get(i);
                 Terms terms = leafContext.reader().terms(fieldName);
                 termsEnumCache[i] = (terms == null) ? TermsEnum.EMPTY : terms.iterator();
-                // postingsCache[i] starts null; will be (re)filled lazily in processQuery
             }
         }
     }

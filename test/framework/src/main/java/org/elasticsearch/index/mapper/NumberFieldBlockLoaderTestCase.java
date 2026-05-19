@@ -10,7 +10,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.Mapping;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,18 +28,21 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value"), fieldMapping) : null;
 
-        if (value instanceof List<?> == false) {
-            return convert(value, nullValue, fieldMapping);
-        }
-
         boolean hasDocValues = hasDocValues(fieldMapping, true);
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource();
-        if (hasDocValues && useDocValues) {
+
+        boolean fromDocValues = hasDocValues && useDocValues;
+
+        if (value instanceof List<?> == false) {
+            return convert(value, nullValue, fieldMapping, fromDocValues);
+        }
+
+        if (fromDocValues) {
             // Sorted
             var resultList = ((List<Object>) value).stream()
-                .map(v -> convert(v, nullValue, fieldMapping))
+                .map(v -> convert(v, nullValue, fieldMapping, true))
                 .filter(Objects::nonNull)
                 .sorted()
                 .toList();
@@ -44,11 +50,14 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
 
         // parsing from source
-        var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue, fieldMapping)).filter(Objects::nonNull).toList();
+        var resultList = ((List<Object>) value).stream()
+            .map(v -> convert(v, nullValue, fieldMapping, false))
+            .filter(Objects::nonNull)
+            .toList();
         return maybeFoldList(resultList);
     }
 
-    private T convert(Object value, T nullValue, Map<String, Object> fieldMapping) {
+    private T convert(Object value, T nullValue, Map<String, Object> fieldMapping, boolean fromDocValues) {
         switch (value) {
             case null -> {
                 return nullValue;
@@ -59,8 +68,9 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
                 if (s.isEmpty()) {
                     return nullValue;
                 }
-                // Attempt to parse the string as a number. If that fails, the string is malformed, so return null
-                Number parsed = tryParseString(s);
+                // Attempt to parse the string as a number. If that fails, the string is malformed, so return null.
+                // The two code paths in the mapper use different parsers, so we delegate to the appropriate method.
+                Number parsed = fromDocValues ? tryParseString(s) : tryParseStringFromSource(s);
                 if (parsed != null) {
                     return convert(parsed, fieldMapping);
                 }
@@ -79,11 +89,12 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     }
 
     /**
-     * Tries to parse a string as a number, matching the behavior of numeric field mappers.
+     * Tries to parse a string as a number, matching the behavior used during indexing (and therefore
+     * what is stored in doc values or returned via synthetic source).
      * Returns null if the string cannot be parsed as a valid number.
      *
-     * <p>The default implementation uses {@link Double#parseDouble(String)} which matches the coercion
-     * behavior of most numeric field mappers.
+     * <p>The default implementation uses {@link Double#parseDouble(String)}, which matches the
+     * coercion behavior of most numeric field mappers.
      */
     protected Number tryParseString(String s) {
         try {
@@ -93,5 +104,40 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
     }
 
+    /**
+     * Tries to parse a string as a number, matching the behavior used when re-parsing from the
+     * original stored {@code _source}. Returns null if the string cannot be parsed as a valid number.
+     *
+     * <p>This is intentionally separate from {@link #tryParseString(String)} because the indexing
+     * path and the stored-source re-parsing path can differ (see {@code LongFieldBlockLoaderTests}).
+     */
+    protected Number tryParseStringFromSource(String s) {
+        try {
+            return Double.parseDouble(s);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
     protected abstract T convert(Number value, Map<String, Object> fieldMapping);
+
+    public void testBlockLoaderNonLatinDigit() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+
+        String value = "\u1a90";
+
+        runner.document(Map.of("field", value));
+        runner.fieldName("field");
+
+        var mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", fieldType, "ignore_malformed", "true")))),
+            Map.of("field", Map.of("type", fieldType, "ignore_malformed", "true"))
+        );
+
+        Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(expected);
+    }
 }

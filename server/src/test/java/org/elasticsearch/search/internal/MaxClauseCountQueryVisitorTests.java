@@ -26,6 +26,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MaxClauseCountQueryVisitorTests extends ESTestCase {
@@ -76,7 +77,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
     public void testIndexOrDocValuesQueryIsChargedAsASingleClause() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
-        IndexOrDocValuesQuery iodv = new IndexOrDocValuesQuery(new MatchAllDocsQuery(), new MatchAllDocsQuery());
+        IndexOrDocValuesQuery iodv = new IndexOrDocValuesQuery(ALL_DOCS_INSTANCE, ALL_DOCS_INSTANCE);
 
         iodv.visit(visitor);
 
@@ -99,7 +100,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
     public void testIndexSortSortedNumericDocValuesRangeQueryIsSkipped() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
-        Query skipped = new IndexSortSortedNumericDocValuesRangeQuery("field", 0L, 10L, new MatchAllDocsQuery());
+        Query skipped = new IndexSortSortedNumericDocValuesRangeQuery("field", 0L, 10L, ALL_DOCS_INSTANCE);
 
         visitor.visitLeaf(skipped);
 
@@ -112,7 +113,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         visitor.visitLeaf(new MatchAllDocsQuery());
         visitor.visitLeaf(new MatchAllDocsQuery());
 
-        expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> visitor.visitLeaf(new MatchAllDocsQuery()));
+        expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> visitor.visitLeaf(ALL_DOCS_INSTANCE));
     }
 
     public void testConsumeTermsCountsEveryTermAndThrowsOnOverflow() {
@@ -134,7 +135,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
     public void testIndexOrDocValuesQueryThrowsOnOverflow() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(0);
-        IndexOrDocValuesQuery iodv = new IndexOrDocValuesQuery(new MatchAllDocsQuery(), new MatchAllDocsQuery());
+        IndexOrDocValuesQuery iodv = new IndexOrDocValuesQuery(new MatchAllDocsQuery(), ALL_DOCS_INSTANCE);
         expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> iodv.visit(visitor));
     }
 

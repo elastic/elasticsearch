@@ -1,3 +1,27 @@
+setup:
+  # Rolling upgrades can leave analytics tasks in a failed state when nodes restart
+  # mid-run. Force-stop clears failed tasks so subsequent tests can start/stop cleanly.
+  - do:
+      ml.stop_data_frame_analytics:
+        id: "old_cluster_outlier_detection_job"
+        force: true
+        allow_no_match: true
+  - do:
+      ml.stop_data_frame_analytics:
+        id: "old_cluster_regression_job"
+        force: true
+        allow_no_match: true
+  - do:
+      ml.stop_data_frame_analytics:
+        id: "old_cluster_classification_job"
+        force: true
+        allow_no_match: true
+  - do:
+      ml.stop_data_frame_analytics:
+        id: "mixed_cluster_outlier_detection_job"
+        force: true
+        allow_no_match: true
+
 ---
 "Get old outlier_detection job":
 
@@ -37,6 +61,7 @@
   - do:
       ml.stop_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
+        force: true
         timeout: "60s"
   - match: { stopped: true }
 
@@ -83,6 +108,7 @@
   - do:
       ml.stop_data_frame_analytics:
         id: "old_cluster_regression_job"
+        force: true
         timeout: "60s"
   - match: { stopped: true }
 
@@ -160,6 +186,7 @@
   - do:
       ml.stop_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
+        force: true
         timeout: "60s"
   - match: { stopped: true }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -300,7 +301,7 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
                 maxDeterminizedStates,
                 context.getCircuitBreaker()
             );
-            reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
             context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + fieldName);
             query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
         } else {

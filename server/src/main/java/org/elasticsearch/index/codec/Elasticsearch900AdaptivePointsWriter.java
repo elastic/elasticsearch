@@ -109,7 +109,12 @@ class Elasticsearch900AdaptivePointsWriter extends PointsWriter {
         PointValues.PointTree values = reader.getValues(fieldInfo.name).getPointTree();
 
         // XXX This is the point of difference from the standard Lucene90PointsWriter XXX
-        int effectiveMaxPoints = adjustMaxPointsInLeafNode(maxPointsInLeafNode, fieldInfo.getPointNumBytes(), values.size());
+        int effectiveMaxPoints = adjustMaxPointsInLeafNode(
+            maxPointsInLeafNode,
+            fieldInfo.getPointIndexDimensionCount(),
+            fieldInfo.getPointNumBytes(),
+            values.size()
+        );
         BKDConfig config = new BKDConfig(
             fieldInfo.getPointDimensionCount(),
             fieldInfo.getPointIndexDimensionCount(),
@@ -194,7 +199,12 @@ class Elasticsearch900AdaptivePointsWriter extends PointsWriter {
                     }
 
                     // XXX This is the point of difference from the standard Lucene90PointsWriter XXX
-                    int effectiveMaxPoints = adjustMaxPointsInLeafNode(maxPointsInLeafNode, fieldInfo.getPointNumBytes(), totMaxSize);
+                    int effectiveMaxPoints = adjustMaxPointsInLeafNode(
+                        maxPointsInLeafNode,
+                        fieldInfo.getPointIndexDimensionCount(),
+                        fieldInfo.getPointNumBytes(),
+                        totMaxSize
+                    );
                     BKDConfig config = new BKDConfig(
                         fieldInfo.getPointDimensionCount(),
                         fieldInfo.getPointIndexDimensionCount(),
@@ -271,8 +281,8 @@ class Elasticsearch900AdaptivePointsWriter extends PointsWriter {
      */
     static final int LEAF_SIZE_ALIGNMENT = 512;
 
-    static int adjustMaxPointsInLeafNode(int maxPointsInLeafNode, int bytesPerDim, long pointCount) {
-        int estimatedBytesPerLeaf = ESTIMATED_OVERHEAD_PER_LEAF_EXCLUDING_SPLIT_VALUES + bytesPerDim;
+    static int adjustMaxPointsInLeafNode(int maxPointsInLeafNode, int numIndexDims, int bytesPerDim, long pointCount) {
+        int estimatedBytesPerLeaf = ESTIMATED_OVERHEAD_PER_LEAF_EXCLUDING_SPLIT_VALUES + numIndexDims * bytesPerDim;
         long maxLeaves = TARGET_MAX_BKD_HEAP_BYTES / estimatedBytesPerLeaf;
         long desiredLeafSize = (pointCount + maxLeaves - 1) / maxLeaves;
         int capped = (int) Math.min(desiredLeafSize, MAX_POINTS_IN_LEAF_NODE_UPPER_BOUND);

@@ -181,13 +181,21 @@ class DLMFrozenTransitionExecutor implements Closeable {
                     null
                 );
             } catch (Exception ex) {
-                errorStore.recordAndLogError(
-                    task.getProjectId(),
-                    indexName,
-                    ex,
-                    Strings.format("Error executing transition for index [%s]", indexName),
-                    frozenTransitionSettings.getErrorRetryInterval()
-                );
+                if (DLMConvertToFrozen.isTransientMasterFailoverException(ex)) {
+                    logger.debug(
+                        "Transient master-failover exception during frozen transition for index [{}], will retry on next tick",
+                        indexName,
+                        ex
+                    );
+                } else {
+                    errorStore.recordAndLogError(
+                        task.getProjectId(),
+                        indexName,
+                        ex,
+                        Strings.format("Error executing transition for index [%s]", indexName),
+                        frozenTransitionSettings.getErrorRetryInterval()
+                    );
+                }
             } finally {
                 submittedTransitions.remove(indexName);
             }

@@ -312,6 +312,24 @@ describe("generateBatchCommand", () => {
     );
   });
 
+  test("local target emits ./gradlew for unit tests", () => {
+    const batch: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
+    ];
+    expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, target: "local" })).toBe(
+      "./gradlew -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests"
+    );
+  });
+
+  test("local target emits ./gradlew inside repeat-rest-test for REST kinds", () => {
+    const batch: ClassifiedTest[] = [
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+    ];
+    expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, target: "local" })).toBe(
+      ".ci/scripts/repeat-rest-test.sh 10 ./gradlew :x-pack:plugin:ml:yamlRestTest --rerun"
+    );
+  });
+
   test("threads restIters override into the rest-test gradle command", () => {
     const batch: ClassifiedTest[] = [
       { gradleProject: ":m:a", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "Foo" },

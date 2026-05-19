@@ -42,16 +42,20 @@ export async function run(): Promise<void> {
     process.exit(1); // fail-fast (per design)
   }
 
+  const baseCfg: typeof DEFAULT_BATCHING_CONFIG = {
+    ...DEFAULT_BATCHING_CONFIG,
+    target: "local",
+  };
   const cfg = itersOverride !== undefined
     ? {
-        ...DEFAULT_BATCHING_CONFIG,
+        ...baseCfg,
         itersByKind: {
           test: itersOverride,
           internalClusterTest: itersOverride,
         },
         restIters: itersOverride,
       }
-    : DEFAULT_BATCHING_CONFIG;
+    : baseCfg;
 
   const startMs = Date.now();
   const exitCode = runLocally(buildCommands(located, cfg), PROJECT_ROOT);

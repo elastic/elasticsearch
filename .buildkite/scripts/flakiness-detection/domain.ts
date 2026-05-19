@@ -117,6 +117,12 @@ export interface BatchingConfig {
   // per-kind values.
   restIters: number;
   suiteTimeoutMs: number;
+  // "buildkite" emits `.ci/scripts/run-gradle.sh ...` (the BK-agent wrapper that
+  // copies init.gradle, computes MAX_WORKERS, reads ldd version, etc. — Linux-only).
+  // "local" emits `./gradlew ...` directly, suitable for a developer laptop.
+  // The `.ci/scripts/repeat-rest-test.sh` wrapper is portable bash and is used
+  // for both targets.
+  target: "buildkite" | "local";
 }
 
 export const DEFAULT_BATCHING_CONFIG: BatchingConfig = {
@@ -124,6 +130,7 @@ export const DEFAULT_BATCHING_CONFIG: BatchingConfig = {
   itersByKind: { test: 100, internalClusterTest: 20 },
   restIters: 10,
   suiteTimeoutMs: 3_600_000,
+  target: "buildkite",
 };
 
 export interface AgentConfig {

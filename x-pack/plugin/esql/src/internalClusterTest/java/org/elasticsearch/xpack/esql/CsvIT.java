@@ -102,6 +102,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
@@ -222,16 +224,19 @@ public class CsvIT extends ESTestCase {
     }
 
     public final void test() throws Throwable {
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
-        assumeFalse(
+        assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        assumeFalseLogging(
             "runs in a single cluster/single node mode",
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST.capabilityName())
         );
-        assumeFalse(
+        assumeFalseLogging(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
-        checkTestCapabilities();
+        assumeTrueLogging("CSV tests don't support missing data node capabilities", testCase.missingCapabilitiesDataNode.isEmpty());
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesCoordinator);
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesDataNode);
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -277,10 +282,6 @@ public class CsvIT extends ESTestCase {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }
-    }
-
-    private void checkTestCapabilities() {
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
     }
 
     private StackTraceElement[] prependSpec(StackTraceElement[] original) {

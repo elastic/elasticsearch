@@ -43,6 +43,9 @@ public final class CsvSpecReader {
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
+        private final List<String> requiredCapabilitiesCoordinator = new ArrayList<>();
+        private final List<String> requiredCapabilitiesDataNode = new ArrayList<>();
+        private final List<String> missingCapabilitiesDataNode = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
         String requestTimeRangeGte;
@@ -74,10 +77,16 @@ public final class CsvSpecReader {
                 testCase = new CsvTestCase();
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
+                testCase.requiredCapabilitiesCoordinator = List.copyOf(requiredCapabilitiesCoordinator);
+                testCase.requiredCapabilitiesDataNode = List.copyOf(requiredCapabilitiesDataNode);
+                testCase.missingCapabilitiesDataNode = List.copyOf(missingCapabilitiesDataNode);
                 testCase.requestStored = requestStored;
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
                 requiredCapabilities.clear();
+                requiredCapabilitiesCoordinator.clear();
+                requiredCapabilitiesDataNode.clear();
+                missingCapabilitiesDataNode.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
@@ -110,6 +119,18 @@ public final class CsvSpecReader {
             String lower = line.toLowerCase(Locale.ROOT);
             if (lower.startsWith("required_capability:")) {
                 state.requiredCapabilities.add(line.substring("required_capability:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("required_capability_coordinator:")) {
+                state.requiredCapabilitiesCoordinator.add(line.substring("required_capability_coordinator:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("required_capability_data_node:")) {
+                state.requiredCapabilitiesDataNode.add(line.substring("required_capability_data_node:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("missing_capability_data_node:")) {
+                state.missingCapabilitiesDataNode.add(line.substring("missing_capability_data_node:".length()).trim());
                 return Boolean.TRUE;
             }
             return null;
@@ -236,6 +257,9 @@ public final class CsvSpecReader {
          */
         public WhenLoadsRequestedToStored requestStored;
         public List<String> requiredCapabilities = List.of();
+        public List<String> requiredCapabilitiesCoordinator = List.of();
+        public List<String> requiredCapabilitiesDataNode = List.of();
+        public List<String> missingCapabilitiesDataNode = List.of();
         /**
          * When set from a {@code timestamp_bounds:} line in the expected-results section, the REST request includes
          * a Query DSL range on {@code @timestamp} with these bounds (inclusive).
@@ -305,5 +329,4 @@ public final class CsvSpecReader {
             return new AssertWarnings.NoWarnings();
         }
     }
-
 }

@@ -78,4 +78,15 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         request.setJsonEntity(Strings.toString(builder.endObject().endObject()));
         assertOK(client().performRequest(request));
     }
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        super.shouldSkipTest(testName);
+        CsvTestUtils.assumeTrueLogging(
+            "EsqlSpecIT tests don't support node-specific capability requirements for " + testName,
+            testCase.requiredCapabilitiesCoordinator.isEmpty()
+                && testCase.requiredCapabilitiesDataNode.isEmpty()
+                && testCase.missingCapabilitiesDataNode.isEmpty()
+        );
+    }
 }

@@ -26,6 +26,10 @@ import static org.hamcrest.Matchers.anyOf;
 public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestCase {
 
     public static Iterable<Object[]> parameters(boolean isFirst) {
+        return parameters(isFirst, isFirst);
+    }
+
+    public static Iterable<Object[]> parameters(boolean isFirst, boolean expandTypes) {
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
@@ -43,7 +47,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             )
         );
 
-        if (isFirst) {
+        if (expandTypes) {
             searchFieldTypes.addAll(
                 List.of(
                     DataType.VERSION,

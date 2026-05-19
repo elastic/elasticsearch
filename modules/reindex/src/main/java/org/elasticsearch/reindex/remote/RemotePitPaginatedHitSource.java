@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -49,6 +50,8 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
     private final TimeValue baseKeepAlive;
     private final Version remoteVersion;
     private final SearchContextKeepaliveDeadline keepaliveDeadline;
+    private final CircuitBreaker circuitBreaker;
+    private final String breakerLabel;
     /**
      * Keep-alive sent with the PIT search HTTP request currently in flight.
      * Cleared after each successful response.
@@ -66,7 +69,9 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         RemoteInfo remoteInfo,
         SearchRequest searchRequest,
         Version remoteVersion,
-        SearchContextKeepaliveDeadline keepaliveDeadline
+        SearchContextKeepaliveDeadline keepaliveDeadline,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
@@ -74,6 +79,8 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         this.client = client;
         this.remoteVersion = remoteVersion;
         this.keepaliveDeadline = keepaliveDeadline;
+        this.circuitBreaker = circuitBreaker;
+        this.breakerLabel = breakerLabel;
         SearchSourceBuilder source = searchRequest.source();
         if (source == null || source.pointInTimeBuilder() == null) {
             throw new IllegalArgumentException("SearchRequest must have pointInTimeBuilder set for PIT-based remote pagination");
@@ -93,7 +100,9 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
             RESPONSE_PARSER,
             wrapPitSearchListener(searchListener),
             threadPool,
-            client
+            client,
+            circuitBreaker,
+            breakerLabel
         );
     }
 
@@ -144,7 +153,9 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
             RESPONSE_PARSER,
             wrapPitSearchListener(searchListener),
             threadPool,
-            client
+            client,
+            circuitBreaker,
+            breakerLabel
         );
     }
 

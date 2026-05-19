@@ -15,6 +15,8 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -246,6 +248,34 @@ public abstract class PaginatedHitSource {
             this.scrollId = scrollId;
             this.searchAfterValues = searchAfterValues;
             this.pitId = pitId;
+        }
+
+        /**
+         * Nullable releasable for the circuit breaker reservation covering the remote HTTP response body
+         * bytes that back this batch's hits. Set only for remote reindex responses; null for local searches.
+         * Wrapped in {@link Releasables#releaseOnce} so it is safe to call {@link #closeBodyReleasable()}
+         * from both the normal-path cleanup and the early-exit (hit release) paths.
+         */
+        @Nullable
+        private Releasable bodyReleasable;
+
+        /**
+         * Attaches a circuit-breaker {@link Releasable} for the remote HTTP response body.
+         * Must be called at most once; asserts that no releasable is already set.
+         */
+        public void setBodyReleasable(Releasable releasable) {
+            assert bodyReleasable == null : "bodyReleasable already set";
+            this.bodyReleasable = Releasables.releaseOnce(releasable);
+        }
+
+        /**
+         * Closes the body releasable if one was attached via {@link #setBodyReleasable}.
+         * Safe to call multiple times; only the first call releases.
+         */
+        public void closeBodyReleasable() {
+            if (bodyReleasable != null) {
+                bodyReleasable.close();
+            }
         }
 
         /**

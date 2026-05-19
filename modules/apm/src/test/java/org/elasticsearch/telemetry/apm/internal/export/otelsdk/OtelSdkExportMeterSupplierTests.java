@@ -10,7 +10,11 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.metrics.InstrumentType;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
+import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter;
 
@@ -18,10 +22,13 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
+
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
@@ -97,6 +104,54 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
             "expected at least one metric export after attemptFlushMetrics",
             exporter.getFinishedMetricItems().size(),
             greaterThan(0)
+        );
+        supplier.close();
+    }
+
+    /**
+     * Verifies that health metrics recorded during the system export are captured by the health flush.
+     * This requires the system provider to flush before the health provider in each cycle.
+     */
+    public void testAttemptFlushMetricsCapturesHealthMetricsRecordedDuringSystemExport() throws Exception {
+        InMemoryMetricExporter healthExporter = InMemoryMetricExporter.create();
+        var healthProvider = SdkMeterProvider.builder().registerMetricReader(PeriodicMetricReader.builder(healthExporter).build()).build();
+        var healthCounter = healthProvider.meterBuilder("test").build().counterBuilder("health.signal").build();
+
+        MetricExporter systemExporter = new MetricExporter() {
+            @Override
+            public AggregationTemporality getAggregationTemporality(InstrumentType instrumentType) {
+                return AggregationTemporality.CUMULATIVE;
+            }
+
+            @Override
+            public CompletableResultCode export(Collection<MetricData> metrics) {
+                healthCounter.add(1);
+                return CompletableResultCode.ofSuccess();
+            }
+
+            @Override
+            public CompletableResultCode flush() {
+                return CompletableResultCode.ofSuccess();
+            }
+
+            @Override
+            public CompletableResultCode shutdown() {
+                return CompletableResultCode.ofSuccess();
+            }
+        };
+
+        var systemProvider = SdkMeterProvider.builder().registerMetricReader(PeriodicMetricReader.builder(systemExporter).build()).build();
+        systemProvider.meterBuilder("test").build().counterBuilder("system.metric").build().add(1);
+
+        var supplier = new OtelSdkExportMeterSupplier(
+            new OtelSdkExportMeterSupplier.OTelMetricsResources(systemProvider, healthProvider, null)
+        );
+        supplier.attemptFlushMetrics().join(5, java.util.concurrent.TimeUnit.SECONDS);
+
+        assertThat(
+            "health data recorded during system export must be captured by the health flush",
+            healthExporter.getFinishedMetricItems().stream().map(MetricData::getName).anyMatch("health.signal"::equals),
+            is(true)
         );
         supplier.close();
     }

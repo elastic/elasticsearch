@@ -27,7 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
@@ -124,34 +123,29 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     /**
-     * Runs two flush cycles so that {@code PeriodicMetricReader}'s {@code collection.duration}
-     * self-telemetry (recorded after each collection) is exported. Both providers flush in parallel
-     * within each cycle. Callers must join the result with an appropriate timeout.
+     * Flushes metrics in four sequential steps: system flush, health flush, system flush, health flush.
+     * The ordering is required because {@code OtlpHttpMetricExporter} records health telemetry
+     * (e.g. {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after
+     * its HTTP export completes. The health provider must therefore flush after the system provider
+     * has finished each cycle. Callers must join the result with an appropriate timeout.
      */
     @Override
     public CompletableResultCode attemptFlushMetrics() {
+        SdkMeterProvider sys, health;
         synchronized (mutex) {
             if (resources == null) {
                 return CompletableResultCode.ofSuccess();
             }
-            CompletableResultCode result = new CompletableResultCode();
-            CompletableResultCode cycle1 = CompletableResultCode.ofAll(
-                List.of(resources.systemMeterProvider.forceFlush(), resources.meterHealthMeterProvider.forceFlush())
-            );
-            cycle1.whenComplete(() -> {
-                CompletableResultCode cycle2 = CompletableResultCode.ofAll(
-                    List.of(resources.systemMeterProvider.forceFlush(), resources.meterHealthMeterProvider.forceFlush())
-                );
-                cycle2.whenComplete(() -> {
-                    if (cycle2.isSuccess()) {
-                        result.succeed();
-                    } else {
-                        result.fail();
-                    }
-                });
-            });
-            return result;
+            sys = resources.systemMeterProvider;
+            health = resources.meterHealthMeterProvider;
         }
+        CompletableResultCode result = new CompletableResultCode();
+        sys.forceFlush()
+            .whenComplete(
+                () -> health.forceFlush()
+                    .whenComplete(() -> sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed())))
+            );
+        return result;
     }
 
     @Override

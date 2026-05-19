@@ -23,8 +23,6 @@ import java.nio.ByteOrder;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
-    static final DefaultESVectorUtilSupport INSTANCE = new DefaultESVectorUtilSupport();
-
     private static float fma(float a, float b, float c) {
         if (Constants.HAS_FAST_SCALAR_FMA) {
             return Math.fma(a, b, c);
@@ -246,14 +244,14 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void centerAndCalculateOSQStatsEuclidean(byte[] target, float[] centroid, float[] centered, float[] stats) {
+    public void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
         float vecMean = 0;
         float vecVar = 0;
         float norm2 = 0;
         float min = Float.MAX_VALUE;
         float max = -Float.MAX_VALUE;
         for (int i = 0; i < target.length; i++) {
-            centered[i] = (float) target[i] - centroid[i];
+            centered[i] = (float) (target[i] - centroid[i]);
             min = Math.min(min, centered[i]);
             max = Math.max(max, centered[i]);
             norm2 = fma(centered[i], centered[i], norm2);
@@ -297,7 +295,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void centerAndCalculateOSQStatsDp(byte[] target, float[] centroid, float[] centered, float[] stats) {
+    public void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
         float vecMean = 0;
         float vecVar = 0;
         float norm2 = 0;
@@ -306,8 +304,9 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float max = -Float.MAX_VALUE;
         for (int i = 0; i < target.length; i++) {
             float t = (float) target[i];
-            centroidDot = fma(t, centroid[i], centroidDot);
-            centered[i] = t - centroid[i];
+            float c = (float) centroid[i];
+            centroidDot = fma(t, c, centroidDot);
+            centered[i] = (float) (target[i] - centroid[i]);
             min = Math.min(min, centered[i]);
             max = Math.max(max, centered[i]);
             norm2 = fma(centered[i], centered[i], norm2);
@@ -486,6 +485,42 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float[] v1,
         float[] v2,
         float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
+        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        int sum = 0;
+        for (int i = offset; i < offset + length; i++) {
+            int diff = a[i] - b[i];
+            sum += diff * diff;
+        }
+        return sum;
+    }
+
+    @Override
+    public void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        byte[] query,
+        int queryOffset,
+        int length,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
         int distancesOffset,
         float[] distances
     ) {

@@ -301,63 +301,42 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(statsLucene, statsPanama, delta);
     }
 
-    public void testCenterAndCalculateOSQStatsDpByte() {
+    public void testCenterAndCalculateOSQStatsDpByteByteCentroid() {
         int size = random().nextInt(128, 512);
         float delta = 1e-3f * size;
         var vector = new byte[size];
-        var centroid = new float[size];
+        var centroid = new byte[size];
         random().nextBytes(vector);
-        for (int i = 0; i < size; ++i) {
-            centroid[i] = random().nextFloat();
-        }
-        // Compare byte[] overload against Default impl
-        var centeredDefault = new float[size];
-        var statsDefault = new float[6];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredDefault, statsDefault);
-        var centeredPanama = new float[size];
-        var statsPanama = new float[6];
-        defOrPanamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredPanama, statsPanama);
-        assertArrayEquals(centeredDefault, centeredPanama, delta);
-        assertArrayEquals(statsDefault, statsPanama, delta);
-        // Also verify byte[] produces same result as float[] conversion
-        var floatVector = new float[size];
-        for (int i = 0; i < size; ++i) {
-            floatVector[i] = (float) vector[i];
-        }
-        var centeredFloat = new float[size];
-        var statsFloat = new float[6];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(floatVector, centroid, centeredFloat, statsFloat);
-        assertArrayEquals(centeredFloat, centeredDefault, 0f);
-        assertArrayEquals(statsFloat, statsDefault, delta);
+        random().nextBytes(centroid);
+        // byte[],byte[] via Default
+        var centeredBB = new float[size];
+        var statsBB = new float[6];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBB, statsBB);
+        // byte[],byte[] via Panama
+        var centeredBBPanama = new float[size];
+        var statsBBPanama = new float[6];
+        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBBPanama, statsBBPanama);
+        assertArrayEquals(centeredBB, centeredBBPanama, delta);
+        assertArrayEquals(statsBB, statsBBPanama, delta);
     }
 
-    public void testCenterAndCalculateOSQStatsEuclideanByte() {
+    public void testCenterAndCalculateOSQStatsEuclideanByteByteCentroid() {
         int size = random().nextInt(128, 512);
         float delta = 1e-3f * size;
         var vector = new byte[size];
-        var centroid = new float[size];
+        var centroid = new byte[size];
         random().nextBytes(vector);
-        for (int i = 0; i < size; ++i) {
-            centroid[i] = random().nextFloat();
-        }
-        var centeredDefault = new float[size];
-        var statsDefault = new float[5];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredDefault, statsDefault);
-        var centeredPanama = new float[size];
-        var statsPanama = new float[5];
-        defOrPanamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredPanama, statsPanama);
-        assertArrayEquals(centeredDefault, centeredPanama, delta);
-        assertArrayEquals(statsDefault, statsPanama, delta);
-        // Also verify byte[] produces same result as float[] conversion
-        var floatVector = new float[size];
-        for (int i = 0; i < size; ++i) {
-            floatVector[i] = (float) vector[i];
-        }
-        var centeredFloat = new float[size];
-        var statsFloat = new float[5];
-        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(floatVector, centroid, centeredFloat, statsFloat);
-        assertArrayEquals(centeredFloat, centeredDefault, 0f);
-        assertArrayEquals(statsFloat, statsDefault, delta);
+        random().nextBytes(centroid);
+        // byte[],byte[] via Default
+        var centeredBB = new float[size];
+        var statsBB = new float[5];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBB, statsBB);
+        // byte[],byte[] via Panama
+        var centeredBBPanama = new float[size];
+        var statsBBPanama = new float[5];
+        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBBPanama, statsBBPanama);
+        assertArrayEquals(centeredBB, centeredBBPanama, delta);
+        assertArrayEquals(statsBB, statsBBPanama, delta);
     }
 
     public void testOsqLoss() {

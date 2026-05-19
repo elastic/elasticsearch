@@ -195,16 +195,18 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
         int dims = 16;
         int numVectors = 32;
         byte[][] vectors = new byte[numVectors][];
-        float[] centroid = new float[dims];
+        float[] floatCentroid = new float[dims];
         for (int i = 0; i < numVectors; ++i) {
             vectors[i] = new byte[dims];
             random().nextBytes(vectors[i]);
             for (int j = 0; j < dims; ++j) {
-                centroid[j] += (float) vectors[i][j];
+                floatCentroid[j] += (float) vectors[i][j];
             }
         }
+        byte[] centroid = new byte[dims];
         for (int j = 0; j < dims; ++j) {
-            centroid[j] /= numVectors;
+            floatCentroid[j] /= numVectors;
+            centroid[j] = (byte) Math.clamp(Math.round(floatCentroid[j]), -128, 127);
         }
         OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(VectorSimilarityFunction.DOT_PRODUCT);
         float[] scratch = new float[dims];
@@ -219,16 +221,18 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
                 assertValidResults(result);
                 assertValidQuantizedRange(destination, bit);
 
-                // Verify reconstruction quality
+                // Verify reconstruction quality — deQuantize expects float centroid
                 float[] floatVec = new float[dims];
+                float[] centroidAsFloat = new float[dims];
                 for (int j = 0; j < dims; j++) {
                     floatVec[j] = vectors[i][j];
+                    centroidAsFloat[j] = centroid[j];
                 }
                 float[] dequantized = deQuantize(
                     destination,
                     bit,
                     new float[] { result.lowerInterval(), result.upperInterval() },
-                    centroid
+                    centroidAsFloat
                 );
                 float mae = 0;
                 for (int k = 0; k < dims; ++k) {
@@ -244,9 +248,9 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
         int dims = randomIntBetween(2, 256);
         byte[] byteVector = new byte[dims];
         random().nextBytes(byteVector);
-        float[] centroid = new float[dims];
+        byte[] centroid = new byte[dims];
         for (int i = 0; i < dims; i++) {
-            centroid[i] = randomIntBetween(-128, 127);
+            centroid[i] = (byte) randomIntBetween(-128, 127);
         }
 
         for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
@@ -277,9 +281,9 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
         int dims = randomIntBetween(2, 256);
         byte[] byteVector = new byte[dims];
         random().nextBytes(byteVector);
-        float[] centroid = new float[dims];
+        byte[] centroid = new byte[dims];
         for (int i = 0; i < dims; i++) {
-            centroid[i] = randomIntBetween(-128, 127);
+            centroid[i] = (byte) randomIntBetween(-128, 127);
         }
 
         for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
@@ -300,7 +304,7 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
                 for (int i = 0; i < dims; i++) {
                     assertEquals(
                         "residual[" + i + "] should be vector - centroid",
-                        (float) byteVector[i] - centroid[i],
+                        (float) (byteVector[i] - centroid[i]),
                         residual[i],
                         1e-5f
                     );
@@ -332,7 +336,7 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
             }
             byte[] vector = new byte[4096];
             float[] scratch = new float[4096];
-            float[] centroid = new float[4096];
+            byte[] centroid = new byte[4096];
             OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(similarityFunction);
             int[][] destinations = new int[MINIMUM_MSE_GRID.length][4096];
             OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(

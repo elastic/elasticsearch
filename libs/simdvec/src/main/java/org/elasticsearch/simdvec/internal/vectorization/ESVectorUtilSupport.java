@@ -81,11 +81,11 @@ public interface ESVectorUtilSupport {
 
     void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
 
-    void centerAndCalculateOSQStatsEuclidean(byte[] target, float[] centroid, float[] centered, float[] stats);
-
     void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
 
-    void centerAndCalculateOSQStatsDp(byte[] target, float[] centroid, float[] centered, float[] stats);
+    void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats);
+
+    void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats);
 
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 
@@ -101,6 +101,23 @@ public interface ESVectorUtilSupport {
         float[] v1,
         float[] v2,
         float[] v3,
+        int distancesOffset,
+        float[] distances
+    );
+
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    float squareDistance(byte[] a, byte[] b, int offset, int length);
+
+    void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
+
+    void squareDistanceBulk(
+        byte[] query,
+        int queryOffset,
+        int length,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
         int distancesOffset,
         float[] distances
     );

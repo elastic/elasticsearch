@@ -150,15 +150,15 @@ public class OptimizedScalarQuantizer {
     }
 
     /**
-     * Quantize a byte vector against a centroid.
+     * Quantize a byte vector against a byte centroid.
      * @param vector The byte vector to quantize
      * @param residualDestination destination for centered (residual) float values
      * @param destination destination for quantized int values
      * @param bits number of bits for quantization
-     * @param centroid the centroid to center against
+     * @param centroid the byte centroid to center against
      * @return the quantization result
      */
-    public QuantizationResult scalarQuantize(byte[] vector, float[] residualDestination, int[] destination, byte bits, float[] centroid) {
+    public QuantizationResult scalarQuantize(byte[] vector, float[] residualDestination, int[] destination, byte bits, byte[] centroid) {
         assert vector.length <= destination.length;
         assert bits > 0 && bits <= 8;
         int points = 1 << bits;
@@ -196,12 +196,12 @@ public class OptimizedScalarQuantizer {
     }
 
     /**
-     * Multi-level quantize a byte vector against a centroid.
+     * Multi-level quantize a byte vector against a byte centroid.
      * @param vector The byte vector to quantize
      * @param residualDestination destination for centered (residual) float values
      * @param destinations destinations for quantized int values at each bit level
      * @param bits array of bit levels for quantization
-     * @param centroid the centroid to center against
+     * @param centroid the byte centroid to center against
      * @return the quantization results for each bit level
      */
     public QuantizationResult[] multiScalarQuantize(
@@ -209,7 +209,7 @@ public class OptimizedScalarQuantizer {
         float[] residualDestination,
         int[][] destinations,
         byte[] bits,
-        float[] centroid
+        byte[] centroid
     ) {
         assert bits.length == destinations.length;
         if (similarityFunction == EUCLIDEAN) {

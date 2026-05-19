@@ -212,6 +212,8 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
 
         @Override
         public void maybeReleaseCommitRef() {
+            // When the shard relocates, the new primary will retain the snapshot commit so that it stays available in the object store.
+            // This node has no need to retain the commit anymore. In fact, it should release it to allow the store to close.
             if (isShardRelocated != null && isShardRelocated.getAsBoolean()) {
                 Releasables.close(commitRefReleasable);
             }

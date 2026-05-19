@@ -147,10 +147,12 @@ final class PageColumnReader implements Releasable {
 
     Block readBatch(int maxRows, BlockFactory blockFactory) {
         loadDictionaryIfNeeded();
+        // WARNING: the dispatching logic below is duplicated in ParquetFormatReader#readColumnBlock
+        // KEEP IN SYNC!
         return switch (info.esqlType()) {
             case BOOLEAN -> readBooleanBatch(maxRows, blockFactory);
             case INTEGER -> readIntBatch(maxRows, blockFactory);
-            case LONG -> {
+            case LONG, UNSIGNED_LONG -> {
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                     yield readInt32AsLongBatch(maxRows, blockFactory);
                 }
@@ -842,7 +844,7 @@ final class PageColumnReader implements Releasable {
             int[] intValues = buffers.ints(fromPage);
             readIntsDispatch(intValues, 0, fromPage);
             for (int i = 0; i < fromPage; i++) {
-                values[offset + produced + i] = intValues[i];
+                values[offset + produced + i] = Integer.toUnsignedLong(intValues[i]);
             }
             advancePosition(fromPage);
             produced += fromPage;
@@ -859,13 +861,13 @@ final class PageColumnReader implements Releasable {
         readIntsDispatch(intPacked, 0, nonNullCount);
         if (nonNullCount == totalRows) {
             for (int i = 0; i < nonNullCount; i++) {
-                values[offset + i] = intPacked[i];
+                values[offset + i] = Integer.toUnsignedLong(intPacked[i]);
             }
         } else {
             int pi = 0;
             for (int i = 0; i < totalRows; i++) {
                 if (nulls.get(offset + i) == false) {
-                    values[offset + i] = intPacked[pi++];
+                    values[offset + i] = Integer.toUnsignedLong(intPacked[pi++]);
                 }
             }
         }

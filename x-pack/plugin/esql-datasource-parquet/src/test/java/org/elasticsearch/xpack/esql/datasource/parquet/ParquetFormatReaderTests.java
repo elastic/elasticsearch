@@ -2481,4 +2481,66 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertSame(reader, reader.withConfig(null));
         assertSame(reader, reader.withConfig(Map.of()));
     }
+
+    // UINT_32: value 3,000,000,000 overflows signed int to -1,294,967,296
+    public void testLargeUint32() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        int unsignedBits = 0xFFFFFFFF; // negative in signed int
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_32 should map to LONG to hold unsigned 32-bit range", DataType.LONG, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(0xFFFFFFFFL, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    // UINT_8: value 200 should be read as such
+    public void testLargeUint8() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(8, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        int unsignedBits = 200; // negative in signed byte
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_8 should map to INT to hold unsigned 8-bit range", DataType.INTEGER, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(200, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testLargeUnsignedLong() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        long unsignedBits = 0xFFFFFFFFFFFFFFFFL; // negative in signed long
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_8 should map to INT to hold unsigned 8-bit range", DataType.UNSIGNED_LONG, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(unsignedBits, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertFalse(iterator.hasNext());
+        }
+    }
 }

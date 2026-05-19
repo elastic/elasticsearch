@@ -1190,7 +1190,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return switch (primitive.getPrimitiveTypeName()) {
             case BOOLEAN -> DataType.BOOLEAN;
             case INT32 -> {
-                if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 32) {
+                        // Widen to long
+                        yield DataType.LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1198,7 +1203,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 yield DataType.INTEGER;
             }
             case INT64 -> {
-                if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false) {
+                        yield DataType.UNSIGNED_LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1605,10 +1614,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (info.maxRepLevel() > 0) {
                 return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
             }
+            // WARNING: the dispatching logic below is duplicated in PageColumnReader#readBatch
+            // KEEP IN SYNC!
             return switch (info.esqlType()) {
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
-                case LONG -> {
+                case LONG, UNSIGNED_LONG -> {
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                         yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead);
                     }
@@ -1690,7 +1701,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull[i] = true;
                     noNulls = false;
                 } else {
-                    values[i] = cr.getInteger();
+                    values[i] = Integer.toUnsignedLong(cr.getInteger());
                 }
                 cr.consume();
             }

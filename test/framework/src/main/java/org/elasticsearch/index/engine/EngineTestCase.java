@@ -58,7 +58,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -319,7 +318,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false, false);
+        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), false, false);
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
@@ -332,20 +331,17 @@ public abstract class EngineTestCase extends ESTestCase {
             routing,
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
-            null,
             recoverySource,
             syntheticId
         );
     }
 
-    protected ParsedDocument testParsedDocument(
-        String id,
-        String routing,
-        LuceneDocument document,
-        BytesReference source,
-        CompressedXContent mappingUpdate
-    ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, false, false);
+    protected ParsedDocument testParsedDocument(String id, String routing, LuceneDocument document, BytesReference source) {
+        return testParsedDocument(id, routing, document, source, false, false);
+    }
+
+    protected static ParsedDocument testParsedDocument(String id, LuceneDocument document, BytesReference source, boolean recoverySource) {
+        return testParsedDocument(id, null, document, source, recoverySource, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -353,18 +349,6 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        CompressedXContent mappingUpdate,
-        boolean recoverySource
-    ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, recoverySource, false);
-    }
-
-    protected static ParsedDocument testParsedDocument(
-        String id,
-        String routing,
-        LuceneDocument document,
-        BytesReference source,
-        CompressedXContent mappingUpdate,
         boolean recoverySource,
         boolean syntheticId
     ) {
@@ -407,7 +391,7 @@ public abstract class EngineTestCase extends ESTestCase {
             List.of(document),
             source,
             XContentType.JSON,
-            mappingUpdate,
+            null,
             XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
@@ -954,7 +938,7 @@ public abstract class EngineTestCase extends ESTestCase {
             if (randomBoolean()) {
                 op = new Engine.Index(
                     id,
-                    testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null, false),
+                    testParsedDocument(docId, testDocumentWithTextField(valuePrefix + i), SOURCE, false),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,

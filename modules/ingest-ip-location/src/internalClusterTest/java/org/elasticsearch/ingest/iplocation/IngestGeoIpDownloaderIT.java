@@ -49,7 +49,6 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
-import static org.elasticsearch.ingest.geoip.IpLocationTestHelper.awaitNoDatabases;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.contains;
@@ -96,7 +95,6 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
-        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
 
         // Nullify every cluster setting touched by tests; SUITE-scoped tests assert no persistent/transient state leaks.
         updateClusterSettings(
@@ -115,7 +113,8 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
         // Wait for the geoip downloader persistent task to be removed by its onRemove hook so the next test
         // starts without an in-flight task referencing the just-wiped .geoip_databases index.
         assertBusy(() -> assertNull(getTask()));
-        awaitNoDatabases(internalCluster());
+        IpLocationTestHelper.awaitNoDatabases(internalCluster());
+        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
     }
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {

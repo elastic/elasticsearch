@@ -143,7 +143,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             page.releaseBlocks();
         }
 
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:1: evaluation of [rate(field)] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: org.elasticsearch.compute.aggregation.InvalidTemporalityException: "
                 + "Invalid temporality value: [invalid_temporality], expected [cumulative] or [delta]"

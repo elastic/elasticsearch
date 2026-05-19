@@ -154,6 +154,9 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
   method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
   issue: https://github.com/elastic/elasticsearch/issues/146102
+- class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
+  method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
+  issue: https://github.com/elastic/elasticsearch/issues/146106
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativePromQLIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146923
@@ -539,6 +542,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testRightClosedBucketIsNotSubstituted
   issue: https://github.com/elastic/elasticsearch/issues/149133
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testSemanticTextItemFailures {useLegacyFormat=false useSyntheticSource=false}
+  issue: https://github.com/elastic/elasticsearch/issues/149250
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testSemanticTextItemFailures {useLegacyFormat=false useSyntheticSource=true}
+  issue: https://github.com/elastic/elasticsearch/issues/149251
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testSnapshotRecovery
   issue: https://github.com/elastic/elasticsearch/issues/149252
@@ -572,3 +581,30 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testBasic
   issue: https://github.com/elastic/elasticsearch/issues/149338
+- class: org.elasticsearch.xpack.stateless.CorruptionIT
+  method: testConcurrentOperations
+  issue: https://github.com/elastic/elasticsearch/issues/149342
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogLocalFailureOnlyStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/149343
+- class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
+  method: testConsumerScopedDownloads
+  issue: https://github.com/elastic/elasticsearch/issues/149264
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/149350
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149352
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testDynamicStringMappingWithoutAutoTextSubfield
+  issue: https://github.com/elastic/elasticsearch/issues/149374
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjsonZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149432
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjson
+  issue: https://github.com/elastic/elasticsearch/issues/149434
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupCsvZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149437

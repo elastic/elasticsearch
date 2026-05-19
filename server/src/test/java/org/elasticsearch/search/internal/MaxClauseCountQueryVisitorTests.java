@@ -220,6 +220,25 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertTrue("merge must trip the breaker once projected total exceeds the limit", breaker.tripped);
     }
 
+    public void testMidWalkTripDoesNotMutateBreakerAccounting() {
+        long limit = 1_000L;
+        long preExisting = 100L;
+        FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, preExisting);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
+
+        expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(2_000L).visit(visitor));
+
+        assertTrue("mid-walk projection over the limit must trip the breaker", breaker.tripped);
+        assertEquals(
+            "circuitBreak must be throw-only: the running estimate is committed once at the end of toQuery, "
+                + "so an unwinding throw must leave the breaker's used counter unchanged",
+            preExisting,
+            breaker.getUsed()
+        );
+        assertEquals("the visitor must never charge bytes via addEstimateBytesAndMaybeBreak", 0, breaker.addEstimateCalls);
+        assertEquals("the visitor must never refund bytes via addWithoutBreaking", 0, breaker.addWithoutBreakingCalls);
+    }
+
     /**
      * Minimal breaker that reports a configurable limit and a configurable baseline. {@link
      * #circuitBreak(String, long)} throws so the visitor's early-trip path is observable; all
@@ -229,6 +248,8 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         private final long limit;
         private final long used;
         boolean tripped;
+        int addEstimateCalls;
+        int addWithoutBreakingCalls;
 
         FakeCircuitBreaker(long limit, long used) {
             super(CircuitBreaker.REQUEST);
@@ -250,6 +271,16 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         public void circuitBreak(String fieldName, long bytesNeeded) {
             tripped = true;
             throw new CircuitBreakingException("Data too large, " + fieldName + " needed=" + bytesNeeded, Durability.PERMANENT);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            addEstimateCalls++;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            addWithoutBreakingCalls++;
         }
     }
 

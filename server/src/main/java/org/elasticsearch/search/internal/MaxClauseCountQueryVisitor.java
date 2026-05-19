@@ -113,6 +113,9 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
         long projected = breakerBaseline + estimatedBytes;
         if (projected > limit) {
+            // Throw-only: circuitBreak bumps trippedCount and throws, but does NOT touch the breaker's
+            // used counter. The accumulated estimate is committed in a single addCircuitBreakerMemory
+            // call at the end of AbstractQueryBuilder#toQuery, which the throw unwinds before reaching.
             breaker.circuitBreak("query", projected);
         }
     }

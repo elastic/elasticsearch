@@ -75,11 +75,9 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -140,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.EmitRemoteFetchHandleExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -166,6 +165,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
@@ -180,12 +180,16 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandleOperator;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchService;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -226,10 +230,12 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    private final String localNodeId;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -248,6 +254,46 @@ public class LocalExecutionPlanner {
         PhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
+        this(
+            sessionId,
+            clusterAlias,
+            parentTask,
+            bigArrays,
+            blockFactory,
+            settings,
+            configuration,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            enrichLookupService,
+            lookupFromIndexService,
+            null,
+            inferenceService,
+            userAgentParserRegistry,
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            null
+        );
+    }
+
+    public LocalExecutionPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask parentTask,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        Settings settings,
+        Configuration configuration,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        RemoteFetchService remoteFetchService,
+        InferenceService inferenceService,
+        UserAgentParserRegistry userAgentParserRegistry,
+        PhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        String localNodeId
+    ) {
 
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
@@ -260,10 +306,12 @@ public class LocalExecutionPlanner {
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.remoteFetchService = remoteFetchService;
         this.inferenceService = inferenceService;
         this.userAgentParserRegistry = userAgentParserRegistry;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.localNodeId = localNodeId;
     }
 
     /**
@@ -288,8 +336,7 @@ public class LocalExecutionPlanner {
             plannerSettings,
             timeSeries,
             settings,
-            shardContexts,
-            physicalOperationProviders.analysisRegistry()
+            shardContexts
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -327,6 +374,10 @@ public class LocalExecutionPlanner {
             return planFieldExtractNode(fieldExtractExec, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
+        } else if (node instanceof EmitRemoteFetchHandleExec emitRemoteFetchHandleExec) {
+            return planRemoteFetchHandleNode(emitRemoteFetchHandleExec, context);
+        } else if (node instanceof RemoteFetchExec remoteFetchExec) {
+            return planRemoteFetchNode(remoteFetchExec, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -470,7 +521,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout, context.analysisRegistry()),
+                EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
                 new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider)
             ),
             layout
@@ -483,12 +534,7 @@ public class LocalExecutionPlanner {
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
         Map<String, Object> taskSettings = completion.taskSettings().toFoldedMap(context.foldCtx());
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
-        ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
-            context.foldCtx(),
-            completion.prompt(),
-            source.layout,
-            context.analysisRegistry()
-        );
+        ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(context.foldCtx(), completion.prompt(), source.layout);
 
         return source.with(
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings, completion.timeout()),
@@ -626,6 +672,54 @@ public class LocalExecutionPlanner {
         return source.with(factory, newLayout);
     }
 
+    private PhysicalOperation planRemoteFetchHandleNode(
+        EmitRemoteFetchHandleExec emitRemoteFetchHandleExec,
+        LocalExecutionPlannerContext context
+    ) {
+        if (localNodeId == null) {
+            throw new IllegalStateException("remote fetch handle emission requires the local node id");
+        }
+        PhysicalOperation source = plan(emitRemoteFetchHandleExec.child(), context);
+        int docChannel = source.layout.get(emitRemoteFetchHandleExec.sourceAttribute().id()).channel();
+        Layout outputLayout = replaceLayoutAttribute(
+            source.layout,
+            emitRemoteFetchHandleExec.sourceAttribute(),
+            emitRemoteFetchHandleExec.handleAttribute()
+        );
+        return source.with(new RemoteFetchHandleOperator.Factory(localNodeId, sessionId, docChannel), outputLayout);
+    }
+
+    private PhysicalOperation planRemoteFetchNode(RemoteFetchExec remoteFetchExec, LocalExecutionPlannerContext context) {
+        if (remoteFetchService == null) {
+            throw new IllegalStateException("remote fetch planning requires a remote fetch service");
+        }
+        if (parentTask == null) {
+            throw new IllegalStateException("remote fetch planning requires a cancellable parent task");
+        }
+        PhysicalOperation source = plan(remoteFetchExec.child(), context);
+        int handleChannel = source.layout.get(remoteFetchExec.handleAttribute().id()).channel();
+        List<RemoteFetchService.FetchField> requestFields = remoteFetchExec.attributesToFetch().stream().map(attribute -> {
+            String fieldName = attribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attribute.name();
+            return new RemoteFetchService.FetchField(fieldName, attribute.dataType());
+        }).toList();
+        Layout.Builder outputLayoutBuilder = source.layout.builder();
+        outputLayoutBuilder.append(remoteFetchExec.fetchedOutputAttributes());
+        Layout outputLayout = outputLayoutBuilder.build();
+        return source.with(
+            new RemoteFetchOperator.Factory(
+                handleChannel,
+                requestFields,
+                remoteFetchExec.fetchedOutputAttributes(),
+                remoteFetchExec.pushdownPlan(),
+                configuration,
+                Math.max(1, context.queryPragmas().concurrentExchangeClients()),
+                remoteFetchService.threadContext(),
+                () -> remoteFetchService.newBatchExchangeClient(parentTask)
+            ),
+            outputLayout
+        );
+    }
+
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(outputExec.child(), context);
         var output = outputExec.output();
@@ -662,6 +756,20 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private static Layout replaceLayoutAttribute(Layout inputLayout, Attribute oldAttribute, Attribute newAttribute) {
+        Layout.Builder builder = new Layout.Builder();
+        for (Layout.ChannelSet channel : inputLayout.inverse()) {
+            var ids = new HashSet<>(channel.nameIds());
+            if (ids.remove(oldAttribute.id())) {
+                ids.add(newAttribute.id());
+                builder.append(new Layout.ChannelSet(ids, newAttribute.dataType()));
+            } else {
+                builder.append(new Layout.ChannelSet(ids, channel.type()));
+            }
+        }
+        return builder.build();
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
@@ -801,13 +909,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(
-                context.foldCtx(),
-                field.child(),
-                source.layout,
-                context.shardContexts,
-                context.analysisRegistry()
-            );
+            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout, context.shardContexts);
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -828,7 +930,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
                 patternNames,
-                EvalMapper.toEvaluator(context.foldCtx(), expr, layout, context.analysisRegistry()),
+                EvalMapper.toEvaluator(context.foldCtx(), expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
             layout
@@ -860,7 +962,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
+                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
                 new GrokEvaluatorExtracter.Factory(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
@@ -901,7 +1003,7 @@ public class LocalExecutionPlanner {
 
         List<ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
             .stream()
-            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout, context.analysisRegistry()))
+            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
             .toList();
 
         assert rerankFieldsEvaluators.size() > 0 : "rerank expression evaluators must not be empty";
@@ -1542,15 +1644,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         PhysicalOperation filterOperation = source.with(
-            new FilterOperatorFactory(
-                EvalMapper.toEvaluator(
-                    context.foldCtx(),
-                    filter.condition(),
-                    source.layout,
-                    context.shardContexts,
-                    context.analysisRegistry()
-                )
-            ),
+            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
             source.layout
         );
         // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
@@ -1817,8 +1911,7 @@ public class LocalExecutionPlanner {
         PlannerSettings plannerSettings,
         boolean timeSeries,
         Settings settings,
-        IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

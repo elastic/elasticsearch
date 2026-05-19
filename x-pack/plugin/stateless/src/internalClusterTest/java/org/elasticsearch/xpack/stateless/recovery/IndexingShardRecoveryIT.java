@@ -240,7 +240,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
 
     public void testSnapshotRecovery() throws Exception {
         startMasterOnlyNode();
-        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
 
         var indexName = createIndex(randomIntBetween(1, 3), 0);
         var lastUploaded = new PrimaryTermAndGeneration(1L, 3L);
@@ -275,6 +275,12 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
 
         logger.info("--> deleting index {}", indexName);
         assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        // Restore the snapshot on a new indexing node so that we have clean state for asserts below.
+        // Restoring on the same node can skip parts of the logic that we expect during restore
+        // (in StatelessIndexEventListener#afterFilesRestoredFromRepository).
+        internalCluster().stopNode(indexNode);
+        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
 
         logger.info("--> restoring snapshot of {}", indexName);
         var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "snapshots", "snapshot").setWaitForCompletion(true).get();

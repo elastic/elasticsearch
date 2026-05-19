@@ -38,16 +38,10 @@ public class ScriptedMetricAggContexts {
             this.state = state;
         }
 
-        /**
-         * Stores a runnable invoked between loop iterations by the painless engine to check for
-         * search timeout or task cancellation. The runnable throws when execution should abort;
-         * {@code null} disables the check.
-         */
         public void _setCancellationCheck(Runnable cancellationCheck) {
             this.cancellationCheck = cancellationCheck;
         }
 
-        /** Returns the runnable set by {@link #_setCancellationCheck}, or {@code null}. */
         public Runnable _getCancellationCheck() {
             return cancellationCheck;
         }
@@ -107,16 +101,10 @@ public class ScriptedMetricAggContexts {
 
         private Runnable cancellationCheck = null;
 
-        /**
-         * Stores a runnable invoked between loop iterations by the painless engine to check for
-         * search timeout or task cancellation. The runnable throws when execution should abort;
-         * {@code null} disables the check.
-         */
         public void _setCancellationCheck(Runnable cancellationCheck) {
             this.cancellationCheck = cancellationCheck;
         }
 
-        /** Returns the runnable set by {@link #_setCancellationCheck}, or {@code null}. */
         public Runnable _getCancellationCheck() {
             return cancellationCheck;
         }
@@ -185,16 +173,10 @@ public class ScriptedMetricAggContexts {
 
         private Runnable cancellationCheck = null;
 
-        /**
-         * Stores a runnable invoked between loop iterations by the painless engine to check for
-         * search timeout or task cancellation. The runnable throws when execution should abort;
-         * {@code null} disables the check.
-         */
         public void _setCancellationCheck(Runnable cancellationCheck) {
             this.cancellationCheck = cancellationCheck;
         }
 
-        /** Returns the runnable set by {@link #_setCancellationCheck}, or {@code null}. */
         public Runnable _getCancellationCheck() {
             return cancellationCheck;
         }

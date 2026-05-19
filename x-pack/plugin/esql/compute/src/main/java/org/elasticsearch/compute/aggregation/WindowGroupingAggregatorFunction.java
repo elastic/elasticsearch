@@ -9,8 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -40,21 +38,6 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     @Override
     public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
         return next.prepareProcessIntermediateInputPage(seenGroupIds, page);
-    }
-
-    @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
-    }
-
-    @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
-    }
-
-    @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
-        next.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override
@@ -118,7 +101,9 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 }
                 Page page = new Page(intermediateBlocks);
                 GroupingAggregatorFunction finalAggFunction = finalAgg.aggregatorFunction();
-                finalAggFunction.addIntermediateInput(0, allGroups, page);
+                try (AddInput addInput = finalAggFunction.prepareProcessIntermediateInputPage(new SeenGroupIds.Empty(), page)) {
+                    addInput.add(0, allGroups);
+                }
                 for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
                     groupId = selectedGroups.getInt(i);
                     mergeBucketsFromWindow(groupId, backwards, page, finalAggFunction, ctx);
@@ -192,7 +177,9 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             context.forEachGroupInRange(startingGroupId, end - window.toMillis(), end, g -> {
                 assert g != startingGroupId && g >= 0 && g < groupIdToPositions.length;
                 int position = groupIdToPositions[g];
-                fn.addIntermediateInput(position, oneGroup, page);
+                try (AddInput addInput = fn.prepareProcessIntermediateInputPage(new SeenGroupIds.Empty(), page)) {
+                    addInput.add(position, oneGroup);
+                }
             });
         }
     }

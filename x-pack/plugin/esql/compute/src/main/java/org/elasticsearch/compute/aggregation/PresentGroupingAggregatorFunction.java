@@ -116,50 +116,51 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {}
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
         BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
-                continue;
-            }
-            int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
-            for (int g = groupStart; g < groupEnd; g++) {
-                state.set(groups.getInt(g), true);
-            }
-        }
-    }
-
-    @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-        assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
-                continue;
+        return new AddInput() {
+            @Override
+            public void add(int positionOffset, IntArrayBlock groups) {
+                for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+                    if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
+                        continue;
+                    }
+                    int groupStart = groups.getFirstValueIndex(groupPosition);
+                    int groupEnd = groupStart + groups.getValueCount(groupPosition);
+                    for (int g = groupStart; g < groupEnd; g++) {
+                        state.set(groups.getInt(g), true);
+                    }
+                }
             }
 
-            int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
-            for (int g = groupStart; g < groupEnd; g++) {
-                state.set(groups.getInt(g), true);
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groups) {
+                for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+                    if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
+                        continue;
+                    }
+                    int groupStart = groups.getFirstValueIndex(groupPosition);
+                    int groupEnd = groupStart + groups.getValueCount(groupPosition);
+                    for (int g = groupStart; g < groupEnd; g++) {
+                        state.set(groups.getInt(g), true);
+                    }
+                }
             }
-        }
-    }
 
-    @Override
-    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-        assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (present.getBoolean(groupPosition + positionOffset)) {
-                state.set(groups.getInt(groupPosition), true);
+            @Override
+            public void add(int positionOffset, IntVector groups) {
+                for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+                    if (present.getBoolean(groupPosition + positionOffset)) {
+                        state.set(groups.getInt(groupPosition), true);
+                    }
+                }
             }
-        }
+
+            @Override
+            public void close() {}
+        };
     }
 
     @Override

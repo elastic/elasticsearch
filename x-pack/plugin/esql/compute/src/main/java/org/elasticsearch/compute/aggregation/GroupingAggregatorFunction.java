@@ -125,31 +125,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      * Returns {@code null} to opt out of the callback loop for this page entirely,
      * e.g. when the values block is all-null and contributes nothing to the aggregation.
      */
-    default AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
-        return new IntermediateAddInput(this, seenGroupIds, page);
-    }
-
-    record IntermediateAddInput(GroupingAggregatorFunction fn, SeenGroupIds seenGroupIds, Page page) implements AddInput {
-        @Override
-        public void add(int positionOffset, IntArrayBlock groupIds) {
-            fn.addIntermediateInput(positionOffset, groupIds, page);
-        }
-
-        @Override
-        public void add(int positionOffset, IntBigArrayBlock groupIds) {
-            fn.addIntermediateInput(positionOffset, groupIds, page);
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            fn.addIntermediateInput(positionOffset, groupIds, page);
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
+    AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page);
 
     /**
      * Call this to signal to the aggregation that the {@code selected}
@@ -160,21 +136,6 @@ public interface GroupingAggregatorFunction extends Releasable {
      * overhead.
      */
     void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds);
-
-    /**
-     * Add data produced by {@link #prepareEvaluateIntermediate}.
-     */
-    void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page);
-
-    /**
-     * Add data produced by {@link #prepareEvaluateIntermediate}.
-     */
-    void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page);
-
-    /**
-     * Add data produced by {@link #prepareEvaluateIntermediate}.
-     */
-    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
     /**
      * View into the agg that's prepared to emit results. Built with a {@code selected} range.

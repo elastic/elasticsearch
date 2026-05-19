@@ -149,8 +149,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     assert channels.size() == intermediateBlockCount();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
@@ -236,8 +235,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     assert channels.size() == intermediateBlockCount();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
@@ -309,8 +307,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     assert channels.size() == intermediateBlockCount();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
@@ -357,7 +354,26 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
     if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
       state.enableGroupIdTracking(seenGroupIds);
     }
-    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
+    return new GroupingAggregatorFunction.AddInput() {
+      @Override
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void add(int positionOffset, IntVector groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void close() {
+      }
+    };
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {

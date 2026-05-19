@@ -166,8 +166,7 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block xValUncast = page.getBlock(channels.get(0));
@@ -310,8 +309,7 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block xValUncast = page.getBlock(channels.get(0));
@@ -440,8 +438,7 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block xValUncast = page.getBlock(channels.get(0));
@@ -534,6 +531,32 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
       int valuesPosition = groupPosition + positionOffset;
       SpatialCentroidShapeSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), weight.getDouble(valuesPosition), shapeType.getInt(valuesPosition));
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    state.enableGroupIdTracking(seenGroupIds);
+    return new GroupingAggregatorFunction.AddInput() {
+      @Override
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void add(int positionOffset, IntVector groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void close() {
+      }
+    };
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock wkbBlock) {

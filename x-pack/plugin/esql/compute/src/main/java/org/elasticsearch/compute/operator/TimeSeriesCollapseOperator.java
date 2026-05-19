@@ -370,17 +370,7 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
         public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {}
 
         @Override
-        public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
-            throw new UnsupportedOperationException("time series collapse does not support intermediate input");
-        }
-
-        @Override
-        public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
-            throw new UnsupportedOperationException("time series collapse does not support intermediate input");
-        }
-
-        @Override
-        public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
             throw new UnsupportedOperationException("time series collapse does not support intermediate input");
         }
 

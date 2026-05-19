@@ -180,17 +180,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-        throw new UnsupportedOperationException("first_doc_id does not handle intermediate input");
-    }
-
-    @Override
-    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-        throw new UnsupportedOperationException("first_doc_id does not handle intermediate input");
-    }
-
-    @Override
-    public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
         throw new UnsupportedOperationException("first_doc_id does not handle intermediate input");
     }
 

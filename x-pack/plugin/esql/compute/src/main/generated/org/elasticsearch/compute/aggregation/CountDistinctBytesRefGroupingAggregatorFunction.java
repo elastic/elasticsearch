@@ -153,8 +153,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block hllUncast = page.getBlock(channels.get(0));
@@ -227,8 +226,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block hllUncast = page.getBlock(channels.get(0));
@@ -287,8 +285,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     }
   }
 
-  @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  private void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block hllUncast = page.getBlock(channels.get(0));
@@ -311,6 +308,32 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       int valuesPosition = groupPosition + positionOffset;
       CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    state.enableGroupIdTracking(seenGroupIds);
+    return new GroupingAggregatorFunction.AddInput() {
+      @Override
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void add(int positionOffset, IntVector groupIds) {
+        addIntermediateInput(positionOffset, groupIds, page);
+      }
+
+      @Override
+      public void close() {
+      }
+    };
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock vBlock) {

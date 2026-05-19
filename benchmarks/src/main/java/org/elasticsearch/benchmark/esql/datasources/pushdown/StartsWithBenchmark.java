@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.esql.datasources.pushdown;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

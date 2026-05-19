@@ -48,6 +48,9 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -74,6 +77,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -106,6 +110,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -652,6 +657,122 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         if (!usePit) {
             assertThat(client.scrollsCleared, contains(scrollId));
         }
+    }
+
+    /**
+     * Verifies that when the REQUEST circuit breaker trips during {@code buildBulk} the reindex operation
+     * fails the listener with the exception, releases the batch hits, and never sends a bulk request.
+     */
+    public void testCircuitBreakerTripFailsBatchGracefully() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        AtomicLong netBreakerBytes = new AtomicLong(0);
+
+        CircuitBreaker trippingBreaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                throw new CircuitBreakingException("simulated breaker trip", bytes, 1L, CircuitBreaker.Durability.TRANSIENT);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                netBreakerBytes.addAndGet(bytes);
+            }
+        };
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(
+            testTask,
+            TimeValue.ZERO,
+            trippingBreaker,
+            "test_bulk_batch"
+        ) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+        };
+
+        List<PaginatedHitSource.BasicHit> hits = List.of(
+            new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON),
+            new PaginatedHitSource.BasicHit("idx", "2", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON)
+        );
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        simulatePaginatedResponse(action, System.nanoTime(), 0, response, usePit);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+        assertThat(e.getCause().getMessage(), containsString("simulated breaker trip"));
+        assertEquals(0, client.bulksAttempts.get());
+        // No bytes were net-added to the breaker: the trip happened before any reservation landed.
+        assertEquals(0L, netBreakerBytes.get());
+    }
+
+    /**
+     * Verifies the per-batch reservation lifecycle: the circuit breaker accumulates bytes equal to
+     * {@code BulkRequest.estimatedSizeInBytes()} during {@code buildBulk}, and the reservation is fully
+     * released when the bulk listener completes.
+     */
+    public void testCircuitBreakerReservationMatchesBulkRequestSizeAndIsReleasedOnBulkComplete() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        AtomicLong totalReserved = new AtomicLong(0);
+        AtomicLong totalReleased = new AtomicLong(0);
+
+        CircuitBreaker trackingBreaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (bytes > 0) totalReserved.addAndGet(bytes);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                if (bytes < 0) totalReleased.addAndGet(-bytes);
+            }
+        };
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(
+            testTask,
+            TimeValue.ZERO,
+            trackingBreaker,
+            "test_bulk_batch"
+        ) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+        };
+
+        // Two docs × 100 bytes of source + 50 per-doc overhead = 300-byte BulkRequest.estimatedSizeInBytes().
+        List<PaginatedHitSource.BasicHit> hits = List.of(
+            new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON),
+            new PaginatedHitSource.BasicHit("idx", "2", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON)
+        );
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        // Inline the scroll response so done() is a no-op (rather than calling fail()) — the bulk completes
+        // but we don't want the action to try to fetch the next batch in this test.
+        if (usePit) {
+            action.setSearchAfterValues(new Object[] { "search_after_value" });
+        } else {
+            action.setScroll(scrollId());
+        }
+        action.onScrollResponse(
+            System.nanoTime(),
+            0,
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return response;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    // no-op: bulk has completed; we don't care about next-batch fetch in this test.
+                }
+            })
+        );
+
+        // Total reserved equals the full BulkRequest estimate (300 bytes); everything is released after the bulk.
+        assertBusy(() -> assertEquals(300L, totalReserved.get()));
+        assertBusy(() -> assertEquals(1, client.bulksAttempts.get()));
+        assertBusy(() -> assertEquals(totalReserved.get(), totalReleased.get()));
     }
 
     /**
@@ -1513,6 +1634,81 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(Integer.valueOf(userTrackTotalHitsUpTo), preparedSearchRequest.source().trackTotalHitsUpTo());
     }
 
+    /// PIT pagination tracks accurately on the first batch only, then disables tracking on follow-ups while still
+    /// reporting the cached total in the response.
+    public void testPitPaginatedHitSourceCachesTotalAndDisablesTrackOnSubsequentBatches() {
+        configurePitOrScroll(true);
+        SearchRequest preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        AtomicReference<PaginatedHitSource.AsyncResponse> capturedAsyncResponse = new AtomicReference<>();
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            buildTestBackoffPolicy(),
+            threadPool,
+            () -> {},
+            capturedAsyncResponse::set,
+            capturedFailure::set,
+            new ParentTaskAssigningClient(client, localNode, testTask),
+            preparedSearchRequest,
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+        );
+        paginatedHitSource.start();
+        assertNull("paginatedHitSource start should not fail", capturedFailure.get());
+
+        // First batch inherits accurate tracking from prepareSearchRequest.
+        SearchRequest firstRequest = client.lastSearch.get().request;
+        assertEquals(Integer.valueOf(Integer.MAX_VALUE), firstRequest.source().trackTotalHitsUpTo());
+
+        long totalHits = randomLongBetween(100L, 1_000_000L);
+        SearchHit[] firstBatchHits = new SearchHit[] { new SearchHit(0, "id").sourceRef(new BytesArray("{}")) };
+        firstBatchHits[0].sortValues(new Object[] { 0L }, new DocValueFormat[] { DocValueFormat.RAW });
+        SearchHits firstSearchHits = new SearchHits(firstBatchHits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse firstResponse = SearchResponseUtils.response(firstSearchHits).pointInTimeId(TEST_PIT_ID).shards(1, 1, 0).build();
+        firstSearchHits.decRef();
+        try {
+            client.lastSearch.get().listener.onResponse(firstResponse);
+            assertNotNull("first batch must be delivered", capturedAsyncResponse.get());
+            assertEquals("first batch reports the accurate total", totalHits, capturedAsyncResponse.get().response().getTotalHits());
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+            capturedAsyncResponse.set(null);
+        } finally {
+            firstResponse.decRef();
+        }
+
+        // After the first batch the cache is seeded, so the next request must drop track_total_hits.
+        paginatedHitSource.requestNextBatch(TimeValue.ZERO);
+        assertNull("next-batch request should not fail", capturedFailure.get());
+        SearchRequest nextRequest = client.lastSearch.get().request;
+        assertEquals(
+            "subsequent PIT searches should disable track_total_hits to keep Max WAND active",
+            Integer.valueOf(SearchContext.TRACK_TOTAL_HITS_DISABLED),
+            nextRequest.source().trackTotalHitsUpTo()
+        );
+        assertNotSame("next request must not mutate the first-batch source", firstRequest.source(), nextRequest.source());
+        assertEquals(
+            "first-batch source remains accurate-tracking",
+            Integer.valueOf(Integer.MAX_VALUE),
+            firstRequest.source().trackTotalHitsUpTo()
+        );
+
+        // Server returns a null total when track_total_hits is disabled; the hit source must substitute the cache.
+        SearchHits secondSearchHits = new SearchHits(new SearchHit[0], null, 0);
+        SearchResponse secondResponse = SearchResponseUtils.response(secondSearchHits).pointInTimeId(TEST_PIT_ID).shards(1, 1, 0).build();
+        secondSearchHits.decRef();
+        try {
+            client.lastSearch.get().listener.onResponse(secondResponse);
+            assertNotNull("second batch must be delivered", capturedAsyncResponse.get());
+            assertEquals(
+                "subsequent batches must report the cached total instead of the placeholder",
+                totalHits,
+                capturedAsyncResponse.get().response().getTotalHits()
+            );
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+        } finally {
+            secondResponse.decRef();
+        }
+    }
+
     /**
      * When using PIT, verifies that the action builds a {@link ClientPitPaginatedHitSource} as its paginated hit source.
      */
@@ -2040,6 +2236,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         DummyAsyncBulkByScrollAction(BulkByPaginatedSearchTask task, TimeValue maxTaskShutdownGracePeriod) {
+            this(task, maxTaskShutdownGracePeriod, new NoopCircuitBreaker("test"), "test_bulk_batch");
+        }
+
+        DummyAsyncBulkByScrollAction(
+            BulkByPaginatedSearchTask task,
+            TimeValue maxTaskShutdownGracePeriod,
+            CircuitBreaker circuitBreaker,
+            String breakerLabel
+        ) {
             super(
                 task,
                 randomBoolean(),
@@ -2055,7 +2260,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 null,
                 randomFrom(BulkByScrollSearchContextMetrics.TaskKind.values()),
                 false,
-                maxTaskShutdownGracePeriod
+                maxTaskShutdownGracePeriod,
+                new ReindexSettings(),
+                circuitBreaker,
+                breakerLabel
             );
         }
 

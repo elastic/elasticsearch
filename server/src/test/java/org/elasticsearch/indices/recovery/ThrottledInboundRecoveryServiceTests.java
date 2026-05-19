@@ -9,13 +9,17 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +30,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.indices.recovery.ThrottledInboundRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -48,7 +53,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
 
     /** Work starts on {@link org.elasticsearch.threadpool.ThreadPool#generic()}, not on the enqueueing thread. */
     public void testSynchronousTaskRunsOutsideEnqueueingThread() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, between(2, 4));
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(between(2, 4)));
         Thread caller = Thread.currentThread();
         AtomicReference<Thread> executionThread = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
@@ -80,7 +85,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
      * so the user listener observes completion before the consumer runnable returns.
      */
     public void testSynchronousTaskNotifiesUserListenerBeforeConsumerReturns() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, 1);
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch done = new CountDownLatch(1);
         RecoveryListener userListener = new RecoveryListener() {
@@ -112,7 +117,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
      * runnable must only invoke {@link RecoveryListener#onRecoveryDone} after the consumer body has finished.
      */
     public void testAsynchronousTaskCompletesOnlyAfterConsumerReturns() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, 1);
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch proceedNested = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(1);
@@ -155,7 +160,10 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
      */
     public void testMaxConcurrencyBoundWithAsynchronousTerminalCallback() throws Exception {
         final int maxConcurrentRecoveries = between(2, 5);
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, maxConcurrentRecoveries);
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(
+            threadPool,
+            getClusterSettings(maxConcurrentRecoveries)
+        );
         AtomicInteger running = new AtomicInteger();
         AtomicInteger peakConcurrent = new AtomicInteger();
         CountDownLatch maxConcurrentReached = new CountDownLatch(maxConcurrentRecoveries);
@@ -222,7 +230,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
 
     /** With one slot, synchronous completions preserve enqueue order. */
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, 1);
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(1));
         int total = between(10, 20);
         List<Integer> completionOrder = new CopyOnWriteArrayList<>();
         CountDownLatch allDone = new CountDownLatch(total);
@@ -270,7 +278,10 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         final int maxConcurrentRecoveries = between(1, 20);
         final int highContentionBurstSizeMin = between(1, maxConcurrentRecoveries);
         final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, maxConcurrentRecoveries * 2);
-        final ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, maxConcurrentRecoveries);
+        final ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(
+            threadPool,
+            getClusterSettings(maxConcurrentRecoveries)
+        );
         final AtomicInteger running = new AtomicInteger();
         final AtomicInteger peakRunning = new AtomicInteger();
         final AtomicInteger totalTasksEnqueued = new AtomicInteger();
@@ -448,5 +459,12 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
                 lock.unlock();
             }
         }
+    }
+
+    private static ClusterSettings getClusterSettings(int maxConcurrentRecoveries) {
+        Settings settings = Settings.builder()
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
+            .build();
+        return new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 }

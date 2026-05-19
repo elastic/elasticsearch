@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -768,7 +769,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 0,
                 0L,
-                new RunOnce(() -> HotThreads.logLocalCurrentThreads(logger, Level.WARN, shardId + ": acquire shard lock for create")),
+                new RunOnce(
+                    () -> HotThreads.logLocalCurrentThreads(
+                        logger,
+                        Level.WARN,
+                        shardId + ": acquire shard lock for create",
+                        ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
+                    )
+                ),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
                     public void onResponse(Boolean success) {

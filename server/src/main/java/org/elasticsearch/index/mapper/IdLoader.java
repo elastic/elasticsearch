@@ -113,7 +113,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf, DocValuesLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf, DocValuesLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf, LazyDocValuesIdLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -562,6 +562,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
             BinaryDocValues binaryDocValues = DocValues.getBinary(reader, IdFieldMapper.NAME);
+            if (docIdsInLeaf == null) {
+                return new LazyDocValuesIdLeaf(binaryDocValues);
+            }
             String[] ids = new String[docIdsInLeaf.length];
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
@@ -630,6 +633,31 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             @Override
             public void close() {
                 dvs.close();
+            }
+        }
+    }
+
+    /**
+     * Lazy variant of {@link DocValuesLeaf} that is used when the set of doc ids in the
+     * leaf is not known up front.
+     */
+    final class LazyDocValuesIdLeaf implements Leaf {
+
+        private final BinaryDocValues binaryDocValues;
+
+        LazyDocValuesIdLeaf(BinaryDocValues binaryDocValues) {
+            this.binaryDocValues = binaryDocValues;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            try {
+                boolean found = binaryDocValues.advanceExact(subDocId);
+                assert found;
+                BytesRef encoded = binaryDocValues.binaryValue();
+                return Uid.decodeId(encoded.bytes, encoded.offset, encoded.length);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
     }

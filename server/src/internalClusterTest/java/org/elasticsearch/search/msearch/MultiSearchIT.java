@@ -286,6 +286,58 @@ public class MultiSearchIT extends ESIntegTestCase {
         });
     }
 
+    public void testExecutionWithFourInterleavedRoutingAndSliceMetadataOptions() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("routing-index", Settings.builder().put("number_of_shards", 1).build());
+        createIndex("slice-index", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
+        ensureGreen("routing-index", "slice-index");
+
+        prepareIndex("routing-index").setId("r1-doc").setRouting("r1").setSource("field", "routing-r1").get();
+        prepareIndex("routing-index").setId("r2-doc").setRouting("r2").setSource("field", "routing-r2").get();
+        client().index(new IndexRequest("slice-index").id("s1-doc").routing("s1").setRoutingFromSlice(true).source("field", "slice-s1"))
+            .actionGet();
+        client().index(new IndexRequest("slice-index").id("s2-doc").routing("s2").setRoutingFromSlice(true).source("field", "slice-s2"))
+            .actionGet();
+        refresh();
+
+        String body = """
+            {"index":"routing-index","routing":"r1"}
+            {"query":{"term":{"field.keyword":"routing-r1"}}}
+            {"index":"slice-index","_slice":"s1"}
+            {"query":{"term":{"field.keyword":"slice-s1"}}}
+            {"index":"routing-index","routing":"r2"}
+            {"query":{"term":{"field.keyword":"routing-r2"}}}
+            {"index":"slice-index","_slice":"s2"}
+            {"query":{"term":{"field.keyword":"slice-s2"}}}
+            """;
+        MultiSearchRequest request = parseRequest(body, Map.of());
+        assertThat(request.requests().size(), equalTo(4));
+        assertEquals("r1", request.requests().get(0).routing());
+        assertFalse(request.requests().get(0).isRoutingFromSlice());
+        assertNull(request.requests().get(0).searchSlice());
+        assertEquals("s1", request.requests().get(1).routing());
+        assertTrue(request.requests().get(1).isRoutingFromSlice());
+        assertEquals("s1", request.requests().get(1).searchSlice());
+        assertEquals("r2", request.requests().get(2).routing());
+        assertFalse(request.requests().get(2).isRoutingFromSlice());
+        assertNull(request.requests().get(2).searchSlice());
+        assertEquals("s2", request.requests().get(3).routing());
+        assertTrue(request.requests().get(3).isRoutingFromSlice());
+        assertEquals("s2", request.requests().get(3).searchSlice());
+
+        assertResponse(client().multiSearch(request), response -> {
+            assertThat(response.getResponses().length, equalTo(4));
+            for (Item item : response) {
+                assertNoFailures(item.getResponse());
+                assertHitCount(item.getResponse(), 1L);
+            }
+            assertFirstHit(response.getResponses()[0].getResponse(), hasId("r1-doc"));
+            assertFirstHit(response.getResponses()[1].getResponse(), hasId("s1-doc"));
+            assertFirstHit(response.getResponses()[2].getResponse(), hasId("r2-doc"));
+            assertFirstHit(response.getResponses()[3].getResponse(), hasId("s2-doc"));
+        });
+    }
+
     private RestRequest mkRequest(String body, Map<String, String> params) {
         return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/index*/_msearch")

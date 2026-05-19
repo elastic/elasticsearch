@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -35,7 +36,9 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ScriptService scriptService,
         ActionListener<BulkByScrollResponse> listener,
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        TimeValue maxTaskShutdownGracePeriod
+        TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
+        CircuitBreaker requestBreaker
     ) {
         super(
             task,
@@ -52,7 +55,10 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
             bulkByScrollSearchContextMetrics,
             BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
             false,
-            maxTaskShutdownGracePeriod
+            maxTaskShutdownGracePeriod,
+            reindexSettings,
+            requestBreaker,
+            "delete_by_query_bulk_batch"
         );
     }
 

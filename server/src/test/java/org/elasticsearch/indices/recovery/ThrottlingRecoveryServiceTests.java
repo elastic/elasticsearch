@@ -12,7 +12,6 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -27,8 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
@@ -77,7 +74,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             executionThread.set(Thread.currentThread());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
-        assertTrue("recovery task never finished", done.await(10, TimeUnit.SECONDS));
+        safeAwait(done);
         assertThat("recovery executed on enqueueing thread instead of generic pool", executionThread.get(), not(equalTo(caller)));
     }
 
@@ -109,7 +106,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             consumerReturned.set(true);
         });
-        assertTrue(done.await(10, TimeUnit.SECONDS));
+        safeAwait(done);
         assertTrue(consumerReturned.get());
     }
 
@@ -140,19 +137,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         };
         service.enqueue(userListener, schedulingListener -> {
             threadPool.generic().execute(() -> {
-                try {
-                    assertTrue(proceedNested.await(10, TimeUnit.SECONDS));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
+                safeAwait(proceedNested);
                 assertTrue(consumerReturned.get());
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             });
             consumerReturned.set(true);
             proceedNested.countDown();
         });
-        assertTrue(done.await(10, TimeUnit.SECONDS));
+        safeAwait(done);
     }
 
     /**
@@ -189,11 +181,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             int current = running.incrementAndGet();
             peakConcurrent.accumulateAndGet(current, Integer::max);
             maxConcurrentReached.countDown();
-            try {
-                unblock.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            safeAwait(unblock);
             threadPool.generic().execute(() -> {
                 try {
                     schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -208,10 +196,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(decrementingListener, recoveryBody);
         }
 
-        assertTrue(
-            "timed out waiting for expected number of concurrent tasks to execute",
-            maxConcurrentReached.await(10, TimeUnit.SECONDS)
-        );
+        safeAwait(maxConcurrentReached);
         assertThat(enqueued, equalTo(maxConcurrentRecoveries));
         assertThat(running.get(), equalTo(maxConcurrentRecoveries));
 
@@ -221,7 +206,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         unblock.countDown();
 
-        assertTrue("timed out waiting for tasks to finish", allFinished.await(30, TimeUnit.SECONDS));
+        safeAwait(allFinished);
         assertThat(running.get(), equalTo(0));
         assertThat(peakConcurrent.get(), lessThanOrEqualTo(maxConcurrentRecoveries));
     }
@@ -239,20 +224,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(noopUserListener, schedulingListener -> {
                 firstBatchStarted.countDown();
                 secondBatchStarted.countDown();
-                try {
-                    assertTrue(unblockAll.await(30, TimeUnit.SECONDS));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                } finally {
-                    schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                }
+                safeAwait(unblockAll);
+                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             });
         }
 
-        assertTrue(firstBatchStarted.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        safeAwait(firstBatchStarted);
         clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 4).build());
-        assertTrue(secondBatchStarted.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        safeAwait(secondBatchStarted);
         unblockAll.countDown();
     }
 
@@ -274,19 +253,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             service.enqueue(noopUserListener, schedulingListener -> {
                 threadPool.generic().execute(() -> {
                     runningEntered.countDown();
-                    try {
-                        assertTrue(unblockEachFirstBatch.get(index).await(30, TimeUnit.SECONDS));
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    } finally {
-                        schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                    }
+                    safeAwait(unblockEachFirstBatch.get(index));
+                    schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                 });
             });
         }
 
-        assertTrue(runningEntered.await(30, TimeUnit.SECONDS));
+        safeAwait(runningEntered);
 
         for (int p = 0; p < 3; p++) {
             final int pendingIndex = p;
@@ -356,7 +329,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             );
         }
 
-        assertTrue(allDone.await(30, TimeUnit.SECONDS));
+        safeAwait(allDone);
         assertThat(completionOrder.size(), equalTo(total));
         for (int i = 0; i < total; i++) {
             assertThat(completionOrder.get(i), equalTo(Integer.valueOf(i)));
@@ -372,7 +345,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * By randomizing burst sizes we exercise different backlog shapes where in some executions there are always pending
      * recoveries, and in others the pending queue sometimes drains during idle periods.
      */
-    public void testStressConcurrentEnqueueMaintainsBoundsFifoAndCompleteness() throws Exception {
+    public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() throws Exception {
         final int initialMaxConcurrentRecoveries = between(1, 20);
         final ClusterSettings clusterSettings = newClusterSettings(initialMaxConcurrentRecoveries);
         final AtomicInteger peakLimitCeiling = new AtomicInteger(initialMaxConcurrentRecoveries);
@@ -455,7 +428,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                 );
                             }
                         }
-                        Thread.sleep(between(1, 10));
+                        Thread.yield();
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

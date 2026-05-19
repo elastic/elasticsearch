@@ -233,7 +233,7 @@ abstract class KMeansLocal {
             neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
         }
         innerCluster(vectors, kMeansIntermediate, neighborhoods);
-        removeEmptyClusters(kMeansIntermediate);
+        removeEmptyClusters(kMeansIntermediate, neighborhoods);
         if (neighborAware && soarLambda >= 0) {
             assert kMeansIntermediate.soarAssignments().length == 0;
             kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
@@ -265,7 +265,7 @@ abstract class KMeansLocal {
         return MathUtils.sqrt(result / norm2);
     }
 
-    private static void removeEmptyClusters(KMeansIntermediate kMeansIntermediate) {
+    private static void removeEmptyClusters(KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods) {
         float[][] centroids = kMeansIntermediate.centroids();
         int[] assignments = kMeansIntermediate.assignments();
         int[] centroidVectorCount = kMeansIntermediate.clusterCounts();
@@ -298,6 +298,8 @@ abstract class KMeansLocal {
             return;
         }
 
+        // TODO eventually, we should get rid of this allocation by overhauling how centroids
+        // are stored and handled in KMeansResult
         final float[][] newCentroids = new float[effectiveK][centroids[0].length];
         final int[] newClusterCounts = new int[effectiveK];
         final int[] centroidIndexMap = new int[centroids.length];
@@ -317,5 +319,19 @@ abstract class KMeansLocal {
             }
         }
         kMeansIntermediate.setCentroids(newCentroids, newClusterCounts);
+
+        if (neighborhoods != null) {
+            // This change will cause that neighborhoods.length > newCentroids.length.
+            // Doing it like this avoids more memory allocations and is fine as long as
+            // we do not use neighborhoods.length to get the number of clusters.
+            for (int c = 0; c < centroids.length; c++) {
+                neighborhoods[centroidIndexMap[c]] = neighborhoods[c];
+                int[] neighbors = neighborhoods[c].neighbors();
+                for (int i = 0; i < neighbors.length; i++) {
+                    neighbors[i] = centroidIndexMap[neighbors[i]];
+                }
+                neighborhoods[centroidIndexMap[c]] = neighborhoods[c];
+            }
+        }
     }
 }

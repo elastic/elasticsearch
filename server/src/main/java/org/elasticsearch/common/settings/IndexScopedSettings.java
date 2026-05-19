@@ -219,6 +219,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.USE_ES_812_POSTINGS_FORMAT,
                 IndexSettings.USE_DOC_VALUES_SKIPPER,
                 IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
+                IndexSettings.INDEX_MAPPING_INCLUDE_SEMANTIC_FIELDS_IN_SOURCE_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

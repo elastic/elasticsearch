@@ -20,9 +20,6 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.function.IntFunction;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
     static VectorScorerFactory factory;
@@ -45,11 +42,13 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
 
         if ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
             || arch.equals("amd64") && osName.equals("Linux"))) {
-            assertThat(factory, not(instanceOf(DefaultVectorScorerFactory.class)));
+            assertTrue(factory.usesNative());
         } else {
-            // not an expected arch, so should be the default one
-            // and there are no tests to run in that case
-            assertThat(factory, instanceOf(DefaultVectorScorerFactory.class));
+            // not an arch with native support, so shouldn't be native
+            assertFalse(factory.usesNative());
+
+            // there's only native implementations of these scorers at the moment,
+            // if this changes, the tests will need to check the Optionals returned themselves
             throw new AssumptionViolatedException(notSupportedMsg());
         }
     }

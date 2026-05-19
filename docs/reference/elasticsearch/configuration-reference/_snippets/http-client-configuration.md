@@ -1,4 +1,4 @@
-Don't use response timeouts in your HTTP client. Instead, use TCP keepalives to detect network outages. {{es}} always responds to every request, but some requests can take several minutes to complete. Many HTTP clients default to short timeouts suited for browser interactions, which can cause them to report a failure before {{es}} has finished processing.
+Avoid using response timeouts in your HTTP client. {{es}} always responds to every request, but some requests can take several minutes to complete. Many HTTP clients default to short timeouts suited for browser interactions, which can cause them to report a failure before {{es}} has finished processing. To detect actual network outages, use TCP keepalives instead.
 
 Response timeouts can cause significant issues:
 

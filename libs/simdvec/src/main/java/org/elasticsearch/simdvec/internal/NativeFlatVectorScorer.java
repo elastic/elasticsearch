@@ -30,7 +30,7 @@ import static org.apache.lucene.util.VectorUtil.scaleMaxInnerProductScore;
 /**
  * A FlatVectorsScorer that uses native code to compare arrays.
  */
-public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
+public final class NativeFlatVectorScorer implements FlatVectorsScorer {
 
     /*
      * Unlike other native scorers, this does not use IndexInput slices (as it can't get one),
@@ -48,6 +48,8 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
      * This means we don't have to do a native call for every vector,
      * and we get some amortization of the native call overhead and bookkeeping.
      */
+
+    private static final int BULK_SIZE = 8;
 
     @Override
     public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
@@ -92,8 +94,9 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         implements
             RandomVectorScorer,
             HasKnnVectorValues {
+
         final int dims;
-        private final MemorySegment[] segments = new MemorySegment[8];
+        private final MemorySegment[] segments = new MemorySegment[BULK_SIZE];
 
         AbstractNativeScorer(KnnVectorValues vectors) {
             super(vectors);
@@ -102,7 +105,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
         abstract MemorySegment queryVectorSegment() throws IOException;
 
-        abstract MemorySegment vectorValueSegment(int ord) throws IOException;
+        abstract MemorySegment vectorValueSegment(int ord, int bulkIndex) throws IOException;
 
         abstract float score(MemorySegment query, MemorySegment value);
 
@@ -112,7 +115,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
         @Override
         public float score(int node) throws IOException {
-            return correction(score(queryVectorSegment(), vectorValueSegment(node)));
+            return correction(score(queryVectorSegment(), vectorValueSegment(node, 0)));
         }
 
         @Override
@@ -121,16 +124,16 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
             MemorySegment scoreSegment = MemorySegment.ofArray(scores);
 
             int n = 0;
-            for (; n + 8 <= numNodes; n += 8) {
-                for (int i = 0; i < 8; i++) {
-                    segments[i] = vectorValueSegment(nodes[n + i]);
+            for (; n + BULK_SIZE <= numNodes; n += BULK_SIZE) {
+                for (int i = 0; i < BULK_SIZE; i++) {
+                    segments[i] = vectorValueSegment(nodes[n + i], i);
                 }
 
-                bulk8Score(segments, querySegment, scoreSegment.asSlice((long) n * Float.BYTES, Float.BYTES * 8));
+                bulk8Score(segments, querySegment, scoreSegment.asSlice((long) n * Float.BYTES, (long) BULK_SIZE * Float.BYTES));
             }
 
             for (; n < numNodes; n++) {
-                scores[n] = score(vectorValueSegment(nodes[n]), querySegment);
+                scores[n] = score(vectorValueSegment(nodes[n], 0), querySegment);
             }
 
             float max = Float.NEGATIVE_INFINITY;
@@ -144,15 +147,28 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
     private abstract static class NativeFloatScorer extends AbstractNativeScorer {
         private final FloatVectorValues vectors;
+        private final float[][] scratch;
 
-        NativeFloatScorer(FloatVectorValues vectors) {
+        NativeFloatScorer(FloatVectorValues vectors) throws IOException {
             super(vectors);
             this.vectors = vectors;
+
+            // check if values actually creates a copy
+            // if it just returns the same instance,
+            // then the arrays it returns don't need to be copied to be accessed concurrently
+            this.scratch = vectors.copy() == vectors ? null : new float[BULK_SIZE][dims];
         }
 
         @Override
-        MemorySegment vectorValueSegment(int ord) throws IOException {
-            return MemorySegment.ofArray(vectors.vectorValue(ord));
+        MemorySegment vectorValueSegment(int ord, int bulkIndex) throws IOException {
+            if (scratch != null) {
+                float[] value = vectors.vectorValue(ord);
+                System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
+                return MemorySegment.ofArray(scratch[bulkIndex]);
+            } else {
+                // each array is unique - just use directly
+                return MemorySegment.ofArray(vectors.vectorValue(ord));
+            }
         }
     }
 
@@ -160,7 +176,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         private final FloatVectorValues targetVectors;
         private final float[] vector;
 
-        NativeUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) {
+        NativeUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) throws IOException {
             super(vectors);
             this.targetVectors = targetVectors;
             vector = new float[targetVectors.dimension()];
@@ -179,15 +195,28 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
     private abstract static class NativeByteScorer extends AbstractNativeScorer {
         private final ByteVectorValues vectors;
+        private final byte[][] scratch;
 
-        NativeByteScorer(ByteVectorValues vectors) {
+        NativeByteScorer(ByteVectorValues vectors) throws IOException {
             super(vectors);
             this.vectors = vectors;
+
+            // check if values actually creates a copy
+            // if it just returns the same instance,
+            // then the arrays it returns don't need to be copied to be accessed concurrently
+            this.scratch = vectors.copy() == vectors ? null : new byte[BULK_SIZE][dims];
         }
 
         @Override
-        MemorySegment vectorValueSegment(int ord) throws IOException {
-            return MemorySegment.ofArray(vectors.vectorValue(ord));
+        MemorySegment vectorValueSegment(int ord, int bulkIndex) throws IOException {
+            if (scratch != null) {
+                byte[] value = vectors.vectorValue(ord);
+                System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
+                return MemorySegment.ofArray(scratch[bulkIndex]);
+            } else {
+                // each array is unique - just use directly
+                return MemorySegment.ofArray(vectors.vectorValue(ord));
+            }
         }
     }
 
@@ -195,7 +224,7 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         private final ByteVectorValues targetVectors;
         private final byte[] vector;
 
-        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) {
+        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) throws IOException {
             super(vectors);
             this.targetVectors = targetVectors;
             vector = new byte[targetVectors.dimension()];
@@ -456,7 +485,8 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private static RandomVectorScorer createScorer(VectorSimilarityFunction similarityFunction, byte[] target, ByteVectorValues values) {
+    private static RandomVectorScorer createScorer(VectorSimilarityFunction similarityFunction, byte[] target, ByteVectorValues values)
+        throws IOException {
         return switch (similarityFunction) {
             case EUCLIDEAN -> new NativeByteScorer(values) {
                 @Override
@@ -547,6 +577,6 @@ public final class NativeGenericFlatVectorScorer implements FlatVectorsScorer {
 
     @Override
     public String toString() {
-        return "NativeGenericFlatVectorScorer";
+        return "NativeFlatVectorScorer";
     }
 }

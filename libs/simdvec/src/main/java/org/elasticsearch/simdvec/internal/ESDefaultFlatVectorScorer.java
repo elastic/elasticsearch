@@ -20,7 +20,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 
 import java.io.IOException;
 
-public final class GenericFlatVectorScorer implements FlatVectorsScorer {
+public final class ESDefaultFlatVectorScorer implements FlatVectorsScorer {
 
     private static final FlatVectorsScorer DELEGATE = FlatVectorScorerUtil.getLucene99FlatVectorsScorer();
 
@@ -60,6 +60,6 @@ public final class GenericFlatVectorScorer implements FlatVectorsScorer {
 
     @Override
     public String toString() {
-        return "GenericFlatVectorScorer(delegate=" + DELEGATE + ")";
+        return "ESDefaultFlatVectorScorer(delegate=" + DELEGATE + ")";
     }
 }

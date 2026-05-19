@@ -18,7 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
-import org.elasticsearch.simdvec.internal.GenericFlatVectorScorer;
+import org.elasticsearch.simdvec.internal.ESDefaultFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
@@ -95,7 +95,7 @@ final class Panama22VectorScorerFactory implements VectorScorerFactory {
 
     @Override
     public FlatVectorsScorer newGenericFlatVectorScorer() {
-        return new GenericFlatVectorScorer();
+        return new ESDefaultFlatVectorScorer();
     }
 
     @Override

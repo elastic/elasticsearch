@@ -20,9 +20,10 @@ import org.elasticsearch.simdvec.BaseVectorizationTests;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.IntStream;
 
-public class GenericFlatVectorScorerTests extends BaseVectorizationTests {
+public class ESDefaultFlatVectorScorerTests extends BaseVectorizationTests {
 
     private static final float DELTA = 1e-3f;
     private static final float DELTA_PERCENT = 0.05f;
@@ -34,7 +35,7 @@ public class GenericFlatVectorScorerTests extends BaseVectorizationTests {
 
     private final VectorSimilarityFunction function;
 
-    public GenericFlatVectorScorerTests(VectorSimilarityFunction function) {
+    public ESDefaultFlatVectorScorerTests(VectorSimilarityFunction function) {
         this.function = function;
     }
 
@@ -145,7 +146,37 @@ public class GenericFlatVectorScorerTests extends BaseVectorizationTests {
         int num = randomIntBetween(2, 50);
         int dims = randomIntBetween(1, 1025);
 
-        return FloatVectorValues.fromFloats(IntStream.rangeClosed(0, num).mapToObj(n -> generateRandomFloatVector(dims)).toList(), dims);
+        List<float[]> floats = IntStream.rangeClosed(0, num).mapToObj(n -> generateRandomFloatVector(dims)).toList();
+        if (rarely()) {
+            // return a FloatVectorValues that does require copying
+            class CopyingFloatVectorValues extends FloatVectorValues {
+                private final float[] scratch = new float[dims];
+
+                @Override
+                public float[] vectorValue(int ord) throws IOException {
+                    System.arraycopy(floats.get(ord), 0, scratch, 0, dims);
+                    return scratch;
+                }
+
+                @Override
+                public FloatVectorValues copy() throws IOException {
+                    return new CopyingFloatVectorValues();
+                }
+
+                @Override
+                public int dimension() {
+                    return dims;
+                }
+
+                @Override
+                public int size() {
+                    return num;
+                }
+            }
+            return new CopyingFloatVectorValues();
+        } else {
+            return FloatVectorValues.fromFloats(floats, dims);
+        }
     }
 
     private static float[] generateRandomFloatVector(int dims) {
@@ -160,6 +191,36 @@ public class GenericFlatVectorScorerTests extends BaseVectorizationTests {
         int num = randomIntBetween(2, 50);
         int dims = randomIntBetween(1, 1025);
 
-        return ByteVectorValues.fromBytes(IntStream.rangeClosed(0, num).mapToObj(n -> randomByteArrayOfLength(dims)).toList(), dims);
+        List<byte[]> bytes = IntStream.rangeClosed(0, num).mapToObj(n -> randomByteArrayOfLength(dims)).toList();
+        if (rarely()) {
+            // return a ByteVectorValues that does require copying
+            class CopyingByteVectorValues extends ByteVectorValues {
+                private final byte[] scratch = new byte[dims];
+
+                @Override
+                public byte[] vectorValue(int ord) throws IOException {
+                    System.arraycopy(bytes.get(ord), 0, scratch, 0, dims);
+                    return scratch;
+                }
+
+                @Override
+                public ByteVectorValues copy() throws IOException {
+                    return new CopyingByteVectorValues();
+                }
+
+                @Override
+                public int dimension() {
+                    return dims;
+                }
+
+                @Override
+                public int size() {
+                    return num;
+                }
+            }
+            return new CopyingByteVectorValues();
+        } else {
+            return ByteVectorValues.fromBytes(bytes, dims);
+        }
     }
 }

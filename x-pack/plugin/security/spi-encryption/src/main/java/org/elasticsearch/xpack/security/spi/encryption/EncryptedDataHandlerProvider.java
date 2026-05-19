@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.crypto;
+package org.elasticsearch.xpack.security.spi.encryption;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -12,8 +12,9 @@ import java.util.Collections;
 /**
  * SPI extension point for plugins that contribute {@link EncryptedDataHandler}s to the primary encryption key rotation coordinator.
  *
- * <p>A plugin contributes handlers by declaring {@code extendedPlugins = ['x-pack-security']} in its {@code esplugin {}} block, and
- * shipping a {@code META-INF/services/org.elasticsearch.xpack.core.crypto.EncryptedDataHandlerProvider} entry pointing at the
+ * <p>A plugin contributes handlers by declaring {@code extendedPlugins = ['x-pack-security']} in its {@code esplugin {}} block,
+ * adding a {@code compileOnly project(':x-pack:plugin:security:spi-encryption')} dependency, and shipping a
+ * {@code META-INF/services/org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider} entry pointing at the
  * implementation class.
  */
 public interface EncryptedDataHandlerProvider {

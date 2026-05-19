@@ -124,8 +124,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
-import org.elasticsearch.xpack.core.crypto.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
@@ -427,6 +425,8 @@ import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilege
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;

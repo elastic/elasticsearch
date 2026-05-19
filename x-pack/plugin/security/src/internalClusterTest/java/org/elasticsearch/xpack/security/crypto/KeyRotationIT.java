@@ -14,9 +14,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
-import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;

@@ -17,8 +17,14 @@ base {
   archivesName = 'x-pack-security'
 }
 
+configurations {
+  spi
+  compileOnlyApi.extendsFrom(spi)
+}
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  spi project(':x-pack:plugin:security:spi-encryption')
   api project(path: ':modules:transport-netty4')
 
   testImplementation project(path: xpackModule('ilm'))
@@ -156,6 +162,10 @@ dependencies {
   testImplementation('org.apache.directory.server:ldap-client-test:2.0.0-M24')
   testImplementation('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
+}
+
+esplugin.bundleSpec.into("spi") {
+  from(configurations.spi)
 }
 
 tasks.named("test").configure {

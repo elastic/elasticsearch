@@ -23,9 +23,9 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.KeyEntry;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
 
 import java.util.List;
 import java.util.Map;

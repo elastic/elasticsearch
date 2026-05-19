@@ -5,14 +5,14 @@
  * 2.0.
  */
 
-import org.elasticsearch.xpack.core.crypto.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.security.encryption.spi.test.TestEncryptedDataHandlerProvider;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider;
 
 module org.elasticsearch.internal.security.encryption.spi.test {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.xcore;
+    requires org.elasticsearch.security.spi.encryption;
 
     provides EncryptedDataHandlerProvider with TestEncryptedDataHandlerProvider;
 }

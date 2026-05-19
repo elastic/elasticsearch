@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.security.encryption.spi.test;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.crypto.EncryptedDataHandler;
-import org.elasticsearch.xpack.core.crypto.EncryptedDataHandlerProvider;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider;
 
 import java.util.Collection;
 import java.util.List;

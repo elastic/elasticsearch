@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -204,6 +205,25 @@ public class VirtualColumnInjectorTests extends ESTestCase {
         for (int i = 0; i < 5; i++) {
             assertEquals(2024, yearBlock.getInt(i));
         }
+    }
+
+    public void testNullPartitionValueEmitsNullBlock() {
+        List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr("year", DataType.INTEGER));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of("year"));
+        // Map.of rejects nulls; use HashMap to model the Hive-default-partition case.
+        Map<String, Object> partitionValues = new HashMap<>();
+        partitionValues.put("year", null);
+
+        VirtualColumnInjector injector = new VirtualColumnInjector(fullOutput, partitionCols, partitionValues, blockFactory);
+
+        IntBlock dataBlock = blockFactory.newConstantIntBlockWith(1, 3);
+        Page dataPage = new Page(3, new Block[] { dataBlock });
+
+        Page result = injector.inject(dataPage);
+
+        Block yearBlock = result.getBlock(1);
+        assertTrue("expected all-null block, got " + yearBlock.getClass().getSimpleName(), yearBlock.areAllValuesNull());
+        assertEquals(3, yearBlock.getPositionCount());
     }
 
     private static Attribute attr(String name, DataType type) {

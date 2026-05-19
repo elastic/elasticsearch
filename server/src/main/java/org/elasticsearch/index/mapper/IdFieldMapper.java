@@ -73,12 +73,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String documentDescription(ParsedDocument parsedDocument);
 
     /**
-     * Build the {@code _id} to use on requests reindexing into indices using
-     * this {@code _id}.
-     */
-    public abstract String reindexId(String id);
-
-    /**
      * Create an indexed and stored {@link Field} for the provided {@code _id}.
      */
     public static Field standardIdField(String id) {

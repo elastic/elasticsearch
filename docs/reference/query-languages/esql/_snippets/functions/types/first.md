@@ -8,14 +8,14 @@
 | boolean | date_nanos | boolean |
 | boolean | integer | boolean |
 | boolean | long | boolean |
-| cartesian_point | date | cartesian_point |
-| cartesian_point | date_nanos | cartesian_point |
-| cartesian_point | integer | cartesian_point |
-| cartesian_point | long | cartesian_point |
-| cartesian_shape | date | cartesian_shape |
-| cartesian_shape | date_nanos | cartesian_shape |
-| cartesian_shape | integer | cartesian_shape |
-| cartesian_shape | long | cartesian_shape |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | date | cartesian_point |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | date_nanos | cartesian_point |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | integer | cartesian_point |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | long | cartesian_point |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | date | cartesian_shape |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | date_nanos | cartesian_shape |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | integer | cartesian_shape |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | long | cartesian_shape |
 | date | date | date |
 | date | date_nanos | date |
 | date | integer | date |
@@ -28,26 +28,26 @@
 | double | date_nanos | double |
 | double | integer | double |
 | double | long | double |
-| geo_point | date | geo_point |
-| geo_point | date_nanos | geo_point |
-| geo_point | integer | geo_point |
-| geo_point | long | geo_point |
-| geo_shape | date | geo_shape |
-| geo_shape | date_nanos | geo_shape |
-| geo_shape | integer | geo_shape |
-| geo_shape | long | geo_shape |
-| geohash | date | geohash |
-| geohash | date_nanos | geohash |
-| geohash | integer | geohash |
-| geohash | long | geohash |
-| geohex | date | geohex |
-| geohex | date_nanos | geohex |
-| geohex | integer | geohex |
-| geohex | long | geohex |
-| geotile | date | geotile |
-| geotile | date_nanos | geotile |
-| geotile | integer | geotile |
-| geotile | long | geotile |
+| geo_point {applies_to}`stack: ga 9.5.0` | date | geo_point |
+| geo_point {applies_to}`stack: ga 9.5.0` | date_nanos | geo_point |
+| geo_point {applies_to}`stack: ga 9.5.0` | integer | geo_point |
+| geo_point {applies_to}`stack: ga 9.5.0` | long | geo_point |
+| geo_shape {applies_to}`stack: ga 9.5.0` | date | geo_shape |
+| geo_shape {applies_to}`stack: ga 9.5.0` | date_nanos | geo_shape |
+| geo_shape {applies_to}`stack: ga 9.5.0` | integer | geo_shape |
+| geo_shape {applies_to}`stack: ga 9.5.0` | long | geo_shape |
+| geohash {applies_to}`stack: ga 9.5.0` | date | geohash |
+| geohash {applies_to}`stack: ga 9.5.0` | date_nanos | geohash |
+| geohash {applies_to}`stack: ga 9.5.0` | integer | geohash |
+| geohash {applies_to}`stack: ga 9.5.0` | long | geohash |
+| geohex {applies_to}`stack: ga 9.5.0` | date | geohex |
+| geohex {applies_to}`stack: ga 9.5.0` | date_nanos | geohex |
+| geohex {applies_to}`stack: ga 9.5.0` | integer | geohex |
+| geohex {applies_to}`stack: ga 9.5.0` | long | geohex |
+| geotile {applies_to}`stack: ga 9.5.0` | date | geotile |
+| geotile {applies_to}`stack: ga 9.5.0` | date_nanos | geotile |
+| geotile {applies_to}`stack: ga 9.5.0` | integer | geotile |
+| geotile {applies_to}`stack: ga 9.5.0` | long | geotile |
 | integer | date | integer |
 | integer | date_nanos | integer |
 | integer | integer | integer |
@@ -68,12 +68,12 @@
 | text | date_nanos | keyword |
 | text | integer | keyword |
 | text | long | keyword |
-| unsigned_long | date | unsigned_long |
-| unsigned_long | date_nanos | unsigned_long |
-| unsigned_long | integer | unsigned_long |
-| unsigned_long | long | unsigned_long |
-| version | date | version |
-| version | date_nanos | version |
-| version | integer | version |
-| version | long | version |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | date | unsigned_long |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | date_nanos | unsigned_long |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | integer | unsigned_long |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | long | unsigned_long |
+| version {applies_to}`stack: ga 9.5.0` | date | version |
+| version {applies_to}`stack: ga 9.5.0` | date_nanos | version |
+| version {applies_to}`stack: ga 9.5.0` | integer | version |
+| version {applies_to}`stack: ga 9.5.0` | long | version |
 

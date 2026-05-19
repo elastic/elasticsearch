@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
@@ -21,6 +23,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.anyOf;
 
 public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestCase {
@@ -47,32 +50,35 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             )
         );
 
+        Set<DataType> taggedTypes = new HashSet<>();
         if (expandTypes) {
-            searchFieldTypes.addAll(
-                List.of(
-                    DataType.VERSION,
-                    DataType.CARTESIAN_POINT,
-                    DataType.CARTESIAN_SHAPE,
-                    DataType.GEO_POINT,
-                    DataType.GEO_SHAPE,
-                    DataType.GEOHASH,
-                    DataType.GEOTILE,
-                    DataType.GEOHEX,
-                    DataType.UNSIGNED_LONG
-                )
+            List<DataType> extra = List.of(
+                DataType.VERSION,
+                DataType.CARTESIAN_POINT,
+                DataType.CARTESIAN_SHAPE,
+                DataType.GEO_POINT,
+                DataType.GEO_SHAPE,
+                DataType.GEOHASH,
+                DataType.GEOTILE,
+                DataType.GEOHEX,
+                DataType.UNSIGNED_LONG
             );
+            searchFieldTypes.addAll(extra);
+            taggedTypes.addAll(extra);
         }
 
+        FunctionAppliesTo newIn95 = appliesTo(FunctionAppliesToLifecycle.GA, "9.5.0", "", true);
         List<DataType> sortFieldTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS, DataType.NULL);
 
         for (DataType searchFieldType : searchFieldTypes) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(searchFieldType, rows, rows)) {
+                var taggedValueSupplier = taggedTypes.contains(searchFieldType) ? valueSupplier.withAppliesTo(newIn95) : valueSupplier;
                 for (DataType sortFieldType : sortFieldTypes) {
                     var sortSuppliers = sortFieldType == DataType.NULL
                         ? MultiRowTestCaseSupplier.nullCases(rows, rows)
                         : unlimitedSuppliers(sortFieldType, rows, rows);
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : sortSuppliers) {
-                        suppliers.add(makeSupplier(valueSupplier, sortSupplier, isFirst));
+                        suppliers.add(makeSupplier(taggedValueSupplier, sortSupplier, isFirst));
                     }
                 }
             }

@@ -16,11 +16,6 @@ setup:
         id: "old_cluster_classification_job"
         force: true
         allow_no_match: true
-  - do:
-      ml.stop_data_frame_analytics:
-        id: "mixed_cluster_outlier_detection_job"
-        force: true
-        allow_no_match: true
 
 ---
 "Get old outlier_detection job":

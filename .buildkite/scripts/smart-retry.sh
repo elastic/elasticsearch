@@ -56,46 +56,7 @@ if [[ -n "$BUILD_JSON" ]]; then
     fi
 
     if [[ "$SMART_RETRY_STATUS" != "failed" ]] && [[ -s "$TASK_STATUS_FILE" ]]; then
-      # Transform task-status.json into .failed-test-history.json
-      #
-      # task-status.json has:
-      #   tasks[]: {path, outcome} where outcome is SUCCESS|UP_TO_DATE|FROM_CACHE|FAILED|SKIPPED|INTERRUPTED|NOT_RUN
-      #   tests[]: {taskPath, className, methodName, result} where result is SUCCESS|FAILURE|SKIPPED
-      #   cancelled: boolean
-      #
-      # .failed-test-history.json needs:
-      #   workUnits[]: tasks with individual test failures, containing the failed test classes/methods
-      #   executedTestTasks[]: all test task paths that actually ran (for skip-if-passed logic)
-      #   failedTestTasks[]: test tasks that failed at the Gradle level without individual test failures
-      #   testseed: the test seed from the original run
-      if jq --arg testseed "${TESTS_SEED:-}" '
-        (.tests | map(.taskPath) | unique) as $testTaskPaths |
-        [.tasks[] | select(.outcome == "FAILED") | .path] as $failedTaskPaths |
-        ([.tests[] | select(.result == "FAILURE") | .taskPath] | unique) as $tasksWithTestFailures |
-        ([.tests[] | select(.result == "FAILURE")] | group_by(.taskPath) | map(
-          . as $taskTests |
-          {
-            name: $taskTests[0].taskPath,
-            outcome: "failed",
-            tests: ($taskTests | group_by(.className) | map({
-              name: .[0].className,
-              outcome: { overall: "failed", own: "passed", children: "failed" },
-              children: [.[] | {
-                name: .methodName,
-                outcome: { overall: "failed" },
-                children: []
-              }]
-            }))
-          }
-        )) as $workUnits |
-        [$failedTaskPaths[] | select(. as $p | $tasksWithTestFailures | index($p) | not) | select(. as $p | $testTaskPaths | index($p))] as $failedTestTasks |
-        {
-          workUnits: $workUnits,
-          testseed: $testseed,
-          executedTestTasks: $testTaskPaths,
-          failedTestTasks: $failedTestTasks
-        }
-      ' "$TASK_STATUS_FILE" > .failed-test-history.json; then
+      if bun .buildkite/scripts/smart-retry/transform.ts "$TASK_STATUS_FILE" .failed-test-history.json "${TESTS_SEED:-}"; then
 
         chmod 600 .failed-test-history.json
 

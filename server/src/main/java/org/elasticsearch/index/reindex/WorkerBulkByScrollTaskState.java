@@ -281,6 +281,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             }
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
+            logger.info("---> [{}]: rethrottle completed successfully to [{}] requests per second", task.getId(), newRequestsPerSecond);
         }
     }
 
@@ -291,7 +292,15 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /// {@link #rethrottle} is safe.
     public void rethrottleWithRelocationGuard(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
+            logger.info(
+                "[{}]: rethrottleWithRelocationGuard called: sliceId={}, capturedRpsForRelocation={}, newRPS={}",
+                task.getId(),
+                sliceId,
+                capturedRpsForRelocation,
+                newRequestsPerSecond
+            );
             if (sliceId == null && capturedRpsForRelocation) {
+                logger.warn("[{}]: Rejecting rethrottle - task is being relocated", task.getId());
                 throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
             }
             rethrottle(newRequestsPerSecond);

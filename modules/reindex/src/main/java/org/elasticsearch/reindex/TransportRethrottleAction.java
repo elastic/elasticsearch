@@ -44,6 +44,7 @@ public class TransportRethrottleAction extends TransportTasksAction<
     RethrottleRequest,
     ListTasksResponse,
     TaskInfo> {
+    private static final Logger logger = org.apache.logging.log4j.LogManager.getLogger(TransportRethrottleAction.class);
     private final Client client;
     private final Client tasksClient;
 
@@ -69,18 +70,32 @@ public class TransportRethrottleAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, RethrottleRequest request, ActionListener<ListTasksResponse> listener) {
+        logger.info(
+            "---> Rethrottle request received for task [{}] with RPS [{}]",
+            request.getTargetTaskId(),
+            request.getRequestsPerSecond()
+        );
         super.doExecute(task, request, listener.delegateFailureAndWrap((l, response) -> {
             final ListTasksResponse responseWithOriginalIdentityTasks = new ListTasksResponse(
                 response.getTasks().stream().map(TaskInfo::withOriginalRelocationIdentity).toList(),
                 response.getTaskFailures(),
                 response.getNodeFailures()
             );
+            logger.info(
+                "---> Rethrottle for task [{}]: found {} tasks, {} task failures, {} node failures",
+                request.getTargetTaskId(),
+                responseWithOriginalIdentityTasks.getTasks().size(),
+                responseWithOriginalIdentityTasks.getTaskFailures().size(),
+                responseWithOriginalIdentityTasks.getNodeFailures().size()
+            );
             // follow relocation chain even if there is a node failure, node might be gone, but the task is still running elsewhere.
             if (request.followRelocations()
                 && responseWithOriginalIdentityTasks.getTasks().isEmpty()
                 && responseWithOriginalIdentityTasks.getTaskFailures().isEmpty()) {
+                logger.info("---> Following relocation for task [{}]", request.getTargetTaskId());
                 followRelocationAndRethrottle(task, request, responseWithOriginalIdentityTasks, l);
             } else {
+                logger.info("---> Returning rethrottle response for task [{}] without following relocation", request.getTargetTaskId());
                 l.onResponse(responseWithOriginalIdentityTasks);
             }
         }));
@@ -105,15 +120,24 @@ public class TransportRethrottleAction extends TransportTasksAction<
         final ActionListener<ListTasksResponse> listener
     ) {
         assert request.followRelocations();
+        logger.info("---> Following relocation: getting task [{}] to find relocated task ID", request.getTargetTaskId());
         final GetTaskRequest getTask = new GetTaskRequest();
         getTask.setTaskId(request.getTargetTaskId());
 
         tasksClient.admin().cluster().getTask(getTask, ActionListener.wrap(getResponse -> {
             final TaskResult result = getResponse.getTask();
+            logger.info("---> Got task result for [{}]: completed={}", request.getTargetTaskId(), result.isCompleted());
             if (result.isCompleted()) {
+                logger.info("---> Task [{}] is completed, not rethrottling", request.getTargetTaskId());
                 listener.onResponse(emptyResponse);
             } else {  // re-issue rethrottle to relocated task
                 final TaskId currentTaskId = result.getTask().taskId();
+                logger.info(
+                    "---> Re-issuing rethrottle from [{}] to relocated task [{}] with RPS [{}]",
+                    request.getTargetTaskId(),
+                    currentTaskId,
+                    request.getRequestsPerSecond()
+                );
                 final RethrottleRequest retry = new RethrottleRequest();
                 retry.setTargetTaskId(currentTaskId);
                 retry.setRequestsPerSecond(request.getRequestsPerSecond());
@@ -121,9 +145,12 @@ public class TransportRethrottleAction extends TransportTasksAction<
                 doExecute(actionTask, retry, listener);
             }
         }, e -> {
+            logger.warn("---> Failed to get task [{}] during relocation follow: {}", request.getTargetTaskId(), e.getMessage());
             if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
+                logger.info("---> Task [{}] not found, returning empty response", request.getTargetTaskId());
                 listener.onResponse(emptyResponse);
             } else {
+                logger.error("---> Error following relocation for task [{}]", request.getTargetTaskId(), e);
                 listener.onFailure(e);
             }
         }));
@@ -147,6 +174,13 @@ public class TransportRethrottleAction extends TransportTasksAction<
         float newRequestsPerSecond,
         ActionListener<TaskInfo> listener
     ) {
+        logger.info(
+            "---> Rethrottle operation on task [{}]: isWorker={}, isLeader={}, newRPS={}",
+            task.getId(),
+            task.isWorker(),
+            task.isLeader(),
+            newRequestsPerSecond
+        );
 
         if (task.isWorker()) {
             rethrottleChildTask(logger, localNodeId, task, newRequestsPerSecond, listener);

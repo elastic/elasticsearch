@@ -10,12 +10,10 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -47,7 +45,7 @@ public final class ThrottledInboundRecoveryService {
     }
 
     public void enqueue(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {
-        RecoveryTask recoveryTask = new RecoveryTask(recoveryListener, task);
+        RecoveryTask recoveryTask = new RecoveryTask(RecoveryListener.runAfter(recoveryListener, this::scheduleNext), task);
         synchronized (this) {
             if (running < maxConcurrentRecoveries || maxConcurrentRecoveries == UNLIMITED) {
                 running++;
@@ -59,32 +57,7 @@ public final class ThrottledInboundRecoveryService {
     }
 
     private void dispatch(RecoveryTask recoveryTask) {
-        RecoveryListener schedulingListener = new RecoveryListener() {
-            private final AtomicBoolean nextScheduled = new AtomicBoolean(false);
-
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                recoveryTask.recoveryListener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
-                scheduleNextOnce();
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                recoveryTask.recoveryListener.onRecoveryFailure(e, sendShardFailure);
-                scheduleNextOnce();
-            }
-
-            private void scheduleNextOnce() {
-                if (nextScheduled.compareAndSet(false, true)) {
-                    scheduleNext();
-                }
-            }
-        };
-        threadPool.generic().execute(() -> recoveryTask.task.accept(schedulingListener));
+        threadPool.generic().execute(() -> recoveryTask.task.accept(recoveryTask.recoveryListener));
     }
 
     private void scheduleNext() {

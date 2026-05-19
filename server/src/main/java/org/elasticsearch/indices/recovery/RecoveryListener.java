@@ -19,4 +19,30 @@ public interface RecoveryListener {
     );
 
     void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
+
+    static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                try {
+                    listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+                } finally {
+                    runAfter.run();
+                }
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                try {
+                    listener.onRecoveryFailure(e, sendShardFailure);
+                } finally {
+                    runAfter.run();
+                }
+            }
+        };
+    }
 }

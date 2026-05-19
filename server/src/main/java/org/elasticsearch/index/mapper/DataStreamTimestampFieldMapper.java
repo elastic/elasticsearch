@@ -150,6 +150,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
         IndexType indexType = dateFieldMapper.fieldType().indexType();
+        if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
+        }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] doesn't have doc values");
         }
@@ -173,11 +176,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             Map<?, ?> configuredSettings = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
             configuredSettings = (Map<?, ?>) configuredSettings.values().iterator().next();
 
-            // Only type, meta, format, and locale attributes are allowed:
+            // Only the following attributes are allowed:
             configuredSettings.remove("type");
             configuredSettings.remove("meta");
             configuredSettings.remove("format");
             configuredSettings.remove("locale");
+            configuredSettings.remove("index");
 
             // ignoring malformed values is disallowed (see previous check),
             // however if `index.mapping.ignore_malformed` has been set to true then

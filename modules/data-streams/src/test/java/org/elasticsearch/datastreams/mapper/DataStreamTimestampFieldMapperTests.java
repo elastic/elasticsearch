@@ -614,13 +614,14 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
+            b.field("index", true);
             b.endObject();
         }));
 
         final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
     }
@@ -698,6 +699,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
+            b.field("index", true);
             b.endObject();
         }));
 
@@ -706,7 +708,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertTrue(timestampMapper.fieldType().hasDocValues());
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeWithoutDefaultMapping() throws IOException {
@@ -754,25 +756,25 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
 
     // ---- LOGSDB_COLUMNAR mode ----
 
-    public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeDisabledDocValuesSkipper() throws IOException {
+    public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeDisabledDocValuesSkipper() {
         assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
             .build();
-        final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
-            b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-            b.field("type", "date");
-            b.endObject();
-        }));
-
-        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
-            .mappers()
-            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
-        assertTrue(timestampMapper.fieldType().hasDocValues());
-        assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
+        // logsdb_columnar disables indexing by default; with doc values skipper also disabled, @timestamp has neither
+        // points nor a skipper, so doValidate rejects it as not indexed.
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, timestampMapping(true, b -> {
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                b.field("type", "date");
+                b.field("index", true);
+                b.endObject();
+            }))
+        );
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBMode() throws IOException {
@@ -854,25 +856,25 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
     }
 
-    public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeExplicitTimestampIndexDisabledDocValuesSkipper() throws IOException {
+    public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeExplicitTimestampIndexDisabledDocValuesSkipper() {
         assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
             .build();
-        final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
-            b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-            b.field("type", "date");
-            b.endObject();
-        }));
-
-        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
-            .mappers()
-            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        assertTrue(timestampMapper.fieldType().hasDocValues());
-        assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
-        assertFalse(timestampMapper.fieldType().indexType().hasPoints());
+        // logsdb_columnar disables indexing by default; with doc values skipper also disabled, @timestamp has neither
+        // points nor a skipper, so doValidate rejects it as not indexed
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, timestampMapping(true, b -> {
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                b.field("type", "date");
+                b.field("index", true);
+                b.endObject();
+            }))
+        );
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeWithoutDefaultMapping() throws IOException {

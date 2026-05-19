@@ -16,7 +16,15 @@ interface PipelineStep {
   parallelism?: number;
   env?: Record<string, string>;
   depends_on?: { step: string; allow_failure: boolean }[];
+  artifact_paths?: string;
 }
+
+// Each BK step runs on its own fresh agent — workspaces are not shared. To get
+// the JUnit XML written by the batch steps to the analyze step's agent, the
+// batch steps upload them as build artifacts and the analyze step downloads
+// them. Both ends use the same path so the existing walker in
+// `analyzer/analyze.ts` picks the files up at `*/build/test-results/...`.
+const TEST_RESULTS_ARTIFACTS = "**/build/test-results/**/TEST-*.xml";
 
 interface PipelineGroup {
   group: string;
@@ -52,6 +60,7 @@ export function toBuildkitePipeline(
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
       soft_fail: cfg.softFail,
+      artifact_paths: TEST_RESULTS_ARTIFACTS,
     };
 
     if (batches.length > 1) {
@@ -71,7 +80,14 @@ export function toBuildkitePipeline(
     steps.push({
       label: "flakiness report",
       key: "flakiness-detection:analyze",
-      command: "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
+      // Download JUnit XML from every preceding batch step before running the
+      // analyzer. The download preserves the upload paths so the analyzer
+      // finds files at the same `*/build/test-results/...` locations a local
+      // run would see.
+      command: [
+        `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
+        "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
+      ].join("\n"),
       timeout_in_minutes: 10,
       agents: { ...cfg.agents },
       soft_fail: true,

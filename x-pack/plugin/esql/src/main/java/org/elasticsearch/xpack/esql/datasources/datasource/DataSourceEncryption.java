@@ -82,12 +82,16 @@ public final class DataSourceEncryption {
                             e
                         );
                     }
-                    result.put(entry.getKey(), new DataSourceSetting(BytesReference.toBytes(out.bytes()), true));
+                    result.put(
+                        entry.getKey(),
+                        new DataSourceSetting(BytesReference.toBytes(out.bytes()), true, DataSourceSetting.EncryptionFormat.V1)
+                    );
                 } finally {
                     Arrays.fill(bytes, (byte) 0);
                 }
             } else {
-                // Already a ciphertext blob (constructor guarantees String | byte[] | null).
+                // Not a plaintext String to encrypt — already a V1 ciphertext carrier (cluster-state
+                // replay). Pass through unchanged.
                 result.put(entry.getKey(), setting);
             }
         }

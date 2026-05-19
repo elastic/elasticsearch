@@ -22,33 +22,54 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
  * A validated data source setting value paired with its sensitivity classification, stored in
  * cluster state as part of data source metadata.
  *
- * <p>Secret values are either a plaintext {@code String} (when no encryption service was available
- * at PUT time) or an encrypted {@code byte[]} (the binary {@code writeTo} output of an
- * {@code EncryptedData} carrier, when encryption succeeded). Runtime type discrimination
- * ({@code value instanceof byte[]}) tells them apart at every layer — binary writeGenericValue
- * preserves the type tag, SMILE XContent preserves the byte-array embedded-object token.
+ * <p>Whether a secret is encrypted is an explicit, serialized property — {@link #encryption} — not
+ * an inference from the value's runtime type. {@link EncryptionFormat#NONE} means the value is
+ * plaintext as supplied by the validator; {@link EncryptionFormat#V1} means the value is the binary
+ * {@code writeTo} output of an {@code EncryptedData} carrier. Readers branch on the enum, which is
+ * written alongside the value on both the binary ({@link StreamOutput#writeGenericValue}) and SMILE
+ * XContent paths; an absent {@code encryption} field parses as {@code NONE}, so anything written
+ * before this field existed reads back as plaintext (which it is).
  *
- * <p>Non-secret values may carry any type that round-trips through {@link StreamOutput#writeGenericValue}.
- * Access values via {@link #rawValue()} (always returns the raw value) or {@link #nonSecretValue()}
+ * <p>The value's Java type is no longer a discriminator, so plaintext values carry whatever type the
+ * validator produced. The only structural invariant is that a {@code V1} value is the ciphertext
+ * {@code byte[]} — the consumer-side decrypt seam reads it as such.
+ *
+ * <p>Access values via {@link #rawValue()} (always returns the raw value) or {@link #nonSecretValue()}
  * (asserts {@code !secret}).
  */
 public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     public static final String MASK_SENTINEL = "::es_redacted::";
 
+    /** Whether {@link #rawValue()} is plaintext ({@code NONE}) or an encrypted carrier blob ({@code V1}). */
+    public enum EncryptionFormat {
+        NONE,
+        V1;
+
+        static EncryptionFormat fromString(String s) {
+            return s == null ? NONE : valueOf(s.toUpperCase(Locale.ROOT));
+        }
+
+        String wireName() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField SECRET = new ParseField("secret");
+    private static final ParseField ENCRYPTION = new ParseField("encryption");
 
     private static final ConstructingObjectParser<DataSourceSetting, Void> PARSER = new ConstructingObjectParser<>(
         "data_source_setting",
         false,
-        (args, ctx) -> new DataSourceSetting(args[0], (boolean) args[1])
+        (args, ctx) -> new DataSourceSetting(args[0], (boolean) args[1], EncryptionFormat.fromString((String) args[2]))
     );
 
     static {
@@ -61,42 +82,57 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
             return p.objectText();
         }, VALUE, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SECRET);
+        // Optional: absent => NONE (anything persisted before this field existed is plaintext).
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ENCRYPTION);
     }
 
     private final Object value;
     private final boolean secret;
+    private final EncryptionFormat encryption;
 
     public DataSourceSetting(Object value, boolean secret) {
-        if (secret && value != null) {
-            if ((value instanceof String || value instanceof byte[]) == false) {
-                throw new IllegalArgumentException(
-                    "secret data source settings must be a String (plaintext) or byte[] (encrypted blob); got ["
-                        + value.getClass().getName()
-                        + "]"
-                );
-            }
+        this(value, secret, EncryptionFormat.NONE);
+    }
+
+    public DataSourceSetting(Object value, boolean secret, EncryptionFormat encryption) {
+        this.encryption = Objects.requireNonNull(encryption, "encryption");
+        if (encryption == EncryptionFormat.V1 && (value instanceof byte[]) == false) {
+            // Not a constraint on what a secret may be — a V1 value *is* the ciphertext, which is
+            // bytes by construction. Failing here beats a ClassCastException deep in the decrypt seam.
+            throw new IllegalArgumentException(
+                "an encrypted (V1) data source setting value must be a byte[] ciphertext blob; got ["
+                    + (value == null ? "null" : value.getClass().getName())
+                    + "]"
+            );
         }
         this.value = value;
         this.secret = secret;
     }
 
     public DataSourceSetting(StreamInput in) throws IOException {
-        this(in.readGenericValue(), in.readBoolean());
+        // The enclosing DataSourceMetadata custom is gated on its own transport version, so any peer
+        // exchanging these objects already understands this field; it is written unconditionally.
+        this(in.readGenericValue(), in.readBoolean(), in.readEnum(EncryptionFormat.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeGenericValue(value);
         out.writeBoolean(secret);
+        out.writeEnum(encryption);
     }
 
     public boolean secret() {
         return secret;
     }
 
-    /** True iff the value is an encrypted blob (byte[] — the binary writeTo of an EncryptedData). */
+    public EncryptionFormat encryption() {
+        return encryption;
+    }
+
+    /** True iff {@link #rawValue()} is an encrypted carrier blob rather than plaintext. */
     public boolean isEncryptedBlob() {
-        return value instanceof byte[];
+        return encryption != EncryptionFormat.NONE;
     }
 
     /** Returns the value of a non-secret setting; throws if secret. */
@@ -132,6 +168,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
             builder.field(VALUE.getPreferredName(), value);
         }
         builder.field(SECRET.getPreferredName(), secret);
+        builder.field(ENCRYPTION.getPreferredName(), encryption.wireName());
         builder.endObject();
         return builder;
     }
@@ -142,6 +179,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         DataSourceSetting that = (DataSourceSetting) o;
         if (secret != that.secret) return false;
+        if (encryption != that.encryption) return false;
         if (value instanceof byte[] lhs && that.value instanceof byte[] rhs) {
             return Arrays.equals(lhs, rhs);
         }
@@ -151,11 +189,11 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         int v = value instanceof byte[] bytes ? Arrays.hashCode(bytes) : Objects.hashCode(value);
-        return Objects.hash(v, secret);
+        return Objects.hash(v, secret, encryption);
     }
 
     @Override
     public String toString() {
-        return "DataSourceSetting{value=" + (secret ? MASK_SENTINEL : value) + ", secret=" + secret + "}";
+        return "DataSourceSetting{value=" + (secret ? MASK_SENTINEL : value) + ", secret=" + secret + ", encryption=" + encryption + "}";
     }
 }

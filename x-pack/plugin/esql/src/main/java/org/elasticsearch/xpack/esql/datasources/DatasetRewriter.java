@@ -235,14 +235,23 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. Secrets are forwarded as their raw
-     * {@link DataSourceSetting#rawValue()} carrier; the data-node decrypt helper materializes
-     * plaintext at the connector boundary.
+     * Parent settings overlaid by dataset settings. An encrypted secret is forwarded wrapped in an
+     * {@link EncryptedSecret} so the data-node decrypt seam recognizes it by type rather than by
+     * inferring from the value's shape; a plaintext secret and non-secrets pass through as-is.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
-            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
+            DataSourceSetting s = e.getValue();
+            Object projected;
+            if (s.secret() == false) {
+                projected = s.nonSecretValue();
+            } else if (s.isEncryptedBlob()) {
+                projected = new EncryptedSecret((byte[]) s.rawValue());
+            } else {
+                projected = s.rawValue();
+            }
+            merged.put(e.getKey(), projected);
         }
         merged.putAll(dataset.settings());
         return merged;

@@ -39,12 +39,12 @@ public class DataSourceCredentialsTests extends ESTestCase {
         }
     };
 
-    /** Encrypt the given plaintext + serialize to the byte[] blob shape that lives in cluster state. */
-    private static byte[] encryptToBlob(String plaintext) throws IOException {
+    /** Encrypt the given plaintext and wrap it as the {@link EncryptedSecret} the connector map carries. */
+    private static EncryptedSecret encryptedSecret(String plaintext) throws IOException {
         EncryptedData encrypted = IDENTITY.encrypt(plaintext.getBytes(StandardCharsets.UTF_8));
         BytesStreamOutput out = new BytesStreamOutput();
         encrypted.writeTo(out);
-        return BytesReference.toBytes(out.bytes());
+        return new EncryptedSecret(BytesReference.toBytes(out.bytes()));
     }
 
     @Override
@@ -82,7 +82,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
 
     public void testEncryptedBlobIsDecryptedToPlaintextString() throws IOException {
         String canary = "AKIA_canary_" + randomAlphaOfLength(8);
-        byte[] blob = encryptToBlob(canary);
+        EncryptedSecret blob = encryptedSecret(canary);
 
         Map<String, Object> input = new HashMap<>();
         input.put("region", "us-east-1");
@@ -99,8 +99,8 @@ public class DataSourceCredentialsTests extends ESTestCase {
         String akCanary = "ak_" + randomAlphaOfLength(8);
         String skCanary = "sk_" + randomAlphaOfLength(12);
         Map<String, Object> input = new HashMap<>();
-        input.put("access_key", encryptToBlob(akCanary));
-        input.put("secret_key", encryptToBlob(skCanary));
+        input.put("access_key", encryptedSecret(akCanary));
+        input.put("secret_key", encryptedSecret(skCanary));
         input.put("endpoint", "https://example.test");
 
         Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
@@ -123,6 +123,18 @@ public class DataSourceCredentialsTests extends ESTestCase {
         assertEquals("AKIA_plaintext_storage", out.get("secret_access_key"));
     }
 
+    public void testRawByteArrayIsNotTreatedAsEncrypted() {
+        // The discriminator is the EncryptedSecret type, not "is it bytes". A bare byte[] in the
+        // config map is a legitimate plaintext binary value and must pass through untouched.
+        byte[] raw = new byte[] { 1, 2, 3, 4 };
+        Map<String, Object> input = new HashMap<>();
+        input.put("some_binary_value", raw);
+
+        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+
+        assertSame(raw, out.get("some_binary_value"));
+    }
+
     public void testUnknownObjectsPassThroughUntouched() {
         Map<String, Object> input = new HashMap<>();
         input.put("nested", Map.of("k", "v"));
@@ -135,7 +147,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
     }
 
     public void testDecryptInPlaceProducesACopyNotMutatingTheInput() throws IOException {
-        byte[] blob = encryptToBlob("canary");
+        EncryptedSecret blob = encryptedSecret("canary");
         Map<String, Object> input = new HashMap<>();
         input.put("secret_access_key", blob);
         Map<String, Object> snapshot = new HashMap<>(input);
@@ -151,7 +163,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         // EncryptionService to decrypt it, fail with 503 rather than hand the SDK opaque bytes.
         DataSourceCredentials.initialize(null);
         try {
-            byte[] blob = encryptToBlob("plain");
+            EncryptedSecret blob = encryptedSecret("plain");
             Map<String, Object> input = new HashMap<>();
             input.put("region", "us-east-1");
             input.put("secret_access_key", blob);

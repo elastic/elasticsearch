@@ -28,9 +28,9 @@ import java.util.Map;
  *
  * <p>Asymmetry with the producer side is intentional. PUT is lax: if the encryption service is
  * unavailable, secrets are stored as plaintext (the cluster has no way to encrypt). FROM is strict:
- * if a {@code byte[]} blob arrives at the connector boundary but no service is bound to decrypt it,
- * the call fails with 503 — passing the SDK opaque bytes it can't read would surface as a confusing
- * auth error or worse.
+ * if an {@link EncryptedSecret} arrives at the connector boundary but no service is bound to decrypt
+ * it, the call fails with 503 — passing the SDK opaque bytes it can't read would surface as a
+ * confusing auth error or worse.
  *
  * <p>TODO(#149194): the static singleton holder mirrors the same per-project mismatch the linked issue
  * flags inside {@code PrimaryEncryptionKeyService}. When that lands and the service becomes
@@ -54,14 +54,14 @@ public final class DataSourceCredentials {
         Map<String, Object> result = new HashMap<>(config.size());
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();
-            if (value instanceof byte[] blob) {
+            if (value instanceof EncryptedSecret encrypted) {
                 if (service == null) {
                     throw new ElasticsearchStatusException(
                         "cannot decrypt secret data-source settings: encryption service is not bound on this node",
                         RestStatus.SERVICE_UNAVAILABLE
                     );
                 }
-                result.put(entry.getKey(), decryptToString(blob, service));
+                result.put(entry.getKey(), decryptToString(encrypted.blob(), service));
             } else {
                 result.put(entry.getKey(), value);
             }

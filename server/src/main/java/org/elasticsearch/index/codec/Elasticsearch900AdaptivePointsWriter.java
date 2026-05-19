@@ -266,12 +266,18 @@ class Elasticsearch900AdaptivePointsWriter extends PointsWriter {
         IOUtils.closeWhileHandlingException(metaOut, indexOut, dataOut);
     }
 
+    /**
+     * Leaf sizes are always rounded up to a multiple of this value to take advantage of byte alignment.
+     */
+    static final int LEAF_SIZE_ALIGNMENT = 512;
+
     static int adjustMaxPointsInLeafNode(int maxPointsInLeafNode, int bytesPerDim, long pointCount) {
         int estimatedBytesPerLeaf = ESTIMATED_OVERHEAD_PER_LEAF_EXCLUDING_SPLIT_VALUES + bytesPerDim;
         long maxLeaves = TARGET_MAX_BKD_HEAP_BYTES / estimatedBytesPerLeaf;
         long desiredLeafSize = (pointCount + maxLeaves - 1) / maxLeaves;
         int capped = (int) Math.min(desiredLeafSize, MAX_POINTS_IN_LEAF_NODE_UPPER_BOUND);
-        return Math.max(maxPointsInLeafNode, capped);
+        int result = Math.max(maxPointsInLeafNode, capped);
+        return ((result + LEAF_SIZE_ALIGNMENT - 1) / LEAF_SIZE_ALIGNMENT) * LEAF_SIZE_ALIGNMENT;
     }
 
     static PointsReader fieldsReader(SegmentReadState state) throws IOException {

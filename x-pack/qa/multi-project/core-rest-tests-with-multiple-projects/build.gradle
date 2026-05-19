@@ -67,6 +67,7 @@ tasks.named("yamlRestTest").configure {
     '^reindex/30_search/Sorting deprecated wait_for_completion false',
 
     // These tests assume we are running on a single node
+    '^delete_by_query/10_basic/Response for version conflict with conflicts=proceed',
     '^delete_by_query/50_wait_for_active_shards/can override wait_for_active_shards',
     '^update_by_query/50_consistency/can override wait_for_active_shards',
 

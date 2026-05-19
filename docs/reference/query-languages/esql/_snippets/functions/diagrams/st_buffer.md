@@ -22,10 +22,37 @@ A point with positive distance becomes a polygon approximating a circle (8 segme
 
 **Default round end caps on a line**
 
-A line buffered with the default round end caps becomes a stadium shape.
+A line buffered with default options has rounded end caps (`endcap=round`).
 
 :::{image} ../../../images/functions/st_buffer_line_round.svg
 :alt: Default round end caps on a line
+:class: text-center
+:::
+
+**Flat end caps on a line**
+
+Setting `endcap=flat` keeps the buffer flush with the line's endpoints.
+
+:::{image} ../../../images/functions/st_buffer_line_flat.svg
+:alt: Flat end caps on a line
+:class: text-center
+:::
+
+**Square end caps on a line**
+
+`endcap=square` extends the buffer past each endpoint by the buffer distance.
+
+:::{image} ../../../images/functions/st_buffer_line_square.svg
+:alt: Square end caps on a line
+:class: text-center
+:::
+
+**Mitre joins on a buffered corner**
+
+`join=mitre` produces sharp corners. Combined with `endcap=flat` you get a clean rectangle for a buffered L-shape.
+
+:::{image} ../../../images/functions/st_buffer_corner_mitre.svg
+:alt: Mitre joins on a buffered corner
 :class: text-center
 :::
 

@@ -796,6 +796,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#tsCollapseCommand}.
+   * @param ctx the parse tree
+   */
+  void enterTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#tsCollapseCommand}.
+   * @param ctx the parse tree
+   */
+  void exitTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    */
@@ -947,6 +957,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitIsNull(EsqlBaseParser.IsNullContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code logicalInSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx);
   /**
    * Enter a parse tree produced by the {@code regexExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

@@ -15,13 +15,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.nio.ShortBuffer;
+import java.nio.ByteOrder;
 import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -46,9 +45,10 @@ public class ESVectorUtil {
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+    private static final VectorScorerFactory SCORERS = ESVectorizationProvider.getInstance().getVectorScorerFactory();
 
     public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
@@ -60,12 +60,11 @@ public class ESVectorUtil {
         int bulkSize,
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
-        return ESVectorizationProvider.getInstance()
-            .newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return SCORERS.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
@@ -73,15 +72,17 @@ public class ESVectorUtil {
         int dimension,
         int vectorLengthInBytes
     ) throws IOException {
-        return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+        return SCORERS.newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }
 
-    public static void bFloat16ToFloat(ShortBuffer bfloats, float[] floats) {
-        IMPL.bFloat16ToFloat(bfloats, floats);
+    public static void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        IMPL.bFloat16ToFloat(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
     }
 
-    public static void floatToBFloat16(float[] floats, ShortBuffer bfloats) {
-        IMPL.floatToBFloat16(floats, bfloats);
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        assert floats.length - floatOffset >= floatCount;
+        assert (bfBytes.length - bfOffset) >= floatCount * Short.BYTES;
+        IMPL.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount, byteOrder);
     }
 
     public static float dotProduct(float[] a, float[] b) {
@@ -737,5 +738,17 @@ public class ESVectorUtil {
      */
     public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
         IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
+    }
+
+    /**
+     * For every index {@code i} in {@code [0, values.length)}, sets bit {@code i} in
+     * {@code matches} ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) when
+     * {@code values[i]} lies in {@code [lowerValue, upperValue]}.
+     *
+     * <p>Requires {@code values.length} to be a multiple of 8 (the maximum supported SIMD lane
+     * count, for AVX-512) and {@code matches.length == values.length / 64}.
+     */
+    public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
     }
 }

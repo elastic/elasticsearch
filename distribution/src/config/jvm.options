@@ -70,6 +70,9 @@
 # default to 1 to disable this feature
 -Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
 
+# Required by Apache Arrow memory allocator to access java.nio internals
+--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails; heap dumps

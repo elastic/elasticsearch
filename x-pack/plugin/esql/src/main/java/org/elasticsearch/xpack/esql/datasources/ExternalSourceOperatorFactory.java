@@ -42,7 +42,16 @@ import java.util.List;
  *   <li>Use FormatReader to parse the data format</li>
  *   <li>Produce ESQL Page batches for the query pipeline</li>
  * </ul>
+ *
+ * <p><b>Single-file only; no production callers.</b> Takes one {@link StoragePath} and lets the
+ * reader self-infer the file's schema; multi-file paths must go through
+ * {@link AsyncExternalSourceOperatorFactory}, which pins each reader to the per-file schema
+ * carried by its {@link FileSplit}.
+ *
+ * @deprecated retained for test fixtures only; new code should use
+ *             {@link AsyncExternalSourceOperatorFactory}.
  */
+@Deprecated
 public class ExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
     private final StorageProvider storageProvider;
@@ -216,6 +225,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
         private final List<Attribute> attributes;
+        // Data-attribute view of {@link #attributes}; built once at construction.
+        private final ExternalSchema queryDataSchema;
         private final int batchSize;
         private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
@@ -239,6 +250,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
             this.attributes = attributes;
+            this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
             this.batchSize = batchSize;
             this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
@@ -295,13 +307,11 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
 
-                SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
+                ColumnMapping columnMapping = fileSplit.columnMapping();
                 List<String> effectiveProjection = projectedColumns;
-                List<Attribute> dataColumns = null;
-                if (columnMapping != null && columnMapping.columnCount() < attributes.size()) {
-                    dataColumns = attributes.subList(0, columnMapping.columnCount());
-                    effectiveProjection = new ArrayList<>(dataColumns.size());
-                    for (Attribute attr : dataColumns) {
+                if (columnMapping != null && queryDataSchema.size() < attributes.size()) {
+                    effectiveProjection = new ArrayList<>(queryDataSchema.size());
+                    for (Attribute attr : queryDataSchema) {
                         effectiveProjection.add(attr.name());
                     }
                 }
@@ -312,14 +322,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .rowLimit(FormatReader.NO_LIMIT)
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
+                    .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 
                 if (columnMapping != null && columnMapping.isIdentity() == false) {
-                    if (dataColumns == null) {
-                        dataColumns = attributes.subList(0, columnMapping.columnCount());
-                    }
-                    pages = new SchemaAdaptingIterator(pages, dataColumns, columnMapping, blockFactory);
+                    pages = new SchemaAdaptingIterator(pages, queryDataSchema.attributes(), columnMapping, blockFactory);
                 }
                 return pages;
             }
@@ -356,5 +364,6 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         public String toString() {
             return "SliceQueueSourceOperator";
         }
+
     }
 }

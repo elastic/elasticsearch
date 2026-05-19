@@ -189,7 +189,7 @@ public class FunctionScoreTests extends ESTestCase {
 
                 @Override
                 public SortedNumericDoubleValues getDoubleValues() {
-                    return new SortedNumericDoubleValues() {
+                    return new SortedNumericDoubleValues(null) {
                         @Override
                         public boolean advanceExact(int docId) {
                             return true;

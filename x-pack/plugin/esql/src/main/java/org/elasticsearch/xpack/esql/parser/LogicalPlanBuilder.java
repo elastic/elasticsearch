@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -119,6 +121,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.BUCKETS;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.END;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.INDEX;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.PROMQL_ALLOWED_PARAMS;
@@ -430,6 +433,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         return plan;
+    }
+
+    @Override
+    public Expression visitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) {
+        Expression value = expression(ctx.valueExpression());
+        LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
+        Source source = source(ctx);
+        // InSubquery is a special expression, it has a LogicalPlan as an attribute.
+        Expression e = new InSubquery(source, value, subqueryPlan);
+        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override
@@ -823,7 +836,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+        List<Expression> groupings = visitList(this, ctx.groupings, Expression.class);
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue, groupings);
     }
 
     private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
@@ -871,9 +885,48 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression tablePath = expression(ctx.stringOrParameter());
 
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Expression> params = options != null ? options.keyFoldedMap() : Map.of();
+        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        return new UnresolvedExternalRelation(source, tablePath, params);
+        return new UnresolvedExternalRelation(source, tablePath, config);
+    }
+
+    /**
+     * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
+     * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
+     * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
+     * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
+     */
+    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
+        if (entries.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> folded = new LinkedHashMap<>(entries.size());
+        for (Map.Entry<String, Expression> entry : entries.entrySet()) {
+            Expression value = entry.getValue();
+            if (value instanceof Literal literal) {
+                Object literalValue = literal.value();
+                if (literalValue == null) {
+                    throw new ParsingException(
+                        value.source(),
+                        "EXTERNAL option [{}] has null value; null is not a valid option value",
+                        entry.getKey()
+                    );
+                }
+                if (literalValue instanceof BytesRef bytesRef) {
+                    folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
+                } else {
+                    folded.put(entry.getKey(), literalValue);
+                }
+            } else {
+                throw new ParsingException(
+                    value.source(),
+                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
+                    entry.getKey(),
+                    value.sourceText()
+                );
+            }
+        }
+        return folded;
     }
 
     @Override
@@ -1480,8 +1533,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.bucketsLiteral(),
             params.scrapeIntervalLiteral(),
             valueColumnName,
-            new UnresolvedTimestamp(source),
-            false
+            new UnresolvedTimestamp(source)
         );
     }
 
@@ -1516,6 +1568,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         };
     }
 
+    @Override
+    public PlanFactory visitTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx) {
+        Source source = source(ctx);
+        return input -> {
+            if (input instanceof PromqlCommand pc) {
+                // Dimensions aren't known yet: pc.promqlPlan() is an UnresolvedPromqlFunction at parse time
+                // and only takes its final shape (e.g. AcrossSeriesAggregate) after ResolvePromqlFunctions.
+                // TranslateTimeSeriesCollapse recovers them from the resolved PromqlCommand output.
+                // value/step NameIds, by contrast, are minted at PromqlCommand construction and stable across analysis.
+                return new TimeSeriesCollapse(source, pc, pc.valueAttribute(), pc.stepAttribute(), List.of());
+            }
+            throw new ParsingException(source, "TS_COLLAPSE can only appear directly after a PROMQL command");
+        };
+    }
+
     private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {
         if (ctx == null) {
             return promqlQuery;
@@ -1535,7 +1602,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Duration step = null;
         Integer buckets = null;
         Duration scrapeInterval = Duration.ofMinutes(1);
-        IndexPattern indexPattern = new IndexPattern(source, "*");
+        IndexPattern indexPattern = new IndexPattern(source, DEFAULT_PROMQL_INDEX_PATTERN);
 
         Set<String> paramsSeen = new HashSet<>();
         for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
@@ -1671,8 +1738,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             throw new ParsingException(source(ctx), "Parameter [{}] for index must be a string", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
         } else if (ctx.promqlIndexPattern().isEmpty()) {
-            // Default to all indices if no index pattern is provided
-            return new IndexPattern(source(ctx), "*");
+            return new IndexPattern(source(ctx), DEFAULT_PROMQL_INDEX_PATTERN);
         } else {
             return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }

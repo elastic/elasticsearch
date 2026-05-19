@@ -35,7 +35,7 @@ public class IntegrationTestUtils {
     public static void createInferenceEndpoint(Client client, TaskType taskType, String inferenceId, Map<String, Object> serviceSettings)
         throws IOException {
         final String service = switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
+            case TEXT_EMBEDDING, EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
             case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
             default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
         };

@@ -791,6 +791,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         assert bytes >= 0 : "negative breaker charge: " + bytes + " for [" + label + "]";
         if (circuitBreaker == null || bytes <= 0) {
             return;
+        }
         addCircuitBreakerMemory(bytes, 0L, label);
     }
 

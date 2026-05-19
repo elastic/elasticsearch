@@ -1,6 +1,6 @@
 area: Search
 issues: []
-pr: 147400
+pr: 149150
 summary: Account fuzzy queries against the request circuit breaker upfront, charging the
   query object's retained heap plus a parameter-driven estimate of the Levenshtein
   automaton cost so oversized or excessive fuzzy clauses are rejected before any

@@ -32,8 +32,16 @@ public class StringScriptFieldFuzzyQuery extends AbstractStringScriptFieldAutoma
         @Nullable SearchExecutionContext context
     ) {
         int maxExpansions = 1; // We don't actually expand anything so the value here doesn't matter
-        FuzzyQuery delegate = new FuzzyQuery(new Term(fieldName, term), maxEdits, prefixLength, maxExpansions, transpositions);
-        FuzzyQueries.chargeQuery(delegate, context, fieldName);
+        FuzzyQuery delegate = FuzzyQueries.create(
+            new Term(fieldName, term),
+            maxEdits,
+            prefixLength,
+            maxExpansions,
+            transpositions,
+            null,
+            context,
+            fieldName
+        );
         ByteRunAutomaton automaton = delegate.getAutomata().runAutomaton;
         return new StringScriptFieldFuzzyQuery(script, leafFactory, fieldName, automaton, delegate);
     }

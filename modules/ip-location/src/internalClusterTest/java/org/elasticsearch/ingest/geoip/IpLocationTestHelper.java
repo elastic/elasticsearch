@@ -178,6 +178,26 @@ public final class IpLocationTestHelper {
     }
 
     /**
+     * Waits until all nodes report no downloaded databases and no mmdb files in the temp directory.
+     * Call this after disabling the downloader to ensure async file cleanup has finished before
+     * the next test starts.
+     */
+    public static void awaitNoDatabases(InternalTestCluster cluster) throws Exception {
+        assertBusy(() -> {
+            GeoIpStatsAction.Response response = cluster.client()
+                .execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request())
+                .actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getDatabases(), empty());
+                // ignore the README/LICENSE files with .txt extension
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
+            }
+        });
+    }
+
+
+    /**
      * Removes the {@code configDir/ingest-geoip} directory from all nodes and waits
      * until all nodes report no config databases. Handles Windows filesystem retry.
      */

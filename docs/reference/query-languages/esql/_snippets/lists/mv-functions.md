@@ -1,4 +1,4 @@
-# Manipulation
+## Manipulation
 Functions to add, remove, combine, or reorder multi-value inputs. All these functions
 return multi-values.
 
@@ -10,12 +10,12 @@ return multi-values.
 * [`MV_UNION`](../../functions-operators/mv-functions/mv_union.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview` - Keeps all the unique values present in either multi-value.
 * [`MV_SLICE`](../../functions-operators/mv-functions/mv_slice.md) - Keeps the values in a multi-value between the given start and end indexes.
 
-# Transformation
+## Transformation
 Functions that map a multi-value to a new multi-value.
 
 * [`MV_ZIP`](../../functions-operators/mv-functions/mv_zip.md) - Combines values from two multi-values at each position using a delimiter.
 
-# Filtering and predicates
+## Filtering and predicates
 Functions that return a boolean value based on the properties of a multi-value.
 These provide optimized shorthand expressions for common operations.
 
@@ -29,14 +29,14 @@ WHERE field2 IS NOT null AND MV_CONTAINS(field1, field2)
 * [`MV_CONTAINS`](../../functions-operators/mv-functions/mv_contains.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview` - Tests if a multi-value contains _all_ of the provided values.
 * [`MV_INTERSECTS`](../../functions-operators/mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview` - Tests if a multi-value contains _any_ of the provided values.
 
-# Reduce
+## Reduce
 Functions that reduce a multi-value to a single value.
 
-## General
+### General
 
 * [`MV_COUNT`](../../functions-operators/mv-functions/mv_count.md) - Counts the number of values in a multi-value.
 
-## Selection
+### Selection
 Functions that reduce a multi-value to a single value by keeping one of the existing values.
 
 * [`MV_FIRST`](../../functions-operators/mv-functions/mv_first.md) - returns the first value in a multi-value.
@@ -44,10 +44,10 @@ Functions that reduce a multi-value to a single value by keeping one of the exis
 * [`MV_MIN`](../../functions-operators/mv-functions/mv_min.md) - returns the smallest value in a multi-value.
 * [`MV_MAX`](../../functions-operators/mv-functions/mv_max.md) - returns the largest value in a multi-value.
 
-## Aggregation
+### Aggregation
 Functions that reduce a multi-value to a single value by aggregating the values.
 
-### Numeric Aggregations
+#### Numeric Aggregations
 Functions that calculate a single value from a numeric multi-value.
 (double, integer, long, etc.)
 
@@ -58,7 +58,7 @@ Functions that calculate a single value from a numeric multi-value.
 * [`MV_PERCENTILE`](../../functions-operators/mv-functions/mv_percentile.md) - calculates the percentile of all values in a multi-value.
 * [`MV_PSERIES_WEIGHTED_SUM`](../../functions-operators/mv-functions/mv_pseries_weighted_sum.md) - calculates the weighted sum of all values in a multi-value.
 
-### String Aggregations
+#### String Aggregations
 Functions that calculate a single value from a string multi-value. (text, keyword)
 
 * [`MV_CONCAT`](../../functions-operators/mv-functions/mv_concat.md) - concatenates all values into a single string.

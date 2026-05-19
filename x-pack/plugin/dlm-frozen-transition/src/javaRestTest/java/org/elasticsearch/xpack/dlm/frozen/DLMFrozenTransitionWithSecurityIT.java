@@ -153,7 +153,7 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
                 "max_snapshot_bytes_per_sec": "100m"
               }
             }
-            """, System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10)));
+            """, getAbsoluteRepoPath() + "/" + randomAlphaOfLengthBetween(4, 10)));
         assertOK(adminClient().performRequest(request));
     }
 

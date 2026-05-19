@@ -157,7 +157,11 @@ public class ReshardIndexService {
                 case INDEX_NOT_FOUND -> new IndexNotFoundException(index);
                 case SYSTEM_INDEX -> new IllegalArgumentException("resharding a system index " + index + " is not supported");
                 case INVALID_INDEX_VERSION -> new IllegalArgumentException(
-                    "resharding a index [" + index + "] with a version prior to " + IndexVersions.SHARD_OBLIVIOUS_SLICING + " is not supported"
+                    "resharding a index ["
+                        + index
+                        + "] with a version prior to "
+                        + IndexVersions.SHARD_OBLIVIOUS_SLICING
+                        + " is not supported"
                 );
                 case DATA_STREAM_INDEX -> new IllegalArgumentException(
                     "resharding an index " + index + " that is part of a data stream is not supported"

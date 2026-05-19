@@ -56,6 +56,11 @@ final class RemoteRequestBuilders {
     private static final Version REMOTE_PROJECT_ROUTING_SUPPORTED = Version.V_9_3_0;
 
     /**
+     * {@code size_in_bytes} fetch-phase cap on {@code POST /{index}/_search} and PIT search was added in 9.5.
+     */
+    private static final Version REMOTE_SIZE_IN_BYTES_SUPPORTED = Version.V_9_5_0;
+
+    /**
      * {@code allow_partial_search_results} on {@code POST /{index}/_pit} was added in 8.16
      */
     private static final Version REMOTE_ALLOW_PARTIAL_SEARCH_RESULTS_SUPPORTED = Version.V_8_16_0;
@@ -84,6 +89,9 @@ final class RemoteRequestBuilders {
             request.addParameter("scroll", keepAlive.getStringRep());
         }
         request.addParameter("size", Integer.toString(searchRequest.source().size()));
+        if (remoteVersion.onOrAfter(REMOTE_SIZE_IN_BYTES_SUPPORTED) && searchRequest.source().sizeInBytes() != null) {
+            request.addParameter("size_in_bytes", searchRequest.source().sizeInBytes().getStringRep());
+        }
 
         if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
             request.addParameter("version", Boolean.FALSE.toString());
@@ -288,6 +296,9 @@ final class RemoteRequestBuilders {
             entity.endObject();
 
             entity.field("size", searchRequest.source().size());
+            if (remoteVersion.onOrAfter(REMOTE_SIZE_IN_BYTES_SUPPORTED) && searchRequest.source().sizeInBytes() != null) {
+                entity.field("size_in_bytes", searchRequest.source().sizeInBytes().getStringRep());
+            }
 
             if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
                 entity.field("version", false);

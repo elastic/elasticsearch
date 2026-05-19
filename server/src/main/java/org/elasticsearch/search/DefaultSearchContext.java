@@ -713,6 +713,18 @@ final class DefaultSearchContext extends SearchContext {
         this.terminateAfter = terminateAfter;
     }
 
+    private long sizeInBytes = -1;
+
+    @Override
+    public long sizeInBytes() {
+        return sizeInBytes;
+    }
+
+    @Override
+    public void sizeInBytes(long sizeInBytes) {
+        this.sizeInBytes = sizeInBytes;
+    }
+
     @Override
     public SearchContext minimumScore(float minimumScore) {
         this.minimumScore = minimumScore;

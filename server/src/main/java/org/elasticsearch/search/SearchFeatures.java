@@ -80,6 +80,11 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.aggs.date_histogram.hard_bounds_outside_data_fix"
     );
     public static final NodeFeature COUNT_STATS_PARAMETER = new NodeFeature("search.count.stats_parameter");
+    /**
+     * {@code size_in_bytes} fetch-phase cap on {@code _search}: limits how many source bytes are fetched per shard,
+     * setting {@code terminated_early: true} when the cap is reached.
+     */
+    public static final NodeFeature SEARCH_SIZE_IN_BYTES = new NodeFeature("search.size_in_bytes");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -112,7 +117,8 @@ public final class SearchFeatures implements FeatureSpecification {
             PROFILE_COORDINATOR_REQUEST_METADATA,
             SCROLL_EMPTY_CONTEXT_RETURNS_200,
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
-            COUNT_STATS_PARAMETER
+            COUNT_STATS_PARAMETER,
+            SEARCH_SIZE_IN_BYTES
         );
     }
 }

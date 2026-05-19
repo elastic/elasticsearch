@@ -182,6 +182,10 @@
         "default": 0,
         "description": "The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
       },
+      "size_in_bytes": {
+        "type": "string",
+        "description": "Maximum byte size of _source to fetch per shard before terminating the fetch phase early. Sets terminated_early: true on the response when triggered."
+      },
       "stats": {
         "type": "list",
         "description": "Specific 'tag' of the request for logging and statistical purposes"

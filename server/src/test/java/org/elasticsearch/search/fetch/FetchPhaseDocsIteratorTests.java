@@ -1119,6 +1119,91 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         }
     }
 
+    public void testSizeInBytesLimitCausesEarlyTermination() throws IOException {
+        int docCount = 10;
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "foo", Field.Store.NO));
+            writer.addDocument(doc);
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        int[] docs = new int[docCount];
+        for (int i = 0; i < docCount; i++) {
+            docs[i] = i;
+        }
+
+        // With no source on the hits, each hit costs exactly PER_HIT_OVERHEAD_BYTES. Setting the limit to 1
+        // guarantees early termination after the very first document is processed.
+        QuerySearchResult querySearchResult = new QuerySearchResult();
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                return new SearchHit(doc);
+            }
+        };
+        it.sizeInBytesLimit = 1;
+
+        IterateResult result = it.iterate(null, reader, docs, false, querySearchResult);
+
+        assertThat("expected early termination due to size cap", Boolean.TRUE, equalTo(querySearchResult.terminatedEarly()));
+        assertThat("fewer hits than total docs should be returned", result.hits.length, lessThan(docCount));
+        for (SearchHit hit : result.hits) {
+            hit.decRef();
+        }
+
+        reader.close();
+        directory.close();
+    }
+
+    public void testSizeInBytesLimitNotSetReturnsAllDocs() throws IOException {
+        int docCount = 10;
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "foo", Field.Store.NO));
+            writer.addDocument(doc);
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        int[] docs = new int[docCount];
+        for (int i = 0; i < docCount; i++) {
+            docs[i] = i;
+        }
+
+        QuerySearchResult querySearchResult = new QuerySearchResult();
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {}
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                return new SearchHit(doc);
+            }
+        };
+
+        IterateResult result = it.iterate(null, reader, docs, false, querySearchResult);
+
+        assertNull("terminatedEarly should not be set when sizeInBytesLimit is -1", querySearchResult.terminatedEarly());
+        assertThat("all docs should be returned when no limit is set", result.hits.length, equalTo(docCount));
+        for (SearchHit hit : result.hits) {
+            hit.decRef();
+        }
+
+        reader.close();
+        directory.close();
+    }
+
     private static int[] randomDocIds(int maxDoc) {
         List<Integer> integers = new ArrayList<>();
         int v = 0;

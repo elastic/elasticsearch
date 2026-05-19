@@ -3225,7 +3225,12 @@ public class ReindexerTests extends ESTestCase {
     private static ClusterSettings clusterSettingsForReindexPit(Settings nodeSettings) {
         return new ClusterSettings(
             nodeSettings,
-            Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING, ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING)
+            Set.of(
+                ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING,
+                ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING,
+                ReindexSettings.REINDEX_SEARCH_RESPONSE_MAX_BYTES_SETTING,
+                ReindexSettings.REINDEX_SEARCH_RESPONSE_BREAKER_FRACTION_SETTING
+            )
         );
     }
 

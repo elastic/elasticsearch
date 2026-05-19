@@ -171,6 +171,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
 
+    protected CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
     AbstractAsyncBulkByScrollAction(
         BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
@@ -259,20 +263,29 @@ public abstract class AbstractAsyncBulkByScrollAction<
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         this.remoteVersion = remoteVersion;
-        paginatedHitSource = buildScrollableResultSource(
-            backoffPolicy,
-            prepareSearchRequest(
-                mainRequest,
-                needsSourceDocumentVersions,
-                needsSourceDocumentSeqNoAndPrimaryTerm,
-                needsVectors,
-                remoteVersion
-            )
-        );
-        scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
+        SearchRequest preparedSearchRequest = prepareSearchRequest(
+            mainRequest,
+            needsSourceDocumentVersions,
+            needsSourceDocumentSeqNoAndPrimaryTerm,
+            needsVectors,
+            remoteVersion
+        );
+        // Set a per-search byte cap if the user has not specified one. This prevents a single search response from
+        // allocating an unbounded amount of heap during reindex / update-by-query / delete-by-query.
+        if (preparedSearchRequest.source() != null && preparedSearchRequest.source().sizeInBytes() == null) {
+            long cap = Math.min(
+                reindexSettings.getSearchResponseMaxBytes(),
+                (long) (circuitBreaker.getLimit() * reindexSettings.getSearchResponseBreakerFraction())
+            );
+            if (cap > 0) {
+                preparedSearchRequest.source().sizeInBytes(ByteSizeValue.ofBytes(cap));
+            }
+        }
+        paginatedHitSource = buildScrollableResultSource(backoffPolicy, preparedSearchRequest);
+        scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -587,6 +600,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         if (asyncResponse.hasRemainingHits() == false) {
+            asyncResponse.releaseRemainingHits();
             refreshAndFinish(emptyList(), emptyList(), false);
             return;
         }
@@ -623,6 +637,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
+            asyncResponse.response().closeBodyReleasable();
         });
         boolean cleanupHandedOff = false;
         try {
@@ -1364,6 +1379,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             for (; consumedOffset < hits.size(); consumedOffset++) {
                 hits.get(consumedOffset).release();
             }
+            asyncResponse.response().closeBodyReleasable();
         }
 
         void done(TimeValue extraKeepAlive) {

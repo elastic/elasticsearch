@@ -24,13 +24,19 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.CountingFilterInputStream;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RetryListener;
+import org.elasticsearch.reindex.PaginatedHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -58,9 +64,17 @@ public class RemoteReindexingUtils {
      * @param listener  receives the parsed version on success, or failure/rejection on error
      * @param threadPool thread pool for preserving thread context across async callbacks
      * @param client    REST client for the remote cluster
+     * @param breaker   REQUEST circuit breaker for tracking response body bytes (may be {@code null} to skip tracking)
+     * @param breakerLabel label used when charging the breaker
      */
-    public static void lookupRemoteVersion(RejectAwareActionListener<Version> listener, ThreadPool threadPool, RestClient client) {
-        execute(new Request("GET", "/"), MAIN_ACTION_PARSER, listener, threadPool, client);
+    public static void lookupRemoteVersion(
+        RejectAwareActionListener<Version> listener,
+        ThreadPool threadPool,
+        RestClient client,
+        @Nullable CircuitBreaker breaker,
+        @Nullable String breakerLabel
+    ) {
+        execute(new Request("GET", "/"), MAIN_ACTION_PARSER, listener, threadPool, client, breaker, breakerLabel);
     }
 
     /**
@@ -80,7 +94,9 @@ public class RemoteReindexingUtils {
         Version remoteVersion,
         RejectAwareActionListener<BytesReference> listener,
         ThreadPool threadPool,
-        RestClient client
+        RestClient client,
+        @Nullable CircuitBreaker breaker,
+        @Nullable String breakerLabel
     ) {
         // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
         // so for parity we assert here in case that changes
@@ -88,7 +104,15 @@ public class RemoteReindexingUtils {
         assert request.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
         assert request.allowPartialSearchResults() == null || request.allowPartialSearchResults() == false
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
-        execute(RemoteRequestBuilders.openPit(indices, keepAlive, request, remoteVersion), OPEN_PIT_PARSER, listener, threadPool, client);
+        execute(
+            RemoteRequestBuilders.openPit(indices, keepAlive, request, remoteVersion),
+            OPEN_PIT_PARSER,
+            listener,
+            threadPool,
+            client,
+            breaker,
+            breakerLabel
+        );
     }
 
     /**
@@ -99,7 +123,14 @@ public class RemoteReindexingUtils {
      * @param threadPool thread pool for preserving thread context
      * @param client   REST client for the remote cluster
      */
-    public static void closePit(BytesReference pitId, RejectAwareActionListener<Void> listener, ThreadPool threadPool, RestClient client) {
+    public static void closePit(
+        BytesReference pitId,
+        RejectAwareActionListener<Void> listener,
+        ThreadPool threadPool,
+        RestClient client,
+        @Nullable CircuitBreaker breaker,
+        @Nullable String breakerLabel
+    ) {
         execute(RemoteRequestBuilders.closePit(pitId), (p, xContentType) -> {
             try {
                 if (p.nextToken() != null) {
@@ -109,7 +140,13 @@ public class RemoteReindexingUtils {
                 throw new RuntimeException(e);
             }
             return null;
-        }, RejectAwareActionListener.withResponseHandler(listener, v -> listener.onResponse(null)), threadPool, client);
+        },
+            RejectAwareActionListener.withResponseHandler(listener, v -> listener.onResponse(null)),
+            threadPool,
+            client,
+            breaker,
+            breakerLabel
+        );
     }
 
     /**
@@ -127,16 +164,18 @@ public class RemoteReindexingUtils {
         BackoffPolicy backoffPolicy,
         ThreadPool threadPool,
         RestClient client,
-        RejectAwareActionListener<Version> delegate
+        RejectAwareActionListener<Version> delegate,
+        @Nullable CircuitBreaker breaker,
+        @Nullable String breakerLabel
     ) {
         RetryListener<Version> retryListener = new RetryListener<>(
             logger,
             threadPool,
             backoffPolicy,
-            listener -> lookupRemoteVersion(listener, threadPool, client),
+            listener -> lookupRemoteVersion(listener, threadPool, client, breaker, breakerLabel),
             delegate
         );
-        lookupRemoteVersion(retryListener, threadPool, client);
+        lookupRemoteVersion(retryListener, threadPool, client, breaker, breakerLabel);
     }
 
     /**
@@ -157,7 +196,9 @@ public class RemoteReindexingUtils {
         BiFunction<XContentParser, XContentType, T> parser,
         RejectAwareActionListener<? super T> listener,
         ThreadPool threadPool,
-        RestClient client
+        RestClient client,
+        @Nullable CircuitBreaker breaker,
+        @Nullable String breakerLabel
     ) {
         // Preserve the thread context so headers survive after the call
         Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
@@ -169,9 +210,11 @@ public class RemoteReindexingUtils {
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning
                         T parsedResponse;
+                        CountingFilterInputStream countingStream;
                         try {
                             HttpEntity responseEntity = response.getEntity();
-                            InputStream content = responseEntity.getContent();
+                            InputStream rawContent = responseEntity.getContent();
+                            countingStream = new CountingFilterInputStream(rawContent);
                             XContentType xContentType = null;
                             if (responseEntity.getContentType() != null) {
                                 final String mimeType = ContentType.parse(responseEntity.getContentType().getValue()).getMimeType();
@@ -193,7 +236,7 @@ public class RemoteReindexingUtils {
                                 XContentParser xContentParser = xContentType.xContent()
                                     .createParser(
                                         XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                                        content
+                                        countingStream
                                     )
                             ) {
                                 parsedResponse = parser.apply(xContentParser, xContentType);
@@ -210,6 +253,27 @@ public class RemoteReindexingUtils {
                                 "Error deserializing response, remote is likely not an Elasticsearch instance",
                                 e
                             );
+                        }
+                        // Reserve REQUEST circuit breaker bytes for the materialized response.
+                        // For PaginatedHitSource.Response (search hit batches), the reservation is held until the
+                        // batch's cleanup releasable fires. For small results (version lookups, PIT open/close),
+                        // the reservation is released immediately after the listener returns.
+                        if (breaker != null) {
+                            int bytesRead = countingStream.getBytesRead();
+                            if (bytesRead > 0) {
+                                try {
+                                    breaker.addEstimateBytesAndMaybeBreak(bytesRead, breakerLabel);
+                                } catch (CircuitBreakingException cbe) {
+                                    listener.onFailure(cbe);
+                                    return;
+                                }
+                                Releasable reservation = Releasables.releaseOnce(() -> breaker.addWithoutBreaking(-bytesRead));
+                                if (parsedResponse instanceof PaginatedHitSource.Response r) {
+                                    r.setBodyReleasable(reservation);
+                                } else {
+                                    reservation.close();
+                                }
+                            }
                         }
                         listener.onResponse(parsedResponse);
                     }

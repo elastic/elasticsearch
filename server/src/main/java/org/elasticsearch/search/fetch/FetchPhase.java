@@ -324,8 +324,9 @@ public final class FetchPhase {
         boolean requiresSource = storedFieldsSpec.requiresSource();
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
+        long sizeInBytesLimit = context.sizeInBytes();
 
-        return new StreamingFetchPhaseDocsIterator() {
+        StreamingFetchPhaseDocsIterator iterator = new StreamingFetchPhaseDocsIterator() {
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;
@@ -402,6 +403,8 @@ public final class FetchPhase {
                 }
             }
         };
+        iterator.sizeInBytesLimit = sizeInBytesLimit;
+        return iterator;
     }
 
     /**

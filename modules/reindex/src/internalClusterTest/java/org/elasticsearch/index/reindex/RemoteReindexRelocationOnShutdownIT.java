@@ -67,8 +67,6 @@ public class RemoteReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     public void testRemoteReindexTaskRelocatesOnNodeShutdown() throws Exception {
-        assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();

@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.SecurityMigrationProgressMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
+import org.elasticsearch.cluster.metadata.SystemIndexMigrationProgressMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
@@ -344,6 +346,18 @@ public class ClusterModule extends AbstractModule {
 
         // Streams
         registerProjectCustom(entries, StreamsMetadata.TYPE, StreamsMetadata::new, StreamsMetadata::readDiffFrom);
+        registerProjectCustom(
+            entries,
+            SecurityMigrationProgressMetadata.TYPE,
+            SecurityMigrationProgressMetadata::new,
+            SecurityMigrationProgressMetadata::readDiffFrom
+        );
+        registerProjectCustom(
+            entries,
+            SystemIndexMigrationProgressMetadata.TYPE,
+            SystemIndexMigrationProgressMetadata::new,
+            SystemIndexMigrationProgressMetadata::readDiffFrom
+        );
 
         // Actions
         entries.addAll(ActionModule.getNamedWriteables());
@@ -426,6 +440,20 @@ public class ClusterModule extends AbstractModule {
                 Metadata.ProjectCustom.class,
                 new ParseField(StreamsMetadata.TYPE),
                 StreamsMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(SecurityMigrationProgressMetadata.TYPE),
+                SecurityMigrationProgressMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(SystemIndexMigrationProgressMetadata.TYPE),
+                SystemIndexMigrationProgressMetadata::fromXContent
             )
         );
         entries.add(

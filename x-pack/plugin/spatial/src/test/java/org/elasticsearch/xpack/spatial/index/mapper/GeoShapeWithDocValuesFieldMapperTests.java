@@ -402,7 +402,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             b.field("strategy", "recursive");
             b.field("tree", "geohash");
         }));
-        assertCriticalWarnings(
+        assertWarnings(
             "Parameter [strategy] is deprecated and will be removed in a future version",
             "Parameter [tree] is deprecated and will be removed in a future version"
         );

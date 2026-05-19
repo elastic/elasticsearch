@@ -86,6 +86,8 @@ public class RemoteReindexingUtils {
      * @param listener  receives the PIT id on success, or failure/rejection on error
      * @param threadPool thread pool for preserving thread context
      * @param client   REST client for the remote cluster
+     * @param breaker  REQUEST circuit breaker for tracking response body bytes (may be {@code null} to skip tracking)
+     * @param breakerLabel label used when charging the breaker
      */
     public static void openPit(
         SearchRequest request,
@@ -122,6 +124,8 @@ public class RemoteReindexingUtils {
      * @param listener receives on success, or failure on error
      * @param threadPool thread pool for preserving thread context
      * @param client   REST client for the remote cluster
+     * @param breaker  REQUEST circuit breaker for tracking response body bytes (may be {@code null} to skip tracking)
+     * @param breakerLabel label used when charging the breaker
      */
     public static void closePit(
         BytesReference pitId,
@@ -158,6 +162,8 @@ public class RemoteReindexingUtils {
      * @param threadPool   thread pool for scheduling retries
      * @param client      REST client for the remote cluster
      * @param delegate    receives the version on success or failure after all retries exhausted
+     * @param breaker     REQUEST circuit breaker for tracking response body bytes (may be {@code null} to skip tracking)
+     * @param breakerLabel label used when charging the breaker
      */
     public static void lookupRemoteVersionWithRetries(
         Logger logger,
@@ -257,9 +263,12 @@ public class RemoteReindexingUtils {
                         // Reserve REQUEST circuit breaker bytes for the materialized response.
                         // For PaginatedHitSource.Response (search hit batches), the reservation is held until the
                         // batch's cleanup releasable fires. For small results (version lookups, PIT open/close),
-                        // the reservation is released immediately after the listener returns.
+                        // the reservation is released immediately after parsing, before the listener is invoked.
                         if (breaker != null) {
+                            assert breakerLabel != null : "breakerLabel required when breaker is non-null";
+                            // CountingFilterInputStream uses an int counter; assert it hasn't overflowed (>2 GB response).
                             int bytesRead = countingStream.getBytesRead();
+                            assert bytesRead >= 0 : "CountingFilterInputStream count overflowed: " + bytesRead;
                             if (bytesRead > 0) {
                                 try {
                                     breaker.addEstimateBytesAndMaybeBreak(bytesRead, breakerLabel);

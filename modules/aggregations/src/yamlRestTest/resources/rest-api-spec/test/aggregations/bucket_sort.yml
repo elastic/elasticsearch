@@ -535,6 +535,13 @@ invalid path fails:
 
 ---
 missing bucket key at runtime applies gap_policy=skip:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bucket_sort_null_handles_missing_bucket ]
+      test_runner_features: [capabilities]
+      reason: "previously NPE'd; now treated as a missing value subject to gap_policy"
   - do:
       search:
         body:
@@ -556,6 +563,13 @@ missing bucket key at runtime applies gap_policy=skip:
 
 ---
 missing bucket key at runtime applies gap_policy=insert_zeros:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bucket_sort_null_handles_missing_bucket ]
+      test_runner_features: [capabilities]
+      reason: "previously NPE'd; now treated as a missing value subject to gap_policy"
   - do:
       search:
         body:

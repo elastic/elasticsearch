@@ -184,8 +184,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("logs1", "FROM logs2");
         addIndex("logs2");
         addIndex("logs3");
-        LogicalPlan plan = query("FROM logs*,-logs3");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM logs2),(FROM logs*,-logs3)")));
+        assertThat(replaceViews(query("FROM logs*,-logs3")), matchesPlan(query("FROM (FROM logs2),(FROM logs*,-logs3)")));
+        assertThat(replaceViews(query("FROM logs*")), matchesPlan(query("FROM logs2,logs*")));
     }
 
     /**

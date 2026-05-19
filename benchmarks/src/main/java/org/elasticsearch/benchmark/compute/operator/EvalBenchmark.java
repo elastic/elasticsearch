@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -74,7 +75,6 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -376,7 +376,6 @@ public class EvalBenchmark {
 
     private static Configuration configuration() {
         return new Configuration(
-            ZoneOffset.UTC,
             Instant.now(),
             Locale.ROOT,
             null,
@@ -391,8 +390,7 @@ public class EvalBenchmark {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null,
-            null,
+            ResolvedSettings.EMPTY,
             Map.of()
         );
     }

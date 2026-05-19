@@ -201,7 +201,7 @@ $$$ignore-dynamic-beyond-limit$$$
 :   The maximum cumulative number of JSON object elements that a single document can contain across all arrays. The count spans every nested and sibling array, so splitting a payload across multiple arrays cannot bypass the limit. This setting guards against "poison documents" whose arrays contain a very large number of objects, which can cause excessive memory consumption during parsing and dynamic mapping materialization. The limit is enforced on the document source at parse time, before mapping is applied: it counts JSON object elements inside arrays, not mappers, and applies whether the surrounding array is mapped (for example as `object` or `nested`) or unmapped. Field types that consume an entire array as a single value (for example `completion`) are not affected. Default is `20000`. The minimum value is `1`. To effectively disable the limit, set it to `9223372036854775807` (`Long.MAX_VALUE`).
 
 $$$tokens-per-field-limit$$$
-`index.mapping.tokens_per_field.limit` {applies_to}`stack: ga 9.5` {applies_to}`serverless: all`
+`index.mapping.tokens_per_field.limit` {applies_to}`stack: ga 9.5`
 :   The maximum number of tokens a single field value can produce during indexing. This setting prevents out-of-memory errors when Lucene's analysis phase produces too many tokens, for example, when analyzing large text fields with n-gram analyzers. Documents that exceed the limit are rejected with a `400` error. For multi-value fields, the limit applies independently to each value. Default is `-1` (no limit).
 
 `index.mapping.field_name_length.limit`

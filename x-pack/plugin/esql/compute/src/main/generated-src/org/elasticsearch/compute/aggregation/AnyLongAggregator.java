@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * An aggregator that retrieves the first value it encounters. It is useful in cases where we want to get back the

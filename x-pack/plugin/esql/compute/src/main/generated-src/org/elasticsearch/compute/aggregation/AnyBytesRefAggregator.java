@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -21,9 +23,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * An aggregator that retrieves the first value it encounters. It is useful in cases where we want to get back the
@@ -247,7 +249,6 @@ public class AnyBytesRefAggregator {
             tailValues.set(group, tail);
             return tail;
         }
-
         @Override
         public void close() {
             for (long i = 0; i < firstValues.size(); i++) {

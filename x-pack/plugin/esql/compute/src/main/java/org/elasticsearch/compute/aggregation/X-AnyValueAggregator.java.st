@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 $if(v_BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
@@ -37,6 +38,7 @@ import org.elasticsearch.compute.data.$v_Type$Block;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * An aggregator that retrieves the first value it encounters. It is useful in cases where we want to get back the

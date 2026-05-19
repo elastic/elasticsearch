@@ -162,6 +162,7 @@ public class ViewResolver {
             } else {
                 replaceViews(
                     plan,
+                    projectRouting,
                     parser,
                     new LinkedHashSet<>(),
                     viewQueries,
@@ -174,6 +175,7 @@ public class ViewResolver {
 
     private void replaceViews(
         LogicalPlan plan,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
@@ -203,6 +205,7 @@ public class ViewResolver {
                     planListener.onResponse(viewUnion);
                 case Fork fork -> replaceViewsFork(
                     fork,
+                    projectRouting,
                     parser,
                     seenInner,
                     viewQueries,
@@ -215,6 +218,7 @@ public class ViewResolver {
                 );
                 case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
                     ur,
+                    projectRouting,
                     parser,
                     seenInner,
                     seenWildcards,
@@ -235,6 +239,7 @@ public class ViewResolver {
 
     private void replaceViewsFork(
         Fork fork,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
@@ -249,6 +254,7 @@ public class ViewResolver {
             chain = chain.andThen(
                 (l, updatedSubplans) -> replaceViews(
                     subplan,
+                    projectRouting,
                     parser,
                     seenViews,
                     viewQueries,
@@ -281,6 +287,7 @@ public class ViewResolver {
 
     private void replaceViewsUnresolvedRelation(
         UnresolvedRelation unresolvedRelation,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
@@ -313,7 +320,8 @@ public class ViewResolver {
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
         String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
 
-        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled);
+        req.setProjectRouting(projectRouting);
         req.indices(patterns);
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
@@ -334,8 +342,11 @@ public class ViewResolver {
                     if (cpsEnabled) {
                         // find pattern referencing current view
                         var patternPosition = findMatchingPattern(view.name(), urPatterns, response);
+                        assert patternPosition >= 0 : "Pattern must be found";
+                        // cluster alias : index pattern
+                        var clusterAndPattern = RemoteClusterAware.splitIndexName(urPatterns[patternPosition]);
                         // patterns do not need to be shadowed as they are retained in original expressions
-                        if (patternIsWildcard(urPatterns[patternPosition]) == false) {
+                        if (Objects.equals(clusterAndPattern[0], "_origin") == false && clusterAndPattern[1].contains("*") == false) {
                             viewShadows.putIfAbsent(
                                 view.name(),
                                 new ViewShadowRelation(
@@ -348,6 +359,7 @@ public class ViewResolver {
                     }
                     replaceViews(
                         resolve(view, parser, viewQueries),
+                        projectRouting,
                         parser,
                         branchSeenViews,
                         viewQueries,
@@ -552,13 +564,6 @@ public class ViewResolver {
     }
 
     /**
-     * @return {@code true} if the pattern is a wildcard (one containing *)
-     */
-    private static boolean patternIsWildcard(String pattern) {
-        return RemoteClusterAware.parseLocalIndexName(pattern).contains("*");
-    }
-
-    /**
      * Returns a copy of the unresolved relation with concrete view exclusions removed from its pattern.
      * Used in the early return path when no views were resolved, to prevent valid view exclusions from
      * reaching field caps where they would fail.
@@ -600,7 +605,7 @@ public class ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
-        client.execute(EsqlResolveViewAction.TYPE, request, listener);
+        client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
     }
 
     protected void doResolveOriginViews(String projectRouting, ActionListener<Boolean> listener) {

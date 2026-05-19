@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -225,8 +226,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * </pre>
      */
     public CreateIndexRequest mapping(String mapping) {
-        this.mappings = mapping;
-        return this;
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
+        return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
     }
 
     /**
@@ -265,7 +266,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         if (source.isEmpty()) {
             // If no source is provided we return empty mappings
-            return mapping(EMPTY_MAPPINGS);
+            return innerMapping(EMPTY_MAPPINGS);
         } else if (source.size() != 1 || source.containsKey(type) == false) {
             // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
@@ -276,10 +277,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(Strings.toString(builder));
+            return innerMapping(Strings.toString(builder));
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
+    }
+
+    CreateIndexRequest innerMapping(String mapping) {
+        this.mappings = mapping;
+        return this;
     }
 
     /**

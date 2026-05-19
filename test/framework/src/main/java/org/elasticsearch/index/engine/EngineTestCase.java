@@ -473,7 +473,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
-        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null);
+        return createEngine(defaultSettings, store, translogPath, newMergePolicy());
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath, LongSupplier globalCheckpointSupplier) throws IOException {
@@ -508,7 +508,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy)
         throws IOException {
-        return createEngine(indexSettings, store, translogPath, mergePolicy, null);
+        return createEngine(indexSettings, store, translogPath, mergePolicy, (IndexWriterFactory) null);
 
     }
 
@@ -582,6 +582,16 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
     }
 
+    protected InternalEngine createEngine(
+        IndexSettings indexSettings,
+        Store store,
+        Path translogPath,
+        MergePolicy mergePolicy,
+        @Nullable Sort indexSort
+    ) throws IOException {
+        return createEngine(indexSettings, store, translogPath, mergePolicy, null, null, null, indexSort, null);
+    }
+
     protected InternalEngine createEngine(EngineConfig config) throws IOException {
         return createEngine(null, null, null, config);
     }
@@ -610,13 +620,16 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine;
     }
 
+    protected InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory, EngineConfig config) throws IOException {
+        return createEngine(indexWriterFactory, null, null, config);
+    }
+
     public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
         return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
     }
 
     @FunctionalInterface
     public interface IndexWriterFactory {
-
         IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException;
     }
 
@@ -669,6 +682,20 @@ public abstract class EngineTestCase extends ESTestCase {
             };
         }
 
+    }
+
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
+        return config(indexSettings, store, translogPath, mergePolicy, (ReferenceManager.RefreshListener) null);
+    }
+
+    public EngineConfig config(
+        IndexSettings indexSettings,
+        Store store,
+        Path translogPath,
+        MergePolicy mergePolicy,
+        LongSupplier globalCheckpointSupplier
+    ) {
+        return config(indexSettings, store, translogPath, mergePolicy, null, null, globalCheckpointSupplier);
     }
 
     public EngineConfig config(
@@ -726,6 +753,17 @@ public abstract class EngineTestCase extends ESTestCase {
             null,
             Function.identity()
         );
+    }
+
+    public EngineConfig config(
+        final IndexSettings indexSettings,
+        final Store store,
+        final Path translogPath,
+        final MergePolicy mergePolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final Supplier<RetentionLeases> retentionLeasesSupplier
+    ) {
+        return config(indexSettings, store, translogPath, mergePolicy, null, null, globalCheckpointSupplier, retentionLeasesSupplier);
     }
 
     public EngineConfig config(
@@ -832,7 +870,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath, LongSupplier globalCheckpointSupplier) {
-        return config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
+        return config(indexSettings, store, translogPath, newMergePolicy(), globalCheckpointSupplier);
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[] { 1 });

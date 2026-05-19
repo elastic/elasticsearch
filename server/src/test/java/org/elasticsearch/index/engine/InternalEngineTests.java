@@ -407,7 +407,7 @@ public class InternalEngineTests extends EngineTestCase {
         Sort indexSort = new Sort(new SortedSetSortField("field", false));
         try (
             Store store = createStore();
-            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, null, indexSort, null)
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexSort)
         ) {
             List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
@@ -472,7 +472,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (
             Store store = createStore();
             InternalEngine engine = createEngine(
-                config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)
+                config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, globalCheckpoint::get)
             )
         ) {
             assertThat(engine.segments(), empty());
@@ -769,7 +769,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testRecoveryFromTranslogUpToSeqNo() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             final long maxSeqNo;
             try (InternalEngine engine = createEngine(config)) {
                 final int docs = randomIntBetween(1, 100);
@@ -1307,7 +1307,7 @@ public class InternalEngineTests extends EngineTestCase {
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final LongSupplier globalCheckpointSupplier = () -> globalCheckpoint.get();
-        engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier));
+        engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), globalCheckpointSupplier));
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
         indexDoc(engine, indexForDoc(doc));
         boolean inSync = randomBoolean();
@@ -1339,7 +1339,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path translogPath = createTempDir();
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get));
+        engine = createEngine(config(defaultSettings, store, translogPath, newMergePolicy(), globalCheckpoint::get));
         List<Engine.Operation> ops = generateHistoryOnReplica(between(1, 50), false, randomBoolean(), randomBoolean());
         applyOperations(engine, ops);
         engine.flush(true, true);
@@ -1717,9 +1717,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Set<String> liveDocs = new HashSet<>();
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(
-                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-            )
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get))
         ) {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1747,9 +1745,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Set<String> liveDocs = new HashSet<>();
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(
-                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-            )
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get))
         ) {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -1824,9 +1820,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Set<String> liveDocsWithSource = new HashSet<>();
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(
-                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-            )
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get))
         ) {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
@@ -2784,7 +2778,7 @@ public class InternalEngineTests extends EngineTestCase {
         InternalEngine initialEngine = null;
 
         try {
-            initialEngine = createEngine(defaultSettings, store, createTempDir(), newLogMergePolicy(), null);
+            initialEngine = createEngine(defaultSettings, store, createTempDir(), newLogMergePolicy());
             final ShardRouting primary = shardRoutingBuilder(shardId, "node1", true, ShardRoutingState.STARTED).withAllocationId(
                 allocationId
             ).build();
@@ -2947,7 +2941,7 @@ public class InternalEngineTests extends EngineTestCase {
         List<Engine.IndexCommitRef> commits = new ArrayList<>();
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy()))
         ) {
             final int numIndexingThreads = scaledRandomIntBetween(2, 4);
             final int numDocsPerThread = randomIntBetween(500, 1000);
@@ -3250,10 +3244,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testEnableGcDeletes() throws Exception {
-        try (
-            Store store = createStore();
-            Engine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))
-        ) {
+        try (Store store = createStore(); Engine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy()))) {
             engine.config().setEnableGcDeletes(false);
 
             MapperService mapperService = createMapperService();
@@ -3465,7 +3456,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testCurrentTranslogUUIIDIsCommitted() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
 
             // create
             {
@@ -3570,7 +3561,7 @@ public class InternalEngineTests extends EngineTestCase {
         // when a new translog is created it should be ok
         final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, newPrimaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
-        EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
+        EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy());
         engine = new InternalEngine(config);
     }
 
@@ -3646,7 +3637,7 @@ public class InternalEngineTests extends EngineTestCase {
             store.associateIndexWithNewTranslog(translogUUID);
             try (
                 InternalEngine engine = new InternalEngine(
-                    config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier)
+                    config(indexSettings, store, translogPath, newMergePolicy(), globalCheckpointSupplier)
                 ) {
 
                     @Override
@@ -3670,7 +3661,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
             try (
                 InternalEngine engine = new InternalEngine(
-                    config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier)
+                    config(indexSettings, store, translogPath, newMergePolicy(), globalCheckpointSupplier)
                 )
             ) {
                 recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
@@ -4117,7 +4108,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .codecProvider(newCodecService())
                 .translogConfig(configTranslogConfig)
                 .build();
-            try (InternalEngine engine = createEngine(indexWriterFactory, null, null, config)) {
+            try (InternalEngine engine = createEngine(indexWriterFactory, config)) {
                 final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 indexDoc(engine, indexForDoc(doc));
                 expectThrows(
@@ -4978,7 +4969,7 @@ public class InternalEngineTests extends EngineTestCase {
         Map<String, Engine.Operation> latestOps = new HashMap<>(); // id -> latest seq_no
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy()))
         ) {
             CheckedRunnable<IOException> lookupAndCheck = () -> {
                 try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
@@ -6055,9 +6046,7 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(
-                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
-            )
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get))
         ) {
             final int numDocs = scaledRandomIntBetween(10, 100);
             for (int docId = 0; docId < numDocs; docId++) {
@@ -6462,7 +6451,7 @@ public class InternalEngineTests extends EngineTestCase {
         final List<Long> seqNos = LongStream.rangeClosed(0, maxSeqNo).boxed().collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(seqNos, random());
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
             final List<Long> commitMaxSeqNo = new ArrayList<>();
             final long minTranslogGen;
             try (InternalEngine engine = createEngine(config)) {
@@ -6557,7 +6546,7 @@ public class InternalEngineTests extends EngineTestCase {
         Set<Long> expectedSeqNos = new HashSet<>();
         try (
             Store store = createStore();
-            Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))
+            Engine engine = createEngine(config(indexSettings, store, createTempDir(), keepSoftDeleteDocsMP))
         ) {
             for (Engine.Operation op : operations) {
                 if (op instanceof Engine.Index) {
@@ -6610,7 +6599,7 @@ public class InternalEngineTests extends EngineTestCase {
         Set<Long> existingSeqNos = new HashSet<>();
         store = createStore();
         engine = createEngine(
-            config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get, retentionLeasesHolder::get)
+            config(indexSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get, retentionLeasesHolder::get)
         );
         assertThat(engine.getMinRetainedSeqNo(), equalTo(0L));
         long lastMinRetainedSeqNo = engine.getMinRetainedSeqNo();
@@ -6792,7 +6781,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))
         ) {
             engine.close();
             expectThrows(
@@ -6806,7 +6795,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
+            InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))
         ) {
             engine.close();
             expectThrows(AlreadyClosedException.class, () -> engine.delete(replicaDeleteForDoc("test", 42, 7, System.nanoTime())));
@@ -6857,7 +6846,7 @@ public class InternalEngineTests extends EngineTestCase {
         List<List<Engine.Operation>> commits = new ArrayList<>();
         commits.add(new ArrayList<>());
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, globalCheckpoint::get);
             final List<DocIdSeqNoAndSource> docs;
             try (InternalEngine engine = createEngine(config)) {
                 List<Engine.Operation> flushedOperations = new ArrayList<>();
@@ -6966,7 +6955,7 @@ public class InternalEngineTests extends EngineTestCase {
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
             try (
                 Store store = createStore(indexSettings, newDirectory());
-                InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
+                InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE))
             ) {
                 ParsedDocument doc = testParsedDocument(
                     "1",
@@ -7122,7 +7111,7 @@ public class InternalEngineTests extends EngineTestCase {
         Path translogPath = createTempDir();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, translogPath, newMergePolicy(), globalCheckpoint::get);
             final List<DocIdSeqNoAndSource> docs;
             try (InternalEngine engine = createEngine(config)) {
                 for (Engine.Operation op : operations) {
@@ -7261,7 +7250,7 @@ public class InternalEngineTests extends EngineTestCase {
                 throw new IllegalArgumentException("fatal");
             }
 
-        }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+        }, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))) {
             final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.noOp(op));
             assertThat(e.getMessage(), equalTo("fatal"));
@@ -7286,7 +7275,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore(); InternalEngine engine = createEngine((dir, iwc) -> {
             iw.set(new ThrowingIndexWriter(dir, iwc));
             return iw.get();
-        }, null, null, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+        }, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))) {
             indexDoc(engine, new Engine.Index(Uid.encodeId("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
             final Engine.Delete op = new Engine.Delete("0", Uid.encodeId("0"), primaryTerm.get());
             consumer.accept(engine, op);
@@ -7340,7 +7329,7 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy()))
         ) {
             final List<DocIdSeqNoAndSource> prevDocs;
             final Engine.Index indexWithThrottlingCheck = indexForDoc(createParsedDoc("1", null));
@@ -7639,7 +7628,7 @@ public class InternalEngineTests extends EngineTestCase {
     public void testCurrentVersionIsCommitted() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), globalCheckpoint::get);
 
             store.createEmpty();
             final String translogUUID = Translog.createEmptyTranslog(
@@ -8041,7 +8030,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertTrue(indexSettings.sequenceNumbersDisabled());
         try (
             Store store = createStore();
-            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE))
         ) {
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             indexDoc(engine, indexForDoc(doc));

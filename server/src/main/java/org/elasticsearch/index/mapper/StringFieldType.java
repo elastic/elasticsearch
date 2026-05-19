@@ -33,6 +33,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -185,7 +186,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             // Reserve a pre-flight estimate of CompiledAutomaton's construction peak (UTF-8
             // expansion + second determinize + ByteRunAutomaton). If construction throws after
             // this point, releaseQueryConstructionMemory at request end refunds the reservation.
-            reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
             context.addCircuitBreakerMemory(reservation, "wildcard-compiled:" + name());
             if (caseInsensitive) {
                 query = method == null
@@ -232,7 +233,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         long reservation = 0;
         if (circuitBreaker != null) {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
-            reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
             context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + name());
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")

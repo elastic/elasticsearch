@@ -238,10 +238,6 @@ geo_tile agg":
 
 ---
 "Search timeout aborts a long-running geo_shape (geometry_field) runtime script loop":
-  # GeometryFieldScript extends AbstractFieldScript which overrides _getCancellationCheck().
-  # The Painless compiler therefore injects a cancellation poll at every loop back-edge.
-  # AbstractScriptFieldQuery.createWeight() wires the poll to ContextIndexSearcher::checkCancelled,
-  # so the 100 ms search timeout terminates the loop instead of letting it spin for ~60 s.
   - do:
       indices.create:
         index: test_rt_geometry_timeout

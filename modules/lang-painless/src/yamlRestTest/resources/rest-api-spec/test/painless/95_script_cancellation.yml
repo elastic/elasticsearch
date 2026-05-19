@@ -1,25 +1,9 @@
-# End-to-end timeout tests for Painless script contexts that have in-script cancellation polls.
+# Timeout tests: each spins a tight loop that the 100 ms search timeout must cancel via the
+# Painless-injected poll (present when the script base class overrides _getCancellationCheck()).
+# Without the poll every loop would run ~60 s.
 #
-# Each test uses a single shard with a single document so that inter-segment and
-# BulkScorer cancellation points never fire.  The only stop signal is the in-script
-# poll injected by the Painless compiler when it detects that the script class
-# overrides _getCancellationCheck().  Without that poll, every tight loop below
-# would run for ~60 s regardless of the 100 ms request timeout.
-#
-# Contexts covered (one test each):
-#   filter, number_sort, string_sort, bytesref_sort (version sort),
-#   terms_set, interval_filter, aggs, aggs_map,
-#   long_field, double_field, boolean_field, date_field, keyword_field,
-#   geo_point_field, ip_field, composite_field.
-#
-# geometry_field (geo_shape) is x-pack/spatial only; its timeout test lives in
-# x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/spatial/130_geo_shape_runtime.yml.
-#
-# aggs_init and aggs_combine are intentionally omitted: ContextIndexSearcher.search() sets
-# timeoutOverwrites=true during doPostCollection(), which suppresses TimeExceededException in
-# that phase.  init_script also runs in doPostCollection() when State is rebuilt after a
-# timeout.  These contexts are still wired to _setCancellationCheck (allowing explicit task
-# cancellation to work) but cannot be reliably tested via the search timeout mechanism.
+# aggs_init / aggs_combine omitted: doPostCollection() sets timeoutOverwrites=true, suppressing
+# TimeExceededException in that phase.  geometry_field test lives in spatial/130_geo_shape_runtime.yml.
 
 ---
 "Search timeout aborts a long-running filter script loop":

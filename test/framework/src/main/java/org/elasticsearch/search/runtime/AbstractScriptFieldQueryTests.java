@@ -103,7 +103,6 @@ public class AbstractScriptFieldQueryTests extends ESTestCase {
                 query.createWeight(contextSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).scorerSupplier(reader.leaves().get(0));
                 AbstractFieldScript scriptWithContext = capturedScript.get();
                 assertNotNull(scriptWithContext);
-                // verify _setCancellationCheck was called with a non-null runnable
                 org.mockito.Mockito.verify(scriptWithContext)._setCancellationCheck(org.mockito.ArgumentMatchers.notNull());
 
                 capturedScript.set(null);

@@ -252,11 +252,11 @@ public class ReshardIndexServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testWillNotReshardInvalidIndexVersion() throws Exception {
+    public void testWillNotReshardInvalidIndexVersion() {
         var projectId = randomProjectIdOrDefault();
         var index = new Index("test-index", INDEX_UUID_NA_VALUE);
         var priorVersion = IndexVersion.fromId(
-            randomIntBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION.id(), IndexVersions.MOD_ROUTING_FUNCTION.id() - 1)
+            randomIntBetween(IndexVersions.FIRST_DETACHED_INDEX_VERSION.id(), IndexVersions.SHARD_OBLIVIOUS_SLICING.id() - 1)
         );
         var indexMetadata = IndexMetadata.builder(index.getName()).settings(indexSettings(priorVersion, 1, 0)).build();
         var project = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
@@ -298,7 +298,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
         var exception = expectThrows(IllegalArgumentException.class, () -> executor.executeTask(task, clusterState));
         assertThat(
             exception.getMessage(),
-            containsString("resharding a index [" + index + "] with a version prior to " + IndexVersions.MOD_ROUTING_FUNCTION)
+            containsString("resharding a index [" + index + "] with a version prior to " + IndexVersions.SHARD_OBLIVIOUS_SLICING)
         );
     }
 }

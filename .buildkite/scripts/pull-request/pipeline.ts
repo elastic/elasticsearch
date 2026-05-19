@@ -25,6 +25,8 @@ const AUTO_RETRY_CONFIG: BuildkiteRetry = {
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../../..`);
 
+type CommandRunner = (command: string, options: Parameters<typeof execSync>[1]) => Buffer;
+
 const getArray = (strOrArray: string | string[] | undefined): string[] => {
   if (typeof strOrArray === "undefined") {
     return [];
@@ -164,10 +166,12 @@ export const generatePipelines = (
 
   if (!changedFiles?.length) {
     console.log("Doing git fetch and getting merge-base");
-    const mergeBase = execSync(
-      `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
-      { cwd: PROJECT_ROOT }
-    )
+    const targetBranch = process.env["GITHUB_PR_TARGET_BRANCH"];
+    if (!targetBranch) {
+      throw new Error("GITHUB_PR_TARGET_BRANCH environment variable is required");
+    }
+    const targetRef = resolveMergeBaseTarget(targetBranch);
+    const mergeBase = execSync(`git merge-base ${targetRef} HEAD`, { cwd: PROJECT_ROOT })
       .toString()
       .trim();
 
@@ -224,3 +228,17 @@ export const generatePipelines = (
 
   return finalPipelines;
 };
+
+export function resolveMergeBaseTarget(
+  targetBranch: string,
+  run: CommandRunner = (command, options) => execSync(command, options),
+  projectRoot: string = PROJECT_ROOT
+): string {
+  try {
+    run(`git rev-parse --verify ${targetBranch}^{commit}`, { cwd: projectRoot, stdio: "ignore" });
+    return targetBranch;
+  } catch {
+    run(`git fetch --no-tags origin ${targetBranch}`, { cwd: projectRoot, stdio: "inherit" });
+    return "FETCH_HEAD";
+  }
+}

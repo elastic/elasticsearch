@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 
-import { generatePipelines } from "./pipeline";
+import { generatePipelines, resolveMergeBaseTarget } from "./pipeline";
 import { setBwcVersionsPath, setSnapshotBwcVersionsPath } from "./bwc-versions";
 
 describe("generatePipelines", () => {
@@ -113,5 +113,39 @@ describe("generatePipelines", () => {
 
     expect(usingDefaults).toBeDefined();
     expect(usingDefaults!.pipeline.env?.["CUSTOM_ENV_VAR"]).toBe("value");
+  });
+});
+
+describe("resolveMergeBaseTarget", () => {
+  test("uses target branch directly when ref exists locally", () => {
+    const commands: string[] = [];
+    const runner = (command: string): Buffer => {
+      commands.push(command);
+      return Buffer.from("");
+    };
+
+    const result = resolveMergeBaseTarget("main", runner, "/repo");
+
+    expect(result).toBe("main");
+    expect(commands).toEqual(["git rev-parse --verify main^{commit}"]);
+  });
+
+  test("fetches remote target and falls back to FETCH_HEAD when ref is missing", () => {
+    const commands: string[] = [];
+    const runner = (command: string): Buffer => {
+      commands.push(command);
+      if (command.startsWith("git rev-parse")) {
+        throw new Error("missing ref");
+      }
+      return Buffer.from("");
+    };
+
+    const result = resolveMergeBaseTarget("spice/MattAlp/1/base", runner, "/repo");
+
+    expect(result).toBe("FETCH_HEAD");
+    expect(commands).toEqual([
+      "git rev-parse --verify spice/MattAlp/1/base^{commit}",
+      "git fetch --no-tags origin spice/MattAlp/1/base",
+    ]);
   });
 });

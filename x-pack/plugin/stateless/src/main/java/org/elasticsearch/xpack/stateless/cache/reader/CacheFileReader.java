@@ -146,7 +146,7 @@ public class CacheFileReader {
                     cacheBlobReader.executorName(),
                     StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                 ),
-                "",
+                "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
                 ActionListener.wrap(v -> {
                     blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
                 }, e -> {

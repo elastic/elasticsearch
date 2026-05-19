@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 147964
-summary: "Caching: Prefetch from S3, if local prefetching fails"
+summary: "Caching: Prefetch from blob storage, if local prefetching fails"
 type: enhancement

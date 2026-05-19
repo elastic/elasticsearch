@@ -57,6 +57,8 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,6 +75,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -605,8 +608,9 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                 logger.info("--> stopping current master node during [{}]", actionName);
                 internalCluster().stopCurrentMasterNode();
                 logger.info("--> master node stopped successfully");
-            } catch (Exception e) {
+            } catch (IOException e) {
                 logger.warn("Failed to stop master node during disruption", e);
+                throw new UncheckedIOException(e);
             }
         }, true);
     }
@@ -617,18 +621,38 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     private void assertFrozenTransitionCompletesSuccessfully(String candidateIndex) throws Exception {
         String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
         assertBusy(() -> {
             var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .metadata()
                 .getProject(Metadata.DEFAULT_PROJECT_ID);
+
+            // Verify the original index has been cleaned up (removed from cluster state)
+            assertThat(
+                "Original index [" + candidateIndex + "] should have been deleted",
+                projectMetadata.index(candidateIndex),
+                nullValue()
+            );
+
+            // Verify the clone index has been cleaned up
+            assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
+
+            // Verify the frozen index exists and has the DLM-created setting
             IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
-            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist after master failover", frozenMeta, notNullValue());
-            // Verify it's in the data stream
+            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
+            assertThat(
+                "Frozen index should have the DLM-created setting",
+                DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+                is(true)
+            );
+
+            // Verify it's in the data stream and the original is not
             DataStream ds = projectMetadata.dataStreams().get(DATA_STREAM_NAME);
             assertThat("Data stream should still exist", ds, notNullValue());
             List<String> backingNames = ds.getIndices().stream().map(Index::getName).toList();
+            assertThat("Original index should no longer be in the data stream", backingNames.contains(candidateIndex), is(false));
             assertTrue(
                 "Frozen index should be part of the data stream, but backing indices are: " + backingNames,
                 backingNames.contains(expectedFrozenIndexName)

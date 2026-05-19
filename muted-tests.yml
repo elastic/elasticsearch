@@ -557,3 +557,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.create/40_dynamic_strings_auto_keyword/Dynamic string with auto text later disabled omits text subfield}
   issue: https://github.com/elastic/elasticsearch/issues/149372
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testDynamicStringMappingWithoutAutoTextSubfield
+  issue: https://github.com/elastic/elasticsearch/issues/149374

@@ -82,6 +82,7 @@ constant
     | booleanValue                                                                      #booleanLiteral
     | parameter                                                                         #inputParameter
     | string                                                                            #stringLiteral
+    | OPENING_BRACKET CLOSING_BRACKET                                                  #emptyArrayLiteral
     | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
     | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral
     | OPENING_BRACKET string (COMMA string)* CLOSING_BRACKET                            #stringArrayLiteral

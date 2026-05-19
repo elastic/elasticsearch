@@ -21,6 +21,10 @@ import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.iplocation.api.DatabaseProperty;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
@@ -67,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -613,6 +618,127 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             finalExtractDeviceType,
             finalRegexFile,
             filteredFields
+        );
+    }
+
+    @Override
+    public PlanFactory visitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute outputPrefix = visitQualifiedName(ctx.qualifiedName());
+        if (outputPrefix == null) {
+            throw new ParsingException(source, "IP_LOCATION command requires an output field prefix");
+        }
+
+        Expression input = expression(ctx.primaryExpression());
+        if (input == null) {
+            throw new ParsingException(source, "IP_LOCATION command requires an input expression");
+        }
+
+        return applyIpLocationOptions(source, input, outputPrefix, ctx.commandNamedParameters());
+    }
+
+    private PlanFactory applyIpLocationOptions(
+        Source source,
+        Expression input,
+        Attribute outputPrefix,
+        EsqlBaseParser.CommandNamedParametersContext ctx
+    ) {
+        MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
+
+        String databaseFile = "GeoLite2-City.mmdb";
+        boolean firstOnly = true;
+        List<String> properties = null;
+
+        if (optionsExpression != null) {
+            Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
+
+            Expression databaseFileExpr = optionsMap.remove("database_file");
+            if (databaseFileExpr != null) {
+                if ((databaseFileExpr instanceof Literal && DataType.isString(databaseFileExpr.dataType())) == false) {
+                    throw new ParsingException(databaseFileExpr.source(), "Option [database_file] must be a string literal");
+                }
+                databaseFile = BytesRefs.toString(((Literal) databaseFileExpr).value());
+            }
+
+            Expression firstOnlyExpr = optionsMap.remove("first_only");
+            if (firstOnlyExpr != null) {
+                if ((firstOnlyExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) == false) {
+                    throw new ParsingException(firstOnlyExpr.source(), "Option [first_only] must be a boolean literal");
+                }
+                firstOnly = (Boolean) ((Literal) firstOnlyExpr).value();
+            }
+
+            Expression propertiesExpr = optionsMap.remove("properties");
+            if (propertiesExpr != null) {
+                if (propertiesExpr instanceof Literal propLit && propLit.value() instanceof List<?> propList) {
+                    properties = new ArrayList<>();
+                    for (Object item : propList) {
+                        if (item instanceof BytesRef) {
+                            properties.add(BytesRefs.toString(item));
+                        } else {
+                            throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
+                        }
+                    }
+                } else {
+                    throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
+                }
+            }
+
+            if (optionsMap.isEmpty() == false) {
+                throw new ParsingException(
+                    source,
+                    "Invalid option{} {} in IP_LOCATION, expected one of [database_file, first_only, properties]",
+                    optionsMap.size() > 1 ? "s" : "",
+                    optionsMap.keySet()
+                );
+            }
+        }
+
+        IpLocationService ipLocationService = context.ipLocationService();
+        if (ipLocationService == null) {
+            throw new ParsingException(source, "IP_LOCATION command requires the IP location service to be available");
+        }
+        IpDataLookupInfo info = ipLocationService.getIpDataLookupInfo(databaseFile);
+        if (info == null) {
+            throw new ParsingException(
+                source,
+                "IP location database [{}] is not recognized. Use a bundled MaxMind/ipinfo filename "
+                    + "(e.g. GeoLite2-City.mmdb, GeoIP2-City.mmdb, asn.mmdb) or register the file via the Manage IP Geolocation "
+                    + "Database API.",
+                databaseFile
+            );
+        }
+
+        SequencedMap<String, Class<?>> filteredOutputFields;
+        if (properties == null) {
+            filteredOutputFields = info.getDefaultFields();
+        } else {
+            Set<DatabaseProperty> validProperties = DatabaseProperty.buildValidSet(info.getFields().keySet());
+            filteredOutputFields = new LinkedHashMap<>();
+            for (String property : properties) {
+                DatabaseProperty dp = DatabaseProperty.parseProperty(validProperties, property);
+                Class<?> type = info.getFields().get(dp.fieldName());
+                if (type != null) {
+                    filteredOutputFields.put(dp.fieldName(), type);
+                }
+            }
+        }
+
+        if (context.projectId() != null) {
+            ipLocationService.requestDownloads(context.projectId(), IpLocationConsumer.ESQL);
+        }
+
+        String finalDatabaseFile = databaseFile;
+        boolean finalFirstOnly = firstOnly;
+        return child -> IpLocation.createInitialInstance(
+            source,
+            child,
+            input,
+            outputPrefix,
+            finalDatabaseFile,
+            finalFirstOnly,
+            filteredOutputFields
         );
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -115,7 +116,8 @@ public enum FeatureMetric {
     METRICS_INFO(MetricsInfo.class::isInstance),
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
     TS_INFO(TsInfo.class::isInstance),
-    USER_AGENT(UserAgent.class::isInstance);
+    USER_AGENT(UserAgent.class::isInstance),
+    IP_LOCATION(IpLocation.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

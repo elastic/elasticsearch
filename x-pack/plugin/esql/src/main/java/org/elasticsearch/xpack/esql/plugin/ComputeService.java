@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -172,6 +173,7 @@ public class ComputeService {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
+    private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
@@ -205,6 +207,7 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
+        this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
@@ -1155,6 +1158,8 @@ public class ComputeService {
                 lookupFromIndexService,
                 inferenceService,
                 userAgentParserRegistry,
+                ipLocationService,
+                projectResolver,
                 physicalOperationProviders,
                 operatorFactoryRegistry
             );

@@ -1,0 +1,176 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.geoip.AbstractGeoIpIT;
+import org.elasticsearch.ingest.geoip.GeoIpDownloader;
+import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
+import org.elasticsearch.ingest.geoip.IpLocationDownloadConsumers;
+import org.elasticsearch.ingest.geoip.IpLocationTestHelper;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.junit.After;
+
+import java.util.Collection;
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
+
+/**
+ * Integration test verifying the end-to-end ESQL consumer lifecycle for IP_LOCATION:
+ * parse-time consumer registration, runtime sentinels while the database is unavailable,
+ * and transition to real data once the database has been downloaded.
+ */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
+
+    private static final String TEST_IP = "89.160.20.128";
+    private static final String DATABASE_FILE = "GeoLite2-City.mmdb";
+    private static final String UNAVAILABLE_SENTINEL = "_ip_location_database_unavailable_" + DATABASE_FILE;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(
+            ReindexPlugin.class,
+            IngestGeoIpPlugin.class,
+            IngestGeoIpSettingsPlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class
+        );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        if (getEndpoint() != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), getEndpoint());
+        }
+        // Override the shared database path from AbstractGeoIpIT with an empty directory
+        // so that no config databases are available — Scenario 1 needs the DB to be truly unavailable.
+        settings.put("ingest.geoip.database_path", createTempDir().toString());
+        settings.put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false);
+        return settings.build();
+    }
+
+    @After
+    public void cleanUp() throws Exception {
+        updateClusterSettings(Settings.builder().putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey()));
+        assertBusy(
+            () -> assertFalse(
+                ".geoip_databases should be deleted after disabling the downloader",
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .metadata()
+                    .getProject(ProjectId.DEFAULT)
+                    .getIndicesLookup()
+                    .containsKey(IpLocationTestHelper.DATABASES_INDEX)
+            )
+        );
+    }
+
+    /**
+     * Scenario 1: Before any DB is downloaded, an IP_LOCATION query succeeds with sentinel values
+     * in KEYWORD columns and nulls elsewhere. The ESQL consumer is registered in cluster state.
+     *
+     * Scenario 2: After enabling the downloader and waiting for databases to propagate,
+     * the same query returns real geo data.
+     */
+    public void testSentinelThenRealDataAfterDownload() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNodes(2);
+
+        String query = "ROW ip = \""
+            + TEST_IP
+            + "\" | IP_LOCATION g = ip WITH { \"properties\": [\"country_iso_code\", \"city_name\"] } | KEEP g.*";
+
+        // --- Scenario 1: query before DB download → sentinels + consumer registered ---
+        try (EsqlQueryResponse response = run(query)) {
+            List<ColumnInfoImpl> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("g.country_iso_code"));
+            assertThat(columns.get(1).name(), equalTo("g.city_name"));
+
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0).get(0), equalTo(UNAVAILABLE_SENTINEL));
+            assertThat(values.get(0).get(1), equalTo(UNAVAILABLE_SENTINEL));
+        }
+
+        assertEsqlConsumerRegistered();
+
+        // --- Scenario 2: enable download, wait for DB propagation, query returns real data ---
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        IpLocationTestHelper.awaitAllRelevantNodesDownloadedDatabases(
+            client(),
+            IpLocationConsumer.ESQL,
+            "GeoLite2-City.mmdb",
+            "GeoLite2-Country.mmdb",
+            "GeoLite2-ASN.mmdb",
+            "MyCustomGeoLite2-City.mmdb"
+        );
+
+        try (EsqlQueryResponse response = run(query)) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0).get(0), equalTo("SE"));
+            assertThat(values.get(0).get(1), equalTo("Linköping"));
+        }
+    }
+
+    /**
+     * Verifies that a query requesting non-KEYWORD fields (like location, accuracy_radius)
+     * also gets nulls (not sentinels) for those fields when the DB is unavailable.
+     */
+    public void testNonKeywordFieldsAreNullWhenUnavailable() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNodes(1);
+
+        String query = "ROW ip = \""
+            + TEST_IP
+            + "\" | IP_LOCATION g = ip WITH { \"properties\": [\"country_iso_code\", \"location\", \"accuracy_radius\"] } | KEEP g.*";
+
+        try (EsqlQueryResponse response = run(query)) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            assertThat(values.get(0).get(0), equalTo(UNAVAILABLE_SENTINEL));
+            assertThat(values.get(0).get(1), nullValue());
+            assertThat(values.get(0).get(2), nullValue());
+        }
+    }
+
+    private EsqlQueryResponse run(String esqlCommands) {
+        return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(esqlCommands)).actionGet(TimeValue.timeValueSeconds(30));
+    }
+
+    private void assertEsqlConsumerRegistered() throws Exception {
+        assertBusy(() -> {
+            IpLocationDownloadConsumers consumers = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject(ProjectId.DEFAULT)
+                .custom(IpLocationDownloadConsumers.TYPE, IpLocationDownloadConsumers.EMPTY);
+            assertTrue("ESQL consumer should be registered after first IP_LOCATION query", consumers.contains(IpLocationConsumer.ESQL));
+        });
+    }
+}

@@ -997,6 +997,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSetCommand(EsqlBaseParser.SetCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1472,6 +1484,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitStringLiteral(EsqlBaseParser.StringLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx) { }
   /**
    * {@inheritDoc}
    *

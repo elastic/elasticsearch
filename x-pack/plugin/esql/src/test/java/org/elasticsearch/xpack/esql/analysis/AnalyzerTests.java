@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -6715,6 +6716,85 @@ public class AnalyzerTests extends ESTestCase {
         basic().error(
             "ROW ua=123 | user_agent p = ua WITH { \"extract_device_type\": true }",
             containsString("Input for USER_AGENT must be of type [string] but is [integer]")
+        );
+    }
+
+    public void testIpLocation() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip");
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.continent_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.region_iso_code", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.region_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.city_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.location", DataType.GEO_POINT);
+        assertEquals(7, attributes.size());
+    }
+
+    public void testIpLocationStringInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // KEYWORD input should be accepted
+        basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip");
+    }
+
+    public void testIpLocationIpInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // IP-typed input should be accepted
+        basic().query("ROW ip=\"1.2.3.4\"::ip | ip_location g = ip");
+    }
+
+    public void testIpLocationInvalidInput() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        basic().error(
+            "ROW ip=123 | ip_location g = ip",
+            containsString("Input for IP_LOCATION must be of type [string] or [ip] but is [integer]")
+        );
+    }
+
+    public void testIpLocationCustomDatabase() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"database_file\": \"GeoLite2-Country.mmdb\" }");
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+        assertEquals("GeoLite2-Country.mmdb", ipLocation.databaseFile());
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+        assertContainsAttribute(attributes, "g.continent_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+    }
+
+    public void testIpLocationPropertiesFilter() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }"
+        );
+
+        Limit limit = as(plan, Limit.class);
+        IpLocation ipLocation = as(limit.child(), IpLocation.class);
+
+        final List<Attribute> attributes = ipLocation.generatedAttributes();
+        assertEquals(2, attributes.size());
+        assertContainsAttribute(attributes, "g.city_name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "g.country_iso_code", DataType.KEYWORD);
+    }
+
+    public void testIpLocationUnrecognizedDatabaseFile() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        basic().error(
+            "ROW ip=\"1.2.3.4\" | ip_location g = ip WITH { \"database_file\": \"totally-unknown.mmdb\" }",
+            ParsingException.class,
+            containsString("IP location database [totally-unknown.mmdb] is not recognized")
         );
     }
 

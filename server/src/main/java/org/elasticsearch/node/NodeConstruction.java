@@ -1068,7 +1068,8 @@ class NodeConstruction {
             remoteTransportClient,
             crossProjectModeDecider,
             taskLifecycleManager,
-            dlmErrorStore
+            dlmErrorStore,
+            ipLocationService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

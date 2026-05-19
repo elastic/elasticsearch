@@ -721,7 +721,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
     // --- IpLocationService implementation ---
 
     @Override
-    public IpDataLookup createIpDataLookup(String projectIdStr, String databaseFile, java.util.List<String> propertyNames) {
+    public IpDataLookup createIpDataLookup(String projectIdStr, String databaseFile, List<String> propertyNames) {
         ProjectId pid = ProjectId.fromId(projectIdStr);
         DatabaseReaderLazyLoader loader = getDatabaseReaderLazyLoader(pid, databaseFile);
         if (loader == null) {
@@ -731,7 +731,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
             String dbType = loader.getDatabaseType();
             IpDataLookupFactory factory = IpDataLookupFactories.get(dbType, databaseFile);
             InternalIpDataLookup internalLookup = factory.create(propertyNames);
-            IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), dbType);
+            IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), factory.defaultProperties(), dbType);
             return new IpDataLookupImpl(this, pid, databaseFile, dbType, internalLookup, info);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -754,7 +754,7 @@ public final class DatabaseNodeService implements IpLocationService, IpDatabaseP
         if (database == null) {
             return null;
         }
-        return new IpDataLookupInfoImpl(database.properties(), dbType);
+        return new IpDataLookupInfoImpl(database.properties(), database.defaultProperties(), dbType);
     }
 
     @Override

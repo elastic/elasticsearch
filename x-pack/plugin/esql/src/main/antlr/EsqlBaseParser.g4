@@ -74,6 +74,7 @@ processingCommand
     | registeredDomainCommand
     | tsInfoCommand
     | userAgentCommand
+    | ipLocationCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -391,6 +392,10 @@ registeredDomainCommand
 
 userAgentCommand
     : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
+ipLocationCommand
+    : IP_LOCATION qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand

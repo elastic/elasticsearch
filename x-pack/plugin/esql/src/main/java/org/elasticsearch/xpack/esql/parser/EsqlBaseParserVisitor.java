@@ -515,6 +515,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitUserAgentCommand(EsqlBaseParser.UserAgentCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#ipLocationCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -785,6 +791,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitStringLiteral(EsqlBaseParser.StringLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code emptyArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx);
   /**
    * Visit a parse tree produced by the {@code numericArrayLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.

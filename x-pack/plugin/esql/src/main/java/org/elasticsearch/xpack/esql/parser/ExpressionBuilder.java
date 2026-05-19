@@ -20,6 +20,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -124,7 +126,17 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
+    public record ParsingContext(
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        @Nullable IpLocationService ipLocationService,
+        @Nullable String projectId
+    ) {
+        public ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {
+            this(params, inferenceSettings, viewName, null, null);
+        }
+    }
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
@@ -282,6 +294,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) {
         return visitArrayLiteral(ctx, ctx.string(), DataType.KEYWORD);
+    }
+
+    @Override
+    public Object visitEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx) {
+        return new Literal(source(ctx), List.of(), DataType.KEYWORD);
     }
 
     private Object visitArrayLiteral(ParserRuleContext ctx, List<? extends ParserRuleContext> contexts, DataType dataType) {

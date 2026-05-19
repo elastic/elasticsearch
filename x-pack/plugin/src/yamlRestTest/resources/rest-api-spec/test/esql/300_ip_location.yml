@@ -1,0 +1,103 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ip_location_command]
+      reason: "IP_LOCATION command"
+  - do:
+      indices.create:
+        index: ip_test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              ip_addr:
+                type: ip
+              name:
+                type: keyword
+  - do:
+      bulk:
+        index: ip_test
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "ip_addr": "2602:306:33d3:8000::3257:9652", "name": "homestead" }
+          - { "index": {} }
+          - { "ip_addr": "82.170.213.79", "name": "netherlands" }
+
+---
+"IP_LOCATION with ROW input":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW ip = "2602:306:33d3:8000::3257:9652" | IP_LOCATION g = ip WITH { "properties": ["country_iso_code", "city_name"] } | KEEP g.country_iso_code, g.city_name'
+  - match: { columns.0.name: "g.country_iso_code" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "g.city_name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0.0: "US" }
+  - match: { values.0.1: "Homestead" }
+
+---
+"IP_LOCATION with indexed IP field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ip_test | IP_LOCATION g = ip_addr WITH { "properties": ["country_iso_code"] } | SORT name | KEEP name, g.country_iso_code'
+  - match: { columns.0.name: "name" }
+  - match: { columns.1.name: "g.country_iso_code" }
+  - match: { values.0.0: "homestead" }
+  - match: { values.0.1: "US" }
+  - match: { values.1.0: "netherlands" }
+  - match: { values.1.1: "NL" }
+
+---
+"IP_LOCATION with country database":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW ip = "82.170.213.79" | IP_LOCATION g = ip WITH { "database_file": "GeoLite2-Country.mmdb" } | KEEP g.*'
+  - match: { columns.0.name: "g.country_iso_code" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "g.country_name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "g.continent_name" }
+  - match: { columns.2.type: "keyword" }
+  - match: { values.0.0: "NL" }
+  - match: { values.0.1: "Netherlands" }
+  - match: { values.0.2: "Europe" }
+
+---
+"IP_LOCATION with properties filter":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW ip = "2602:306:33d3:8000::3257:9652" | IP_LOCATION g = ip WITH { "properties": ["country_iso_code"] } | KEEP g.*'
+  - match: { columns.0.name: "g.country_iso_code" }
+  - match: { columns.0.type: "keyword" }
+  - length: { columns: 1 }
+  - match: { values.0.0: "US" }
+
+---
+"IP_LOCATION with unknown IP":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW ip = "127.0.0.1" | IP_LOCATION g = ip WITH { "properties": ["country_iso_code"] } | KEEP g.*'
+  - match: { columns.0.name: "g.country_iso_code" }
+  - match: { values.0.0: null }

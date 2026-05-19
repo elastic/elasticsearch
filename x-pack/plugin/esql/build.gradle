@@ -46,6 +46,7 @@ dependencies {
   implementation project(':libs:grok')
   implementation project(':libs:web-utils')
   implementation project(':libs:user-agent-api')
+  implementation project(':libs:ip-location-api')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
@@ -90,6 +91,11 @@ dependencies {
   testImplementation('ch.obermuhlner:big-math:2.3.2')
 
   internalClusterTestImplementation project(":modules:user-agent")
+  internalClusterTestImplementation project(":modules:ip-location")
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  internalClusterTestImplementation project(':modules:reindex')
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
@@ -129,6 +135,7 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
   exclude '**/*.avro'
   exclude '**/.*.crc'
+  exclude '**/*.mmdb'
 }
 
 

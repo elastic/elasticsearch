@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
@@ -22,22 +25,36 @@ import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.IntPredicate;
 import java.util.function.ObjIntConsumer;
-
-import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
+import java.util.function.ObjLongConsumer;
 
 /**
  * The base evaluator that extracts compound output. Subclasses should implement the actual evaluation logic.
  */
 public final class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator {
 
+    public enum MultiValueStrategy {
+        /** Reject multi-value input with a warning and null output (default for USER_AGENT, URI_PARTS, REGISTERED_DOMAIN). */
+        REJECT,
+        /** Consume the first value of a multi-value cell (used by IP_LOCATION with first_only=true). */
+        TAKE_FIRST
+    }
+
     private final OutputFieldsCollector outputFieldsCollector;
     private final DataType inputType;
+    private final MultiValueStrategy multiValueStrategy;
     private final Warnings warnings;
 
-    CompoundOutputEvaluator(DataType inputType, Warnings warnings, OutputFieldsCollector outputFieldsCollector) {
+    CompoundOutputEvaluator(
+        DataType inputType,
+        MultiValueStrategy multiValueStrategy,
+        Warnings warnings,
+        OutputFieldsCollector outputFieldsCollector
+    ) {
         this.inputType = inputType;
+        this.multiValueStrategy = multiValueStrategy;
         this.warnings = warnings;
         this.outputFieldsCollector = outputFieldsCollector;
+        this.outputFieldsCollector.warnings = warnings;
     }
 
     public interface OutputFieldsCollectorProvider {
@@ -46,16 +63,19 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         String collectorSimpleName();
     }
 
-    public record Factory(DataType inputType, Source source, OutputFieldsCollectorProvider outputFieldsCollectorProvider)
-        implements
-            ColumnExtractOperator.Evaluator.Factory {
+    public record Factory(
+        DataType inputType,
+        Source source,
+        OutputFieldsCollectorProvider outputFieldsCollectorProvider,
+        MultiValueStrategy multiValueStrategy
+    ) implements ColumnExtractOperator.Evaluator.Factory {
 
         public CompoundOutputEvaluator create(DriverContext driverContext) {
             Warnings warnings = (driverContext == null || source == null)
                 ? Warnings.NOOP_WARNINGS
                 : Warnings.createWarnings(driverContext.warningsMode(), source);
             OutputFieldsCollector outputFieldsCollector = outputFieldsCollectorProvider.createOutputFieldsCollector();
-            return new CompoundOutputEvaluator(inputType, warnings, outputFieldsCollector);
+            return new CompoundOutputEvaluator(inputType, multiValueStrategy, warnings, outputFieldsCollector);
         }
 
         @Override
@@ -81,7 +101,7 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         try {
             if (input.isNull(row) == false) {
                 try {
-                    if (input.getValueCount(row) == 1) {
+                    if (input.getValueCount(row) == 1 || multiValueStrategy == MultiValueStrategy.TAKE_FIRST) {
                         BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
                         String inputAsString = getInputAsString(bytes, inputType);
                         outputFieldsCollector.evaluate(inputAsString);
@@ -96,7 +116,6 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
             // this takes care of missing fields, partial evaluation and null input
             outputFieldsCollector.endRow();
         }
-
     }
 
     private static String getInputAsString(BytesRef input, DataType inputType) {
@@ -131,6 +150,14 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
          */
         protected final RowOutput rowOutput;
 
+        /**
+         * The warnings sink for this driver. Set exactly once by
+         * {@link CompoundOutputEvaluator#CompoundOutputEvaluator} after construction;
+         * defaults to {@link Warnings#NOOP_WARNINGS} until then. Package-private so
+         * that only collectors in this package (e.g. IP_LOCATION) can access it.
+         */
+        Warnings warnings = Warnings.NOOP_WARNINGS;
+
         protected OutputFieldsCollector(int outputFieldCount) {
             this.rowOutput = new RowOutput(outputFieldCount);
         }
@@ -158,9 +185,13 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
     /**
      * A {@link Block.Builder[]} holder that is being set before each row evaluation.
      * In addition, it tracks the status of the output fields for the current row.
+     * <p>
+     * All {@code append*} methods are allocation-free on the steady-state per-row path:
+     * a shared {@link BytesRefBuilder} is reused across rows for all {@link BytesRef}-producing overloads.
      */
     public static final class RowOutput {
         final boolean[] valuesSet;
+        private final BytesRefBuilder scratch = new BytesRefBuilder();
         Block.Builder[] blocks;
 
         RowOutput(int size) {
@@ -172,15 +203,60 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
             Arrays.fill(valuesSet, false);
         }
 
+        /**
+         * Appends a string value as a KEYWORD (BytesRef) block entry. No-ops on null input.
+         */
         void appendValue(String value, int index) {
             if (value != null) {
-                ((BytesRefBlock.Builder) blocks[index]).appendBytesRef(toBytesRef(value));
+                scratch.clear();
+                scratch.copyChars(value);
+                ((BytesRefBlock.Builder) blocks[index]).appendBytesRef(scratch.get());
                 valuesSet[index] = true;
             }
         }
 
+        /**
+         * Appends a primitive int value. Cannot receive null — callers must guard.
+         */
         void appendValue(int value, int index) {
             ((IntBlock.Builder) blocks[index]).appendInt(value);
+            valuesSet[index] = true;
+        }
+
+        /**
+         * Appends a primitive boolean value. Cannot receive null — callers must guard.
+         */
+        void appendValue(boolean value, int index) {
+            ((BooleanBlock.Builder) blocks[index]).appendBoolean(value);
+            valuesSet[index] = true;
+        }
+
+        /**
+         * Appends a primitive long value. Cannot receive null — callers must guard.
+         */
+        void appendValue(long value, int index) {
+            ((LongBlock.Builder) blocks[index]).appendLong(value);
+            valuesSet[index] = true;
+        }
+
+        /**
+         * Encodes a geo-point as WKB directly into the scratch buffer (fixed 21 bytes, no allocation)
+         * and appends it to a BytesRef block. The axis swap from (lat, lon) callback order to
+         * WKB (x=lon, y=lat) is performed here.
+         */
+        void appendGeoPoint(double lat, double lon, int index) {
+            scratch.clear();
+            scratch.grow(21);
+            byte[] b = scratch.bytes();
+            b[0] = 1;                                          // byte-order: little-endian
+            b[1] = 1;
+            b[2] = 0;
+            b[3] = 0;
+            b[4] = 0;          // geometry type: Point (1) as int32 LE
+            writeDoubleLE(b, 5, lon);                           // x = longitude
+            writeDoubleLE(b, 13, lat);                          // y = latitude
+            scratch.setLength(21);
+            ((BytesRefBlock.Builder) blocks[index]).appendBytesRef(scratch.get());
             valuesSet[index] = true;
         }
 
@@ -196,10 +272,25 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
             // avoid leaking blocks
             blocks = null;
         }
+
+        private static void writeDoubleLE(byte[] b, int offset, double value) {
+            long bits = Double.doubleToLongBits(value);
+            b[offset] = (byte) bits;
+            b[offset + 1] = (byte) (bits >>> 8);
+            b[offset + 2] = (byte) (bits >>> 16);
+            b[offset + 3] = (byte) (bits >>> 24);
+            b[offset + 4] = (byte) (bits >>> 32);
+            b[offset + 5] = (byte) (bits >>> 40);
+            b[offset + 6] = (byte) (bits >>> 48);
+            b[offset + 7] = (byte) (bits >>> 56);
+        }
     }
 
     public static final BiConsumer<RowOutput, String> NOOP_STRING_COLLECTOR = (blocks, value) -> {/*no-op*/};
     public static final ObjIntConsumer<RowOutput> NOOP_INT_COLLECTOR = (value, index) -> {/*no-op*/};
+    public static final ObjLongConsumer<RowOutput> NOOP_LONG_COLLECTOR = (value, index) -> {/*no-op*/};
+    public static final ObjBooleanConsumer<RowOutput> NOOP_BOOLEAN_COLLECTOR = (value, b) -> {/*no-op*/};
+    public static final GeoPointCollector NOOP_GEO_POINT_COLLECTOR = (out, lat, lon) -> {/*no-op*/};
 
     public static BiConsumer<RowOutput, String> stringValueCollector(final int index) {
         return (rowOutput, value) -> rowOutput.appendValue(value, index);
@@ -217,5 +308,27 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
                 rowOutput.appendValue(value, index);
             }
         };
+    }
+
+    public static ObjLongConsumer<RowOutput> longValueCollector(final int index) {
+        return (rowOutput, value) -> rowOutput.appendValue(value, index);
+    }
+
+    public static ObjBooleanConsumer<RowOutput> booleanValueCollector(final int index) {
+        return (rowOutput, value) -> rowOutput.appendValue(value, index);
+    }
+
+    public static GeoPointCollector geoPointValueCollector(final int index) {
+        return (rowOutput, lat, lon) -> rowOutput.appendGeoPoint(lat, lon, index);
+    }
+
+    @FunctionalInterface
+    public interface ObjBooleanConsumer<T> {
+        void accept(T t, boolean value);
+    }
+
+    @FunctionalInterface
+    public interface GeoPointCollector {
+        void accept(RowOutput out, double lat, double lon);
     }
 }

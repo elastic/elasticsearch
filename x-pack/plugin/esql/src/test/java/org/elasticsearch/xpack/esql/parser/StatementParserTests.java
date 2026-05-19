@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -4700,5 +4701,79 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
         UserAgent ua = as(cmd, UserAgent.class);
         assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
+
+    // --- IP_LOCATION tests ---
+
+    public void testIpLocationCommand() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a");
+        IpLocation ip = as(cmd, IpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.getInput());
+        assertEquals("GeoLite2-City.mmdb", ip.databaseFile());
+        assertTrue(ip.firstOnly());
+
+        Set<String> expectedDefaults = Set.of(
+            "g.country_iso_code",
+            "g.country_name",
+            "g.continent_name",
+            "g.region_iso_code",
+            "g.region_name",
+            "g.city_name",
+            "g.location"
+        );
+        Set<String> actualFieldNames = ip.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toSet());
+        assertEquals(expectedDefaults, actualFieldNames);
+    }
+
+    public void testIpLocationCommandWithOptions() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand(
+            "ip_location g = a WITH { \"database_file\": \"GeoLite2-Country.mmdb\", \"first_only\": false }"
+        );
+        IpLocation ip = as(cmd, IpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.getInput());
+        assertEquals("GeoLite2-Country.mmdb", ip.databaseFile());
+        assertFalse(ip.firstOnly());
+    }
+
+    public void testIpLocationCommandWithProperties() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }");
+        IpLocation ip = as(cmd, IpLocation.class);
+
+        List<String> actualFieldNames = ip.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(List.of("g.city_name", "g.country_iso_code"), actualFieldNames);
+    }
+
+    public void testIpLocationCommandUnknownOption() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError("row a = \"test\" | ip_location g = a WITH { \"unknown_option\": \"value\" }", "Invalid option");
+    }
+
+    public void testIpLocationCommandEmptyProperties() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [] }");
+        IpLocation ip = as(cmd, IpLocation.class);
+        assertEquals(0, ip.generatedAttributes().size());
+    }
+
+    public void testIpLocationCommandFirstOnlyAcceptsBothValues() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmdTrue = processingCommand("ip_location g = a WITH { \"first_only\": true }");
+        IpLocation ipTrue = as(cmdTrue, IpLocation.class);
+        assertTrue(ipTrue.firstOnly());
+
+        LogicalPlan cmdFalse = processingCommand("ip_location g = a WITH { \"first_only\": false }");
+        IpLocation ipFalse = as(cmdFalse, IpLocation.class);
+        assertFalse(ipFalse.firstOnly());
+    }
+
+    public void testIpLocationCommandFirstOnlyTypeMismatch() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | ip_location g = a WITH { \"first_only\": \"yes\" }",
+            "Option [first_only] must be a boolean literal"
+        );
     }
 }

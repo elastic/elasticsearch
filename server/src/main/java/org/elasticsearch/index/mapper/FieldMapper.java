@@ -469,6 +469,18 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Returns {@code true} if the field's value should be excluded from the stored {@code _source}
+     * because it is stored separately and can be reconstructed at read time.
+     *
+     * <p>By default this delegates to {@link #syntheticVectorsLoader()}: any field that provides
+     * a synthetic loader already implies exclusion. Override this method independently when the
+     * read-side loader is not yet implemented but source exclusion is still required.</p>
+     */
+    public boolean excludeFromSource() {
+        return syntheticVectorsLoader() != null;
+    }
+
+    /**
      * <p>
      * Specifies the mode of synthetic source support by the mapper.
      * <br>

@@ -685,6 +685,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     }
 
     @Override
+    public boolean excludeFromSource() {
+        return isFieldIncludedInSource == false;
+    }
+
+    @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         // TODO: return a loader to load values from doc values field
         return null;

@@ -426,7 +426,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         XContentType contentType = sourceObject.xContentType();
         // TODO: Optimize if source not materialized
         final var originalSource = sourceObject.originalBytes();
-        final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
+        final var storedSource = stored() ? removeSyntheticFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
         if (adaptedStoredSource != null) {
@@ -450,14 +450,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // If the source is missing (due to synthetic source or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.
-            var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
+            var recoverySource = removeSyntheticFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
             context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }
     }
 
     /**
-     * Removes the synthetic vector fields (_inference and synthetic vector fields) from the {@code _source} if it is present.
+     * Removes synthetic fields (_inference, vector, and other fields) from the {@code _source} if it is present.
      * These fields are regenerated at query or snapshot recovery time using stored fields and doc values.
      *
      * <p>For details on how the metadata is re-added, see:</p>
@@ -466,7 +466,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      *   <li>{@link FetchSourcePhase#getProcessor(FetchContext)}</li>
      * </ul>
      */
-    private BytesReference removeSyntheticVectorFields(
+    private BytesReference removeSyntheticFields(
         MappingLookup mappingLookup,
         @Nullable BytesReference originalSource,
         @Nullable XContentType contentType
@@ -478,7 +478,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (InferenceMetadataFieldsMapper.isEnabled(mappingLookup) && mappingLookup.inferenceFields().isEmpty() == false) {
             excludes.add(InferenceMetadataFieldsMapper.NAME);
         }
-        if (excludes.isEmpty() && mappingLookup.syntheticVectorFields().isEmpty()) {
+        if (excludes.isEmpty() && mappingLookup.fieldsExcludedFromSource().isEmpty()) {
             return originalSource;
         }
         BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -493,9 +493,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
                 return originalSource;
             }
-            // Removes synthetic vector fields from the source while preserving empty parent objects,
+            // Removes synthetic fields from the source while preserving empty parent objects,
             // ensuring that the fields can later be rehydrated in their original locations.
-            removeSyntheticVectorFields(builder.generator(), parser, "", mappingLookup.syntheticVectorFields());
+            removeSyntheticFields(builder.generator(), parser, "", mappingLookup.fieldsExcludedFromSource());
             return BytesReference.bytes(builder);
         }
     }
@@ -574,7 +574,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             || version.between(IndexVersions.V8_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 
-    private static void removeSyntheticVectorFields(
+    private static void removeSyntheticFields(
         XContentGenerator destination,
         XContentParser parser,
         String fullPath,
@@ -596,14 +596,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case START_ARRAY -> {
                 destination.writeStartArray();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    removeSyntheticVectorFields(destination, parser, fullPath, patchFullPaths);
+                    removeSyntheticFields(destination, parser, fullPath, patchFullPaths);
                 }
                 destination.writeEndArray();
             }
             case START_OBJECT -> {
                 destination.writeStartObject();
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    removeSyntheticVectorFields(destination, parser, fullPath, patchFullPaths);
+                    removeSyntheticFields(destination, parser, fullPath, patchFullPaths);
                 }
                 destination.writeEndObject();
             }

@@ -55,7 +55,7 @@ public final class MappingLookup {
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
-    private final Set<String> syntheticVectorFields;
+    private final Set<String> fieldsExcludedFromSource;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -210,17 +210,17 @@ public final class MappingLookup {
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
-        List<String> syntheticVectorFields = new ArrayList<>();
+        List<String> fieldsExcludedFromSource = new ArrayList<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
             }
-            if (mapper.syntheticVectorsLoader() != null) {
-                syntheticVectorFields.add(mapper.fullPath());
+            if (mapper.excludeFromSource()) {
+                fieldsExcludedFromSource.add(mapper.fullPath());
             }
         }
         this.inferenceFields = Map.copyOf(inferenceFields);
-        this.syntheticVectorFields = Set.copyOf(syntheticVectorFields);
+        this.fieldsExcludedFromSource = Set.copyOf(fieldsExcludedFromSource);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -420,8 +420,8 @@ public final class MappingLookup {
         return inferenceFields;
     }
 
-    public Set<String> syntheticVectorFields() {
-        return syntheticVectorFields;
+    public Set<String> fieldsExcludedFromSource() {
+        return fieldsExcludedFromSource;
     }
 
     public NestedLookup nestedLookup() {
@@ -533,18 +533,18 @@ public final class MappingLookup {
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {
             // TODO: Make this generic to load all types of synthetic fields
-            return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
+            return new SourceLoader.SyntheticVectors(removeExcludedFieldsFromSource(filter), syntheticVectorsLoader);
         }
         return filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter);
     }
 
-    private SourceFilter removeExcludedSyntheticVectorFields(@Nullable SourceFilter filter) {
+    private SourceFilter removeExcludedFieldsFromSource(@Nullable SourceFilter filter) {
         if (filter == null || filter.getExcludes().length == 0) {
             return filter;
         }
         List<String> newExcludes = new ArrayList<>();
         for (var exclude : filter.getExcludes()) {
-            if (syntheticVectorFields().contains(exclude) == false) {
+            if (fieldsExcludedFromSource().contains(exclude) == false) {
                 newExcludes.add(exclude);
             }
         }

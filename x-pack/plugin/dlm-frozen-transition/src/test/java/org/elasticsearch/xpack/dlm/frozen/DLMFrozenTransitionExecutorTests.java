@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
@@ -52,6 +54,18 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
         super.setUp();
         this.threadPool = new TestThreadPool("test-dlm-frozen-transition-executor");
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        this.clusterService.getMasterService().setClusterStatePublisher((event, publishListener, ackListener) -> {
+            ClusterServiceUtils.setAllElapsedMillis(event);
+            ackListener.onCommit(TimeValue.ZERO);
+            clusterService.getClusterApplierService().onNewClusterState(
+                "mock_publish_to_self[" + event.getSummary() + "]",
+                event::getNewState,
+                ActionListener.wrap(ignored -> {
+                    ackListener.onNodeAck(event.getNewState().nodes().getLocalNode(), null);
+                    publishListener.onResponse(null);
+                }, publishListener::onFailure)
+            );
+        });
         this.transitionSettings = DLMFrozenTransitionSettings.create(clusterService);
     }
 
@@ -181,8 +195,6 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
             var runtimeTask = new TestDLMFrozenTransitionRunnable(indexName);
             runtimeTask.throwOnRun = new DLMUnrecoverableException(indexName, "simulated unrecoverable failure");
             executor.submit(runtimeTask).get(10, TimeUnit.SECONDS);
-            assertFalse(executor.transitionSubmitted(indexName));
-            assertNull(errorStore.getError(ProjectId.DEFAULT, indexName));
 
             // Check that the cluster state has been updated with the index having its mark removed
             ClusterServiceUtils.awaitClusterState(cs -> {
@@ -196,6 +208,10 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
                 }
                 return custom.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY) == null;
             }, clusterService);
+
+            // The removal happens asynchronously after all nodes ack the cluster state change
+            assertBusy(() -> assertFalse(executor.transitionSubmitted(indexName)));
+            assertNull(errorStore.getError(ProjectId.DEFAULT, indexName));
         }
     }
 

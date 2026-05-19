@@ -39,7 +39,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 /**
- * Bare-bones bulk operation benchmark for int8 vector similarity functions.
+ * Bare-bones bulk operation benchmark for float32 vector similarity functions.
  * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE / BULK8 implementations
  * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer infrastructure
  * so the inner SIMD kernel cost is the dominant signal:
@@ -47,11 +47,10 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
  *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
  *   <li>{@code scoreBulkOffsets} — scattered access via int32 offsets array</li>
  *   <li>{@code scoreBulkSparse} — scattered access via pre-resolved address array</li>
- *   <li>{@code scoreBulk8} — scoring in groups of 8 vectors</li>
  * </ul>
  * {@code scoreSequential} and {@code scoreRandom} are single-pair controls.
  * <p>
- * Run with: {@code ./gradlew -p benchmarks run --args 'VectorScorerInt8BulkOperationBenchmark'}
+ * Run with: {@code ./gradlew -p benchmarks run --args 'VectorScorerFloat32BulkOperationBenchmark'}
  */
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)
@@ -59,7 +58,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
-public class VectorScorerInt8BulkOperationBenchmark {
+public class VectorScorerFloat32BulkOperationBenchmark {
 
     static {
         Utils.configureBenchmarkLogging();
@@ -68,25 +67,25 @@ public class VectorScorerInt8BulkOperationBenchmark {
     @Param({ "1024" })
     public int dims;
 
-    // With dims=1024, each vector is 1KB. Target cache overflow points:
+    // With dims=1024, each vector is 4KB. Target cache overflow points:
     // c8a (AMD EPYC): L1=48KB, L2=1MB, L3=16MB
     // c8g (Graviton 4): L1=64KB, L2=2MB, L3=36MB
-    // 128 vectors = 128KB: overflows L1 on both, fits in L2
-    // 2500 vectors = 2.5MB: overflows L2 on both, fits in L3
-    // 130000 vectors = ~127MB: overflows L3 on both
-    @Param({ "128", "2500", "130000" })
+    // 32 vectors = 128KB: overflows L1 on both, fits in L2
+    // 375 vectors = 1.5MB: overflows L2 on AMD, fits in L3 on AMD; fits in L2 on Graviton
+    // 32500 vectors = ~127MB: overflows L3 on both
+    @Param({ "32", "375", "32500" })
     public int numVectors;
 
     @Param({ "32", "64", "256", "1024" })
     public int bulkSize;
 
-    @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })
+    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
     private Arena arena;
 
-    private byte[][] vectors;
-    // Dataset: numVectors vectors laid out contiguously in native memory, each `dims * Byte.BYTES` bytes.
+    private float[][] vectors;
+    // Dataset: numVectors vectors laid out contiguously in native memory, each `dims * Float.BYTES` bytes.
     private MemorySegment dataset;
     // Query vector in native memory.
     private MemorySegment query;
@@ -108,17 +107,15 @@ public class VectorScorerInt8BulkOperationBenchmark {
     private MethodHandle bulkSparseImpl;
     private MethodHandle bulk8Impl;
 
-    // although this is not a directory-based BulkBenchmark, we can still use some bits in the VectorData impl
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
-        private final byte[][] vectors;
+        private final float[][] vectors;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
             super(numVectors, numVectorsToScore, random);
 
-            vectors = new byte[numVectors][];
+            vectors = new float[numVectors][];
             for (int v = 0; v < numVectors; v++) {
-                vectors[v] = new byte[dims];
-                random.nextBytes(vectors[v]);
+                vectors[v] = randomFloatArray(random, dims);
             }
         }
 
@@ -140,15 +137,15 @@ public class VectorScorerInt8BulkOperationBenchmark {
 
         vectors = vectorData.vectors;
         // Allocate contiguous dataset in native memory
-        dataset = arena.allocate((long) numVectors * dims);
+        dataset = arena.allocate((long) numVectors * dims * Float.BYTES);
         for (int v = 0; v < numVectors; v++) {
-            MemorySegment.copy(vectorData.vectors[v], 0, dataset, ValueLayout.JAVA_BYTE, (long) v * dims, dims);
+            MemorySegment.copy(vectorData.vectors[v], 0, dataset, ValueLayout.JAVA_FLOAT, (long) v * dims, dims);
         }
         datasetAddress = dataset.address();
 
         // Query vector: use the target ordinal's vector
-        query = arena.allocate(dims);
-        MemorySegment.copy(vectorData.vectors[vectorData.targetOrd], 0, query, ValueLayout.JAVA_BYTE, 0L, dims);
+        query = arena.allocate((long) dims * Float.BYTES);
+        MemorySegment.copy(vectorData.vectors[vectorData.targetOrd], 0, query, ValueLayout.JAVA_FLOAT, 0L, dims);
 
         // Sequential and random ordinals
         ids = IntStream.range(0, numVectors).toArray();
@@ -161,34 +158,33 @@ public class VectorScorerInt8BulkOperationBenchmark {
         scores = new float[bulkSize];
 
         VectorSimilarityFunctions.Function nativeFunc = switch (function) {
-            case COSINE -> VectorSimilarityFunctions.Function.COSINE;
             case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
             case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
             default -> throw new IllegalArgumentException(function.toString());
         };
         singleImpl = vectorSimilarityFunctions.getHandle(
             nativeFunc,
-            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.DataType.FLOAT32,
             VectorSimilarityFunctions.Operation.SINGLE
         );
         bulkImpl = vectorSimilarityFunctions.getHandle(
             nativeFunc,
-            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.DataType.FLOAT32,
             VectorSimilarityFunctions.Operation.BULK
         );
         bulkOffsetsImpl = vectorSimilarityFunctions.getHandle(
             nativeFunc,
-            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.DataType.FLOAT32,
             VectorSimilarityFunctions.Operation.BULK_OFFSETS
         );
         bulkSparseImpl = vectorSimilarityFunctions.getHandle(
             nativeFunc,
-            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.DataType.FLOAT32,
             VectorSimilarityFunctions.Operation.BULK_SPARSE
         );
         bulk8Impl = vectorSimilarityFunctions.getHandle(
             nativeFunc,
-            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.DataType.FLOAT32,
             VectorSimilarityFunctions.Operation.BULK8
         );
     }
@@ -202,10 +198,11 @@ public class VectorScorerInt8BulkOperationBenchmark {
     @Benchmark
     public float[] scoreSequential() {
         int v = 0;
+        long vecBytes = (long) dims * Float.BYTES;
         try {
             while (v < numVectorsToScore) {
                 for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                    MemorySegment vec = dataset.asSlice((long) ids[v] * dims, dims);
+                    MemorySegment vec = dataset.asSlice((long) ids[v] * vecBytes, vecBytes);
                     scores[i] = (float) singleImpl.invokeExact(vec, query, dims);
                 }
             }
@@ -219,10 +216,11 @@ public class VectorScorerInt8BulkOperationBenchmark {
     @Benchmark
     public float[] scoreRandom() {
         int v = 0;
+        long vecBytes = (long) dims * Float.BYTES;
         try {
             while (v < numVectorsToScore) {
                 for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                    MemorySegment vec = dataset.asSlice((long) ordinals[v] * dims, dims);
+                    MemorySegment vec = dataset.asSlice((long) ordinals[v] * vecBytes, vecBytes);
                     scores[i] = (float) singleImpl.invokeExact(vec, query, dims);
                 }
             }
@@ -235,10 +233,11 @@ public class VectorScorerInt8BulkOperationBenchmark {
     /** BULK: contiguous slice — sequential by construction. */
     @Benchmark
     public float[] scoreBulk() {
+        long vecBytes = (long) dims * Float.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
-                MemorySegment slice = dataset.asSlice((long) i * dims, (long) count * dims);
+                MemorySegment slice = dataset.asSlice((long) i * vecBytes, (long) count * vecBytes);
                 bulkImpl.invokeExact(slice, query, dims, count, resultsSeg);
             }
         } catch (Throwable t) {
@@ -251,11 +250,12 @@ public class VectorScorerInt8BulkOperationBenchmark {
     /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
     @Benchmark
     public float[] scoreBulkOffsets() {
+        int stride = dims * Float.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
                 MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-                bulkOffsetsImpl.invokeExact(dataset, query, dims, dims, ordinalsSeg, count, resultsSeg);
+                bulkOffsetsImpl.invokeExact(dataset, query, dims, stride, ordinalsSeg, count, resultsSeg);
             }
         } catch (Throwable t) {
             throw rethrow(t);
@@ -267,11 +267,12 @@ public class VectorScorerInt8BulkOperationBenchmark {
     /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */
     @Benchmark
     public float[] scoreBulkSparse() {
+        long vecBytes = (long) dims * Float.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
                 for (int j = 0; j < count; j++) {
-                    long addr = datasetAddress + (long) ordinals[i + j] * dims;
+                    long addr = datasetAddress + (long) ordinals[i + j] * vecBytes;
                     addressesSeg.set(ValueLayout.JAVA_LONG, (long) j * Long.BYTES, addr);
                 }
                 bulkSparseImpl.invokeExact(addressesSeg, query, dims, count, resultsSeg);
@@ -290,7 +291,7 @@ public class VectorScorerInt8BulkOperationBenchmark {
         int numVectors = numVectorsToScore & ~7;
         try {
             for (int i = 0; i < numVectors; i += bulkSize) {
-                for (int b = 0; b < bulkSize; b += 8) {
+                for (int b = 0; b < bulkSize && i + b < numVectors; b += 8) {
                     // use ofArray rather than asSlice, as this method is meant for arrays only
                     bulk8Impl.invokeExact(
                         MemorySegment.ofArray(vectors[ordinals[i + b]]),

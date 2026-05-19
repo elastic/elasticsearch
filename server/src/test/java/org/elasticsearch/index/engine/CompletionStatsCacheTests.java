@@ -14,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
@@ -42,9 +43,11 @@ public class CompletionStatsCacheTests extends ESTestCase {
         assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));
     }
 
-    public void testCompletionStatsCache() throws IOException, InterruptedException {
+    public void testCompletionStatsCache() throws Exception {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final PostingsFormat postingsFormat = new Completion101PostingsFormat();
+        // override merge policy to prevent segments merging as assertions are based on number of segments after each flush
+        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
         indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -57,6 +60,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document.add(new SuggestField("otherfield", "anotherval", 1));
             document.add(new SuggestField("otherfield", "yetmoreval", 1));
             indexWriter.addDocument(document);
+            // flush the first segment
             indexWriter.flush();
 
             final OpenCloseCounter openCloseCounter = new OpenCloseCounter();
@@ -146,6 +150,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document2.add(new SuggestField("suggest2", "bar", 1));
             document2.add(new SuggestField("otherfield", "baz", 1));
             indexWriter.addDocument(document2);
+            // flush the second segment, next check that size in bytes increased
             indexWriter.flush();
             completionStatsCache.afterRefresh(true);
             final CompletionStats updatedStats = completionStatsCache.get();

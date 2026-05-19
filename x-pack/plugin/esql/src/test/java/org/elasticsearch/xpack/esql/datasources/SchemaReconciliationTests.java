@@ -97,7 +97,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().get(1).name(), equalTo("name"));
         assertThat(result.perFileInfo().size(), equalTo(2));
 
-        SchemaReconciliation.ColumnMapping mapping = result.perFileInfo().get(f1).mapping();
+        ColumnMapping mapping = result.perFileInfo().get(f1).mapping();
         assertThat(mapping, notNullValue());
         assertTrue(mapping.isIdentity());
     }
@@ -188,11 +188,11 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().get(2).name(), equalTo("bonus"));
         assertThat(result.unifiedSchema().get(2).nullable(), equalTo(Nullability.TRUE));
 
-        SchemaReconciliation.ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
+        ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
         assertThat(mapping1, notNullValue());
         assertThat(mapping1.localIndex(2), equalTo(-1));
 
-        SchemaReconciliation.ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
+        ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
         assertThat(mapping2, notNullValue());
         assertThat(mapping2.localIndex(2), equalTo(2));
     }
@@ -209,10 +209,10 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         assertThat(result.unifiedSchema().size(), equalTo(3));
 
-        SchemaReconciliation.ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
+        ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
         assertTrue(mapping1.isIdentity());
 
-        SchemaReconciliation.ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
+        ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
         assertThat(mapping2.localIndex(2), equalTo(-1));
     }
 
@@ -228,9 +228,8 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
 
-        SchemaReconciliation.ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
-        assertThat(mapping1.hasCasts(), equalTo(true));
-        assertThat(mapping1.cast(0), equalTo(DataType.LONG));
+        ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
+        assertThat(mapping1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.LONG })));
     }
 
     public void testUnionByNameTypeWideningIntToDouble() {
@@ -245,12 +244,11 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
 
-        SchemaReconciliation.ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
-        assertThat(mapping1.hasCasts(), equalTo(true));
-        assertThat(mapping1.cast(0), equalTo(DataType.DOUBLE));
+        ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
+        assertThat(mapping1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DOUBLE })));
 
-        SchemaReconciliation.ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
-        assertThat(mapping2.hasCasts(), equalTo(false));
+        ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
+        assertThat(mapping2, equalTo(new ColumnMapping(new int[] { 0 }, null)));
     }
 
     public void testUnionByNameTypeWideningDatetimeToDateNanos() {
@@ -265,12 +263,11 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DATE_NANOS));
 
-        SchemaReconciliation.ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
-        assertThat(mapping1.hasCasts(), equalTo(true));
-        assertThat(mapping1.cast(0), equalTo(DataType.DATE_NANOS));
+        ColumnMapping mapping1 = result.perFileInfo().get(f1).mapping();
+        assertThat(mapping1, equalTo(new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS })));
 
-        SchemaReconciliation.ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
-        assertThat(mapping2.hasCasts(), equalTo(false));
+        ColumnMapping mapping2 = result.perFileInfo().get(f2).mapping();
+        assertThat(mapping2, equalTo(new ColumnMapping(new int[] { 0 }, null)));
     }
 
     public void testUnionByNameLongToDoubleRejected() {
@@ -443,134 +440,73 @@ public class SchemaReconciliationTests extends ESTestCase {
     // === ColumnMapping tests ===
 
     public void testColumnMappingIdentity() {
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 0, 1, 2 }, null);
-        assertTrue(mapping.isIdentity());
-        assertFalse(mapping.hasMissingColumns());
-        assertFalse(mapping.hasCasts());
+        assertTrue(new ColumnMapping(new int[] { 0, 1, 2 }, null).isIdentity());
     }
 
-    public void testColumnMappingWithMissing() {
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 0, -1, 1 }, null);
-        assertFalse(mapping.isIdentity());
-        assertTrue(mapping.hasMissingColumns());
+    public void testColumnMappingWithMissingIsNotIdentity() {
+        assertFalse(new ColumnMapping(new int[] { 0, -1, 1 }, null).isIdentity());
     }
 
-    public void testColumnMappingPermutationNotIdentity() {
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(new int[] { 1, 0, 2 }, null);
-        assertFalse(mapping.isIdentity());
-        assertFalse(mapping.hasMissingColumns());
-        assertFalse(mapping.hasCasts());
+    public void testColumnMappingPermutationIsNotIdentity() {
+        assertFalse(new ColumnMapping(new int[] { 1, 0, 2 }, null).isIdentity());
     }
 
-    public void testColumnMappingWithCasts() {
-        SchemaReconciliation.ColumnMapping mapping = new SchemaReconciliation.ColumnMapping(
-            new int[] { 0, 1 },
-            new DataType[] { DataType.LONG, null }
-        );
-        assertFalse(mapping.isIdentity());
-        assertTrue(mapping.hasCasts());
+    public void testColumnMappingWithCastsIsNotIdentity() {
+        assertFalse(new ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.LONG, null }).isIdentity());
     }
 
     // === ColumnMapping serialization round-trip tests ===
 
     public void testColumnMappingRoundTripNoCasts() throws IOException {
-        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(new int[] { 0, 1, 2 }, null);
-
-        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
-
-        assertThat(deserialized.columnCount(), equalTo(3));
-        assertThat(deserialized.localIndex(0), equalTo(0));
-        assertThat(deserialized.localIndex(1), equalTo(1));
-        assertThat(deserialized.localIndex(2), equalTo(2));
-        assertFalse(deserialized.hasCasts());
-        assertTrue(deserialized.isIdentity());
-        assertThat(deserialized, equalTo(original));
+        ColumnMapping original = new ColumnMapping(new int[] { 0, 1, 2 }, null);
+        assertThat(roundTrip(original), equalTo(original));
     }
 
     public void testColumnMappingRoundTripWithCasts() throws IOException {
-        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(
-            new int[] { 0, 1, -1 },
-            new DataType[] { DataType.LONG, null, null }
-        );
-
-        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
-
-        assertThat(deserialized.columnCount(), equalTo(3));
-        assertThat(deserialized.localIndex(0), equalTo(0));
-        assertThat(deserialized.localIndex(1), equalTo(1));
-        assertThat(deserialized.localIndex(2), equalTo(-1));
-        assertTrue(deserialized.hasCasts());
-        assertThat(deserialized.cast(0), equalTo(DataType.LONG));
-        assertThat(deserialized.cast(1), nullValue());
-        assertThat(deserialized.cast(2), nullValue());
-        assertThat(deserialized, equalTo(original));
+        ColumnMapping original = new ColumnMapping(new int[] { 0, 1, -1 }, new DataType[] { DataType.LONG, null, null });
+        assertThat(roundTrip(original), equalTo(original));
     }
 
     public void testColumnMappingRoundTripAllCastTypes() throws IOException {
-        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(
+        ColumnMapping original = new ColumnMapping(
             new int[] { 0, 1, 2 },
             new DataType[] { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS }
         );
-
-        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
-
-        assertThat(deserialized.cast(0), equalTo(DataType.LONG));
-        assertThat(deserialized.cast(1), equalTo(DataType.DOUBLE));
-        assertThat(deserialized.cast(2), equalTo(DataType.DATE_NANOS));
-        assertThat(deserialized, equalTo(original));
+        assertThat(roundTrip(original), equalTo(original));
     }
 
     public void testColumnMappingRoundTripEmpty() throws IOException {
-        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(new int[] {}, null);
-
-        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
-
-        assertThat(deserialized.columnCount(), equalTo(0));
-        assertTrue(deserialized.isIdentity());
-        assertThat(deserialized, equalTo(original));
+        ColumnMapping original = new ColumnMapping(new int[] {}, null);
+        assertThat(roundTrip(original), equalTo(original));
     }
 
     public void testColumnMappingLengthMismatchRejected() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new SchemaReconciliation.ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.LONG })
+            () -> new ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.LONG })
         );
         assertThat(e.getMessage(), containsString("cast array length [1] must match index array length [2]"));
     }
 
     public void testColumnMappingRoundTripWithMissingColumnsAndCasts() throws IOException {
-        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(
-            new int[] { 1, -1, 0, -1 },
-            new DataType[] { null, null, DataType.DOUBLE, null }
-        );
-
-        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
-
-        assertThat(deserialized.columnCount(), equalTo(4));
-        assertThat(deserialized.localIndex(0), equalTo(1));
-        assertThat(deserialized.localIndex(1), equalTo(-1));
-        assertThat(deserialized.localIndex(2), equalTo(0));
-        assertThat(deserialized.localIndex(3), equalTo(-1));
-        assertTrue(deserialized.hasMissingColumns());
-        assertTrue(deserialized.hasCasts());
-        assertThat(deserialized.cast(2), equalTo(DataType.DOUBLE));
-        assertThat(deserialized, equalTo(original));
+        ColumnMapping original = new ColumnMapping(new int[] { 1, -1, 0, -1 }, new DataType[] { null, null, DataType.DOUBLE, null });
+        assertThat(roundTrip(original), equalTo(original));
     }
 
-    private static SchemaReconciliation.ColumnMapping roundTrip(SchemaReconciliation.ColumnMapping mapping) throws IOException {
+    private static ColumnMapping roundTrip(ColumnMapping mapping) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         mapping.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        return new SchemaReconciliation.ColumnMapping(in);
+        return new ColumnMapping(in);
     }
 
     public void testCastTypeEnumSerialization() {
         EnumSerializationTestUtils.assertEnumSerialization(
-            SchemaReconciliation.ColumnMapping.CastType.class,
-            SchemaReconciliation.ColumnMapping.CastType.NONE,
-            SchemaReconciliation.ColumnMapping.CastType.LONG,
-            SchemaReconciliation.ColumnMapping.CastType.DOUBLE,
-            SchemaReconciliation.ColumnMapping.CastType.DATE_NANOS
+            ColumnMapping.CastType.class,
+            ColumnMapping.CastType.NONE,
+            ColumnMapping.CastType.LONG,
+            ColumnMapping.CastType.DOUBLE,
+            ColumnMapping.CastType.DATE_NANOS
         );
     }
 

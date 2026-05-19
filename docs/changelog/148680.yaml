@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148680
+summary: Fast paths for prefix/suffix/contains `LIKE` patterns (SIMD substring search for contains)
+type: enhancement

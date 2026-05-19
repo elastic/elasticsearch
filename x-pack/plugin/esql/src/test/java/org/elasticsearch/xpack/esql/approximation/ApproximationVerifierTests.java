@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -40,7 +40,6 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10", OLD_VERSION);
         verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10", OLD_VERSION);
         verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10", OLD_VERSION);
-        verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10", OLD_VERSION);
     }
 
     public void testVerify_inlineStats() {
@@ -119,7 +118,10 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         // We need the plan before optimization here, because otherwise the verification exception
         // "Nested subqueries are not supported" is thrown at the end of logical optimization.
         LogicalPlan plan = EsqlTestUtils.analyzer().addDefaultIndex().query("FROM test, (FROM test, (FROM test)) | STATS COUNT()");
-        VerificationException exception = assertThrows(VerificationException.class, () -> ApproximationVerifier.verifyPlanOrThrow(plan));
+        VerificationException exception = assertThrows(
+            VerificationException.class,
+            () -> ApproximationVerifier.verifyPlanOrThrow(plan, TransportVersion.current())
+        );
         assertThat(
             exception.getMessage(),
             equalTo("line 1:18: approximation not supported: query with multiple or nested forks or subqueries cannot be approximated")

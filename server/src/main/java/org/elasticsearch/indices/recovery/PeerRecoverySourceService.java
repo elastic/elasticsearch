@@ -60,10 +60,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
-    // TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` before we start elasticsearch-team#2805
+    /// Maximum number of outbound peer recoveries a node may run concurrently as a source.
+    /// Requests that arrive when all slots are occupied are queued in FIFO order and started as slots free up.
+    ///
+    /// TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` before we start elasticsearch-team#2805
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_outbound_recoveries",
-        // Throttling handled by master node allocation for now
+        // Throttling handled by master allocation for now.
         Integer.MAX_VALUE,
         1,
         Property.NodeScope
@@ -464,6 +467,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         }
 
         private void ensureNoDuplicateAllocationId(String targetAllocationId) {
+            assert Thread.holdsLock(this);
             for (PendingRecovery pending : pendingRecoveries) {
                 if (pending.request().targetAllocationId().equals(targetAllocationId)) {
                     throw new DelayRecoveryException(

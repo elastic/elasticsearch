@@ -203,6 +203,10 @@ public class GroupingAggregatorImplementer {
         return warnExceptions.isEmpty() == false || init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
     }
 
+    private boolean hasSeen() {
+        return intermediateState.stream().anyMatch(s -> s.name().equals("seen") && s.elementType().equals("BOOLEAN"));
+    }
+
     public JavaFile sourceFile() {
         JavaFile.Builder builder = JavaFile.builder(implementation.packageName(), type());
         builder.addFileComment("""
@@ -246,7 +250,7 @@ public class GroupingAggregatorImplementer {
             }
             builder.addMethod(addIntermediateInput(groupIdClass));
         }
-        if (aggState.declaredType().isPrimitive()) {
+        if (hasSeen()) {
             builder.addMethod(prepareProcessIntermediateInputPage());
         }
         builder.addMethod(maybeEnableGroupIdTracking());
@@ -679,7 +683,7 @@ public class GroupingAggregatorImplementer {
         builder.addParameter(groupsType, "groups");
         builder.addParameter(PAGE, "page");
 
-        if (aggState.declaredType().isPrimitive() == false) {
+        if (hasSeen() == false) {
             builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
         }
         builder.addStatement("assert channels.size() == intermediateBlockCount()");

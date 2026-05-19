@@ -1246,7 +1246,7 @@ public class IngestServiceTests extends ESTestCase {
             ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"))));
             final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
             ingestService.validatePipeline(ingestInfos, projectId, name, pipelineConfig);
-            assertCriticalWarnings(
+            assertWarnings(
                 "Pipeline name ["
                     + name
                     + "] will be disallowed in a future version for the following reason: must not contain the following characters"

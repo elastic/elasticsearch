@@ -181,6 +181,8 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         Set<String> allActions = Set.copyOf((List<String>) response.get("actions"));
         final HashSet<String> labelledActions = new HashSet<>(DefaultOperatorOnlyRegistry.SIMPLE_ACTIONS);
         labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
+        // test-only actions
+        labelledActions.add("cluster:monitor/test/pause_field");
 
         final Set<String> unlabelled = Sets.difference(allActions, labelledActions);
         assertTrue("Actions are neither operator-only nor non-operator: [" + unlabelled + "]. " + message, unlabelled.isEmpty());

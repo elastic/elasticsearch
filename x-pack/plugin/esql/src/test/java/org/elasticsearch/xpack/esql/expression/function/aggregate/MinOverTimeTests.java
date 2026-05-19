@@ -25,6 +25,9 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 public class MinOverTimeTests extends AbstractAggregationTestCase {
     public MinOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @ParametersFactory
@@ -35,6 +38,21 @@ public class MinOverTimeTests extends AbstractAggregationTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new MinOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+    }
+
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

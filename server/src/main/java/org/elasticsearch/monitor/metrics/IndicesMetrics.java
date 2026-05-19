@@ -317,7 +317,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
 
     static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService) {
         Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-        for (IndexMode mode : IndexMode.values()) {
+        for (IndexMode mode : IndexMode.availableModes()) {
             stats.put(mode, new IndexStats());
         }
         for (IndexService indexService : indicesService) {
@@ -351,7 +351,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         private static final Map<IndexMode, IndexStats> MISSING_STATS;
         static {
             MISSING_STATS = new EnumMap<>(IndexMode.class);
-            for (IndexMode value : IndexMode.values()) {
+            for (IndexMode value : IndexMode.availableModes()) {
                 MISSING_STATS.put(value, new IndexStats());
             }
         }

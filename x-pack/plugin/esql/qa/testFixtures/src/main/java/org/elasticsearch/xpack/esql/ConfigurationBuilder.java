@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 
@@ -82,7 +81,6 @@ public class ConfigurationBuilder {
         this.username = username;
         return this;
     }
-
 
     public ConfigurationBuilder pragmas(QueryPragmas pragmas) {
         this.pragmas = pragmas;

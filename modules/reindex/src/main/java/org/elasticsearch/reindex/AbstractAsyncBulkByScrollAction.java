@@ -29,6 +29,8 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -39,8 +41,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
@@ -94,7 +96,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     Action extends TransportAction<Request, ?>> {
 
     protected final Logger logger;
-    protected final BulkByScrollTask task;
+    protected final BulkByPaginatedSearchTask task;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
     protected final ScriptService scriptService;
@@ -165,8 +167,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
 
+    private final ReindexSettings reindexSettings;
+    private final CircuitBreaker circuitBreaker;
+    private final String breakerLabel;
+
     AbstractAsyncBulkByScrollAction(
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
         boolean needsVectors,
@@ -180,7 +186,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
         boolean remoteBulkByScrollSearch,
-        TimeValue maxTaskShutdownGracePeriod
+        TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel
     ) {
         this(
             task,
@@ -199,12 +208,15 @@ public abstract class AbstractAsyncBulkByScrollAction<
             bulkByScrollSearchContextMetrics,
             bulkByScrollTaskKind,
             remoteBulkByScrollSearch,
-            maxTaskShutdownGracePeriod
+            maxTaskShutdownGracePeriod,
+            reindexSettings,
+            circuitBreaker,
+            breakerLabel
         );
     }
 
     AbstractAsyncBulkByScrollAction(
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
         boolean needsVectors,
@@ -220,7 +232,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
         BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
         boolean remoteBulkByScrollSearch,
-        TimeValue maxTaskShutdownGracePeriod
+        TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel
     ) {
         this.task = task;
         this.scriptService = scriptService;
@@ -255,6 +270,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
+        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
+        this.breakerLabel = Objects.requireNonNull(breakerLabel);
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -393,15 +411,26 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return true;
     }
 
-    protected BulkRequest buildBulk(Iterable<? extends PaginatedHitSource.Hit> docs) {
+    protected BulkRequest buildBulk(Iterable<? extends PaginatedHitSource.Hit> docs, AtomicLong reservedBytes) {
         BulkRequest bulkRequest = new BulkRequest();
         for (PaginatedHitSource.Hit doc : docs) {
             if (accept(doc)) {
                 RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
                 if (request != null) {
                     bulkRequest.add(request.self());
+                    long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
+                    if (delta >= reindexSettings.getMemoryAccountingThresholdInBytes()) {
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(delta, breakerLabel);
+                        reservedBytes.set(bulkRequest.estimatedSizeInBytes());
+                    }
                 }
             }
+        }
+        // Reserve any bytes not yet covered by threshold checks above
+        long remaining = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
+        if (remaining > 0) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(remaining, breakerLabel);
+            reservedBytes.addAndGet(remaining);
         }
         return bulkRequest;
     }
@@ -586,10 +615,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
 
+        // Reserve heap budget against the REQUEST breaker incrementally as docs are added in buildBulk,
+        // so oversized batches are rejected before all their source bytes land in memory. The reservation
+        // is released (via cleanup) when the bulk listener completes or if we return early for any reason.
+        final AtomicLong reservedBytes = new AtomicLong(0);
         final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
-        boolean releaseBatchHitsHandedOff = false;
+        final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
+            long r = reservedBytes.getAndSet(0);
+            if (r > 0) circuitBreaker.addWithoutBreaking(-r);
+        });
+        boolean cleanupHandedOff = false;
         try {
-            final BulkRequest request = buildBulk(hits);
+            final BulkRequest request;
+            try {
+                request = buildBulk(hits, reservedBytes);
+            } catch (CircuitBreakingException e) {
+                finishHim(e);
+                return;
+            }
             if (request.requests().isEmpty()) {
                 /*
                  * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
@@ -599,11 +642,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-            sendBulkRequest(request, releaseBatchHits, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
-            releaseBatchHitsHandedOff = true;
+            sendBulkRequest(request, cleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+            cleanupHandedOff = true;
         } finally {
-            if (releaseBatchHitsHandedOff == false) {
-                releaseBatchHits.close();
+            if (cleanupHandedOff == false) {
+                cleanup.close();
             }
         }
     }

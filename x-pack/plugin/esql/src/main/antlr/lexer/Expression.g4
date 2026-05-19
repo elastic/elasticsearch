@@ -25,6 +25,7 @@ METRICS_INFO : 'metrics_info'           -> pushMode(EXPRESSION_MODE);
 REGISTERED_DOMAIN: 'registered_domain'  -> pushMode(EXPRESSION_MODE);
 TS_INFO : 'ts_info'                     -> pushMode(EXPRESSION_MODE);
 USER_AGENT : 'user_agent'               -> pushMode(EXPRESSION_MODE);
+TS_COLLAPSE : 'ts_collapse'             -> pushMode(EXPRESSION_MODE);
 
 mode EXPRESSION_MODE;
 

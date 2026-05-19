@@ -56,8 +56,6 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -180,10 +178,10 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     }
 
     private void writeBFloat16Vectors(FieldWriter<?> fieldData) throws IOException {
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        byte[] buffer = new byte[fieldData.dim * BFloat16.BYTES];
         for (Object v : fieldData.vectors) {
-            BFloat16.floatToBFloat16((float[]) v, buffer.asShortBuffer());
-            vectorData.writeBytes(buffer.array(), buffer.array().length);
+            BFloat16.floatToBFloat16((float[]) v, buffer);
+            vectorData.writeBytes(buffer, buffer.length);
         }
     }
 
@@ -207,11 +205,11 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     private long writeSortedBFloat16Vectors(FieldWriter<?> fieldData, int[] ordMap) throws IOException {
         long vectorDataOffset = alignVectorData(vectorData, fieldData.dim);
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        byte[] buffer = new byte[fieldData.dim * BFloat16.BYTES];
         for (int ordinal : ordMap) {
             float[] vector = (float[]) fieldData.vectors.get(ordinal);
-            BFloat16.floatToBFloat16(vector, buffer.asShortBuffer());
-            vectorData.writeBytes(buffer.array(), buffer.array().length);
+            BFloat16.floatToBFloat16(vector, buffer);
+            vectorData.writeBytes(buffer, buffer.length);
         }
         return vectorDataOffset;
     }
@@ -311,12 +309,12 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             }
         } else {
             // use an intermediate buffer and convert
-            ByteBuffer buffer = ByteBuffer.allocate(floatVectorValues.dimension() * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            byte[] buffer = new byte[floatVectorValues.dimension() * BFloat16.BYTES];
             for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
                 // write vector
                 float[] value = floatVectorValues.vectorValue(iter.index());
-                BFloat16.floatToBFloat16(value, buffer.asShortBuffer());
-                output.writeBytes(buffer.array(), buffer.limit());
+                BFloat16.floatToBFloat16(value, buffer);
+                output.writeBytes(buffer, buffer.length);
                 docsWithField.add(docV);
             }
         }

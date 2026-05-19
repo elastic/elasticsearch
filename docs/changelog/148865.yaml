@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 148865
+summary: Cache `FieldInfo` instances per shard Directory
+type: enhancement

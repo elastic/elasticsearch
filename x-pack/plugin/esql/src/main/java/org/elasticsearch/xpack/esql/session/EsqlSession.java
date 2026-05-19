@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -41,8 +42,8 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
@@ -54,12 +55,13 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -187,7 +190,6 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
-    private final TransportService transportService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -237,7 +239,6 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
-        this.transportService = services.transportService();
         this.projectMetadata = projectMetadata;
     }
 
@@ -267,6 +268,7 @@ public class EsqlSession {
         viewResolutionProfile.start();
         viewResolver.replaceViews(
             statement.plan(),
+            projectRouting(request, statement),
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
@@ -371,6 +373,7 @@ public class EsqlSession {
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
                     );
 
+                    var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
@@ -378,21 +381,24 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<Result>andThen(
-                            (l, p) -> executeOptimizedPlan(
+                        .<Result>andThen((l, p) -> {
+                            columnMetadata.set(createColumnMetadata(p, foldContext));
+                            executeOptimizedPlan(
                                 request,
                                 executionInfo,
                                 planRunner,
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                new Holder<Approximation>(),
+                                new Holder<ApproximationDriver>(),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
-                            )
+                            );
+                        })
+                        .<Versioned<Result>>andThen(
+                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
                         )
-                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
                         .addListener(listener);
                 }
             }
@@ -433,7 +439,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -449,7 +455,7 @@ public class EsqlSession {
 
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
-        ActionListener<Result> effectiveListener = explainMode
+        listener = explainMode
             ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
             : listener;
 
@@ -464,7 +470,41 @@ public class EsqlSession {
             request,
             physicalPlanOptimizer,
             planTimeProfile,
-            effectiveListener
+            listener
+        );
+    }
+
+    private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
+        // TODO we need to enforce NameId do not change during optimization.
+        // Otherwise metadata might not be found when redering result.
+        // Bucket metadata is gated on the COLUMN_METADATA_BUCKET capability — snapshot-only until the feature is finalized.
+        Map<NameId, Map<String, Object>> bucketMetadata = EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled()
+            ? BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext)
+            : Map.of();
+        return Maps.merge(
+            bucketMetadata,
+            ApproximationPlan.createColumnMetadata(optimizedPlan.output()),
+            (a, b) -> Maps.merge(a, b, (m1, m2) -> {
+                throw new IllegalStateException("Should not produce metadata with the same key");
+            })
+        );
+    }
+
+    private static Versioned<Result> attachMetadataAndVersion(
+        Result result,
+        Map<NameId, Map<String, Object>> columnMetadata,
+        TransportVersion minimumVersion
+    ) {
+        return new Versioned<>(
+            new Result(
+                result.schema(),
+                result.pages(),
+                columnMetadata,
+                result.configuration(),
+                result.completionInfo(),
+                result.executionInfo()
+            ),
+            minimumVersion
         );
     }
 
@@ -570,7 +610,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
@@ -586,7 +626,6 @@ public class EsqlSession {
             // code-path to execute subplans
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
-                optimizedPlan,
                 subPlan,
                 configuration,
                 foldContext,
@@ -622,7 +661,7 @@ public class EsqlSession {
     private SubPlanAndCallback firstSubPlan(
         LogicalPlan mainPlan,
         Configuration configuration,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         Set<LocalRelation> subPlansResults
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
@@ -643,18 +682,11 @@ public class EsqlSession {
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan : mainPlan;
         if (ApproximationPlan.is(plan)) {
             if (approximation.get() == null) {
-                approximation.set(new Approximation(plan, configuration.approximationSettings()));
+                approximation.set(ApproximationDriver.create(plan, configuration.approximationSettings()));
             }
             LogicalPlan subPlan = approximation.get().firstSubPlan();
             if (subPlan != null) {
-                subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> {
-                    Double sampleProbability = approximation.get().processResult(result);
-                    if (sampleProbability != null) {
-                        return ApproximationPlan.substituteSampleProbability(mainPlan, sampleProbability);
-                    } else {
-                        return mainPlan;
-                    }
-                }, () -> {});
+                subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> approximation.get().newMainPlan(mainPlan, result), () -> {});
             }
         }
 
@@ -663,11 +695,10 @@ public class EsqlSession {
 
     private void executeSubPlan(
         DriverCompletionInfo.Accumulator completionInfoAccumulator,
-        LogicalPlan optimizedPlan,
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
@@ -705,6 +736,7 @@ public class EsqlSession {
                                 new Result(
                                     finalResult.schema(),
                                     finalResult.pages(),
+                                    null,
                                     configuration,
                                     completionInfoAccumulator.finish(),
                                     executionInfo
@@ -715,7 +747,6 @@ public class EsqlSession {
                 } else {// continue executing the subplans
                     executeSubPlan(
                         completionInfoAccumulator,
-                        newMainPlan,
                         newSubPlan,
                         configuration,
                         foldContext,

@@ -116,11 +116,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -469,7 +467,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             threads[i].start();
         }
 
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         for (Thread thread : threads) {
             thread.join();
         }
@@ -580,7 +578,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 .currentNodeId()
                 .equals(getNodeId(indexNodeB))
         );
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         logger.info("relocated primary");
 
         CountDownLatch indexNotFoundOnIndexNodeA = new CountDownLatch(1);
@@ -1017,7 +1015,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                     .currentNodeId()
                     .equals(indexNodeBNodeId)
             );
-            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+            internalCluster().awaitNodeVacated(indexName, indexNodeA);
             logger.info("--> relocated primary");
             final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
             indexNodeATransportService.addRequestHandlingBehavior(
@@ -1092,7 +1090,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         // Relocate the search shard
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA))));
+        internalCluster().awaitNodeVacated(indexName, searchNodeA);
         logger.info("--> relocated search shard");
 
         getVBCCChunkBlocked.countDown();

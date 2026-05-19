@@ -74,6 +74,7 @@ processingCommand
     | registeredDomainCommand
     | tsInfoCommand
     | userAgentCommand
+    | tsCollapseCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -368,6 +369,10 @@ metricsInfoCommand
 
 tsInfoCommand
     : TS_INFO
+    ;
+
+tsCollapseCommand
+    : TS_COLLAPSE
     ;
 
 //

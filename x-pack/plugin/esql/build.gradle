@@ -18,6 +18,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.esql-function'
+apply plugin: 'elasticsearch.esql-release'
 
 versions << [
   'hadoop': '3.4.3',
@@ -76,6 +77,7 @@ dependencies {
   testImplementation project(path: xpackModule('esql-datasource-snappy'))
   testImplementation project(path: xpackModule('esql-datasource-brotli'))
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
   testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')

@@ -139,7 +139,9 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             getFinishedTaskFromIndex(thisTask, request, finishedTaskListener);
             return;
         }
-        GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
+        // The originating node is the single owner of relocation chain following; disabling it on the forwarded request
+        // keeps remote intermediate-hop failures (e.g. a transport error during shutdown) from escaping past us.
+        GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId()).setFollowRelocations(false);
         ActionListener<GetTaskResponse> getTaskListener = ActionListener.wrap(listener::onResponse, e -> {
             if (ExceptionsHelper.unwrap(e, ConnectTransportException.class) != null) {
                 // The node is still in the cluster state but disconnected (e.g. shutting down during relocation).
@@ -313,12 +315,13 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * reindex task can still be found after relocation.
      * <p>
      * If the response represents a completed reindex task that was relocated to another node, issues a new
-     * {@code GetTask} request for the relocated task ID. The same step would be repeated if the relocated task was also relocated,
-     * effectively following the relocation chain until the current location of the task is found.
+     * {@code GetTask} request for the relocated task ID with {@code follow_relocations=false}, then merges the
+     * relocated task's response with the original task's timing. Multi-hop chains are followed iteratively here on
+     * the originating node. Failures are surfaced to the caller rather than being masked by returning the original
+     * pre-relocation response.
      * <p>
-     * The relocated task's response is merged with the original task's timing: the start time is taken from
-     * the original task and the running time is adjusted to cover the full duration including the relocation gap.
-     * For multi-hop chains each merge step correctly chains the adjustments.
+     * The merge takes the start time from the original task and adjusts running time to cover the full duration
+     * including the relocation gap. Each iteration's merge correctly chains the adjustments for multi-hop chains.
      * <p>
      * Non-reindex tasks and reindex tasks without relocations pass through unchanged.
      */
@@ -335,23 +338,25 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         logger.debug("task [{}] was relocated to [{}], following relocation chain", originalRequest.getTaskId(), relocatedTaskId);
         GetTaskRequest relocatedRequest = new GetTaskRequest().setTaskId(relocatedTaskId)
             .setWaitForCompletion(originalRequest.getWaitForCompletion())
-            .setTimeout(originalRequest.getTimeout());
+            .setTimeout(originalRequest.getTimeout())
+            // Do not follow relocation within the request, instead we will follow relocation in the listener below, so
+            // chain-following is done by the coordinating node instead of every node through the chain.
+            .setFollowRelocations(false);
 
         rawClient.admin().cluster().getTask(relocatedRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetTaskResponse relocatedResponse) {
-                listener.onResponse(mergeRelocatedTask(response.getTask(), relocatedResponse));
+                GetTaskResponse merged = mergeRelocatedTask(response.getTask(), relocatedResponse);
+                followReindexRelocationIfNeeded(originalRequest, merged, listener);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(
-                    "failed to follow task [{}] to its relocated task [{}], returning original response",
-                    originalRequest.getTaskId(),
-                    relocatedTaskId,
-                    e
-                );
-                listener.onResponse(response);
+                logger.warn("failed to follow task [{}] to its relocated task [{}]", originalRequest.getTaskId(), relocatedTaskId, e);
+                if (e instanceof ElasticsearchException ese) {
+                    ese.addMetadata("es.following_relocation_from", response.getTask().getTask().taskId().toString());
+                }
+                listener.onFailure(e);
             }
         });
     }

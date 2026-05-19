@@ -479,8 +479,13 @@ public enum IndexMode {
         public boolean isColumnar() {
             return true;
         }
+
+        @Override
+        public boolean isStrictColumnar() {
+            return true;
+        }
     },
-    COLUMNAR_LOGSDB("columnar_logsdb") {
+    LOGSDB_COLUMNAR("logsdb_columnar") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
@@ -547,7 +552,7 @@ public enum IndexMode {
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
             if (sourceFieldMapper.enabled() == false) {
                 throw new IllegalArgumentException(
-                    "_source can not be disabled in index using [" + IndexMode.COLUMNAR_LOGSDB + "] index mode"
+                    "_source can not be disabled in index using [" + IndexMode.LOGSDB_COLUMNAR + "] index mode"
                 );
             }
         }
@@ -564,6 +569,11 @@ public enum IndexMode {
 
         @Override
         public boolean isColumnar() {
+            return true;
+        }
+
+        @Override
+        public boolean isStrictColumnar() {
             return true;
         }
     },
@@ -712,7 +722,7 @@ public enum IndexMode {
      */
     public static IndexMode[] availableModes() {
         return Arrays.stream(values())
-            .filter(m -> COLUMNAR_FEATURE_FLAG.isEnabled() || (m != COLUMNAR && m != COLUMNAR_LOGSDB))
+            .filter(m -> COLUMNAR_FEATURE_FLAG.isEnabled() || (m != COLUMNAR && m != LOGSDB_COLUMNAR))
             .filter(m -> VECTORDB_FEATURE_FLAG.isEnabled() || m != VECTORDB_DOCUMENT)
             .toArray(IndexMode[]::new);
     }
@@ -810,6 +820,14 @@ public enum IndexMode {
     }
 
     /**
+     * Whether this index mode is a strict columnar mode, regardless of index version.
+     * In addition to codecs, this includes mappings, e.g., indexing and subobjects configuration.
+     */
+    public boolean isStrictColumnar() {
+        return false;
+    }
+
+    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
@@ -818,7 +836,7 @@ public enum IndexMode {
             case "time_series" -> IndexMode.TIME_SERIES;
             case "logsdb" -> IndexMode.LOGSDB;
             case "columnar" -> IndexMode.COLUMNAR;
-            case "columnar_logsdb" -> IndexMode.COLUMNAR_LOGSDB;
+            case "logsdb_columnar" -> IndexMode.LOGSDB_COLUMNAR;
             case "lookup" -> IndexMode.LOOKUP;
             case "vectordb_document" -> IndexMode.VECTORDB_DOCUMENT;
             default -> throw new IllegalArgumentException(
@@ -830,7 +848,7 @@ public enum IndexMode {
             );
         };
 
-        if ((mode == IndexMode.COLUMNAR || mode == IndexMode.COLUMNAR_LOGSDB) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+        if ((mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
         }
         if (mode == IndexMode.VECTORDB_DOCUMENT && VECTORDB_FEATURE_FLAG.isEnabled() == false) {
@@ -858,14 +876,14 @@ public enum IndexMode {
             case 2 -> LOGSDB;
             case 3 -> LOOKUP;
             case 4 -> COLUMNAR;
-            case 5 -> COLUMNAR_LOGSDB;
+            case 5 -> LOGSDB_COLUMNAR;
             case 6 -> VECTORDB_DOCUMENT;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
 
     public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
-        if ((indexMode == COLUMNAR || indexMode == COLUMNAR_LOGSDB)
+        if ((indexMode == COLUMNAR || indexMode == LOGSDB_COLUMNAR)
             && out.getTransportVersion().supports(COLUMNAR_INDEX_MODES_ADDED) == false) {
             throw new IOException(
                 "cannot serialize index mode ["
@@ -886,7 +904,7 @@ public enum IndexMode {
             case LOGSDB -> 2;
             case LOOKUP -> 3;
             case COLUMNAR -> 4;
-            case COLUMNAR_LOGSDB -> 5;
+            case LOGSDB_COLUMNAR -> 5;
             case VECTORDB_DOCUMENT -> 6;
         };
         out.writeByte((byte) code);
@@ -951,6 +969,13 @@ public enum IndexMode {
                 String intraMergeKey = IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey();
                 if (IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
                     additionalSettings.put(intraMergeKey, true);
+                }
+
+                // Disable merge IO auto-throttling.
+                // Only applied when the user has not set it explicitly.
+                String autoThrottleKey = MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey();
+                if (MergeSchedulerConfig.AUTO_THROTTLE_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+                    additionalSettings.put(autoThrottleKey, false);
                 }
             }
         }

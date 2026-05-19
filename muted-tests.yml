@@ -578,3 +578,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogLocalFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/149343
+- class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
+  method: testConsumerScopedDownloads
+  issue: https://github.com/elastic/elasticsearch/issues/149264

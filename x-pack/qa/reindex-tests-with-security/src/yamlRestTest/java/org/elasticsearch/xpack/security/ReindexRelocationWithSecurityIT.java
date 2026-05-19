@@ -144,7 +144,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // Stage 3: assert that the list API works
             assertListViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 4: rethrottle to unlimited via a non-coordinator*node, since the coordinator's HTTP transport is being torn down.
+            // Stage 4: rethrottle to unlimited via a non-coordinator node, since the coordinator's HTTP transport is being torn down.
             unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 5: wait for the coordinator to be fully removed from cluster state.
@@ -320,7 +320,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                     // Translate ResponseException (e.g. timeouts) to AssertionError so assertBusy will retry
                     throw new AssertionError("get reindex task failed: " + e.getMessage(), e);
                 }
-            }, 90, TimeUnit.SECONDS);
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

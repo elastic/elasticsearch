@@ -756,7 +756,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.onScrollResponse(
             System.nanoTime(),
             0,
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return response;
@@ -1615,14 +1615,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testPrepareSearchRequestEnablesAccurateTrackTotalHitsForPit() {
         configurePitOrScroll(true);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertEquals(Integer.valueOf(Integer.MAX_VALUE), preparedSearchRequest.source().trackTotalHitsUpTo());
     }
 
     public void testPrepareSearchRequestDoesNotSetTrackTotalHitsForScroll() {
         configurePitOrScroll(false);
         assertNull(testRequest.getSearchRequest().source().trackTotalHitsUpTo());
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertNull(preparedSearchRequest.source().trackTotalHitsUpTo());
     }
 
@@ -1630,7 +1630,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         configurePitOrScroll(randomBoolean());
         int userTrackTotalHitsUpTo = randomIntBetween(1, 1000);
         testRequest.getSearchRequest().source().trackTotalHitsUpTo(userTrackTotalHitsUpTo);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertEquals(Integer.valueOf(userTrackTotalHitsUpTo), preparedSearchRequest.source().trackTotalHitsUpTo());
     }
 
@@ -1638,7 +1638,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     /// reporting the cached total in the response.
     public void testPitPaginatedHitSourceCachesTotalAndDisablesTrackOnSubsequentBatches() {
         configurePitOrScroll(true);
-        SearchRequest preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        SearchRequest preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(
+            testRequest,
+            false,
+            false,
+            false,
+            null
+        );
         AtomicReference<PaginatedHitSource.AsyncResponse> capturedAsyncResponse = new AtomicReference<>();
         AtomicReference<Exception> capturedFailure = new AtomicReference<>();
         ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
@@ -1669,7 +1675,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             client.lastSearch.get().listener.onResponse(firstResponse);
             assertNotNull("first batch must be delivered", capturedAsyncResponse.get());
             assertEquals("first batch reports the accurate total", totalHits, capturedAsyncResponse.get().response().getTotalHits());
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
             capturedAsyncResponse.set(null);
         } finally {
             firstResponse.decRef();
@@ -1703,7 +1709,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 totalHits,
                 capturedAsyncResponse.get().response().getTotalHits()
             );
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
         } finally {
             secondResponse.decRef();
         }

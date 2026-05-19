@@ -9,13 +9,13 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByPaginatedSearchActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 
 public abstract class AbstractAsyncBulkByPaginatedSearchActionMetadataTestCase<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
-    Response extends BulkByScrollResponse> extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
+    Response extends BulkByScrollResponse> extends AbstractAsyncBulkByPaginatedSearchActionTestCase<Request, Response> {
 
     protected PaginatedHitSource.BasicHit doc() {
         return new PaginatedHitSource.BasicHit("index", "id", 0);

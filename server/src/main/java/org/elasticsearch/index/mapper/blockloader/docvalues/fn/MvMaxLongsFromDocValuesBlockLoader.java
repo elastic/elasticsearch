@@ -10,9 +10,9 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
@@ -20,68 +20,24 @@ import java.io.IOException;
 /**
  * Loads the MAX {@code long} in each doc.
  */
-public class MvMaxLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValuesBlockLoader {
+public class MvMaxLongsFromDocValuesBlockLoader extends LongsBlockLoader {
     public MvMaxLongsFromDocValuesBlockLoader(String fieldName) {
         super(fieldName);
     }
 
     @Override
-    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
-        return new Singleton(docValues);
-    }
-
-    @Override
     protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new MvMaxSorted(docValues);
-    }
-
-    @Override
-    public String toString() {
-        return "LongsFromDocValues[" + fieldName + "]";
-    }
-
-    private static class MvMaxSorted extends BlockDocValuesReader {
-        private final TrackingSortedNumericDocValues numericDocValues;
-
-        MvMaxSorted(TrackingSortedNumericDocValues numericDocValues) {
-            super(null);
-            this.numericDocValues = numericDocValues;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
+        return new AbstractNumericBlockLoader.Sorted<>(this, "MvMaxLongsFromDocValues", docValues) {
+            @Override
+            protected void readSortedDoc(int doc, BlockLoader.LongBuilder builder) throws IOException {
+                if (values.docValues().advanceExact(doc) == false) {
+                    builder.appendNull();
+                    return;
                 }
-                return builder.build();
+                discardAllButLast(values.docValues());
+                appendValue(builder, values.docValues().nextValue());
             }
-        }
-
-        private void read(int doc, LongBuilder builder) throws IOException {
-            if (false == numericDocValues.docValues().advanceExact(doc)) {
-                builder.appendNull();
-                return;
-            }
-            discardAllButLast(numericDocValues.docValues());
-            builder.appendLong(numericDocValues.docValues().nextValue());
-        }
-
-        @Override
-        public int docId() {
-            return numericDocValues.docValues().docID();
-        }
-
-        @Override
-        public String toString() {
-            return "MvMaxLongsFromDocValues.Sorted";
-        }
-
-        @Override
-        public void close() {
-            numericDocValues.close();
-        }
+        };
     }
 
     /**

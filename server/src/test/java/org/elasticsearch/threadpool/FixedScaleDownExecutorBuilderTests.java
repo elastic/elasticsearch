@@ -75,6 +75,51 @@ public class FixedScaleDownExecutorBuilderTests extends ESTestCase {
         }
     }
 
+    public void testPoolScalesDownToZeroThreadsWhenIdle() throws Exception {
+        final String poolName = "test_scale_down_to_zero";
+        final String prefix = "thread_pool." + poolName;
+        final int poolSize = randomIntBetween(1, 4);
+        final int queueSize = randomIntBetween(1, 16);
+        final TimeValue scaleDownDelay = TimeValue.timeValueMillis(100);
+        final Settings settings = Settings.builder()
+            .put("node.name", "scale-down-to-zero-test")
+            .put(prefix + ".size", poolSize)
+            .put(prefix + ".queue_size", queueSize)
+            .build();
+
+        final FixedScaleDownExecutorBuilder builder = new FixedScaleDownExecutorBuilder(
+            settings,
+            poolName,
+            poolSize,
+            queueSize,
+            scaleDownDelay,
+            prefix,
+            EsExecutors.TaskTrackingConfig.DEFAULT,
+            false
+        );
+
+        final FixedExecutorBuilder.FixedExecutorSettings executorSettings = builder.getSettings(settings);
+        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) builder.build(executorSettings, new ThreadContext(Settings.EMPTY))
+            .executor();
+        try {
+            assertThat(executor.getPoolSize(), equalTo(0));
+
+            final CountDownLatch taskStarted = new CountDownLatch(1);
+            final CountDownLatch taskCanFinish = new CountDownLatch(1);
+            executor.execute(() -> {
+                taskStarted.countDown();
+                safeAwait(taskCanFinish);
+            });
+            safeAwait(taskStarted);
+            assertThat(executor.getPoolSize(), equalTo(1));
+
+            taskCanFinish.countDown();
+            assertBusy(() -> assertThat(executor.getPoolSize(), equalTo(0)));
+        } finally {
+            terminate(executor);
+        }
+    }
+
     public void testBuildConfiguresScaleDownAndThreadPoolInfo() {
         final String poolName = "test_fixed_scale_down_info";
         final String prefix = "thread_pool." + poolName;

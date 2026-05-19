@@ -121,6 +121,43 @@ public class APMMeterServiceTests extends ESTestCase {
     }
 
     /**
+     * A flush that returns ofFailure() must not prevent close() or the registry switch to noop.
+     */
+    public void testDoStopClosesAndSwitchesToNoopEvenIfFlushFails() {
+        List<String> calls = new ArrayList<>();
+        MeterSupplier trackingSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                return OpenTelemetry.noop().getMeter("test");
+            }
+
+            @Override
+            public CompletableResultCode attemptFlushMetrics() {
+                return CompletableResultCode.ofFailure();
+            }
+
+            @Override
+            public void close() {
+                calls.add("close");
+            }
+        };
+        MeterSupplier trackingNoopSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                calls.add("noop");
+                return OpenTelemetry.noop().getMeter("noop");
+            }
+        };
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
+        APMMeterService service = new APMMeterService(settings, trackingSupplier, trackingNoopSupplier);
+        service.start();
+        service.stop(); // must not throw
+
+        assertThat(calls, contains("close", "noop"));
+    }
+
+    /**
      * When metrics are disabled at shutdown, the flush must be skipped entirely — a user who disabled metrics
      * may have done so specifically to prevent data from being exported (e.g. bad pipeline, sensitive data).
      * close() must still be called to release resources.

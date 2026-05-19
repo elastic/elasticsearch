@@ -44,6 +44,8 @@ public final class AgentExportTracerSupplier implements TraceSupplier {
 
     @Override
     public CompletableResultCode attemptFlushTraces() {
+        // Blocks the calling thread: the APM agent has no async flush API, so this sleeps for
+        // the configured interval. The result is already complete when this method returns.
         flushFn.run();
         return CompletableResultCode.ofSuccess();
     }

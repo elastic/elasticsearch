@@ -195,8 +195,15 @@ public class SplitDeltaStorageComparisonTests extends ESTestCase {
                 final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
                 final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
                 assertTrue(
-                    "SplitDelta must beat baseline at split=" + split + " bs=" + blockSize + " (splitDelta=" + splitDeltaSize + ", delta="
-                        + deltaSize + ")",
+                    "SplitDelta must beat baseline at split="
+                        + split
+                        + " bs="
+                        + blockSize
+                        + " (splitDelta="
+                        + splitDeltaSize
+                        + ", delta="
+                        + deltaSize
+                        + ")",
                     splitDeltaSize < deltaSize
                 );
                 maxSplitDelta = Math.max(maxSplitDelta, splitDeltaSize);

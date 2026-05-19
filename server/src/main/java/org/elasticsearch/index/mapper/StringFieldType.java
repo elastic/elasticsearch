@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -192,7 +193,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             Automaton dfa = caseInsensitive
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, circuitBreaker)
                 : AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
-            reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
             context.addCircuitBreakerMemory(reservation, "wildcard-compiled:" + name());
             if (caseInsensitive) {
                 query = method == null
@@ -239,7 +240,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         long reservation = 0;
         if (circuitBreaker != null) {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
-            reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
             context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + name());
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")

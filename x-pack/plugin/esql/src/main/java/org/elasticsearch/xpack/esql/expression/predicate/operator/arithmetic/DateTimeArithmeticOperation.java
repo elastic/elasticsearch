@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -179,7 +180,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zoneId = configuration().zoneId();
+        ZoneId zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
         if (dataType() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;

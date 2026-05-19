@@ -18,6 +18,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -49,10 +51,11 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_EXPLAIN_ONLY = TransportVersion.fromName("esql_explain_only");
 
+    private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
+
     private final String clusterName;
     private final String username;
     private final Instant now;
-    private final ZoneId zoneId;
 
     private final QueryPragmas pragmas;
 
@@ -71,8 +74,14 @@ public class Configuration implements Writeable {
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
-    private final String projectRouting;
-    private final ApproximationSettings approximationSettings;
+
+    /**
+     * The resolved view of every {@link org.elasticsearch.xpack.esql.plan.QuerySettingDef} for this
+     * query — registry default {@code <} request body {@code <} in-query {@code SET}. Travels across
+     * the wire to data nodes, so every node and driver that holds a Configuration also holds the
+     * full resolved settings view.
+     */
+    private final ResolvedSettings resolvedSettings;
 
     /**
      * Map of view names to their query strings. Used during deserialization to reconstruct
@@ -81,7 +90,6 @@ public class Configuration implements Writeable {
     private final Map<String, String> viewQueries;
 
     public Configuration(
-        ZoneId zi,
         Instant now,
         Locale locale,
         String username,
@@ -96,35 +104,32 @@ public class Configuration implements Writeable {
         boolean allowPartialResults,
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
-        String projectRouting,
-        ApproximationSettings approximationSettings,
+        ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries
     ) {
-        this.zoneId = zi.normalized();
-        this.now = now;
-        this.username = username;
-        this.clusterName = clusterName;
-        this.locale = locale;
-        this.pragmas = pragmas;
-        this.resultTruncationMaxSizeRegular = resultTruncationMaxSizeRegular;
-        this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
-        this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
-        this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
-        this.query = query != null ? query : "";
-        this.profile = profile;
-        this.tables = tables;
-        assert tables != null;
-        this.queryStartTimeNanos = queryStartTimeNanos;
-        this.allowPartialResults = allowPartialResults;
-        this.projectRouting = projectRouting;
-        this.approximationSettings = approximationSettings;
-        this.viewQueries = viewQueries;
-        assert viewQueries != null;
-        this.explainOnly = false;
+        this(
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            resolvedSettings,
+            viewQueries,
+            false
+        );
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
-        this.zoneId = in.readZoneId();
+        ZoneId zi = in.readZoneId();
         this.now = Instant.ofEpochSecond(in.readVLong(), in.readVInt());
         this.username = in.readOptionalString();
         this.clusterName = in.readOptionalString();
@@ -148,10 +153,9 @@ public class Configuration implements Writeable {
             this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
             this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
+        ApproximationSettings legacyApproximation = null;
         if (in.getTransportVersion().supports(QUERY_APPROXIMATION)) {
-            this.approximationSettings = in.readOptionalWriteable(ApproximationSettings::new);
-        } else {
-            this.approximationSettings = null;
+            legacyApproximation = in.readOptionalWriteable(ApproximationSettings::new);
         }
         if (in.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
             this.viewQueries = in.readImmutableMap(StreamInput::readString);
@@ -163,14 +167,29 @@ public class Configuration implements Writeable {
         } else {
             this.explainOnly = false;
         }
+        if (in.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS)) {
+            this.resolvedSettings = new ResolvedSettings(in);
+        } else {
+            // Synthesize a ResolvedSettings from the legacy typed fields seen on the wire above.
+            // project_routing is intentionally not synthesized here — data nodes never had it.
+            this.resolvedSettings = synthesizeResolvedFromLegacy(zi, legacyApproximation);
+        }
+    }
 
-        // not needed on the data nodes for now
-        this.projectRouting = null;
+    private static ResolvedSettings synthesizeResolvedFromLegacy(ZoneId zoneId, @Nullable ApproximationSettings approximation) {
+        ResolvedSettings result = ResolvedSettings.EMPTY;
+        if (zoneId != null) {
+            result = result.withOverride(QuerySettings.TIME_ZONE, zoneId.normalized());
+        }
+        if (approximation != null) {
+            result = result.withOverride(QuerySettings.APPROXIMATION, approximation);
+        }
+        return result;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeZoneId(zoneId);
+        out.writeZoneId(QuerySettings.TIME_ZONE.get(resolvedSettings));
         out.writeVLong(now.getEpochSecond());
         out.writeVInt(now.getNano());
         out.writeOptionalString(username);    // TODO this one is always null
@@ -191,7 +210,7 @@ public class Configuration implements Writeable {
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
         if (out.getTransportVersion().supports(QUERY_APPROXIMATION)) {
-            out.writeOptionalWriteable(approximationSettings);
+            out.writeOptionalWriteable(QuerySettings.APPROXIMATION.get(resolvedSettings));
         }
         if (out.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
             out.writeMap(viewQueries, StreamOutput::writeString);
@@ -199,10 +218,18 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
         }
+        if (out.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS)) {
+            resolvedSettings.writeTo(out);
+        }
     }
 
-    public ZoneId zoneId() {
-        return zoneId;
+    /**
+     * The resolved view of every {@link org.elasticsearch.xpack.esql.plan.QuerySettingDef} for this
+     * query. Reads of any SET-mirror knob (time_zone, project_routing, approximation, unmapped_fields,
+     * any future setting) go through this — e.g. {@code QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())}.
+     */
+    public ResolvedSettings resolvedSettings() {
+        return resolvedSettings;
     }
 
     public Instant now() {
@@ -274,7 +301,6 @@ public class Configuration implements Writeable {
 
     public Configuration withoutTables() {
         return new Configuration(
-            zoneId,
             now,
             locale,
             username,
@@ -289,8 +315,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
+            resolvedSettings,
             viewQueries,
             explainOnly
         );
@@ -326,7 +351,6 @@ public class Configuration implements Writeable {
      */
     public Configuration withExplainOnly() {
         return new Configuration(
-            zoneId,
             now,
             locale,
             username,
@@ -341,16 +365,15 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
+            resolvedSettings,
             viewQueries,
             true // explainOnly
         );
     }
 
-    // Full constructor with explainOnly parameter (used by serialization tests and builders)
+    // Full constructor with explainOnly parameter (used by serialization tests and builders).
+    // The 'explainOnly' parameter is the only difference from the public 16-arg constructor above.
     public Configuration(
-        ZoneId zi,
         Instant now,
         Locale locale,
         String username,
@@ -365,12 +388,10 @@ public class Configuration implements Writeable {
         boolean allowPartialResults,
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
-        String projectRouting,
-        ApproximationSettings approximationSettings,
+        ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries,
         boolean explainOnly
     ) {
-        this.zoneId = zi.normalized();
         this.now = now;
         this.username = username;
         this.clusterName = clusterName;
@@ -386,19 +407,10 @@ public class Configuration implements Writeable {
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
-        this.projectRouting = projectRouting;
-        this.approximationSettings = approximationSettings;
+        this.resolvedSettings = resolvedSettings != null ? resolvedSettings : ResolvedSettings.EMPTY;
         this.viewQueries = viewQueries;
         assert viewQueries != null;
         this.explainOnly = explainOnly;
-    }
-
-    public String projectRouting() {
-        return projectRouting;
-    }
-
-    public ApproximationSettings approximationSettings() {
-        return approximationSettings;
     }
 
     /**
@@ -413,7 +425,6 @@ public class Configuration implements Writeable {
      */
     public Configuration withZoneId(ZoneId newZoneId) {
         return new Configuration(
-            newZoneId,
             now,
             locale,
             username,
@@ -428,8 +439,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
+            resolvedSettings.withOverride(QuerySettings.TIME_ZONE, newZoneId.normalized()),
             viewQueries,
             explainOnly
         );
@@ -440,7 +450,6 @@ public class Configuration implements Writeable {
      */
     public Configuration withViewQueries(Map<String, String> viewQueries) {
         return new Configuration(
-            zoneId,
             now,
             locale,
             username,
@@ -455,8 +464,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            approximationSettings,
+            resolvedSettings,
             viewQueries,
             explainOnly
         );
@@ -490,8 +498,7 @@ public class Configuration implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Configuration that = (Configuration) o;
-        return Objects.equals(zoneId, that.zoneId)
-            && Objects.equals(now, that.now)
+        return Objects.equals(now, that.now)
             && Objects.equals(username, that.username)
             && Objects.equals(clusterName, that.clusterName)
             && resultTruncationMaxSizeRegular == that.resultTruncationMaxSizeRegular
@@ -502,7 +509,7 @@ public class Configuration implements Writeable {
             && profile == that.profile
             && tables.equals(that.tables)
             && allowPartialResults == that.allowPartialResults
-            && Objects.equals(approximationSettings, that.approximationSettings)
+            && Objects.equals(resolvedSettings.values(), that.resolvedSettings.values())
             && viewQueries.equals(that.viewQueries)
             && explainOnly == that.explainOnly;
     }
@@ -510,7 +517,6 @@ public class Configuration implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(
-            zoneId,
             now,
             username,
             clusterName,
@@ -524,7 +530,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            approximationSettings,
+            resolvedSettings.values(),
             viewQueries,
             explainOnly
         );
@@ -547,8 +553,8 @@ public class Configuration implements Writeable {
             + ",timeseries="
             + resultTruncationDefaultSize(true)
             + "]"
-            + ", zoneId="
-            + zoneId
+            + ", resolvedSettings="
+            + resolvedSettings.values()
             + ", locale="
             + locale
             + ", query='"
@@ -560,8 +566,6 @@ public class Configuration implements Writeable {
             + tables
             + ", allowPartialResults="
             + allowPartialResults
-            + ", approximationSettings="
-            + approximationSettings
             + ", explainOnly="
             + explainOnly
             + '}';

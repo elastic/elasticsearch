@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -27,7 +29,7 @@ public class ConfigurationBuilder {
 
     private String clusterName;
     private String username;
-    private ZoneId zoneId;
+    private ResolvedSettings resolvedSettings;
 
     private QueryPragmas pragmas;
 
@@ -47,13 +49,11 @@ public class ConfigurationBuilder {
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
 
-    private String projectRouting;
-
     public ConfigurationBuilder(Configuration configuration) {
         now = configuration.now();
         clusterName = configuration.clusterName();
         username = configuration.username();
-        zoneId = configuration.zoneId();
+        resolvedSettings = configuration.resolvedSettings();
         pragmas = configuration.pragmas();
         resultTruncationMaxSizeRegular = configuration.resultTruncationMaxSize(false);
         resultTruncationDefaultSizeRegular = configuration.resultTruncationDefaultSize(false);
@@ -66,7 +66,6 @@ public class ConfigurationBuilder {
         explainOnly = configuration.explainOnly();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
-        projectRouting = configuration.projectRouting();
     }
 
     public ConfigurationBuilder now(Instant now) {
@@ -85,7 +84,7 @@ public class ConfigurationBuilder {
     }
 
     public ConfigurationBuilder zoneId(ZoneId zoneId) {
-        this.zoneId = zoneId;
+        this.resolvedSettings = resolvedSettings.withOverride(QuerySettings.TIME_ZONE, zoneId.normalized());
         return this;
     }
 
@@ -145,7 +144,12 @@ public class ConfigurationBuilder {
     }
 
     public ConfigurationBuilder projectRouting(String projectRouting) {
-        this.projectRouting = projectRouting;
+        this.resolvedSettings = resolvedSettings.withOverride(QuerySettings.PROJECT_ROUTING, projectRouting);
+        return this;
+    }
+
+    public ConfigurationBuilder resolvedSettings(ResolvedSettings resolvedSettings) {
+        this.resolvedSettings = resolvedSettings;
         return this;
     }
 
@@ -156,7 +160,6 @@ public class ConfigurationBuilder {
 
     public Configuration build() {
         Configuration config = new Configuration(
-            zoneId,
             now,
             locale,
             username,
@@ -171,8 +174,7 @@ public class ConfigurationBuilder {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting,
-            null,
+            resolvedSettings,
             Map.of()
         );
         return explainOnly ? config.withExplainOnly() : config;

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -21,7 +22,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan, LogicalOptimizerContext context) {
-        if (context.configuration().approximationSettings() == null) {
+        if (QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings()) == null) {
             // Approximation is not enabled
             return logicalPlan;
         } else if (Approximation.verifyPlan(logicalPlan) == null) {
@@ -30,7 +31,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
         } else {
             // Returns an approximation plan with a placeholders for the sample probability.
             // This placeholder will be replaced after executing the corresponding subplans.
-            return ApproximationPlan.get(logicalPlan, context.configuration().approximationSettings());
+            return ApproximationPlan.get(logicalPlan, QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings()));
         }
     }
 }

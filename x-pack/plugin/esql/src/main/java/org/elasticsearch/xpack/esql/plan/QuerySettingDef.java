@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -164,14 +167,16 @@ public final class QuerySettingDef<T> {
         return Builder.<Integer>of(name, DataType.INTEGER)
             .withDefault(defaultValue)
             .expressionReader(e -> ((Number) Foldables.literalValueOf(e)).intValue())
-            .jsonReader(XContentParser::intValue);
+            .jsonReader(XContentParser::intValue)
+            .streamFormat(StreamOutput::writeInt, StreamInput::readInt);
     }
 
     public static Builder<Boolean> bool(String name, boolean defaultValue) {
         return Builder.<Boolean>of(name, DataType.BOOLEAN)
             .withDefault(defaultValue)
             .expressionReader(e -> (Boolean) Foldables.literalValueOf(e))
-            .jsonReader(XContentParser::booleanValue);
+            .jsonReader(XContentParser::booleanValue)
+            .streamFormat(StreamOutput::writeBoolean, StreamInput::readBoolean);
     }
 
     public static <E extends Enum<E>> Builder<E> enumOf(String name, Class<E> type, E defaultValue) {
@@ -201,6 +206,8 @@ public final class QuerySettingDef<T> {
     private final JsonReader<T> jsonReader;
     @Nullable
     private final ExpressionReader<T> expressionReader;
+    private final Writeable.Writer<T> streamWriter;
+    private final Writeable.Reader<T> streamReader;
     @Nullable
     private final Validator<T> validator;
     private final SettingReconciler<T> reconciler;
@@ -216,6 +223,8 @@ public final class QuerySettingDef<T> {
         this.defaultValue = b.defaultValue;
         this.jsonReader = b.jsonReader;
         this.expressionReader = b.expressionReader;
+        this.streamWriter = b.streamWriter;
+        this.streamReader = b.streamReader;
         this.validator = b.validator;
         this.reconciler = b.reconciler;
         this.requestBody = b.requestBody;
@@ -286,6 +295,16 @@ public final class QuerySettingDef<T> {
         return validator == null ? null : validator.validate(value, ctx);
     }
 
+    /** Serialize the typed value of this setting to the stream. Used by {@link ResolvedSettings#writeTo}. */
+    public void writeValue(StreamOutput out, T value) throws IOException {
+        streamWriter.write(out, value);
+    }
+
+    /** Deserialize the typed value of this setting from the stream. Used by {@link ResolvedSettings#ResolvedSettings(StreamInput)}. */
+    public T readValue(StreamInput in) throws IOException {
+        return streamReader.read(in);
+    }
+
     /**
      * Fluent builder for {@link QuerySettingDef}. Terminates in {@link #build()}, which validates the
      * combination of flags and registers the resulting immutable setting in {@link #REGISTRY}.
@@ -301,6 +320,10 @@ public final class QuerySettingDef<T> {
         private JsonReader<T> jsonReader;
         @Nullable
         private ExpressionReader<T> expressionReader;
+        @Nullable
+        private Writeable.Writer<T> streamWriter;
+        @Nullable
+        private Writeable.Reader<T> streamReader;
         @Nullable
         private Validator<T> validator;
         private SettingReconciler<T> reconciler = (previous, current) -> current != null ? current : previous;
@@ -392,7 +415,22 @@ public final class QuerySettingDef<T> {
         Builder<T> fromString(FromString<T> from) {
             return jsonReader(p -> from.parse(p.text())).expressionReader(
                 e -> from.parse(Foldables.stringLiteralValueOf(e, "Unexpected value"))
-            );
+            ).streamFormat((out, value) -> out.writeString(value.toString()), in -> from.parse(in.readString()));
+        }
+
+        /**
+         * Wire how the setting's typed value crosses the transport boundary. Every setting needs this;
+         * each factory pre-populates it for built-in types. Settings declared via {@link #object} or
+         * {@link #builder} must call this explicitly before {@code build()}.
+         */
+        public Builder<T> withStreamFormat(Writeable.Writer<T> writer, Writeable.Reader<T> reader) {
+            return streamFormat(writer, reader);
+        }
+
+        Builder<T> streamFormat(Writeable.Writer<T> writer, Writeable.Reader<T> reader) {
+            this.streamWriter = writer;
+            this.streamReader = reader;
+            return this;
         }
 
         /** Validate the builder state, construct the immutable definition, register it, and return it. */
@@ -405,6 +443,11 @@ public final class QuerySettingDef<T> {
             }
             if (requestBody && jsonReader == null) {
                 throw new IllegalStateException("Setting [" + name + "] is body-exposed but has no JSON reader");
+            }
+            if (streamWriter == null || streamReader == null) {
+                throw new IllegalStateException(
+                    "Setting [" + name + "] has no stream format — call withStreamFormat(writer, reader) before build()"
+                );
             }
             QuerySettingDef<T> def = new QuerySettingDef<>(this);
             QuerySettingDef<?> prior = REGISTRY.putIfAbsent(def.name, def);

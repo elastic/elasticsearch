@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -307,15 +306,12 @@ public class EsqlSession {
             SettingsValidationContext.from(remoteClusterService)
         );
 
-        ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
-        String projectRouting = QuerySettings.PROJECT_ROUTING.get(resolved);
-        ApproximationSettings approximationSettings = QuerySettings.APPROXIMATION.get(resolved);
-        if (approximationSettings != null) {
+        if (QuerySettings.APPROXIMATION.get(resolved) != null) {
             EsqlLicenseChecker.checkQueryApproximation(verifier.licenseState());
         }
 
+        ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
         Configuration configuration = new Configuration(
-            timeZone,
             Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
@@ -331,8 +327,7 @@ public class EsqlSession {
             request.allowPartialResults(),
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
-            projectRouting,
-            approximationSettings,
+            resolved,
             viewResolution.viewQueries()
         );
 
@@ -668,7 +663,7 @@ public class EsqlSession {
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan : mainPlan;
         if (ApproximationPlan.is(plan)) {
             if (approximation.get() == null) {
-                approximation.set(new Approximation(plan, configuration.approximationSettings()));
+                approximation.set(new Approximation(plan, QuerySettings.APPROXIMATION.get(configuration.resolvedSettings())));
             }
             LogicalPlan subPlan = approximation.get().firstSubPlan();
             if (subPlan != null) {
@@ -1394,7 +1389,7 @@ public class EsqlSession {
                 (e, r, l) -> preAnalyzeFlatMainIndices(
                     e.getKey(),
                     e.getValue(),
-                    configuration.projectRouting(),
+                    QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
                     preAnalysis,
                     executionInfo,
                     trackUnmappedFieldIndices,
@@ -1408,7 +1403,7 @@ public class EsqlSession {
                         strictResult,
                         (sp, r, ll) -> preAnalyzeOptionalLinkedIndices(
                             sp,
-                            configuration.projectRouting(),
+                            QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
                             preAnalysis,
                             executionInfo,
                             trackUnmappedFieldIndices,

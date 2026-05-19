@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -701,8 +702,15 @@ public final class EsqlTestUtils {
     private EsqlTestUtils() {}
 
     public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(
+            QuerySettings.TIME_ZONE,
+            statement.setting(QuerySettings.TIME_ZONE).normalized()
+        )
+            .withOverride(
+                QuerySettings.APPROXIMATION,
+                new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build()
+            );
         return new Configuration(
-            statement.setting(QuerySettings.TIME_ZONE),
             Instant.now(),
             Locale.US,
             null,
@@ -717,8 +725,7 @@ public final class EsqlTestUtils {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null,
-            new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build(),
+            resolved,
             Map.of()
         );
     }

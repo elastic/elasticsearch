@@ -149,6 +149,7 @@ public final class QuerySettings {
         .withRequestBody()
         .withAliasAtRoot()
         .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
+        .withStreamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 
     private QuerySettings() {}

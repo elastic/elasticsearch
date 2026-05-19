@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -119,7 +120,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
                         (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     ),
                     Map.entry(
@@ -127,7 +128,7 @@ public class ToDateNanos extends AbstractConvertFunction implements Configuratio
                         (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
                             source,
                             fieldEval,
-                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                         )
                     )
                 )

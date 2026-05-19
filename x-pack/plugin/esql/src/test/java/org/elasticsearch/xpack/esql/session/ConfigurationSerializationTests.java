@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Instant;
@@ -47,7 +48,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
 
     @Override
     protected Configuration mutateInstance(Configuration in) {
-        ZoneId zoneId = in.zoneId();
+        ZoneId zoneId = QuerySettings.TIME_ZONE.get(in.resolvedSettings());
         Instant now = in.now();
         Locale locale = in.locale();
         String username = in.username();
@@ -97,7 +98,6 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             }
         }
         return new Configuration(
-            zoneId,
             now,
             locale,
             username,
@@ -112,8 +112,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             randomBoolean(),
             in.resultTruncationMaxSize(true),
             in.resultTruncationDefaultSize(true),
-            null,
-            null,
+            in.resolvedSettings().withOverride(QuerySettings.TIME_ZONE, zoneId),
             Map.of(),
             randomBoolean() // explainOnly
         );

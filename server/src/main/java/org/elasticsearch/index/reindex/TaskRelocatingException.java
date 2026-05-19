@@ -10,6 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
@@ -21,6 +22,8 @@ import java.io.IOException;
  * the operation on the relocated task.
  */
 public class TaskRelocatingException extends ElasticsearchException {
+
+    public static final TransportVersion TASK_RELOCATING_EXCEPTION_VERSION = TransportVersion.fromName("task_relocating_exception");
 
     public TaskRelocatingException() {
         super("task is being relocated");

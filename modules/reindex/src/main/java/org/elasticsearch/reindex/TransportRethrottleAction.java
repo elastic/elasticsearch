@@ -89,8 +89,23 @@ public class TransportRethrottleAction extends TransportTasksAction<
                 responseWithOriginalIdentityTasks.getNodeFailures().size()
             );
 
+            // Log task failure details if present
+            if (responseWithOriginalIdentityTasks.getTaskFailures().isEmpty() == false) {
+                for (TaskOperationFailure failure : responseWithOriginalIdentityTasks.getTaskFailures()) {
+                    Throwable cause = failure.getCause();
+                    logger.info(
+                        "---> Task failure for [{}]: exception type [{}], message [{}]",
+                        request.getTargetTaskId(),
+                        cause != null ? cause.getClass().getName() : "null",
+                        cause != null ? cause.getMessage() : "null"
+                    );
+                }
+            }
+
             boolean isRelocationFailure = responseWithOriginalIdentityTasks.getTaskFailures().size() == 1
                 && responseWithOriginalIdentityTasks.getTaskFailures().get(0).getCause() instanceof TaskRelocatingException;
+
+            logger.info("---> isRelocationFailure check for task [{}]: {}", request.getTargetTaskId(), isRelocationFailure);
 
             // Follow relocation chain if there is a node failure (node might be gone, but the task is still running elsewhere)
             // or if the failure is TaskRelocatingException.

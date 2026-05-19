@@ -173,6 +173,15 @@ public class RestControllerTracingTests extends ESTestCase {
         assertNull(RestController.extractServerPort(req, null, forwarded(req)));
     }
 
+    public void testForwardedHostWithoutPortAddressResolvedPortNotFallenBackToSocket() {
+        // Forwarded: host=proxy.com (no port) — address resolves, but socket port must NOT be used as fallback.
+        final var channel = new FakeRestRequest.FakeHttpChannel(null, new InetSocketAddress("127.0.0.1", 9200));
+        final var req = requestWith(Map.of("Forwarded", List.of("host=proxy.com")));
+        final var fwd = forwarded(req);
+        assertEquals("proxy.com", RestController.extractServerAddress(req, channel, fwd));
+        assertNull(RestController.extractServerPort(req, channel, fwd));
+    }
+
     public void testExtractServerPortFromXForwardedHostWithPort() {
         final var req = requestWith(Map.of("X-Forwarded-Host", List.of("proxy.com:8443")));
         assertEquals(Integer.valueOf(8443), RestController.extractServerPort(req, null, null));

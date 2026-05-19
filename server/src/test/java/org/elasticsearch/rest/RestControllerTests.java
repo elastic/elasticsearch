@@ -349,18 +349,6 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
         final InetSocketAddress localAddress = new InetSocketAddress("127.0.0.1", 9200);
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withLocalAddress(localAddress).withHttps(true).build();
-        final RestController spyRestController = spy(restController);
-        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-
-            @Override
-            public MethodHandlers next() {
-                return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {});
-            }
-        });
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         verify(tracer).startTrace(

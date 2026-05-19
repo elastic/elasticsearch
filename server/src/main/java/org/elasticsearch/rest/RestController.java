@@ -615,12 +615,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (forwarded != null) {
             final String proto = extractForwardedParam(forwarded, "proto");
             if (proto != null) {
-                return proto;
+                return proto.toLowerCase(Locale.ROOT);
             }
         }
         final String xProto = firstHeaderValue(req, "X-Forwarded-Proto");
         if (xProto != null && xProto.isBlank() == false) {
-            return xProto.strip();
+            return xProto.strip().toLowerCase(Locale.ROOT);
         }
         return req.getHttpRequest().getScheme();
     }
@@ -689,7 +689,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return values != null && values.isEmpty() == false ? values.get(0) : null;
     }
 
-    /** Extracts the value of the named directive from an RFC 7239 Forwarded header. */
+    /**
+     * Extracts the value of the named directive from an RFC 7239 Forwarded header.
+     * Note: quoted values containing {@code ';'} or {@code ','} are not fully supported.
+     */
     static String extractForwardedParam(String forwarded, String param) {
         final String prefix = param + "=";
         for (String entry : forwarded.split(",")) {

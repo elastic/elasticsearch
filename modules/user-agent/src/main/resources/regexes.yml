@@ -161,6 +161,42 @@ user_agent_parsers:
   - regex: '(Pinterest(?:bot|))/(\d+)(?:\.(\d+)|)(?:\.(\d+)|)[;\s(]+\+https://www.pinterest.com/bot.html'
     family_replacement: 'Pinterestbot'
 
+  # AI crawlers — named explicitly here (before the generic bot/spider/crawl matchers) because
+  # these tokens either:
+  #   (a) carry a +https://... URL suffix that the generic matchers mis-read as the bot name
+  #       (e.g. ChatGPT-User -> "com/bot"; meta-externalagent -> "crawler"; cohere-ai -> "cohere-crawler")
+  #   (b) contain no bot/spider/crawl keyword at all, so the generic matchers return "Other"
+  #       (e.g. MistralAI-User, Perplexity-User, Claude-User, meta-externalfetcher, Claude-Web)
+  #
+  # Bot inventory cross-referenced against:
+  #   https://developers.cloudflare.com/ai-crawl-control/reference/bots/
+  #   https://platform.openai.com/docs/bots
+  #   https://support.claude.com/en/articles/8896518
+  #   https://docs.perplexity.ai/guides/bots
+
+  # OpenAI — https://platform.openai.com/docs/bots
+  - regex: '(ChatGPT-User)/(\d+)(?:\.(\d+)|)'
+  - regex: '(OAI-SearchBot)/(\d+)(?:\.(\d+)|)'
+
+  # Anthropic — https://support.claude.com/en/articles/8896518
+  # Claude-Web is the legacy UA token (deprecated 2024); kept for log compatibility.
+  - regex: '(Claude-User)/(\d+)(?:\.(\d+)|)'
+  - regex: '(Claude-Web)/(\d+)(?:\.(\d+)|)'
+
+  # Perplexity — https://docs.perplexity.ai/guides/bots
+  - regex: '(Perplexity-User)/(\d+)(?:\.(\d+)|)'
+
+  # Mistral AI — https://docs.mistral.ai/robots
+  - regex: '(MistralAI-User)/(\d+)(?:\.(\d+)|)'
+
+  # Meta — https://developers.facebook.com/docs/sharing/webmasters/web-crawlers/
+  # meta-externalagent carries a URL with "/crawler" that triggers the generic crawl catcher.
+  - regex: '(meta-externalagent)/(\d+)(?:\.(\d+)|)'
+  - regex: '(meta-externalfetcher)/(\d+)(?:\.(\d+)|)'
+
+  # Cohere — the UA suffix /cohere-crawler triggers the generic crawl catcher.
+  - regex: '(cohere-ai)/(\d+)(?:\.(\d+)|)'
+
   # Bots
   - regex: '(CSimpleSpider|Cityreview Robot|CrawlDaddy|CrawlFire|Finderbots|Index crawler|Job Roboter|KiwiStatus Spider|Lijit Crawler|QuerySeekerSpider|ScollSpider|Trends Crawler|USyd-NLP-Spider|SiteCat Webbot|BotName\/\$BotVersion|123metaspider-Bot|1470\.net crawler|50\.nu|8bo Crawler Bot|Aboundex|Accoona-[A-z]{1,30}-Agent|AdsBot-Google(?:-[a-z]{1,30}|)|altavista|AppEngine-Google|archive.{0,30}\.org_bot|archiver|Ask Jeeves|[Bb]ai[Dd]u[Ss]pider(?:-[A-Za-z]{1,30})(?:-[A-Za-z]{1,30}|)|bingbot|BingPreview|blitzbot|BlogBridge|Bloglovin|BoardReader Blog Indexer|BoardReader Favicon Fetcher|boitho.com-dc|BotSeer|BUbiNG|\b\w{0,30}favicon\w{0,30}\b|\bYeti(?:-[a-z]{1,30}|)|Catchpoint(?: bot|)|[Cc]harlotte|Checklinks|clumboot|Comodo HTTP\(S\) Crawler|Comodo-Webinspector-Crawler|ConveraCrawler|CRAWL-E|CrawlConvera|Daumoa(?:-feedfetcher|)|Feed Seeker Bot|Feedbin|findlinks|Flamingo_SearchEngine|FollowSite Bot|furlbot|Genieo|gigabot|GomezAgent|gonzo1|(?:[a-zA-Z]{1,30}-|)Googlebot(?:-[a-zA-Z]{1,30}|)|Google SketchUp|grub-client|gsa-crawler|heritrix|HiddenMarket|holmes|HooWWWer|htdig|ia_archiver|ICC-Crawler|Icarus6j|ichiro(?:/mobile|)|IconSurf|IlTrovatore(?:-Setaccio|)|InfuzApp|Innovazion Crawler|InternetArchive|IP2[a-z]{1,30}Bot|jbot\b|KaloogaBot|Kraken|Kurzor|larbin|LEIA|LesnikBot|Linguee Bot|LinkAider|LinkedInBot|Lite Bot|Llaut|lycos|Mail\.RU_Bot|masscan|masidani_bot|Mediapartners-Google|Microsoft .{0,30} Bot|mogimogi|mozDex|MJ12bot|msnbot(?:-media {0,2}|)|msrbot|Mtps Feed Aggregation System|netresearch|Netvibes|NewsGator[^/]{0,30}|^NING|Nutch[^/]{0,30}|Nymesis|ObjectsSearch|OgScrper|Orbiter|OOZBOT|PagePeeker|PagesInventory|PaxleFramework|Peeplo Screenshot Bot|PlantyNet_WebRobot|Pompos|Qwantify|Read%20Later|Reaper|RedCarpet|Retreiver|Riddler|Rival IQ|scooter|Scrapy|Scrubby|searchsight|seekbot|semanticdiscovery|SemrushBot|Simpy|SimplePie|SEOstats|SimpleRSS|SiteCon|Slackbot-LinkExpanding|Slack-ImgProxy|Slurp|snappy|Speedy Spider|Squrl Java|Stringer|TheUsefulbot|ThumbShotsBot|Thumbshots\.ru|Tiny Tiny RSS|Twitterbot|WhatsApp|URL2PNG|Vagabondo|VoilaBot|^vortex|Votay bot|^voyager|WASALive.Bot|Web-sniffer|WebThumb|WeSEE:[A-z]{1,30}|WhatWeb|WIRE|WordPress|Wotbox|www\.almaden\.ibm\.com|Xenu(?:.s|) Link Sleuth|Xerka [A-z]{1,30}Bot|yacy(?:bot|)|YahooSeeker|Yahoo! Slurp|Yandex\w{1,30}|YodaoBot(?:-[A-z]{1,30}|)|YottaaMonitor|Yowedo|^Zao|^Zao-Crawler|ZeBot_www\.ze\.bz|ZooShot|ZyBorg|ArcGIS Hub Indexer)(?:[ /]v?(\d+)(?:\.(\d+)(?:\.(\d+)|)|)|)'
 
@@ -195,7 +231,9 @@ user_agent_parsers:
   # Bots General matcher 'name/0.0'
   - regex: '(?:\/[A-Za-z0-9\.]+|) {0,5}([A-Za-z0-9 \-_\!\[\]:]{0,50}(?:[Aa]rchiver|[Ii]ndexer|[Ss]craper|[Bb]ot|[Ss]pider|[Cc]rawl[a-z]{0,50}))[/ ](\d+)(?:\.(\d+)(?:\.(\d+)|)|)'
   # Bots containing bot(but not CUBOT)
-  - regex: '((?:[A-Za-z][A-Za-z0-9 -]{0,50}|)[^C][^Uu][Bb]ot)\b(?:(?:[ /]| v)(\d+)(?:\.(\d+)|)(?:\.(\d+)|)|)'
+  # The (?<![./]) lookbehind prevents matching bot tokens that appear immediately after a '.' or '/'
+  # (e.g. the '/bot' suffix in '+https://openai.com/bot' URL fragments in AI crawler UA strings).
+  - regex: '((?:[A-Za-z][A-Za-z0-9 -]{0,50}|)(?<![./])[^C][^Uu][Bb]ot)\b(?:(?:[ /]| v)(\d+)(?:\.(\d+)|)(?:\.(\d+)|)|)'
   # Bots containing spider|scrape|Crawl
   - regex: '((?:[A-z0-9]{1,50}|[A-z\-]{1,50} ?|)(?: the |)(?:[Ss][Pp][Ii][Dd][Ee][Rr]|[Ss]crape|[Cc][Rr][Aa][Ww][Ll])[A-z0-9]{0,50})(?:(?:[ /]| v)(\d+)(?:\.(\d+)|)(?:\.(\d+)|)|)'
 

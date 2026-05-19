@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -51,6 +52,10 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
     private final SearchRequest firstSearchRequest;
     private final AtomicReference<PointInTimeBuilder> pitBuilder;
 
+    // Keep-alive duration requested with the search currently in flight
+    private final AtomicReference<TimeValue> currentKeepAlive = new AtomicReference<>();
+    private final SearchContextKeepaliveDeadline keepaliveDeadline;
+
     public ClientPitPaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
@@ -59,11 +64,13 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         Consumer<AsyncResponse> onResponse,
         Consumer<Exception> fail,
         ParentTaskAssigningClient client,
-        SearchRequest firstSearchRequest
+        SearchRequest firstSearchRequest,
+        SearchContextKeepaliveDeadline keepaliveDeadline
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
+        this.keepaliveDeadline = keepaliveDeadline;
         SearchSourceBuilder source = firstSearchRequest.source();
         PointInTimeBuilder initialPit = source == null ? null : source.pointInTimeBuilder();
         if (initialPit == null) {
@@ -79,6 +86,11 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             "executing initial local PIT search against {}",
             () -> isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
         );
+        PointInTimeBuilder pit = pitBuilder.get();
+        TimeValue keepAlive = pit != null ? pit.getKeepAlive() : null;
+        if (keepAlive != null) {
+            currentKeepAlive.set(keepAlive);
+        }
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
@@ -98,10 +110,16 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
 
     @Override
     protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        SearchSourceBuilder source = firstSearchRequest.source()
-            .shallowCopy()
-            .searchAfter(searchAfter)
-            .pointInTimeBuilder(extendPitKeepAlive(pitBuilder.get(), extraKeepAlive));
+        PointInTimeBuilder extended = extendPitKeepAlive(pitBuilder.get(), extraKeepAlive);
+        TimeValue effectiveKeepAlive = extended.getKeepAlive();
+        if (effectiveKeepAlive != null) {
+            currentKeepAlive.set(effectiveKeepAlive);
+        }
+        SearchSourceBuilder source = firstSearchRequest.source().shallowCopy().searchAfter(searchAfter).pointInTimeBuilder(extended);
+        // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
+        if (getCachedTotalHits().isPresent()) {
+            source.trackTotalHits(false);
+        }
         SearchRequest nextRequest = new SearchRequest(firstSearchRequest).source(source);
         client.search(nextRequest, wrapListener(searchListener));
     }
@@ -126,7 +144,11 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
                         )
                     );
                 }
-                searchListener.onResponse(wrapSearchResponse(searchResponse));
+                TimeValue keepAlive = currentKeepAlive.getAndSet(null);
+                if (keepAlive != null) {
+                    keepaliveDeadline.recordSuccessfulExtension(keepAlive);
+                }
+                searchListener.onResponse(wrapSearchResponse(searchResponse, getCachedTotalHits()));
             }
 
             @Override
@@ -145,7 +167,7 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         onCompletion.run();
     }
 
-    private static Response wrapSearchResponse(SearchResponse response) {
+    private static Response wrapSearchResponse(SearchResponse response, OptionalLong cachedTotal) {
         List<PaginatedSearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
@@ -166,7 +188,15 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             }
             hits = unmodifiableList(hits);
         }
-        long total = response.getHits().getTotalHits().value();
+        // Substitute the cached total on follow-up batches whose response total is a placeholder.
+        long total;
+        if (cachedTotal.isPresent()) {
+            total = cachedTotal.getAsLong();
+        } else {
+            var totalHits = response.getHits().getTotalHits();
+            assert totalHits != null;
+            total = totalHits.value();
+        }
         Object[] searchAfterValues = null;
         if (hits.isEmpty() == false) {
             Hit lastHit = hits.getLast();

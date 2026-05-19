@@ -30,6 +30,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.useragent.api;
+    requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.simdvec;
@@ -298,6 +299,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
+    exports org.elasticsearch.lucene.search;
+    exports org.elasticsearch.lucene.search.cost;
     exports org.elasticsearch.lucene.search.uhighlight;
     exports org.elasticsearch.lucene.search.vectorhighlight;
     exports org.elasticsearch.lucene.similarity;
@@ -460,6 +463,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
             org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
             org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat,
             org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with

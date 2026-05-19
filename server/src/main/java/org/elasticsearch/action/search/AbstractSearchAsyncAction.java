@@ -592,7 +592,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             buildTookInMillis(),
             failures,
             clusters,
-            searchContextId
+            searchContextId,
+            request.source(),
+            request.indices()
         );
     }
 
@@ -659,7 +661,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // only create the following two collections if we detect an id change
         Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
         Collection<SearchContextIdForNode> contextsToClose = null;
-        logger.debug("checking search result shards to detect PIT node changes");
+        logger.debug("checking [{}] search result shards to detect PIT node changes", results.size());
         for (Result result : results) {
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
             ShardId shardId = searchShardTarget.getShardId();
@@ -677,10 +679,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     SearchContextIdForNode updatedId = new SearchContextIdForNode(
                         searchShardTarget.getClusterAlias(),
                         searchShardTarget.getNodeId(),
-                        result.getContextId()
+                        originalShard.getSearchContextId()
                     );
-
-                    logger.debug("changing node for PIT shard id from [{}] to [{}]", originalShard, updatedId);
+                    assert result.getContextId() == null || result.getContextId().equals(originalShard.getSearchContextId())
+                        : "Result context id should be same as original context id";
+                    logger.debug(
+                        "PIT id - changing node for shard id [{}] from [{}] to [{}]",
+                        searchShardTarget.getShardId(),
+                        originalShard,
+                        updatedId
+                    );
                     updatedShardMap.put(shardId, updatedId);
                     contextsToClose.add(original.shards().get(shardId));
 

@@ -13,6 +13,8 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.ShortVector;
+import jdk.incubator.vector.Vector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
@@ -22,30 +24,32 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.MathUtils;
-import org.elasticsearch.simdvec.internal.Similarities;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-import java.lang.foreign.MemorySegment;
+import java.nio.ByteOrder;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
+import static jdk.incubator.vector.VectorOperators.AND;
 import static jdk.incubator.vector.VectorOperators.ASHR;
 import static jdk.incubator.vector.VectorOperators.LSHL;
+import static jdk.incubator.vector.VectorOperators.LSHR;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
 import static jdk.incubator.vector.VectorOperators.OR;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
+import static jdk.incubator.vector.VectorOperators.REVERSE_BYTES;
 
-public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
+public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport permits Native22ESVectorUtilSupport {
 
     static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
-
-    static final boolean SUPPORTS_NATIVE_VECTORS = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
@@ -63,18 +67,101 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
+    // BFloats (2 bytes) needs to be half the float vector bitsize
+    private static final VectorSpecies<Short> BFLOAT_SPECIES;
+    private static final VectorSpecies<Byte> BFLOAT_BYTE_SPECIES;
+
+    static {
+        VectorSpecies<Short> bfloats;
+        VectorSpecies<Byte> bytes;
+        try {
+            bfloats = VectorSpecies.of(short.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / 2));
+            bytes = bfloats.vectorShape().withLanes(byte.class);
+        } catch (IllegalArgumentException e) {
+            bfloats = null;
+            bytes = null;
+        }
+        BFLOAT_SPECIES = bfloats;
+        BFLOAT_BYTE_SPECIES = bytes;
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfloats, int bfloatOffset, int count, ByteOrder byteOrder) {
+        if (BFLOAT_SPECIES == null) {
+            DefaultESVectorUtilSupport.floatToBFloat16Impl(floats, floatOffset, bfloats, bfloatOffset, count, byteOrder);
+        } else {
+            final int vectorEnd = FLOAT_SPECIES.loopBound(count);
+
+            for (int i = 0; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+                IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i + floatOffset).reinterpretAsInts();
+                // roundingBias = 0x7fff + ((bits >> 16) & 1)
+                IntVector bias = bits.lanewise(LSHR, 16).lanewise(AND, 1).add(0x7fff);
+                bits = bits.add(bias);
+                // vals = (short)(bits >>> 16);
+                Vector<Short> vals = bits.lanewise(LSHR, 16).convertShape(VectorOperators.I2S, BFLOAT_SPECIES, 0);
+                if (byteOrder == ByteOrder.BIG_ENDIAN) {
+                    // reinterpretAsInts explicitly uses little-endian order, so convert if big-endian is requested
+                    vals = vals.lanewise(REVERSE_BYTES);
+                }
+                vals.reinterpretAsBytes().intoArray(bfloats, i * Short.BYTES + bfloatOffset);
+            }
+
+            if (vectorEnd < count) {
+                // scalar tail
+                DefaultESVectorUtilSupport.floatToBFloat16Impl(
+                    floats,
+                    vectorEnd + floatOffset,
+                    bfloats,
+                    vectorEnd * Short.BYTES + bfloatOffset,
+                    count - vectorEnd,
+                    byteOrder
+                );
+            }
+        }
+    }
+
+    @Override
+    public void bFloat16ToFloat(byte[] bfloats, int bfloatOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
+        if (BFLOAT_SPECIES == null) {
+            DefaultESVectorUtilSupport.bFloat16ToFloatImpl(bfloats, bfloatOffset, floats, floatOffset, count, byteOrder);
+        } else {
+            int vectorEnd = BFLOAT_SPECIES.loopBound(count);
+
+            for (int i = 0; i < vectorEnd; i += BFLOAT_SPECIES.length()) {
+                ShortVector sv = ByteVector.fromArray(BFLOAT_BYTE_SPECIES, bfloats, i * Short.BYTES + bfloatOffset).reinterpretAsShorts();
+                if (byteOrder == ByteOrder.BIG_ENDIAN) {
+                    // reinterpretAsShorts explicitly uses little-endian order, so convert if big-endian is specified
+                    sv = sv.lanewise(REVERSE_BYTES);
+                }
+                // (int)sv << 16
+                sv.convertShape(VectorOperators.ZERO_EXTEND_S2I, INTEGER_SPECIES, 0)
+                    .lanewise(LSHL, 16)
+                    .reinterpretAsFloats()
+                    .intoArray(floats, i + floatOffset);
+            }
+
+            if (vectorEnd < count) {
+                // scalar tail
+                DefaultESVectorUtilSupport.bFloat16ToFloatImpl(
+                    bfloats,
+                    vectorEnd * Short.BYTES + bfloatOffset,
+                    floats,
+                    vectorEnd + floatOffset,
+                    count - vectorEnd,
+                    byteOrder
+                );
+            }
+        }
+    }
+
     @Override
     public float dotProduct(float[] a, float[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.dotProduct(a, b);
+        return VectorUtil.dotProduct(a, b);
     }
 
     @Override
     public float squareDistance(float[] a, float[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.squareDistance(a, b);
+        return VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -102,23 +189,32 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float cosine(byte[] a, byte[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.cosine(a, b);
+        return VectorUtil.cosine(a, b);
     }
 
     @Override
     public float dotProduct(byte[] a, byte[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.dotProduct(a, b);
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        return DefaultESVectorUtilSupport.maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        return DefaultESVectorUtilSupport.maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        return DefaultESVectorUtilSupport.maxSimDotProductImpl(source, query, scoresScratch);
     }
 
     @Override
     public float squareDistance(byte[] a, byte[] b) {
-        return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
-            : VectorUtil.squareDistance(a, b);
+        return VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -885,8 +981,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
-        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distances);
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     @Override
@@ -898,6 +994,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         float[] v1,
         float[] v2,
         float[] v3,
+        int distancesOffset,
         float[] distances
     ) {
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
@@ -938,10 +1035,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             distance2 = fma(diff2, diff2, distance2);
             distance3 = fma(diff3, diff3, distance3);
         }
-        distances[0] = distance0;
-        distances[1] = distance1;
-        distances[2] = distance2;
-        distances[3] = distance3;
+        distances[distancesOffset] = distance0;
+        distances[distancesOffset + 1] = distance1;
+        distances[distancesOffset + 2] = distance2;
+        distances[distancesOffset + 3] = distance3;
     }
 
     @Override
@@ -1301,18 +1398,39 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
         assert other.length == dest.length;
 
+        final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
         final int limit = FLOAT_SPECIES.loopBound(dest.length);
         int i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
             FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
-            destVec = destVec.mul(scaleDest).add(otherVec.mul(scaleOther));
+            destVec = fma(destVec, scaleDestVec, otherVec.mul(scaleOther));
             destVec.intoArray(dest, i);
         }
 
         // tail
         for (; i < dest.length; i++) {
-            dest[i] = scaleOther * other[i] + scaleDest * dest[i];
+            dest[i] = fma(scaleOther, other[i], scaleDest * dest[i]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, float[] dest) {
+        assert other.length == dest.length;
+
+        final FloatVector scaleOtherVec = FloatVector.broadcast(FLOAT_SPECIES, scaleOther);
+        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        int i = 0;
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            destVec = fma(otherVec, scaleOtherVec, destVec);
+            destVec.intoArray(dest, i);
+        }
+
+        // tail
+        for (; i < dest.length; i++) {
+            dest[i] = fma(other[i], scaleOther, dest[i]);
         }
     }
 
@@ -1440,5 +1558,22 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         IntVector pBits = p.add(MathUtils.EXPONENT_BIAS).lanewise(VectorOperators.LSHL, MathUtils.MANTISSA_BITS);
         FloatVector powerOf2 = pBits.reinterpretAsFloats();
         return m.mul(powerOf2).max(0.0f);
+    }
+
+    @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        // values.length is a multiple of 8, and lane counts (2, 4, 8) all divide it,
+        // so no scalar prefix or tail is ever needed.
+        // Each aligned chunk of laneCount longs produces a laneCount-bit mask that fits cleanly
+        // within one matches word.
+        int laneCount = LONG_SPECIES.length();
+        LongVector lowerVec = LongVector.broadcast(LONG_SPECIES, lowerValue);
+        LongVector upperVec = LongVector.broadcast(LONG_SPECIES, upperValue);
+        for (int i = 0; i < values.length; i += laneCount) {
+            LongVector vec = LongVector.fromArray(LONG_SPECIES, values, i);
+            long mask = vec.compare(VectorOperators.GE, lowerVec).and(vec.compare(VectorOperators.LE, upperVec)).toLong();
+            matches[i >>> 6] |= mask << i;
+        }
     }
 }

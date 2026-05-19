@@ -17,7 +17,7 @@ import java.io.IOException;
  * {@link NumericFieldWriter} implementation that writes numeric and sorted-numeric fields
  * using the TSDB block layout.
  *
- * <p>{@link #writeField} delegates to the shared write loop in {@link TSDBDocValuesBlockWriter}
+ * <p>{@link #writeFieldEntry} delegates to the shared write loop in {@link TSDBDocValuesBlockWriter}
  * with the {@link Encoder} supplied at construction time.
  */
 public final class TSDBNumericFieldWriter implements NumericFieldWriter {
@@ -37,25 +37,20 @@ public final class TSDBNumericFieldWriter implements NumericFieldWriter {
     }
 
     @Override
-    public Encoder encoder() {
-        return encoder;
-    }
-
-    @Override
-    public DocValueFieldCountStats writeField(
+    public DocValueFieldCountStats writeFieldEntry(
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
-        return BLOCK_WRITER.writeField(
+        return BLOCK_WRITER.writeFieldEntry(
             ctx,
             field,
             valuesSource,
             AbstractTSDBDocValuesConsumer.NO_MAX_ORD,
             docValueCountConsumer,
             sortedFieldObserver,
-            (buffer, data) -> encoder().encodeBlock(buffer, ctx.blockSize(), data)
+            (buffer, data) -> encoder.encodeBlock(buffer, ctx.blockSize(), data)
         );
     }
 }

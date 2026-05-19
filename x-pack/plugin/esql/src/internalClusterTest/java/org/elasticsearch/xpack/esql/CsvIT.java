@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.License;
@@ -240,6 +241,9 @@ public class CsvIT extends ESTestCase {
         views.ensureNoFailures();
 
         var request = syncEsqlQueryRequest(testCase.query);
+        if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
+            request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
+        }
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
@@ -268,6 +272,7 @@ public class CsvIT extends ESTestCase {
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
                 .toList();
             testCase.assertWarnings(false).assertWarnings(warnings, null);
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
@@ -366,7 +371,7 @@ public class CsvIT extends ESTestCase {
 
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName)) {
+        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> views.maybeLoad(name, view));
         } else {
             views.unloadAll();

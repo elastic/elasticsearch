@@ -30,6 +30,8 @@ import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.StripeStatistics;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.impl.OrcTail;
+import org.apache.orc.impl.ReaderImpl;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -42,14 +44,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -66,6 +70,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.ExecutionException;
 
 /**
  * {@link RangeAwareFormatReader} implementation for Apache ORC files.
@@ -86,9 +91,22 @@ import java.util.OptionalLong;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader {
+public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader {
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+
+    /**
+     * JVM-wide cache of parsed ORC tails ({@link OrcTail}). Singleton — every
+     * {@link OrcFormatReader} instance reads from and writes to the same cache so that producer
+     * threads spawned from different reader instances (e.g. across concurrent queries) still
+     * coalesce footer parses.
+     */
+    private static final ParsedFooterCache<OrcTail> PARSED_FOOTERS = new ParsedFooterCache<>();
+
+    /** Clears the parsed-footer cache. Intended for test isolation only. */
+    static void clearParsedFooterCacheForTests() {
+        PARSED_FOOTERS.invalidateAll();
+    }
 
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
@@ -119,8 +137,7 @@ public class OrcFormatReader implements RangeAwareFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        OrcFile.ReaderOptions options = orcReaderOptions(fs);
-        try (Reader reader = OrcFile.createReader(path, options)) {
+        try (Reader reader = openReaderCached(fs, path)) {
             TypeDescription schema = reader.getSchema();
             List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
             SourceStatistics statistics = extractStatistics(reader, schema);
@@ -145,6 +162,61 @@ public class OrcFormatReader implements RangeAwareFormatReader {
      */
     private static OrcFile.ReaderOptions orcReaderOptions(OrcStorageObjectAdapter fs) {
         return OrcFile.readerOptions(new Configuration(false)).filesystem(fs).useUTCTimestamp(true);
+    }
+
+    /**
+     * Opens an ORC {@link Reader} using the JVM-wide {@link #PARSED_FOOTERS} cache so that the
+     * tail (postscript + footer + types + stripe directory) is deserialized at most once per
+     * {@code (path, length)} key. On a cache miss the loader parses the tail by opening a reader
+     * once and extracting the {@link OrcTail} from its serialized footer buffer; the parsed result
+     * is then handed to subsequent {@code OrcFile.createReader} calls via
+     * {@link OrcFile.ReaderOptions#orcTail}. When ORC sees a pre-supplied tail it skips
+     * {@code ReaderImpl.extractFileTail(FileSystem, Path, long)} and the associated remote read.
+     */
+    private static Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
+        OrcTail tail = loadTail(fs, path);
+        return OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
+    }
+
+    /**
+     * Loads the parsed ORC tail for {@code fs} via the JVM-wide {@link #PARSED_FOOTERS} cache,
+     * parsing on a cache miss. The first call for a given key opens an ORC reader (which parses
+     * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
+     * reuse the cached tail.
+     */
+    private static OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+        try {
+            return PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+                // Open a reader once, extract the parsed tail, then close the reader. The
+                // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
+                // safe to share across threads (treated as immutable by all callers).
+                //
+                // This deliberately parses the tail twice on a cache miss: once inside
+                // OrcFile.createReader (which calls the protected ReaderImpl.extractFileTail
+                // (FileSystem, Path, long) to fetch and parse from storage) and once via the
+                // public ReaderImpl.extractFileTail(ByteBuffer) to produce a shareable OrcTail.
+                // The single-parse alternative would require re-implementing ORC's tail-fetch
+                // protocol (variable-length postscript, optional metadata sections, version
+                // handling) outside the library — fragile across ORC versions. Since this only
+                // runs on the cold path (first producer per file per TTL window), the second
+                // parse is a small cost that pays off as every subsequent producer hits the
+                // cache and skips both the parse and the remote read entirely.
+                try (Reader r = OrcFile.createReader(path, orcReaderOptions(fs))) {
+                    return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
+                }
+            });
+        } catch (ExecutionException e) {
+            // rethrowStructural handles Error/IOException/CircuitBreakingException/
+            // ElasticsearchException; anything else (typically a plain RuntimeException from
+            // orc-core indicating a corrupt tail) is returned for format-specific wrapping.
+            // Unlike Parquet there is no orc-tagged exception factory; surface a structurally
+            // tagged IOException so log lines clearly attribute the failure to ORC tail parsing.
+            Throwable other = ParsedFooterCache.rethrowStructural(e);
+            if (other instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new IOException("Failed to parse ORC tail for [" + path + "]", other);
+        }
     }
 
     private static SourceStatistics extractStatistics(Reader reader, TypeDescription schema) {
@@ -244,7 +316,7 @@ public class OrcFormatReader implements RangeAwareFormatReader {
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        Reader reader = OrcFile.createReader(path, orcReaderOptions(fs));
+        Reader reader = openReaderCached(fs, path);
         TypeDescription schema = reader.getSchema();
         List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
 
@@ -262,13 +334,20 @@ public class OrcFormatReader implements RangeAwareFormatReader {
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        try (Reader reader = OrcFile.createReader(path, orcReaderOptions(fs))) {
+        try (Reader reader = openReaderCached(fs, path)) {
             List<StripeInformation> stripes = reader.getStripes();
-            if (stripes.size() <= 1) {
+            if (stripes.isEmpty()) {
                 return List.of();
             }
             List<StripeStatistics> stripeStats = reader.getStripeStatistics();
             TypeDescription schema = reader.getSchema();
+            if (stripes.size() == 1) {
+                StripeInformation stripe = stripes.getFirst();
+                Map<String, Object> stats = stripeStats.isEmpty() == false
+                    ? buildStripeStats(stripe, stripeStats.getFirst(), schema)
+                    : Map.of();
+                return List.of(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
+            }
             List<SplitRange> ranges = new ArrayList<>(stripes.size());
             for (int i = 0; i < stripes.size(); i++) {
                 StripeInformation stripe = stripes.get(i);
@@ -320,21 +399,32 @@ public class OrcFormatReader implements RangeAwareFormatReader {
      * structural (corrupt stripe, schema mismatch) rather than row-level.
      */
     @Override
-    public CloseableIterator<Page> readRange(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        long rangeStart,
-        long rangeEnd,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
+    public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        long rangeStart = context.rangeStart();
+        long rangeEnd = context.rangeEnd();
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        List<Attribute> resolvedAttributes = context.resolvedAttributes();
+
         if (rangeEnd <= rangeStart) {
             throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
         }
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        Reader reader = OrcFile.createReader(path, orcReaderOptions(fs));
+        // Tail resolution order, mirroring the parquet reader:
+        // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
+        // lookup; carries the parsed tail across successive splits of the same file on one
+        // thread.
+        // 2. PARSED_FOOTERS — JVM-wide cache keyed by (path, length); shared across producer
+        // threads and across queries within the access TTL.
+        OrcTail tail;
+        if (context.fileContext() instanceof OrcTail cached) {
+            tail = cached;
+        } else {
+            tail = loadTail(fs, path);
+            context.setFileContext(tail);
+        }
+        Reader reader = OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
         TypeDescription schema = reader.getSchema();
 
         final List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
@@ -442,6 +532,11 @@ public class OrcFormatReader implements RangeAwareFormatReader {
     @Override
     public AggregatePushdownSupport aggregatePushdownSupport() {
         return new OrcAggregatePushdownSupport();
+    }
+
+    @Override
+    public boolean supportsWholeFileCompression() {
+        return false;
     }
 
     @Override

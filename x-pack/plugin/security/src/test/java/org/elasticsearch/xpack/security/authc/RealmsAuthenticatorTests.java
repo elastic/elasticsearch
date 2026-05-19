@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -267,9 +268,9 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
         when(lastSuccessfulAuthCache.get(username)).thenReturn(randomFrom(realm1, realm2, null));
         final Realm successfulRealm = randomFrom(realm1, realm2);
         when(successfulRealm.supports(authenticationToken)).thenReturn(true);
-        final long successfulExecutionTimeInNanos = randomLongBetween(0, 500);
+        final long successfulExecutionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocationOnMock -> {
-            nanoTimeSupplier.advanceTime(successfulExecutionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(successfulExecutionTimeInMillis));
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
                 .getArguments()[1];
@@ -299,7 +300,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
         assertAuthenticationTimeMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_REALMS,
-            successfulExecutionTimeInNanos,
+            successfulExecutionTimeInMillis,
             Map.ofEntries(
                 Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, successfulRealm.name()),
                 Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, successfulRealm.type())
@@ -320,9 +321,9 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
         }
 
         when(unsuccessfulRealm.supports(authenticationToken)).thenReturn(true);
-        final long unsuccessfulExecutionTimeInNanos = randomLongBetween(0, 500);
+        final long unsuccessfulExecutionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocationOnMock -> {
-            nanoTimeSupplier.advanceTime(unsuccessfulExecutionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(unsuccessfulExecutionTimeInMillis));
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
                 .getArguments()[1];
@@ -354,7 +355,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
         assertAuthenticationTimeMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_REALMS,
-            unsuccessfulExecutionTimeInNanos,
+            unsuccessfulExecutionTimeInMillis,
             Map.ofEntries(
                 Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, unsuccessfulRealm.name()),
                 Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, unsuccessfulRealm.type())

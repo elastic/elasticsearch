@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -70,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -136,6 +139,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
 
+    /**
+     * Always {@code false}: collapsing is controlled through {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse},
+     * not via {@link TimeSeriesAggregate}{@code #collapsed}.
+     * The flag is a leftover and will be removed from {@link TimeSeriesAggregate}.
+     */
+    private static final boolean TIME_SERIES_AGGREGATE_COLLAPSED = false;
+
     public TranslatePromqlToEsqlPlan() {
         super(OptimizerRules.TransformDirection.UP);
     }
@@ -158,7 +168,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         TranslationResult(LogicalPlan plan, Expression expression, Expression selectorFilter) {
             this(plan, expression, selectorFilter, LabelSetSpec.none());
         }
-
     }
 
     /** Context flows downward */
@@ -175,19 +184,15 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         Attribute stepAttr() {
             return stepBucketAlias.toAttribute();
         }
-
     }
 
     @Override
     protected LogicalPlan rule(PromqlCommand promqlCommand, LogicalOptimizerContext context) {
-        Alias stepBucketAlias = createStepBucketAlias(promqlCommand);
-
-        // Base plan EsRelation with timestamp filter
-        LogicalPlan basePlan = withTimestampFilter(promqlCommand, promqlCommand.child());
+        Alias stepBucketAlias = createStepBucketAlias(promqlCommand, context.configuration());
 
         TranslationContext ctx = new TranslationContext(promqlCommand, context, stepBucketAlias, LabelSetSpec.none());
 
-        TranslationResult result = translateNode(promqlCommand.promqlPlan(), basePlan, ctx);
+        TranslationResult result = translateNode(promqlCommand.promqlPlan(), promqlCommand.child(), ctx);
 
         var plan = result.plan();
         var valueExpr = result.expression();
@@ -215,6 +220,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         plan = applyProjection(promqlCommand, plan);
 
         plan = applyNullOutputFilter(promqlCommand, plan);
+
+        plan = withTimestampFilter(promqlCommand, plan, context.configuration());
 
         return plan;
     }
@@ -401,7 +408,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         if (functionCall.child() instanceof RangeSelector rangeSelector) {
             window = rangeSelector.range();
             if (isImplicitRangePlaceholder(window)) {
-                window = resolveImplicitRangeWindow(ctx.promqlCommand());
+                window = ctx.promqlCommand().resolveImplicitRangeWindow();
             }
         }
 
@@ -412,13 +419,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.optimizerContext().configuration()
         );
 
-        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
-            functionCall.functionName(),
-            functionCall.source(),
-            childResult.expression(),
-            promqlCtx,
-            functionCall.parameters()
-        );
+        Expression function = functionCall.buildEsqlFunction(childResult.expression(), promqlCtx);
 
         // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
         // This is essentially a bug since this limitation doesn't exist in PromQL itself.
@@ -442,23 +443,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return range.foldable()
             && range.fold(FoldContext.small()) instanceof Duration duration
             && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
-    }
-
-    /**
-     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
-     * The implicit window is calculated as {@code max(step, scrape_interval)}.
-     */
-    private static Literal resolveImplicitRangeWindow(PromqlCommand promqlCommand) {
-        Duration step = foldDuration(resolveTimeBucketSize(promqlCommand), "step");
-        Duration scrapeInterval = foldDuration(promqlCommand.scrapeInterval(), "scrape_interval");
-        return Literal.timeDuration(promqlCommand.source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
-    }
-
-    private static Duration foldDuration(Expression expression, String paramName) {
-        if (expression != null && expression.foldable() && expression.fold(FoldContext.small()) instanceof Duration duration) {
-            return duration;
-        }
-        throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
     }
 
     /**
@@ -632,7 +616,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.stepAttr(),
             ctx.optimizerContext().configuration()
         );
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(agg.functionName(), agg.source(), inputValue, promqlCtx, agg.parameters());
+        return agg.buildEsqlFunction(inputValue, promqlCtx);
     }
 
     private static LogicalPlan createInnermostAggregatePlan(TranslationContext ctx, LogicalPlan plan, LabelSetSpec labels, Expression agg) {
@@ -684,7 +668,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), command.isCollapsed());
+        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), TIME_SERIES_AGGREGATE_COLLAPSED);
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {
@@ -822,17 +806,35 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return new Filter(promqlCommand.source(), plan, new IsNotNull(plan.output().getFirst().source(), plan.output().getFirst()));
     }
 
-    /** Filter to [start, end] time range */
-    private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan) {
+    /**
+     * When both {@code start} and {@code end} provided apply time filter.
+     * <p>
+     * - Push {@code t >= start - w} AND {@code t <= end} down to the source.
+     * - Apply {@code step >= start} AND {@code step <= end} above the aggregation to drop.
+     * <p>
+     * Where `t` := @timestamp; `w` := longest range selector window.
+    */
+    private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan, Configuration configuration) {
         Literal start = promqlCommand.start();
         Literal end = promqlCommand.end();
-        if (start.value() != null && end.value() != null) {
-            var source = promqlCommand.source();
-            var timestamp = promqlCommand.timestamp();
-            var lower = new GreaterThanOrEqual(source, timestamp, start);
-            var upper = new LessThanOrEqual(source, timestamp, end);
-            plan = new Filter(source, plan, new And(source, lower, upper));
+        if (start.value() == null || end.value() == null) {
+            return plan;
         }
+        var source = promqlCommand.source();
+        var timestamp = promqlCommand.timestamp();
+        var window = promqlCommand.maxRangeSelectorWindow();
+        var child = promqlCommand.child();
+        var step = promqlCommand.stepAttribute();
+
+        var lower = new GreaterThanOrEqual(source, timestamp, new Sub(source, start, Literal.timeDuration(source, window), configuration));
+        var upper = new LessThanOrEqual(source, timestamp, end);
+        plan = plan.transformUp(p -> p == child, p -> new Filter(source, p, new And(source, lower, upper)));
+
+        plan = new Filter(
+            source,
+            plan,
+            new And(source, new GreaterThanOrEqual(source, step, start), new LessThanOrEqual(source, step, end))
+        );
         return plan;
     }
 
@@ -855,8 +857,19 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return new Eval(promqlCommand.source(), plan, List.of(convertedValue));
     }
 
-    private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {
-        Expression timeBucketSize = resolveTimeBucketSize(promqlCommand);
+    private static Alias createStepBucketAlias(PromqlCommand promqlCommand, Configuration configuration) {
+        Expression timeBucketSize = promqlCommand.resolveTimeBucketSize();
+        if (promqlCommand.hasTimeRange()) {
+            TStep tstep = new TStep(
+                timeBucketSize.source(),
+                timeBucketSize,
+                promqlCommand.start(),
+                promqlCommand.end(),
+                promqlCommand.timestamp(),
+                configuration
+            );
+            return new Alias(tstep.source(), promqlCommand.stepColumnName(), tstep, promqlCommand.stepId());
+        }
         Bucket b = new Bucket(
             timeBucketSize.source(),
             promqlCommand.timestamp(),
@@ -866,34 +879,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ConfigurationAware.CONFIGURATION_MARKER
         );
         return new Alias(b.source(), promqlCommand.stepColumnName(), b, promqlCommand.stepId());
-    }
-
-    private static Expression resolveTimeBucketSize(PromqlCommand promqlCommand) {
-        if (promqlCommand.isRangeQuery()) {
-            if (promqlCommand.step().value() != null) {
-                return promqlCommand.step();
-            }
-            return resolveAutoStepFromBuckets(promqlCommand);
-        }
-        // use default lookback for instant queries
-        return Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
-    }
-
-    private static Literal resolveAutoStepFromBuckets(PromqlCommand promqlCommand) {
-        Bucket autoBucket = new Bucket(
-            promqlCommand.buckets().source(),
-            promqlCommand.timestamp(),
-            promqlCommand.buckets(),
-            promqlCommand.start(),
-            promqlCommand.end(),
-            ConfigurationAware.CONFIGURATION_MARKER
-        );
-        long rangeStart = ((Number) promqlCommand.start().value()).longValue();
-        long rangeEnd = ((Number) promqlCommand.end().value()).longValue();
-        var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
-        long roundedStart = rounding.round(rangeStart);
-        long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
-        return Literal.timeDuration(promqlCommand.source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
     }
 
     /**

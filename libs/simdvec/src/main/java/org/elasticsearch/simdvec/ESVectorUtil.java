@@ -15,12 +15,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.ByteOrder;
 import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -45,9 +45,10 @@ public class ESVectorUtil {
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+    private static final VectorScorerFactory SCORERS = ESVectorizationProvider.getInstance().getVectorScorerFactory();
 
     public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
@@ -59,12 +60,11 @@ public class ESVectorUtil {
         int bulkSize,
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
-        return ESVectorizationProvider.getInstance()
-            .newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return SCORERS.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
@@ -72,7 +72,17 @@ public class ESVectorUtil {
         int dimension,
         int vectorLengthInBytes
     ) throws IOException {
-        return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+        return SCORERS.newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+    }
+
+    public static void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        IMPL.bFloat16ToFloat(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
+    }
+
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        assert floats.length - floatOffset >= floatCount;
+        assert (bfBytes.length - bfOffset) >= floatCount * Short.BYTES;
+        IMPL.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount, byteOrder);
     }
 
     public static float dotProduct(float[] a, float[] b) {
@@ -109,6 +119,42 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Computes max-sim dot product for float query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for float query vectors against a bfloat16 multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for byte query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
     }
 
     public static float squareDistance(byte[] a, byte[] b) {
@@ -220,6 +266,30 @@ public class ESVectorUtil {
             distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
         }
         return distance;
+    }
+
+    public static float max(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < length; i++) {
+            max = Math.max(max, values[i]);
+        }
+        return max;
+    }
+
+    public static float sum(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float sum = 0f;
+        for (int i = 0; i < length; i++) {
+            sum += values[i];
+        }
+        return sum;
+    }
+
+    private static void ensureScoresScratchCapacity(MultiVectorsSource<?> source, float[] scoresScratch) {
+        if (scoresScratch.length < source.vectorCount()) {
+            throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());
+        }
     }
 
     /**
@@ -366,11 +436,21 @@ public class ESVectorUtil {
      * @param v1 the second vector
      * @param v2 the third vector
      * @param v3 the fourth vector
-     * @param distances an array to store the computed square distances, must have length 4
+     * @param distancesOffset offset to the location in the distances array where we want to store the 4 results,
+     *                        we require distancesOffset to be between 0 and distances.length - 4
+     * @param distances an array to store the computed square distances, must have length >= 4
      *
      * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
      */
-    public static void squareDistanceBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+    public static void squareDistanceBulk(
+        float[] q,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
         if (q.length != v0.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v0.length);
         }
@@ -383,10 +463,13 @@ public class ESVectorUtil {
         if (q.length != v3.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
         }
-        if (distances.length != 4) {
-            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
         }
-        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distances);
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static void squareDistanceBulk(
@@ -415,7 +498,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         Objects.checkFromIndexSize(qOffset, length, q.length);
-        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, distances);
+        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
     }
 
     /**
@@ -572,6 +655,17 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes dest = scale * other + dest
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param dest the destination vector
+     */
+    public static void linearCombination(float scaleOther, float[] other, float[] dest) {
+        IMPL.linearCombination(scaleOther, other, dest);
+    }
+
+    /**
      * Calculates an approximation of the LogSumExp of the input array in base 2.
      * The formula used is: log2(sum_i(pow(2, x[i]))).
      * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
@@ -609,5 +703,17 @@ public class ESVectorUtil {
      */
     public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
         IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
+    }
+
+    /**
+     * For every index {@code i} in {@code [0, values.length)}, sets bit {@code i} in
+     * {@code matches} ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) when
+     * {@code values[i]} lies in {@code [lowerValue, upperValue]}.
+     *
+     * <p>Requires {@code values.length} to be a multiple of 8 (the maximum supported SIMD lane
+     * count, for AVX-512) and {@code matches.length == values.length / 64}.
+     */
+    public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
     }
 }

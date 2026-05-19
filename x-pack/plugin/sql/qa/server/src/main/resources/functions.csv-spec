@@ -225,6 +225,18 @@ Bojan          |Bojan
 
 ;
 
+selectReplaceWithEmptyPattern
+SELECT REPLACE("first_name",'','X') same, "first_name" original FROM "test_emp" ORDER BY "first_name" LIMIT 5;
+
+      same:s     |   original:s
+-----------------+---------------
+Alejandro        |Alejandro
+Amabile          |Amabile
+Anneke           |Anneke
+Anoosh           |Anoosh
+Arumugam         |Arumugam
+;
+
 selectReplaceWithGroupBy
 SELECT REPLACE("first_name",'jan','_JAN_') modified, COUNT(*) count FROM "test_emp" GROUP BY REPLACE("first_name",'jan','_JAN_') ORDER BY REPLACE("first_name",'jan','_JAN_') LIMIT 10;
 

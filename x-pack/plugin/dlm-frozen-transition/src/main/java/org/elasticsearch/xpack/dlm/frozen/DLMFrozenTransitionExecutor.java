@@ -52,13 +52,14 @@ class DLMFrozenTransitionExecutor implements Closeable {
     private final ClusterService clusterService;
     private final DataStreamLifecycleErrorStore errorStore;
     private final MasterServiceTaskQueue<UnmarkIndexForFrozenTask> unmarkIndexForDlmFrozenConversionQueue;
-    private volatile int errorRetryInterval;
+    private final DLMFrozenTransitionSettings frozenTransitionSettings;
 
     DLMFrozenTransitionExecutor(
         ClusterService clusterService,
         int maxConcurrency,
         int maxQueueSize,
         Settings settings,
+        DLMFrozenTransitionSettings frozenTransitionSettings,
         DataStreamLifecycleErrorStore errorStore
     ) {
         this.maxConcurrency = maxConcurrency;
@@ -74,25 +75,13 @@ class DLMFrozenTransitionExecutor implements Closeable {
             return thread;
         }, new ThreadContext(settings), EsExecutors.TaskTrackingConfig.DEFAULT);
         this.clusterService = clusterService;
+        this.frozenTransitionSettings = frozenTransitionSettings;
         this.errorStore = errorStore;
-        this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.unmarkIndexForDlmFrozenConversionQueue = clusterService.createTaskQueue(
             "dlm-unmark-index-for-frozen",
             Priority.LOW,
             new UnmarkIndexForDLMFrozenExecutor()
         );
-    }
-
-    public void init() {
-        this.clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
-                this::updateErrorInterval
-            );
-    }
-
-    private void updateErrorInterval(int newInterval) {
-        this.errorRetryInterval = newInterval;
     }
 
     public boolean transitionSubmitted(String indexName) {
@@ -184,7 +173,7 @@ class DLMFrozenTransitionExecutor implements Closeable {
                                     indexName,
                                     exception,
                                     Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
-                                    errorRetryInterval
+                                    frozenTransitionSettings.getErrorRetryInterval()
                                 );
                             }
                         )
@@ -192,13 +181,21 @@ class DLMFrozenTransitionExecutor implements Closeable {
                     null
                 );
             } catch (Exception ex) {
-                errorStore.recordAndLogError(
-                    task.getProjectId(),
-                    indexName,
-                    ex,
-                    Strings.format("Error executing transition for index [%s]", indexName),
-                    errorRetryInterval
-                );
+                if (DLMConvertToFrozen.isTransientMasterFailoverException(ex)) {
+                    logger.debug(
+                        "Transient master-failover exception during frozen transition for index [{}], will retry on next tick",
+                        indexName,
+                        ex
+                    );
+                } else {
+                    errorStore.recordAndLogError(
+                        task.getProjectId(),
+                        indexName,
+                        ex,
+                        Strings.format("Error executing transition for index [%s]", indexName),
+                        frozenTransitionSettings.getErrorRetryInterval()
+                    );
+                }
             } finally {
                 submittedTransitions.remove(indexName);
             }

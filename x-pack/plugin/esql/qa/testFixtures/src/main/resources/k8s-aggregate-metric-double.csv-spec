@@ -204,7 +204,7 @@ filtered_min_lot:double | overall_min_lot:double | cluster:keyword
 ImplicitCastingWithBinaryOperator
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_binary_operators
-TS k8s* | WHERE network.eth0.tx > 512.0 and pod == "three" | KEEP @timestamp, cluster, pod | SORT @timestamp, cluster, pod | LIMIT 10
+TS k8s, k8s_unmapped, k8s-downsampled | WHERE network.eth0.tx > 512.0 and pod == "three" | KEEP @timestamp, cluster, pod | SORT @timestamp, cluster, pod | LIMIT 10
 ;
 
 @timestamp:datetime      | cluster:keyword | pod:keyword
@@ -223,7 +223,7 @@ TS k8s* | WHERE network.eth0.tx > 512.0 and pod == "three" | KEEP @timestamp, cl
 ImplicitCastingWithBinaryOperatorCountFrom
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_binary_operators
-FROM k8s* | STATS count = count(network.eth0.tx) WHERE network.eth0.tx > 512.0 BY cluster, pod | sort cluster, pod
+FROM k8s, k8s_unmapped, k8s-downsampled | STATS count = count(network.eth0.tx) WHERE network.eth0.tx > 512.0 BY cluster, pod | sort cluster, pod
 ;
 
 count:long | cluster:keyword | pod:keyword
@@ -241,7 +241,7 @@ count:long | cluster:keyword | pod:keyword
 ImplicitCastingWithBinaryOperatorAndThenStats
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_binary_operators
-TS k8s*
+TS k8s, k8s_unmapped, k8s-downsampled
 | WHERE network.eth0.tx > 512.0
 | STATS min = min(min_over_time(network.eth0.tx)), avg = round(avg(avg_over_time(network.eth0.tx)), 3) by cluster, pod
 | sort cluster, pod

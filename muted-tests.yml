@@ -449,15 +449,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testDynamicSettingUpdateAffectsSubsequentDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/148745
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testBulkPartialFailureOnArrayObjectsLimit
-  issue: https://github.com/elastic/elasticsearch/issues/148746
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testNestedArrayExceeded
-  issue: https://github.com/elastic/elasticsearch/issues/148747
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
@@ -473,9 +464,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
-- class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
-  method: testFieldValueRangeForBatchedCompoundCommit
-  issue: https://github.com/elastic/elasticsearch/issues/148961
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/147516
@@ -488,9 +476,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
   issue: https://github.com/elastic/elasticsearch/issues/149028
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
-  method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
-  issue: https://github.com/elastic/elasticsearch/issues/149032
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testConcurrentRolloverDuringTransition
   issue: https://github.com/elastic/elasticsearch/issues/149039
@@ -530,9 +515,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
   issue: https://github.com/elastic/elasticsearch/issues/149195
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/149215
 - class: org.elasticsearch.reindex.management.ReindexRelocationIT
   method: testNonSlicedRemoteReindexRelocation
   issue: https://github.com/elastic/elasticsearch/issues/149222
@@ -548,15 +530,6 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149256
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testPitRelocationDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/149271
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149272
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testReshardedLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149273
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testIpLocationServiceLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/149284
@@ -572,3 +545,24 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testBasic
   issue: https://github.com/elastic/elasticsearch/issues/149338
+- class: org.elasticsearch.xpack.stateless.CorruptionIT
+  method: testConcurrentOperations
+  issue: https://github.com/elastic/elasticsearch/issues/149342
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogLocalFailureOnlyStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/149343
+- class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
+  method: testConsumerScopedDownloads
+  issue: https://github.com/elastic/elasticsearch/issues/149264
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/149350
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149352
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.create/40_dynamic_strings_auto_keyword/Dynamic string with auto text later disabled omits text subfield}
+  issue: https://github.com/elastic/elasticsearch/issues/149372
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testDynamicStringMappingWithoutAutoTextSubfield
+  issue: https://github.com/elastic/elasticsearch/issues/149374

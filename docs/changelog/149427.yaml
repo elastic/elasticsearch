@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 149427
+summary: Allow rerank in infer() method for Elastic and Elasticsearch services
+type: bug

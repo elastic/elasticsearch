@@ -82,7 +82,10 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
 
         final var stats = new RecoveryStats();
         stats.incCurrentAsSource();
+        stats.incCurrentAsSource();
         stats.incCurrentAsTarget();
+        stats.incCurrentAsSourceQueued();
+        stats.incCurrentAsSourceQueued();
         stats.incCurrentAsSourceQueued();
         stats.addThrottleTime(randomNonNegativeLong());
 

@@ -166,9 +166,9 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     public String toString() {
         return "recoveryStats, currentAsSource ["
             + currentAsSource()
-            + "],currentAsSourceQueued ["
+            + "], currentAsSourceQueued ["
             + currentAsSourceQueued()
-            + "],currentAsTarget ["
+            + "], currentAsTarget ["
             + currentAsTarget()
             + "], throttle ["
             + throttleTime()

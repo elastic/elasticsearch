@@ -316,6 +316,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
             // The recovery may still be pending. Stack the new listener onto the existing one so both
             // channels are notified when the recovery eventually starts and completes or is cancelled.
+            // Note that the relevant entry is moved to the back of the queue.
             final Iterator<PendingRecovery> iterator = pendingRecoveries.iterator();
             while (iterator.hasNext()) {
                 final PendingRecovery pending = iterator.next();

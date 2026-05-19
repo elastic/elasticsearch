@@ -681,7 +681,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         searchShardTarget.getNodeId(),
                         originalShard.getSearchContextId()
                     );
-
+                    assert result.getContextId() == null || result.getContextId().equals(originalShard.getSearchContextId())
+                        : "Result context id should be same as original context id";
                     logger.debug(
                         "PIT id - changing node for shard id [{}] from [{}] to [{}]",
                         searchShardTarget.getShardId(),

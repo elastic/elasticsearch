@@ -1175,7 +1175,7 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> INDEX_MAPPING_INCLUDE_SEMANTIC_FIELDS_IN_SOURCE_SETTING = Setting.boolSetting(
         "index.mapping.include_source_semanatic_field",
-        false,
+        true,
         Property.IndexScope,
         Property.Final,
         Property.ServerlessPublic

@@ -363,7 +363,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
             // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
-            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // a "warning" header, as well (see EqualsBytesRefEvaluator, for example, where lhs and rhs are both dealt with equally when
             // it comes to multi-value handling).
             if (lit.value() instanceof Collection<?>) {
                 return Translatable.NO;

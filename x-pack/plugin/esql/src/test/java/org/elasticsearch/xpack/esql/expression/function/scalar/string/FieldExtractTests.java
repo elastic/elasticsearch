@@ -22,23 +22,15 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertTrue;
 
-/**
- * Tests for {@link FieldExtract}.
- * <p>
- *     The path argument is a literal flattened sub-field name. The function never navigates into
- *     nested JSON objects: input {@code {"a":{"b":"x"}}} with path {@code a.b} does <em>not</em>
- *     match (no top-level key named {@code "a.b"}). Real flattened storage emits the flat shape
- *     {@code {"a.b":"x"}} via doc values, so this matches what the function sees in production.
- * </p>
- */
 public class FieldExtractTests extends AbstractScalarFunctionTestCase {
     public FieldExtractTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -90,7 +82,107 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
                 .withWarning("Line 1:1: java.lang.IllegalArgumentException: path [missing] does not exist");
         }));
 
+        addRandomizedMissingPathSuppliers(suppliers);
+
+        addRandomizedMatchingPathSuppliers(suppliers);
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static void addRandomizedMissingPathSuppliers(List<TestCaseSupplier> suppliers) {
+        for (TestCaseSupplier.TypedDataSupplier shape : TestCaseSupplier.flattenedCases()) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    "random " + shape.name() + " with non-existent path",
+                    types(DataType.FLATTENED, DataType.KEYWORD),
+                    () -> {
+                        assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
+                        BytesRef json = (BytesRef) shape.get().getValue();
+                        // FlattenedCases generates random keys of length 1-20, so any longer key is
+                        // guaranteed not to collide. Pinning the lower bound at 25 keeps the
+                        // guarantee even if the upstream max grows by a few characters.
+                        String missingKey = randomAlphaOfLengthBetween(25, 35);
+                        return new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(json, DataType.FLATTENED, "field"),
+                                new TestCaseSupplier.TypedData(new BytesRef(missingKey), DataType.KEYWORD, "path")
+                            ),
+                            "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
+                            DataType.KEYWORD,
+                            nullValue()
+                        ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                            .withWarning("Line 1:1: java.lang.IllegalArgumentException: path [" + missingKey + "] does not exist");
+                    }
+                )
+            );
+        }
+    }
+
+    private static void addRandomizedMatchingPathSuppliers(List<TestCaseSupplier> suppliers) {
+        suppliers.add(matchingPathSupplier("random single-key flattened, matching path", false, FieldExtractTests::randomSingleKeyFlat));
+        suppliers.add(
+            matchingPathSupplier("random single-key flattened, matching literal path", true, FieldExtractTests::randomSingleKeyFlat)
+        );
+        suppliers.add(matchingPathSupplier("random multi-key flattened, matching path", false, FieldExtractTests::randomMultiKeyFlat));
+        suppliers.add(
+            matchingPathSupplier("random multi-key flattened, matching literal path", true, FieldExtractTests::randomMultiKeyFlat)
+        );
+    }
+
+    private static TestCaseSupplier matchingPathSupplier(String name, boolean asLiteral, Supplier<FlatJsonWithKey> jsonGen) {
+        return new TestCaseSupplier(name, types(DataType.FLATTENED, DataType.KEYWORD), () -> {
+            assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
+            FlatJsonWithKey flat = jsonGen.get();
+            TestCaseSupplier.TypedData pathData = new TestCaseSupplier.TypedData(new BytesRef(flat.key()), DataType.KEYWORD, "path");
+            if (asLiteral) {
+                pathData = pathData.forceLiteral();
+            }
+            // The constant-path evaluator bakes the literal key into its toString, so the
+            // expected string is derived from the same random key used to build the inputs.
+            String expectedToString = asLiteral
+                ? "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=" + flat.key() + "]"
+                : "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]";
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(flat.json(), DataType.FLATTENED, "field"), pathData),
+                expectedToString,
+                DataType.KEYWORD,
+                equalTo(new BytesRef(flat.value()))
+            );
+        });
+    }
+
+    private record FlatJsonWithKey(BytesRef json, String key, String value) {}
+
+    private static FlatJsonWithKey randomSingleKeyFlat() {
+        String key = randomAlphaOfLengthBetween(1, 20);
+        String value = randomAlphaOfLengthBetween(1, 20);
+        return new FlatJsonWithKey(jsonOf(Map.of(key, value)), key, value);
+    }
+
+    private static FlatJsonWithKey randomMultiKeyFlat() {
+        int n = randomIntBetween(2, 10);
+        Map<String, String> kv = new LinkedHashMap<>();
+        while (kv.size() < n) {
+            kv.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        }
+        String targetKey = randomFrom(new ArrayList<>(kv.keySet()));
+        return new FlatJsonWithKey(jsonOf(kv), targetKey, kv.get(targetKey));
+    }
+
+    // randomAlphaOfLengthBetween yields ASCII letters only, so concatenation is safe (no JSON
+    // escaping required). Insertion order is preserved by the LinkedHashMap input.
+    private static BytesRef jsonOf(Map<String, String> kv) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<String, String> e : kv.entrySet()) {
+            if (first == false) {
+                sb.append(',');
+            }
+            sb.append('"').append(e.getKey()).append("\":\"").append(e.getValue()).append('"');
+            first = false;
+        }
+        sb.append('}');
+        return new BytesRef(sb.toString());
     }
 
     @Override

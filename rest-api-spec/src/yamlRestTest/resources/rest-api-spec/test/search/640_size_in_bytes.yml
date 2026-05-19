@@ -1,0 +1,74 @@
+setup:
+  - do:
+      indices.create:
+        index: test_size_in_bytes
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index": { "_index": "test_size_in_bytes", "_id": "1" } }'
+          - '{ "data": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }'
+          - '{ "index": { "_index": "test_size_in_bytes", "_id": "2" } }'
+          - '{ "data": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }'
+          - '{ "index": { "_index": "test_size_in_bytes", "_id": "3" } }'
+          - '{ "data": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }'
+          - '{ "index": { "_index": "test_size_in_bytes", "_id": "4" } }'
+          - '{ "data": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }'
+          - '{ "index": { "_index": "test_size_in_bytes", "_id": "5" } }'
+          - '{ "data": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }'
+
+---
+"size_in_bytes body param causes early termination":
+
+  - requires:
+      cluster_features: ["gte_v9.5.0"]
+      reason: size_in_bytes was added in 9.5
+
+  - do:
+      search:
+        index: test_size_in_bytes
+        rest_total_hits_as_int: true
+        body:
+          size: 10
+          size_in_bytes: "1b"
+
+  - is_true: terminated_early
+
+---
+"size_in_bytes URL param causes early termination":
+
+  - requires:
+      cluster_features: ["gte_v9.5.0"]
+      reason: size_in_bytes was added in 9.5
+
+  - do:
+      search:
+        index: test_size_in_bytes
+        rest_total_hits_as_int: true
+        size: 10
+        size_in_bytes: "1b"
+
+  - is_true: terminated_early
+
+---
+"size_in_bytes large value returns all results":
+
+  - requires:
+      cluster_features: ["gte_v9.5.0"]
+      reason: size_in_bytes was added in 9.5
+
+  - do:
+      search:
+        index: test_size_in_bytes
+        rest_total_hits_as_int: true
+        body:
+          size: 10
+          size_in_bytes: "1gb"
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }

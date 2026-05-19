@@ -216,6 +216,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public long sizeInBytes() {
+        return in.sizeInBytes();
+    }
+
+    @Override
+    public void sizeInBytes(long sizeInBytes) {
+        in.sizeInBytes(sizeInBytes);
+    }
+
+    @Override
     public boolean lowLevelCancellation() {
         return in.lowLevelCancellation();
     }

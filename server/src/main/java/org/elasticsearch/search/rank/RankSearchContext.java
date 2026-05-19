@@ -129,6 +129,16 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
+    public long sizeInBytes() {
+        return parent.sizeInBytes();
+    }
+
+    @Override
+    public void sizeInBytes(long sizeInBytes) {
+        parent.sizeInBytes(sizeInBytes);
+    }
+
+    @Override
     public Float minimumScore() {
         return parent.minimumScore();
     }

@@ -14,6 +14,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -154,6 +156,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.terminateAfter(randomIntBetween(1, 100000));
+        }
+        if (randomBoolean()) {
+            builder.sizeInBytes(ByteSizeValue.of(randomIntBetween(1, 1024), randomFrom(ByteSizeUnit.values())));
         }
         if (randomBoolean()) {
             if (randomBoolean()) {

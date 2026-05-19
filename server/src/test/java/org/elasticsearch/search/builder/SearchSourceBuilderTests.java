@@ -17,6 +17,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -56,6 +58,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1152,5 +1155,37 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
         return Rewriteable.rewrite(searchSourceBuilder, new QueryRewriteContext(parserConfig(), null, Long.valueOf(1)::longValue));
+    }
+
+    public void testSizeInBytesXContentRoundTrip() throws IOException {
+        ByteSizeValue value = ByteSizeValue.of(randomIntBetween(1, 500), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB));
+        SearchSourceBuilder original = new SearchSourceBuilder().sizeInBytes(value);
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+        original.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+        String json = Strings.toString(xContentBuilder);
+        assertThat(json, containsString("\"size_in_bytes\":\"" + value.getStringRep() + "\""));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            SearchSourceBuilder parsed = new SearchSourceBuilder().parseXContent(parser, true, nf -> false);
+            assertEquals(value, parsed.sizeInBytes());
+        }
+    }
+
+    public void testSizeInBytesWireRoundTripCurrentVersion() throws IOException {
+        ByteSizeValue value = ByteSizeValue.of(randomIntBetween(1, 1024), ByteSizeUnit.MB);
+        SearchSourceBuilder original = new SearchSourceBuilder().sizeInBytes(value);
+        SearchSourceBuilder copy = copyBuilder(original, TransportVersion.current());
+        assertEquals(value, copy.sizeInBytes());
+    }
+
+    public void testSizeInBytesNotSerializedOnOlderVersion() throws IOException {
+        ByteSizeValue value = ByteSizeValue.of(10, ByteSizeUnit.MB);
+        SearchSourceBuilder original = new SearchSourceBuilder().sizeInBytes(value);
+        TransportVersion versionBefore = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("search_source_size_in_bytes"));
+        SearchSourceBuilder copy = copyBuilder(original, versionBefore);
+        assertNull(copy.sizeInBytes());
+    }
+
+    public void testSizeInBytesNullByDefault() {
+        assertNull(new SearchSourceBuilder().sizeInBytes());
     }
 }

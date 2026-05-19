@@ -154,6 +154,9 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
   method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
   issue: https://github.com/elastic/elasticsearch/issues/146102
+- class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
+  method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
+  issue: https://github.com/elastic/elasticsearch/issues/146106
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativePromQLIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/146923
@@ -208,9 +211,6 @@ tests:
 - class: org.elasticsearch.index.mapper.IpOffsetDocValuesLoaderTests
   method: testOffsetArrayRandomHighCardinality
   issue: https://github.com/elastic/elasticsearch/issues/147086
-- class: org.elasticsearch.xpack.ml.integration.MlMemoryIT
-  method: testMemoryStats
-  issue: https://github.com/elastic/elasticsearch/issues/147122
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
   issue: https://github.com/elastic/elasticsearch/issues/147164
@@ -449,6 +449,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testDynamicSettingUpdateAffectsSubsequentDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/148745
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testBulkPartialFailureOnArrayObjectsLimit
+  issue: https://github.com/elastic/elasticsearch/issues/148746
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testNestedArrayExceeded
+  issue: https://github.com/elastic/elasticsearch/issues/148747
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
@@ -479,6 +488,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
   issue: https://github.com/elastic/elasticsearch/issues/149028
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
+  method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
+  issue: https://github.com/elastic/elasticsearch/issues/149032
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testConcurrentRolloverDuringTransition
   issue: https://github.com/elastic/elasticsearch/issues/149039
@@ -518,12 +530,21 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
   issue: https://github.com/elastic/elasticsearch/issues/149195
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/149215
 - class: org.elasticsearch.reindex.management.ReindexRelocationIT
   method: testNonSlicedRemoteReindexRelocation
   issue: https://github.com/elastic/elasticsearch/issues/149222
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testRightClosedBucketIsNotSubstituted
   issue: https://github.com/elastic/elasticsearch/issues/149133
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testSemanticTextItemFailures {useLegacyFormat=false useSyntheticSource=false}
+  issue: https://github.com/elastic/elasticsearch/issues/149250
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testSemanticTextItemFailures {useLegacyFormat=false useSyntheticSource=true}
+  issue: https://github.com/elastic/elasticsearch/issues/149251
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testSnapshotRecovery
   issue: https://github.com/elastic/elasticsearch/issues/149252
@@ -533,6 +554,15 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149256
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testPitRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/149271
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149272
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
+  method: testReshardedLongLivedPitRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149273
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testIpLocationServiceLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/149284
@@ -563,3 +593,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149352
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testDynamicStringMappingWithoutAutoTextSubfield
+  issue: https://github.com/elastic/elasticsearch/issues/149374
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjsonZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149432
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjson
+  issue: https://github.com/elastic/elasticsearch/issues/149434
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupCsvZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149437

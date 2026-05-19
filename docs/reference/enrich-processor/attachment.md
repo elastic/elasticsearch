@@ -23,7 +23,7 @@ $$$attachment-options$$$
 | `target_field` | no | attachment | The field that will hold the attachment information |
 | `indexed_chars` | no | 100000 | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit. |
 | `indexed_chars_field` | no | `null` | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`. |
-| `max_field_bytes` | no | `-1` | Maximum allowed size of the attachment `field` value in bytes: length of a string (if base64 in JSON, checked before base64 decoding) or `byte[]` length for binary (for example, CBOR). If set to `-1`, there is no per-processor limit. The node setting `ingest.attachment.max_field_size` also applies; refer to [Limit raw attachment field size](#attachment-raw-field-size-limits). |
+| `max_field_bytes` {applies_to}`stack: ga 9.5` | no | `-1` | Maximum allowed size of the attachment `field` value in bytes: length of a string (if base64 in JSON, checked before base64 decoding) or `byte[]` length for binary (for example, CBOR). If set to `-1`, there is no per-processor limit. The node setting `ingest.attachment.max_field_size` also applies; refer to [Limit raw attachment field size](#attachment-raw-field-size-limits). |
 | `properties` | no | all properties |  Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `remove_binary` | encouraged | `false` | If `true`, the binary `field` will be removed from the document. This option is not required, but setting it explicitly is encouraged, and omitting it will result in a warning. |
@@ -87,7 +87,7 @@ The document’s `attachment` object contains extracted properties for the file:
 
 ## Limit raw attachment field size [attachment-raw-field-size-limits]
 
-In some cases, attachment sizes can result in significant memory overhead, as can any further processing (for example, by Tika). To restrict the raw size of the attachment source field, use the node setting `ingest.attachment.max_field_size` or the processor parameter `max_field_bytes`. Limits are enforced early in the process (for example, before base64 decoding) to avoid allocating or decoding oversized payloads. If a document exceeds the limit, use an `on_failure` handler to address the resulting ingest failure.
+In some cases, attachment sizes can result in significant memory overhead, as can any further processing (for example, by Apache Tika). To restrict the raw size of the attachment source field, use the node setting `ingest.attachment.max_field_size` or the processor parameter `max_field_bytes`. Limits are enforced early in the process (for example, before base64 decoding) to avoid allocating or decoding oversized payloads. If a document exceeds the limit, use an `on_failure` handler to address the resulting ingest failure.
 
 The node setting defaults to `-1`, which means no node-wide limit. You can set either an absolute size using byte-size syntax (for example, `10mb`, `1gb`), or a relative value as a percentage or ratio of the JVM heap for the node (for example, `5%` or `0.05`).
 

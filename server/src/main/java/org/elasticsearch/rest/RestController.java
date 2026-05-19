@@ -728,7 +728,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (colon < 0) {
             return new String[] { hostToken.isBlank() ? null : hostToken, null };
         }
-        return new String[] { hostToken.substring(0, colon), hostToken.substring(colon + 1) };
+        final String address = hostToken.substring(0, colon);
+        return new String[] { address.isBlank() ? null : address, hostToken.substring(colon + 1) };
     }
 
     /** Parses a port string. Returns null if {@code portStr} is null, not a valid integer, or outside [1, 65535]. */

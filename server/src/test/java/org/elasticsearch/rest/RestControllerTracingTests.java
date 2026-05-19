@@ -75,6 +75,12 @@ public class RestControllerTracingTests extends ESTestCase {
         assertNull(result[1]);
     }
 
+    public void testSplitHostPortMalformedMissingAddress() {
+        final var result = RestController.splitHostPort(":8443");
+        assertNull(result[0]);
+        assertEquals("8443", result[1]);
+    }
+
     public void testExtractForwardedParamSimple() {
         assertEquals("https", RestController.extractForwardedParam("proto=https", "proto"));
     }

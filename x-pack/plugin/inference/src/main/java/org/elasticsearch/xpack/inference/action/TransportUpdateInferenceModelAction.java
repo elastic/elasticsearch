@@ -216,7 +216,11 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     }
 
     /**
-     * Verifies update parsers consumed all keys from the request maps, mirroring {@code SenderService#parseRequestConfig}.
+     * Verifies update parsers consumed all keys from the request maps.
+     * @param inferenceService the inference service
+     * @param serviceName the name of the service
+     * @param serviceSettingsMap the map containing service settings
+     * @param taskSettingsMap the map containing task settings
      */
     static void validateConsumedUpdateSettings(
         InferenceService inferenceService,

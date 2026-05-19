@@ -259,7 +259,6 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         if (requestsPerSecond <= 0) {
             throw new IllegalArgumentException("requests per second must be more than 0 but was [" + requestsPerSecond + "]");
         }
-        logger.info("---> Setting request per second {}", requestsPerSecond);
         this.requestsPerSecond = requestsPerSecond;
     }
 
@@ -268,18 +267,17 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     public void rethrottle(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
-            logger.info("---> [{}]: rethrottling to [{}] requests per second", task.getId(), newRequestsPerSecond);
+            logger.debug("[{}]: rethrottling to [{}] requests per second", task.getId(), newRequestsPerSecond);
             setRequestsPerSecond(newRequestsPerSecond);
 
             DelayedPrepareBulkRequest delayedPrepareBulkRequest = this.delayedPrepareBulkRequestReference.get();
             if (delayedPrepareBulkRequest == null) {
                 // No request has been queued so nothing to reschedule.
-                logger.info("---> [{}]: skipping rescheduling because there is no scheduled task", task.getId());
+                logger.debug("[{}]: skipping rescheduling because there is no scheduled task", task.getId());
                 return;
             }
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
-            logger.info("---> [{}]: rethrottle completed successfully to [{}] requests per second", task.getId(), newRequestsPerSecond);
         }
     }
 
@@ -290,15 +288,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /// {@link #rethrottle} is safe.
     public void rethrottleWithRelocationGuard(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
-            logger.info(
-                "[{}]: rethrottleWithRelocationGuard called: sliceId={}, capturedRpsForRelocation={}, newRPS={}",
-                task.getId(),
-                sliceId,
-                capturedRpsForRelocation,
-                newRequestsPerSecond
-            );
             if (sliceId == null && capturedRpsForRelocation) {
-                logger.warn("[{}]: Rejecting rethrottle - task is being relocated", task.getId());
                 throw new TaskRelocatingException();
             }
             rethrottle(newRequestsPerSecond);
@@ -310,7 +300,6 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     public float captureRequestsPerSecondForRelocation() {
         assert sliceId == null : "should only be called on non-sliced workers";
         synchronized (delayedPrepareBulkRequestReference) {
-            logger.info("---> Captured request per second for relocation {}", requestsPerSecond);
             capturedRpsForRelocation = true;
             return requestsPerSecond;
         }

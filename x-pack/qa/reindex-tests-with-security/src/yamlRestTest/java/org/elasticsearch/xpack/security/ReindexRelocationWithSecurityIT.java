@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -40,8 +38,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
-
-    private static final Logger logger = LogManager.getLogger(ReindexRelocationWithSecurityIT.class);
 
     private static final String ADMIN_USER = "test_admin";
     private static final String REINDEX_USER = "test_reindex_user";
@@ -269,7 +265,6 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
     }
 
     private void unthrottleViaSurvivingNode(String dataNodeAddress, String taskId) throws Exception {
-        logger.info("---> Unthrottling reindex task [{}]", taskId);
         // Use the data node address captured before coordinator shutdown so the fixture is not asked to resolve a dead node.
         try (
             RestClient dataClient = buildClient(
@@ -283,7 +278,6 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                 rethrottle.addParameter("requests_per_second", String.valueOf(Float.POSITIVE_INFINITY));
                 try {
                     dataClient.performRequest(rethrottle);
-                    logger.info("--->  Successfully unthrottled task [{}]", taskId);
                 } catch (Exception e) {
                     // Translate transient server errors to AssertionError so assertBusy will retry
                     throw new AssertionError("rethrottle failed", e);
@@ -293,84 +287,41 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
     }
 
     private void waitForCoordinatorRemovedFromCluster(String dataNodeAddress, String coordNodeId) throws Exception {
-        logger.info("--->  Waiting for coordinator node [{}] to be removed from cluster state", coordNodeId);
         try (RestClient dataClient = buildClient(restAdminSettings(), new HttpHost[] { HttpHost.create(dataNodeAddress) })) {
             assertBusy(() -> {
                 final Request clusterStateRequest = new Request("GET", "/_cluster/state/nodes");
                 final ObjectPath clusterState = ObjectPath.createFromResponse(dataClient.performRequest(clusterStateRequest));
                 final Map<String, Object> nodes = clusterState.evaluate("nodes");
-                logger.info("---> Current nodes in cluster state: {}", nodes.keySet());
                 assertThat("coordinator node should be removed from cluster state", nodes.keySet(), not(hasItem(coordNodeId)));
             });
         }
-        logger.info("--->  Coordinator node [{}] successfully removed from cluster state", coordNodeId);
     }
 
     private void assertReindexCompletesOnDataNode(String dataNodeAddress, String originalTaskId, int numDocs) throws Exception {
-        logger.info("Waiting for reindex task [{}] to complete on data node", originalTaskId);
         try (
             RestClient dataClient = buildClient(restClientSettingsForUser(GET_USER), new HttpHost[] { HttpHost.create(dataNodeAddress) })
         ) {
             assertBusy(() -> {
-                // First, poll the status WITHOUT wait_for_completion to see current state
-                final Request statusPoll = new Request("GET", "/_reindex/" + originalTaskId);
-                final ObjectPath statusBody = ObjectPath.createFromResponse(dataClient.performRequest(statusPoll));
-                final Boolean statusCompleted = statusBody.evaluate("completed");
-                final Object statusError = statusBody.evaluate("error");
-                final Object statusObj = statusBody.evaluate("status");
-
-                // Extract progress information from status
-                Integer statusCreated = null;
-                Integer statusUpdated = null;
-                Integer statusTotal = null;
-                Float statusRequestsPerSecond = null;
-                if (statusObj instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> status = (Map<String, Object>) statusObj;
-                    statusCreated = status.get("created") instanceof Number n ? n.intValue() : null;
-                    statusUpdated = status.get("updated") instanceof Number n ? n.intValue() : null;
-                    statusTotal = status.get("total") instanceof Number n ? n.intValue() : null;
-                    statusRequestsPerSecond = status.get("requests_per_second") instanceof Number n ? n.floatValue() : null;
-                }
-
-                logger.info(
-                    "---> Task [{}] status BEFORE wait: completed={}, error={}, status.created={}, status.updated={}, status.total={}, status.requests_per_second={}",
-                    originalTaskId,
-                    statusCompleted,
-                    statusError,
-                    statusCreated,
-                    statusUpdated,
-                    statusTotal,
-                    statusRequestsPerSecond
-                );
-
-                // Now do the actual wait_for_completion call
                 final Request get = new Request("GET", "/_reindex/" + originalTaskId);
                 get.addParameter("wait_for_completion", "true");
                 get.addParameter("timeout", "10s");
 
                 try {
                     final ObjectPath body = ObjectPath.createFromResponse(dataClient.performRequest(get));
-                    final Boolean completed = body.evaluate("completed");
-                    final Object error = body.evaluate("error");
 
-                    logger.info("Task [{}] status AFTER wait: completed={}, error={}", originalTaskId, completed, error);
-
-                    assertThat("original reindex task should complete (after relocation)", completed, equalTo(true));
+                    assertThat("original reindex task should complete (after relocation)", body.evaluate("completed"), equalTo(true));
                     // No security_exception should be surfaced anywhere in the chain.
-                    assertThat("relocation hand-off should not have produced a exception", error, nullValue());
+                    assertThat("relocation hand-off should not have produced a exception", body.evaluate("error"), nullValue());
                     final Object created = body.evaluate("response.created");
                     assertThat("relocated reindex should have created destination docs", ((Number) created).intValue(), greaterThan(0));
                     final Object total = body.evaluate("response.total");
                     assertThat("relocated reindex should report the full source size", ((Number) total).intValue(), equalTo(numDocs));
                 } catch (ResponseException e) {
-                    logger.error("Task [{}] wait_for_completion failed: {}", originalTaskId, e.getMessage());
                     // Translate ResponseException (e.g. timeouts) to AssertionError so assertBusy will retry
                     throw new AssertionError("get reindex task failed: " + e.getMessage(), e);
                 }
             }, 90, TimeUnit.SECONDS);
         }
-        logger.info("---> Reindex task [{}] completed successfully", originalTaskId);
     }
 
     @Override

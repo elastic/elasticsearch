@@ -224,7 +224,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
     }
 
-    // TODO: add actual OTel metrics for how many recoveries are queued vs ongoing. RecoveryStats are only exposed via REST calls.
+    // TODO: add actual OTel metrics for how many recoveries are queued vs active. RecoveryStats are only exposed via REST calls.
     final class OngoingRecoveries {
 
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
@@ -262,7 +262,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 return addNewRecovery(request, task, shard);
             }
             shard.recoveryStats().incCurrentAsSourceQueued();
-            // TODO: should we add a limit to the queuing as well? After which we just straight up reject the request?
+            // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
             pendingRecoveries.add(new PendingRecovery(request, task, shard, listener));
             return null;
         }
@@ -325,7 +325,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     final var combined = new SubscribableListener<RecoveryResponse>();
                     combined.addListener(pending.listener());
                     combined.addListener(listener);
-                    // TODO: this isn't really fair, but does it matter?
                     pendingRecoveries.addLast(new PendingRecovery(pending.request(), pending.task(), pending.shard(), combined));
                     return;
                 }
@@ -509,9 +508,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         private final class ShardRecoveryContext {
             final Map<RecoverySourceHandler, RemoteRecoveryTargetHandler> recoveryHandlers = new HashMap<>();
 
-            /**
-             * Adds recovery source handler.
-             */
+            /// Creates and registers a new recovery source handler for the given request.
             Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> addNewRecovery(
                 StartRecoveryRequest request,
                 Task task,
@@ -527,9 +524,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 return handlers;
             }
 
-            /**
-             * Adds listener to recovery source handler.
-             */
+            /// Attaches `listener` to the active handler matching `request`. Returns `false` if no handler matches.
             boolean reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
                 assert Thread.holdsLock(OngoingRecoveries.this);
                 RecoverySourceHandler handler = null;

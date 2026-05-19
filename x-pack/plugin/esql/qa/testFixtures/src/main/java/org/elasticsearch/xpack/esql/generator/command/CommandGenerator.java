@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 
@@ -39,7 +40,8 @@ public interface CommandGenerator {
     record QuerySchema(
         List<String> baseIndices,
         List<LookupIdx> lookupIndices,
-        Collection<CsvTestsDataLoader.EnrichConfig> enrichPolicies
+        Collection<CsvTestsDataLoader.EnrichConfig> enrichPolicies,
+        Set<String> viewNames
     ) {}
 
     record ValidationResult(boolean success, String errorMessage) {}

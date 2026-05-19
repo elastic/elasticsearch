@@ -35,11 +35,12 @@ public class ForkGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        // FORK can only be allowed once - so we skip adding another FORK if we already have one
-        // otherwise, most generated queries would only result in a validation error.
-        // FORK also rejects any UnionAll/Subquery descendant ("FORK after subquery is not supported"),
-        // so skip if any earlier command flagged that it produced a subquery.
-        // ESQL also forbids FORK from appearing inside a subquery body ("FORK inside subquery is not supported").
+        // FORK is only allowed once; skip if one was already generated.
+        // ESQL also forbids FORK inside a subquery body ("FORK inside subquery is not supported").
+        // FORK also fails with "FORK after subquery is not supported" whenever a UnionAll node appears
+        // as a descendant in the plan. This covers both an embedded subquery in FROM and a wildcard
+        // that matches both a view and regular indices (creating a ViewUnionAll). Both cases are
+        // captured by the HAS_UNION_ALL flag set on the FROM command.
         if (context.isWithinASubquery()) {
             return EMPTY_DESCRIPTION;
         }
@@ -48,7 +49,7 @@ public class ForkGenerator implements CommandGenerator {
             if (command.commandName().equals(FORK)) {
                 return EMPTY_DESCRIPTION;
             }
-            if (Boolean.TRUE.equals(command.context().get(FromGenerator.HAS_SUBQUERY))) {
+            if (Boolean.TRUE.equals(command.context().get(FromGenerator.HAS_UNION_ALL))) {
                 return EMPTY_DESCRIPTION;
             }
 

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -99,7 +100,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     @Override
     public void test() throws IOException {
         List<String> names = indexNames();
-        CommandGenerator.QuerySchema schema = new CommandGenerator.QuerySchema(names, List.of(), List.of());
+        CommandGenerator.QuerySchema schema = new CommandGenerator.QuerySchema(names, List.of(), List.of(), Set.of());
 
         for (int i = 0; i < RM_ITERATIONS; i++) {
             var exec = new EsqlQueryGenerator.Executor() {

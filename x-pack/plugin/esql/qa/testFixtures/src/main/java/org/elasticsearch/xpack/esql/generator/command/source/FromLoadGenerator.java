@@ -41,10 +41,9 @@ public class FromLoadGenerator extends FromGenerator {
         if (randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY) {
             result.append(randomQueryApproximationSettings());
         }
-        boolean hasSubquery = appendFromCommand(result, schema, executor, context);
         Map<String, Object> commandContext = new HashMap<>();
         commandContext.put(UNMAPPED_FIELDS_ENABLED, Boolean.TRUE);
-        commandContext.put(HAS_SUBQUERY, hasSubquery);
+        appendFromCommand(result, schema, executor, context, commandContext);
         return new CommandDescription("from", this, result.toString(), commandContext);
     }
 }

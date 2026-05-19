@@ -24,7 +24,6 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
-import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.HAS_SUBQUERY;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
 
 /**
@@ -57,12 +56,6 @@ public final class FullTextFunctionGenerator {
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {
             if (FULL_TEXT_FORBIDDEN_AFTER_COMMANDS.contains(cmd.commandName())) {
-                return false;
-            }
-            // ESQL supports full-text functions with subqueries, but we exclude them here for now as
-            // cross-branch type conflicts can produce columns that look index-mapped but aren't usable as
-            // FieldAttributes, and the previous-commands walk below doesn't see into subqueries yet.
-            if (Boolean.TRUE.equals(cmd.context().get(HAS_SUBQUERY))) {
                 return false;
             }
         }

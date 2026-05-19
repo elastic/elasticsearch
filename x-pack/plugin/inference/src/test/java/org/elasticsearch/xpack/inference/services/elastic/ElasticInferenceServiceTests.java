@@ -580,7 +580,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 thrownException.getMessage(),
                 is(
                     "Inference entity [model_id] does not support task type [chat_completion] "
-                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, completion]. "
+                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank, completion]. "
                         + "The task type for the inference entity is chat_completion, "
                         + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
@@ -671,6 +671,54 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(Map.of("input", List.of(input), "model", modelId, "usage_context", inputType)));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInfer_SendsRerankRequest() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            String responseJson = """
+                {
+                    "results": [
+                        {"index": 0, "relevance_score": 0.95},
+                        {"index": 1, "relevance_score": 0.85},
+                        {"index": 2, "relevance_score": 0.75}
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = randomAlphaOfLength(8);
+            var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, modelId);
+
+            var docsStrings = List.of(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
+            var queryString = randomAlphaOfLength(8);
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, queryString, null, null, docsStrings, false, new HashMap<>(), InputType.INTERNAL_SEARCH, null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            var resultMap = result.asMap();
+            var rerankResults = (List<Map<String, Object>>) resultMap.get("rerank");
+            assertThat(rerankResults.size(), Matchers.is(3));
+            assertThat(((Map<String, Object>) rerankResults.get(0).get("ranked_doc")).get("relevance_score"), equalTo(0.95f));
+            assertThat(((Map<String, Object>) rerankResults.get(1).get("ranked_doc")).get("relevance_score"), equalTo(0.85f));
+            assertThat(((Map<String, Object>) rerankResults.get(2).get("ranked_doc")).get("relevance_score"), equalTo(0.75f));
+
+            var request = webServer.requests().getFirst();
+            assertNull(request.getUri().getQuery());
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+
+            Map<String, Object> requestMap = entityAsMap(request.getBody());
+            Map<String, Object> expectedRequestMap = new HashMap<>(
+                Map.of("query", queryString, "model", modelId, "documents", docsStrings)
+            );
+            assertThat(requestMap, is(expectedRequestMap));
         }
     }
 

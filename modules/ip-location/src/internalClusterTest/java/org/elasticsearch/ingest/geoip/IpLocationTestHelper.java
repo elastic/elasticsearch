@@ -196,7 +196,6 @@ public final class IpLocationTestHelper {
         });
     }
 
-
     /**
      * Removes the {@code configDir/ingest-geoip} directory from all nodes and waits
      * until all nodes report no config databases. Handles Windows filesystem retry.

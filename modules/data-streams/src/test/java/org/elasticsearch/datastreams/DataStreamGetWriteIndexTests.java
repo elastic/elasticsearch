@@ -48,7 +48,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
@@ -242,7 +241,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 DEFAULT_INDEX_SETTINGS
             ).build(MapperBuilderContext.root(false, false));
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
             root.add(
                 new DateFieldMapper.Builder(
                     "@timestamp",

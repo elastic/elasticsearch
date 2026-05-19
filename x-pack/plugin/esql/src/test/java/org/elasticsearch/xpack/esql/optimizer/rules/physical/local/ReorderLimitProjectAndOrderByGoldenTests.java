@@ -46,6 +46,23 @@ public class ReorderLimitProjectAndOrderByGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Project -> OrderBy swap when the Project renames the sort key. After the swap, the lifted OrderBy must
+     * reference the renamed attribute (here {@code pay}) rather than the dropped input {@code salary}.
+     * <p>
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+     */
+    public void testProjectAndOrderBySwappedRenamesSortKey() {
+        runGoldenTest("""
+            FROM employees
+            | RENAME salary AS pay, languages AS language_code
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT pay
+            | LIMIT 5 BY language_code
+            | KEEP pay
+            """, STAGES);
+    }
+
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))

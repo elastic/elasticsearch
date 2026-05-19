@@ -22,7 +22,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: n4-custom-16-32768
+          machineType: n4-standard-8
           diskType: hyperdisk-balanced
         env:
           USE_PROD_DOCKER_CREDENTIALS: "true"

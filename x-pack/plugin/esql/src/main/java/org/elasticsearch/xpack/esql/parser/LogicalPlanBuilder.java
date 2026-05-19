@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -431,6 +433,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         return plan;
+    }
+
+    @Override
+    public Expression visitLogicalInSubquery(EsqlBaseParser.LogicalInSubqueryContext ctx) {
+        Expression value = expression(ctx.valueExpression());
+        LogicalPlan subqueryPlan = visitSubquery(ctx.subquery());
+        Source source = source(ctx);
+        // InSubquery is a special expression, it has a LogicalPlan as an attribute.
+        Expression e = new InSubquery(source, value, subqueryPlan);
+        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override
@@ -873,9 +885,48 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression tablePath = expression(ctx.stringOrParameter());
 
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
-        Map<String, Expression> params = options != null ? options.keyFoldedMap() : Map.of();
+        Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        return new UnresolvedExternalRelation(source, tablePath, params);
+        return new UnresolvedExternalRelation(source, tablePath, config);
+    }
+
+    /**
+     * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
+     * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
+     * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
+     * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
+     */
+    private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
+        if (entries.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> folded = new LinkedHashMap<>(entries.size());
+        for (Map.Entry<String, Expression> entry : entries.entrySet()) {
+            Expression value = entry.getValue();
+            if (value instanceof Literal literal) {
+                Object literalValue = literal.value();
+                if (literalValue == null) {
+                    throw new ParsingException(
+                        value.source(),
+                        "EXTERNAL option [{}] has null value; null is not a valid option value",
+                        entry.getKey()
+                    );
+                }
+                if (literalValue instanceof BytesRef bytesRef) {
+                    folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
+                } else {
+                    folded.put(entry.getKey(), literalValue);
+                }
+            } else {
+                throw new ParsingException(
+                    value.source(),
+                    "EXTERNAL options must be literal values; option [{}] has expression [{}]",
+                    entry.getKey(),
+                    value.sourceText()
+                );
+            }
+        }
+        return folded;
     }
 
     @Override
@@ -1482,8 +1533,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.bucketsLiteral(),
             params.scrapeIntervalLiteral(),
             valueColumnName,
-            new UnresolvedTimestamp(source),
-            false
+            new UnresolvedTimestamp(source)
         );
     }
 
@@ -1515,6 +1565,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             var source = source(ctx);
             return new TsInfo(source, injectDocAttribute(source, input));
+        };
+    }
+
+    @Override
+    public PlanFactory visitTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx) {
+        Source source = source(ctx);
+        return input -> {
+            if (input instanceof PromqlCommand pc) {
+                // Dimensions aren't known yet: pc.promqlPlan() is an UnresolvedPromqlFunction at parse time
+                // and only takes its final shape (e.g. AcrossSeriesAggregate) after ResolvePromqlFunctions.
+                // TranslateTimeSeriesCollapse recovers them from the resolved PromqlCommand output.
+                // value/step NameIds, by contrast, are minted at PromqlCommand construction and stable across analysis.
+                return new TimeSeriesCollapse(source, pc, pc.valueAttribute(), pc.stepAttribute(), List.of());
+            }
+            throw new ParsingException(source, "TS_COLLAPSE can only appear directly after a PROMQL command");
         };
     }
 

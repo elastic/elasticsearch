@@ -2,6 +2,7 @@
 
 tstep_by_ten_minutes_duration
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
 
 FROM sample_data
@@ -20,6 +21,7 @@ min:datetime             | max:datetime             | bucket:datetime
 tstep_by_ten_minutes_duration_as_string
 required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
 
 FROM sample_data
@@ -37,6 +39,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 docs_tstep_by_one_hour_duration
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
 
 // tag::docsTStepByOneHourDuration[]
@@ -55,6 +58,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 docs_tstep_explicit_bounds
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 required_capability: tstep_explicit_bounds
 
 // tag::docsTStepExplicitBounds[]
@@ -73,6 +77,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tstep_explicit_bounds_ten_minutes
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 required_capability: tstep_explicit_bounds
 
 FROM sample_data
@@ -91,6 +96,7 @@ min:datetime             | max:datetime             | bucket:datetime
 docs_tstep_by_one_hour_duration_as_string
 required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
 
 // tag::docsTStepByOneHourDurationAsString[]
@@ -109,6 +115,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tstep_with_request_timestamp_bounds_only
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
 
 FROM sample_data
@@ -123,6 +130,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 docs_tstep_bucket_count
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 required_capability: tstep_bucket_count
 
 // tag::docsTStepBucketCount[]
@@ -141,6 +149,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tstep_bucket_count_many_buckets
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 required_capability: tstep_bucket_count
 
 FROM sample_data
@@ -158,6 +167,7 @@ min:datetime             | max:datetime             | bucket:datetime
 tstep_with_timezone_and_duration
 required_capability: global_timezone_parameter_with_output
 required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
 request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
 
 SET time_zone = "+05:00"\;

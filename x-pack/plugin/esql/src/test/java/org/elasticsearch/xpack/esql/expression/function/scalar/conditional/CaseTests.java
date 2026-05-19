@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,10 +28,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
@@ -42,49 +38,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class CaseTests extends AbstractScalarFunctionTestCase {
 
-    private static final List<DataType> TYPES;
-    static {
-        List<DataType> t = Stream.of(
-            DataType.AGGREGATE_METRIC_DOUBLE,
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.BOOLEAN,
-            DataType.DATETIME,
-            DataType.DATE_NANOS,
-            DataType.DENSE_VECTOR,
-            DataType.DOUBLE,
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.UNSIGNED_LONG,
-            DataType.IP,
-            DataType.VERSION,
-            DataType.CARTESIAN_POINT,
-            DataType.GEO_POINT,
-            DataType.CARTESIAN_SHAPE,
-            DataType.GEO_SHAPE,
-            DataType.GEOHASH,
-            DataType.GEOTILE,
-            DataType.GEOHEX,
-            DataType.EXPONENTIAL_HISTOGRAM,
-            DataType.TDIGEST,
-            DataType.HISTOGRAM,
-            DataType.NULL
-        ).collect(Collectors.toList());
-        if (Build.current().isSnapshot()) {
-            t.addAll(
-                DataType.UNDER_CONSTRUCTION.stream()
-                    .filter(type -> type != DataType.DENSE_VECTOR)
-                    .filter(type -> type != DataType.DATE_RANGE) // TODO(pr/133309): implement
-                    .filter(type -> type != DataType.PARTIAL_AGG)
-                    .toList()
-            );
-        }
-        TYPES = unmodifiableList(t);
-    }
-
-    public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
-    }
+    private static final List<DataType> RETURN_TYPES = Arrays.stream(DataType.values())
+        .filter(t -> t.supportedVersion().supportedLocally())
+        .filter(DataType::isRepresentable)
+        .filter(t -> t != DataType.DOC_DATA_TYPE)
+        .filter(t -> t != DataType.TSID_DATA_TYPE)
+        .filter(t -> t != DataType.DATE_RANGE) // TODO(pr/133309): implement
+        .toList();
 
     /**
      * Generate the test cases for this test
@@ -92,15 +52,15 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : TYPES) {
-            twoAndThreeArgs(suppliers, true, true, type, List.of());
-            twoAndThreeArgs(suppliers, false, false, type, List.of());
-            twoAndThreeArgs(suppliers, null, false, type, List.of());
+        for (DataType returnType : RETURN_TYPES) {
+            twoAndThreeArgs(suppliers, true, true, returnType, List.of());
+            twoAndThreeArgs(suppliers, false, false, returnType, List.of());
+            twoAndThreeArgs(suppliers, null, false, returnType, List.of());
             twoAndThreeArgs(
                 suppliers,
                 randomMultivaluedCondition(),
                 false,
-                type,
+                returnType,
                 List.of(
                     "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
@@ -108,18 +68,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             );
         }
 
-        for (DataType type : TYPES) {
-            fourAndFiveArgs(suppliers, true, randomSingleValuedCondition(), 0, type, List.of());
-            fourAndFiveArgs(suppliers, false, true, 1, type, List.of());
-            fourAndFiveArgs(suppliers, false, false, 2, type, List.of());
-            fourAndFiveArgs(suppliers, null, true, 1, type, List.of());
-            fourAndFiveArgs(suppliers, null, false, 2, type, List.of());
+        for (DataType returnType : RETURN_TYPES) {
+            fourAndFiveArgs(suppliers, true, randomSingleValuedCondition(), 0, returnType, List.of());
+            fourAndFiveArgs(suppliers, false, true, 1, returnType, List.of());
+            fourAndFiveArgs(suppliers, false, false, 2, returnType, List.of());
+            fourAndFiveArgs(suppliers, null, true, 1, returnType, List.of());
+            fourAndFiveArgs(suppliers, null, false, 2, returnType, List.of());
             fourAndFiveArgs(
                 suppliers,
                 randomMultivaluedCondition(),
                 true,
                 1,
-                type,
+                returnType,
                 List.of(
                     "Line -1:-1: evaluation of [cond1] failed, treating result as false. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
@@ -130,7 +90,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 false,
                 randomMultivaluedCondition(),
                 2,
-                type,
+                returnType,
                 List.of(
                     "Line -1:-1: evaluation of [cond2] failed, treating result as false. Only first 20 failures recorded.",
                     "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
@@ -153,42 +113,59 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         List<TestCaseSupplier> suppliers,
         Object cond,
         boolean lhsOrRhs,
-        DataType type,
+        DataType returnType,
         List<String> warnings
     ) {
-        suppliers.add(new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(cond, type)), List.of(DataType.BOOLEAN, type), () -> {
-            Object lhs = randomLiteral(type).value();
-            List<TestCaseSupplier.TypedData> typedData = List.of(cond(cond, "cond"), new TestCaseSupplier.TypedData(lhs, type, "lhs"));
-            return testCase(type, typedData, lhsOrRhs ? lhs : null, toStringMatcher(1, true), false, null, addWarnings(warnings));
-        }));
         suppliers.add(
-            new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)), List.of(DataType.BOOLEAN, type, type), () -> {
-                Object lhs = randomLiteral(type).value();
-                Object rhs = randomLiteral(type).value();
+            new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType)), List.of(DataType.BOOLEAN, returnType), () -> {
+                Object lhs = randomLiteral(returnType).value();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
                     cond(cond, "cond"),
-                    new TestCaseSupplier.TypedData(lhs, type, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, type, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, returnType, "lhs")
                 );
-                return testCase(type, typedData, lhsOrRhs ? lhs : rhs, toStringMatcher(1, false), false, null, addWarnings(warnings));
+                return testCase(returnType, typedData, lhsOrRhs ? lhs : null, toStringMatcher(1, true), false, null, addWarnings(warnings));
             })
         );
-        if (type.noText() == DataType.KEYWORD) {
-            DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
+        suppliers.add(
+            new TestCaseSupplier(
+                TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType, returnType)),
+                List.of(DataType.BOOLEAN, returnType, returnType),
+                () -> {
+                    Object lhs = randomLiteral(returnType).value();
+                    Object rhs = randomLiteral(returnType).value();
+                    List<TestCaseSupplier.TypedData> typedData = List.of(
+                        cond(cond, "cond"),
+                        new TestCaseSupplier.TypedData(lhs, returnType, "lhs"),
+                        new TestCaseSupplier.TypedData(rhs, returnType, "rhs")
+                    );
+                    return testCase(
+                        returnType,
+                        typedData,
+                        lhsOrRhs ? lhs : rhs,
+                        toStringMatcher(1, false),
+                        false,
+                        null,
+                        addWarnings(warnings)
+                    );
+                }
+            )
+        );
+        if (returnType.noText() == DataType.KEYWORD) {
+            DataType otherType = returnType == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
             suppliers.add(
                 new TestCaseSupplier(
-                    TestCaseSupplier.nameFrom(Arrays.asList(cond, type, otherType)),
-                    List.of(DataType.BOOLEAN, type, otherType),
+                    TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType, otherType)),
+                    List.of(DataType.BOOLEAN, returnType, otherType),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
+                        Object lhs = randomLiteral(returnType).value();
                         Object rhs = randomLiteral(otherType).value();
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond"),
-                            new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                            new TestCaseSupplier.TypedData(lhs, returnType, "lhs"),
                             new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
                         );
                         return testCase(
-                            type,
+                            returnType,
                             typedData,
                             lhsOrRhs ? lhs : rhs,
                             toStringMatcher(1, false),
@@ -203,18 +180,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (lhsOrRhs) {
             suppliers.add(
                 new TestCaseSupplier(
-                    "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)),
-                    List.of(DataType.BOOLEAN, type, type),
+                    "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType, returnType)),
+                    List.of(DataType.BOOLEAN, returnType, returnType),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
-                        Object rhs = randomLiteral(type).value();
+                        Object lhs = randomLiteral(returnType).value();
+                        Object rhs = randomLiteral(returnType).value();
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond").forceLiteral(),
-                            new TestCaseSupplier.TypedData(lhs, type, "lhs").forceLiteral(),
-                            new TestCaseSupplier.TypedData(rhs, type, "rhs")
+                            new TestCaseSupplier.TypedData(lhs, returnType, "lhs").forceLiteral(),
+                            new TestCaseSupplier.TypedData(rhs, returnType, "rhs")
                         );
                         return testCase(
-                            type,
+                            returnType,
                             typedData,
                             lhs,
                             startsWith("LiteralsEvaluator[lit="),
@@ -227,16 +204,16 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             );
             suppliers.add(
                 new TestCaseSupplier(
-                    "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type)),
-                    List.of(DataType.BOOLEAN, type),
+                    "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType)),
+                    List.of(DataType.BOOLEAN, returnType),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
+                        Object lhs = randomLiteral(returnType).value();
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond").forceLiteral(),
-                            new TestCaseSupplier.TypedData(lhs, type, "lhs")
+                            new TestCaseSupplier.TypedData(lhs, returnType, "lhs")
                         );
                         return testCase(
-                            type,
+                            returnType,
                             typedData,
                             lhs,
                             startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator"),
@@ -250,21 +227,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         } else {
             suppliers.add(
                 new TestCaseSupplier(
-                    "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type)),
-                    List.of(DataType.BOOLEAN, type),
+                    "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType)),
+                    List.of(DataType.BOOLEAN, returnType),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
+                        Object lhs = randomLiteral(returnType).value();
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             cond(cond, "cond").forceLiteral(),
-                            new TestCaseSupplier.TypedData(lhs, type, "lhs")
+                            new TestCaseSupplier.TypedData(lhs, returnType, "lhs")
                         );
                         return testCase(
-                            type,
+                            returnType,
                             typedData,
                             null,
                             startsWith("LiteralsEvaluator[lit="),
                             true,
-                            List.of(new TestCaseSupplier.TypedData(null, type, "null").forceLiteral()),
+                            List.of(new TestCaseSupplier.TypedData(null, returnType, "null").forceLiteral()),
                             addBuildEvaluatorWarnings(warnings)
                         );
                     }
@@ -273,18 +250,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         suppliers.add(
             new TestCaseSupplier(
-                "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)),
-                List.of(DataType.BOOLEAN, type, type),
+                "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType, returnType)),
+                List.of(DataType.BOOLEAN, returnType, returnType),
                 () -> {
-                    Object lhs = randomLiteral(type).value();
-                    Object rhs = randomLiteral(type).value();
+                    Object lhs = randomLiteral(returnType).value();
+                    Object rhs = randomLiteral(returnType).value();
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond, "cond").forceLiteral(),
-                        new TestCaseSupplier.TypedData(lhs, type, "lhs"),
-                        new TestCaseSupplier.TypedData(rhs, type, "rhs")
+                        new TestCaseSupplier.TypedData(lhs, returnType, "lhs"),
+                        new TestCaseSupplier.TypedData(rhs, returnType, "rhs")
                     );
                     return testCase(
-                        type,
+                        returnType,
                         typedData,
                         lhsOrRhs ? lhs : rhs,
                         startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator"),
@@ -299,37 +276,41 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         // Fill in some cases with null conditions or null values
         if (cond == null) {
             suppliers.add(
-                new TestCaseSupplier(TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type)), List.of(DataType.NULL, type), () -> {
-                    Object lhs = randomLiteral(type).value();
-                    List<TestCaseSupplier.TypedData> typedData = List.of(
-                        new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
-                        new TestCaseSupplier.TypedData(lhs, type, "lhs")
-                    );
-                    return testCase(
-                        type,
-                        typedData,
-                        lhsOrRhs ? lhs : null,
-                        startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
-                        false,
-                        null,
-                        addWarnings(warnings)
-                    );
-                })
+                new TestCaseSupplier(
+                    TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, returnType)),
+                    List.of(DataType.NULL, returnType),
+                    () -> {
+                        Object lhs = randomLiteral(returnType).value();
+                        List<TestCaseSupplier.TypedData> typedData = List.of(
+                            new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
+                            new TestCaseSupplier.TypedData(lhs, returnType, "lhs")
+                        );
+                        return testCase(
+                            returnType,
+                            typedData,
+                            lhsOrRhs ? lhs : null,
+                            startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
+                            false,
+                            null,
+                            addWarnings(warnings)
+                        );
+                    }
+                )
             );
             suppliers.add(
                 new TestCaseSupplier(
-                    TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type, type)),
-                    List.of(DataType.NULL, type, type),
+                    TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, returnType, returnType)),
+                    List.of(DataType.NULL, returnType, returnType),
                     () -> {
-                        Object lhs = randomLiteral(type).value();
-                        Object rhs = randomLiteral(type).value();
+                        Object lhs = randomLiteral(returnType).value();
+                        Object rhs = randomLiteral(returnType).value();
                         List<TestCaseSupplier.TypedData> typedData = List.of(
                             new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
-                            new TestCaseSupplier.TypedData(lhs, type, "lhs"),
-                            new TestCaseSupplier.TypedData(rhs, type, "rhs")
+                            new TestCaseSupplier.TypedData(lhs, returnType, "lhs"),
+                            new TestCaseSupplier.TypedData(rhs, returnType, "rhs")
                         );
                         return testCase(
-                            type,
+                            returnType,
                             typedData,
                             lhsOrRhs ? lhs : rhs,
                             startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
@@ -340,22 +321,22 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     }
                 )
             );
-            if (type.noText() == DataType.KEYWORD) {
-                DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
+            if (returnType.noText() == DataType.KEYWORD) {
+                DataType otherType = returnType == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
                 suppliers.add(
                     new TestCaseSupplier(
-                        TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type, otherType)),
-                        List.of(DataType.NULL, type, otherType),
+                        TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, returnType, otherType)),
+                        List.of(DataType.NULL, returnType, otherType),
                         () -> {
-                            Object lhs = randomLiteral(type).value();
+                            Object lhs = randomLiteral(returnType).value();
                             Object rhs = randomLiteral(otherType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
-                                new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                                new TestCaseSupplier.TypedData(lhs, returnType, "lhs"),
                                 new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 lhsOrRhs ? lhs : rhs,
                                 startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
@@ -370,17 +351,17 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         suppliers.add(
             new TestCaseSupplier(
-                TestCaseSupplier.nameFrom(Arrays.asList(cond, DataType.NULL, type)),
-                List.of(DataType.BOOLEAN, DataType.NULL, type),
+                TestCaseSupplier.nameFrom(Arrays.asList(cond, DataType.NULL, returnType)),
+                List.of(DataType.BOOLEAN, DataType.NULL, returnType),
                 () -> {
-                    Object rhs = randomLiteral(type).value();
+                    Object rhs = randomLiteral(returnType).value();
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond, "cond"),
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "lhs"),
-                        new TestCaseSupplier.TypedData(rhs, type, "rhs")
+                        new TestCaseSupplier.TypedData(rhs, returnType, "rhs")
                     );
                     return testCase(
-                        type,
+                        returnType,
                         typedData,
                         lhsOrRhs ? null : rhs,
                         startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
@@ -393,17 +374,17 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                TestCaseSupplier.nameFrom(Arrays.asList(cond, type, DataType.NULL)),
-                List.of(DataType.BOOLEAN, type, DataType.NULL),
+                TestCaseSupplier.nameFrom(Arrays.asList(cond, returnType, DataType.NULL)),
+                List.of(DataType.BOOLEAN, returnType, DataType.NULL),
                 () -> {
-                    Object lhs = randomLiteral(type).value();
+                    Object lhs = randomLiteral(returnType).value();
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond, "cond"),
-                        new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                        new TestCaseSupplier.TypedData(lhs, returnType, "lhs"),
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "rhs")
                     );
                     return testCase(
-                        type,
+                        returnType,
                         typedData,
                         lhsOrRhs ? lhs : null,
                         startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
@@ -421,23 +402,23 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         Object cond1,
         Object cond2,
         int result,
-        DataType type,
+        DataType returnType,
         List<String> warnings
     ) {
         suppliers.add(
             new TestCaseSupplier(
-                TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
-                List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
+                TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType)),
+                List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType),
                 () -> {
-                    Object r1 = randomLiteral(type).value();
-                    Object r2 = randomLiteral(type).value();
+                    Object r1 = randomLiteral(returnType).value();
+                    Object r2 = randomLiteral(returnType).value();
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond1, "cond1"),
-                        new TestCaseSupplier.TypedData(r1, type, "r1"),
+                        new TestCaseSupplier.TypedData(r1, returnType, "r1"),
                         cond(cond2, "cond2"),
-                        new TestCaseSupplier.TypedData(r2, type, "r2")
+                        new TestCaseSupplier.TypedData(r2, returnType, "r2")
                     );
-                    return testCase(type, typedData, switch (result) {
+                    return testCase(returnType, typedData, switch (result) {
                         case 0 -> r1;
                         case 1 -> r2;
                         case 2 -> null;
@@ -448,20 +429,20 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
-                List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType, returnType)),
+                List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                 () -> {
-                    Object r1 = randomLiteral(type).value();
-                    Object r2 = randomLiteral(type).value();
-                    Object r3 = randomLiteral(type).value();
+                    Object r1 = randomLiteral(returnType).value();
+                    Object r2 = randomLiteral(returnType).value();
+                    Object r3 = randomLiteral(returnType).value();
                     List<TestCaseSupplier.TypedData> typedData = List.of(
                         cond(cond1, "cond1"),
-                        new TestCaseSupplier.TypedData(r1, type, "r1"),
+                        new TestCaseSupplier.TypedData(r1, returnType, "r1"),
                         cond(cond2, "cond2"),
-                        new TestCaseSupplier.TypedData(r2, type, "r2"),
-                        new TestCaseSupplier.TypedData(r3, type, "r3")
+                        new TestCaseSupplier.TypedData(r2, returnType, "r2"),
+                        new TestCaseSupplier.TypedData(r3, returnType, "r3")
                     );
-                    return testCase(type, typedData, switch (result) {
+                    return testCase(returnType, typedData, switch (result) {
                         case 0 -> r1;
                         case 1 -> r2;
                         case 2 -> r3;
@@ -475,21 +456,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             case 0 -> {
                 suppliers.add(
                     new TestCaseSupplier(
-                        "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                        "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
+                            Object r3 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1").forceLiteral(),
                                 cond(cond2, "cond2"),
-                                new TestCaseSupplier.TypedData(r2, type, "r2"),
-                                new TestCaseSupplier.TypedData(r3, type, "r3")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2"),
+                                new TestCaseSupplier.TypedData(r3, returnType, "r3")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r1,
                                 startsWith("LiteralsEvaluator[lit="),
@@ -502,21 +483,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 );
                 suppliers.add(
                     new TestCaseSupplier(
-                        "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                        "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
+                            Object r3 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1"),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1"),
                                 cond(cond2, "cond2"),
-                                new TestCaseSupplier.TypedData(r2, type, "r2"),
-                                new TestCaseSupplier.TypedData(r3, type, "r3")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2"),
+                                new TestCaseSupplier.TypedData(r3, returnType, "r3")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r1,
                                 startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
@@ -531,21 +512,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             case 1 -> {
                 suppliers.add(
                     new TestCaseSupplier(
-                        "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                        "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
+                            Object r3 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1").forceLiteral(),
                                 cond(cond2, "cond2").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r2, type, "r2").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r3, type, "r3")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2").forceLiteral(),
+                                new TestCaseSupplier.TypedData(r3, returnType, "r3")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r2,
                                 startsWith("LiteralsEvaluator[lit="),
@@ -558,21 +539,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 );
                 suppliers.add(
                     new TestCaseSupplier(
-                        "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                        "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
+                            Object r3 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1").forceLiteral(),
                                 cond(cond2, "cond2").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r2, type, "r2"),
-                                new TestCaseSupplier.TypedData(r3, type, "r3")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2"),
+                                new TestCaseSupplier.TypedData(r3, returnType, "r3")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r2,
                                 startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
@@ -585,19 +566,19 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 );
                 suppliers.add(
                     new TestCaseSupplier(
-                        "partial foldable 2 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
+                        "partial foldable 2 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1").forceLiteral(),
                                 cond(cond2, "cond2").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r2, type, "r2")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r2,
                                 startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
@@ -610,19 +591,19 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 );
                 suppliers.add(
                     new TestCaseSupplier(
-                        "partial foldable 3 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
+                        "partial foldable 3 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1").forceLiteral(),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1").forceLiteral(),
                                 cond(cond2, "cond2"),
-                                new TestCaseSupplier.TypedData(r2, type, "r2")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r2,
                                 startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
@@ -637,21 +618,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             case 2 -> {
                 suppliers.add(
                     new TestCaseSupplier(
-                        "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                        "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
+                            Object r3 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1"),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1"),
                                 cond(cond2, "cond2").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r2, type, "r2"),
-                                new TestCaseSupplier.TypedData(r3, type, "r3").forceLiteral()
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2"),
+                                new TestCaseSupplier.TypedData(r3, returnType, "r3").forceLiteral()
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r3,
                                 startsWith("LiteralsEvaluator[lit="),
@@ -664,21 +645,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 );
                 suppliers.add(
                     new TestCaseSupplier(
-                        "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                        "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
+                            Object r3 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1"),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1"),
                                 cond(cond2, "cond2").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r2, type, "r2"),
-                                new TestCaseSupplier.TypedData(r3, type, "r3")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2"),
+                                new TestCaseSupplier.TypedData(r3, returnType, "r3")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r3,
                                 startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
@@ -691,21 +672,21 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 );
                 suppliers.add(
                     new TestCaseSupplier(
-                        "partial foldable 2 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
+                        "partial foldable 2 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, returnType, cond2, returnType, returnType)),
+                        List.of(DataType.BOOLEAN, returnType, DataType.BOOLEAN, returnType, returnType),
                         () -> {
-                            Object r1 = randomLiteral(type).value();
-                            Object r2 = randomLiteral(type).value();
-                            Object r3 = randomLiteral(type).value();
+                            Object r1 = randomLiteral(returnType).value();
+                            Object r2 = randomLiteral(returnType).value();
+                            Object r3 = randomLiteral(returnType).value();
                             List<TestCaseSupplier.TypedData> typedData = List.of(
                                 cond(cond1, "cond1").forceLiteral(),
-                                new TestCaseSupplier.TypedData(r1, type, "r1"),
+                                new TestCaseSupplier.TypedData(r1, returnType, "r1"),
                                 cond(cond2, "cond2"),
-                                new TestCaseSupplier.TypedData(r2, type, "r2"),
-                                new TestCaseSupplier.TypedData(r3, type, "r3")
+                                new TestCaseSupplier.TypedData(r2, returnType, "r2"),
+                                new TestCaseSupplier.TypedData(r3, returnType, "r3")
                             );
                             return testCase(
-                                type,
+                                returnType,
                                 typedData,
                                 r3,
                                 startsWith("CaseLazyEvaluator[conditions=[ConditionEvaluator[condition=LiteralsEvaluator[lit="),
@@ -747,7 +728,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier.TestCase testCase(
-        DataType type,
+        DataType returnType,
         List<TestCaseSupplier.TypedData> typedData,
         Object result,
         Matcher<String> evaluatorToString,
@@ -755,12 +736,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         @Nullable List<TestCaseSupplier.TypedData> partialFold,
         Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> decorate
     ) {
-        if (type == DataType.UNSIGNED_LONG && result != null) {
+        if (returnType == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
         return decorate.apply(
-            new TestCaseSupplier.TestCase(typedData, evaluatorToString, type, equalTo(result)).withExtra(new Extra(foldable, partialFold))
+            new TestCaseSupplier.TestCase(typedData, evaluatorToString, returnType, equalTo(result)).withExtra(
+                new Extra(foldable, partialFold)
+            )
         );
+    }
+
+    public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
     @Override

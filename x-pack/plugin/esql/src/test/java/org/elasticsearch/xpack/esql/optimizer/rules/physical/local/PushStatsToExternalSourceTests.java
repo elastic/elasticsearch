@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -83,12 +84,16 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(950L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
-    public void testCountFieldWithoutNullCountNotPushed() {
+    public void testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount() {
+        // Under the "implicit nulls" contract, a metadata map with rowCount but no
+        // _stats.columns.age.* entries means the column is absent from this scope:
+        // columnNullCount("age") returns rowCount and COUNT(age) resolves to 0.
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
         var agg = aggregateExec(externalSource(metadata), countFieldAlias(AGE));
 
-        as(applyRule(agg), AggregateExec.class);
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(0L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
     public void testMinPushedDown() {
@@ -199,6 +204,27 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    public void testNotPushedWhenSourceHasScanPredicates() {
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            statsMetadata(1000L, null, null, null),
+            new Object(),
+            List.of(greaterThanOf(AGE, new Literal(Source.EMPTY, 0, DataType.INTEGER))),
+            FormatReader.NO_LIMIT,
+            null,
+            null,
+            Map.of(),
+            List.of()
+        );
+        var agg = aggregateExec(ext, countStarAlias());
+        AggregateExec unchanged = as(applyRule(agg), AggregateExec.class);
+        assertSame(agg, unchanged);
+    }
+
     public void testNotPushedWithMultipleSplitsWithoutStats() {
         ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null, null), (SplitStats[]) null);
         var agg = aggregateExec(ext, countStarAlias());
@@ -255,6 +281,22 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
     public void testMaxWithoutStatsNotPushed() {
         var agg = aggregateExec(externalSource(statsMetadata(100L, null, null, null)), alias("m", new Max(Source.EMPTY, AGE)));
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testNotPushedWhenSourceHasPushedFilter() {
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            statsMetadata(1000L, null, null, null),
+            "some_pushed_filter",
+            null
+        );
+        var agg = aggregateExec(ext, countStarAlias());
 
         as(applyRule(agg), AggregateExec.class);
     }

@@ -5031,4 +5031,122 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(5, ((IntBlock) page.getBlock(1)).getInt(1));
         }
     }
+
+    /**
+     * Regression guard for rowBuffer reuse: a full row followed by a shorter row that omits
+     * a trailing projected column must produce null for the missing column, not echo the
+     * value from the previous row.
+     */
+    public void testFusedPathRowBufferNotLeakedAcrossRows() throws IOException {
+        String csv = """
+            a:integer,b:integer,c:integer
+            1,2,3
+            4,5
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "c"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+            assertEquals(4, ((IntBlock) page.getBlock(0)).getInt(1));
+            assertTrue("column c must be null for the shorter second row, not echoed from row 1", page.getBlock(1).isNull(1));
+        }
+    }
+
+    /**
+     * {@code Long.MIN_VALUE} (-9223372036854775808) has a magnitude one past
+     * {@code Long.MAX_VALUE}, so the inline fast path's positive accumulator can't represent
+     * it — the overflow guard bails and the string fallback via {@code Long.parseLong}
+     * produces the correct value.
+     */
+    public void testFusedPathLongMinValueFallback() throws IOException {
+        String csv = "val:long\n" + Long.MIN_VALUE + "\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(Long.MIN_VALUE, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
+     * Leading {@code +} is not a digit, so the inline fast path bails; the string fallback
+     * via {@code Integer.parseInt} handles it.
+     */
+    public void testFusedPathLeadingPlusFallback() throws IOException {
+        String csv = """
+            val:integer
+            +5
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(5, ((IntBlock) page.getBlock(0)).getInt(0));
+        }
+    }
+
+    /**
+     * Trailing whitespace after digits forces the inline fast path to bail; the string
+     * fallback trims and parses correctly.
+     */
+    public void testFusedPathTrailingSpaceFallback() throws IOException {
+        String csv = "val:long\n123 \n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(123L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
+     * A quoted numeric field forces the fallback path (quotes suppress the inline numeric
+     * accumulator); the string conversion strips quotes and parses correctly.
+     */
+    public void testFusedPathQuotedNumericFallback() throws IOException {
+        String csv = """
+            val:integer
+            "123"
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(123, ((IntBlock) page.getBlock(0)).getInt(0));
+        }
+    }
+
+    /**
+     * A multi-line quoted field must be glued back together by the bracket-aware reader and
+     * arrive intact (embedded newline included) through the fused path.
+     */
+    public void testFusedPathMultiLineQuotedField() throws IOException {
+        String csv = "id:long,text:keyword\n1,\"hello\nworld\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("text"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(new BytesRef("hello\nworld"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+        }
+    }
 }

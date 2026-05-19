@@ -249,6 +249,7 @@ public class AnyBytesRefAggregator {
             tailValues.set(group, tail);
             return tail;
         }
+
         @Override
         public void close() {
             for (long i = 0; i < firstValues.size(); i++) {

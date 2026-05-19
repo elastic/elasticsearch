@@ -81,9 +81,12 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         ClusterService clusterService,
         SystemIndices systemIndices
     ) {
-        final int TOTAL_METRICS = 95;
-        List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
-        for (IndexMode indexMode : IndexMode.values()) {
+        final IndexMode[] availableModes = IndexMode.availableModes();
+        final int metricsPerIndexMode = 13;
+        final int sharedMetrics = 4;
+        final int totalMetrics = (availableModes.length * metricsPerIndexMode) + sharedMetrics;
+        List<AutoCloseable> metrics = new ArrayList<>(totalMetrics);
+        for (IndexMode indexMode : availableModes) {
             String name = indexMode.getName();
             metrics.add(
                 registry.registerLongGauge(
@@ -233,7 +236,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 getTotalUserIndices(systemIndices, clusterState.getMetadata().projects().values().iterator().next())
             );
         }));
-        assert metrics.size() == TOTAL_METRICS : "total number of metrics has changed";
+        assert metrics.size() == totalMetrics : "total number of metrics has changed";
         return metrics;
     }
 

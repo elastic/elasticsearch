@@ -556,27 +556,31 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     private static void printClusterQualityStatistics(int[][] clusters) {
+        int[] sizes = new int[clusters.length];
+        for (int i = 0; i < clusters.length; i++) {
+            sizes[i] = clusters[i] == null ? 0 : clusters[i].length;
+        }
+        printClusterQualityStatistics(sizes);
+    }
+
+    private static void printClusterQualityStatistics(int[] clusterSizes) {
         float min = Float.MAX_VALUE;
         float max = Float.MIN_VALUE;
         float mean = 0;
         float m2 = 0;
-        // iteratively compute the variance & mean
         int count = 0;
-        for (int[] cluster : clusters) {
+        for (int size : clusterSizes) {
             count += 1;
-            if (cluster == null) {
-                continue;
-            }
-            float delta = cluster.length - mean;
+            float delta = size - mean;
             mean += delta / count;
-            m2 += delta * (cluster.length - mean);
-            min = Math.min(min, cluster.length);
-            max = Math.max(max, cluster.length);
+            m2 += delta * (size - mean);
+            min = Math.min(min, size);
+            max = Math.max(max, size);
         }
-        float variance = m2 / (clusters.length - 1);
+        float variance = m2 / (clusterSizes.length - 1);
         logger.debug(
             "Centroid count: {} min: {} max: {} mean: {} stdDev: {} variance: {}",
-            clusters.length,
+            clusterSizes.length,
             min,
             max,
             mean,
@@ -971,6 +975,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         }
         KMeansResult kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
+        if (logger.isDebugEnabled()) {
+            int[] clusterSizes = new int[kMeansResult.centroids().length];
+            for (int a : kMeansResult.assignments()) {
+                clusterSizes[a]++;
+            }
+            printClusterQualityStatistics(clusterSizes);
+        }
         return new CentroidAssignments(
             fieldInfo.getVectorDimension(),
             kMeansResult.centroids(),

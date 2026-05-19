@@ -343,7 +343,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         try (IndexInput centroidSlice = entry.centroidSlice(ivfCentroids); IndexInput postingSlice = entry.postingListSlice(ivfClusters)) {
             long[] postingOffsets = readPostingListOffsets(centroidSlice, numVectors, numCentroids, dimension);
 
-            // Raw centroids are appended at the end of the centroid data
+            // Raw centroids are at the end of the centroid data
             centroidSlice.seek(centroidSlice.length() - rawCentroidsSize);
             for (int c = 0; c < numCentroids; c++) {
                 centroids[c] = new float[dimension];
@@ -351,9 +351,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 postingSlice.seek(postingOffsets[c] + Integer.BYTES);
                 clusterSizes[c] = postingSlice.readVInt();
             }
+            return new CentroidData(centroids, clusterSizes, entry.globalCentroid());
         }
-
-        return new CentroidData(centroids, clusterSizes, entry.globalCentroid());
     }
 
     private static long[] readPostingListOffsets(IndexInput centroidSlice, int numVectors, int numCentroids, int dimension)

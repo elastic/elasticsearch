@@ -99,7 +99,7 @@ public class TieredMergeStrategy {
         }
     }
 
-    public record Concatenation(float[][] seedCentroids) implements MergeAction {
+    public record Concatenation(float[][] seedCentroids, int[] clusterSizes) implements MergeAction {
         @Override
         public Strategy strategy() {
             return Strategy.CONCATENATION;
@@ -108,7 +108,7 @@ public class TieredMergeStrategy {
         @Override
         public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
             throws IOException {
-            return kmeans.clusterByConcatenation(vectors, seedCentroids, vectorsPerCluster);
+            return kmeans.clusterByConcatenation(vectors, seedCentroids, clusterSizes, vectorsPerCluster);
         }
     }
 
@@ -131,12 +131,19 @@ public class TieredMergeStrategy {
             }
             case CONCATENATION -> {
                 List<float[]> allPriorCentroids = new ArrayList<>();
+                List<Integer> allClusterSizes = new ArrayList<>();
                 for (IVFVectorsReader.CentroidData data : centroidData) {
                     if (data != null) {
                         Collections.addAll(allPriorCentroids, data.centroids());
+                        for (int size : data.clusterSizes()) {
+                            allClusterSizes.add(size);
+                        }
                     }
                 }
-                yield new Concatenation(allPriorCentroids.toArray(new float[0][]));
+                yield new Concatenation(
+                    allPriorCentroids.toArray(new float[0][]),
+                    allClusterSizes.stream().mapToInt(Integer::intValue).toArray()
+                );
             }
             case FULL_REBUILD -> new FullRebuild();
         };

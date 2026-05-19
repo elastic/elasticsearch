@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +24,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.LeaderBulkByPaginatedSearchTaskState;
+import org.elasticsearch.index.reindex.TaskRelocatingException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -88,11 +88,20 @@ public class TransportRethrottleAction extends TransportTasksAction<
                 responseWithOriginalIdentityTasks.getTaskFailures().size(),
                 responseWithOriginalIdentityTasks.getNodeFailures().size()
             );
-            // follow relocation chain even if there is a node failure, node might be gone, but the task is still running elsewhere.
+
+            boolean isRelocationFailure = responseWithOriginalIdentityTasks.getTaskFailures().size() == 1
+                && responseWithOriginalIdentityTasks.getTaskFailures().get(0).getCause() instanceof TaskRelocatingException;
+
+            // Follow relocation chain if there is a node failure (node might be gone, but the task is still running elsewhere)
+            // or if the failure is TaskRelocatingException.
             if (request.followRelocations()
                 && responseWithOriginalIdentityTasks.getTasks().isEmpty()
-                && responseWithOriginalIdentityTasks.getTaskFailures().isEmpty()) {
-                logger.info("---> Following relocation for task [{}]", request.getTargetTaskId());
+                && (responseWithOriginalIdentityTasks.getTaskFailures().isEmpty() || isRelocationFailure)) {
+                logger.info(
+                    "---> Following relocation for task [{}] (isRelocationFailure={})",
+                    request.getTargetTaskId(),
+                    isRelocationFailure
+                );
                 followRelocationAndRethrottle(task, request, responseWithOriginalIdentityTasks, l);
             } else {
                 logger.info("---> Returning rethrottle response for task [{}] without following relocation", request.getTargetTaskId());
@@ -209,7 +218,7 @@ public class TransportRethrottleAction extends TransportTasksAction<
 
         try {
             leaderState.setRequestsPerSecondWithRelocationGuard(newRequestsPerSecond);
-        } catch (ElasticsearchStatusException e) {
+        } catch (TaskRelocatingException e) {
             listener.onFailure(e);
             return;
         }
@@ -241,7 +250,7 @@ public class TransportRethrottleAction extends TransportTasksAction<
         logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
         try {
             task.getWorkerState().rethrottleWithRelocationGuard(newRequestsPerSecond);
-        } catch (ElasticsearchStatusException e) {
+        } catch (TaskRelocatingException e) {
             listener.onFailure(e);
             return;
         }

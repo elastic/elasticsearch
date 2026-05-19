@@ -9,9 +9,8 @@
 
 package org.elasticsearch.xcontent.provider.smile;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayInputStream;
@@ -21,10 +20,18 @@ public class SmileXContentImplTests extends ESTestCase {
 
     public void testStreamParserRejectsJson() {
         byte[] json = "{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8);
-        assertThrows(
-            "Input does not start with Smile format header",
-            JsonParseException.class,
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
             () -> SmileXContentImpl.smileXContent().createParser(XContentParserConfiguration.EMPTY, new ByteArrayInputStream(json))
+        );
+        assertEquals("Input does not start with Smile format header", e.getMessage());
+    }
+
+    public void testByteArrayParserRejectsJson() {
+        byte[] json = "{\"foo\":\"bar\"}".getBytes(StandardCharsets.UTF_8);
+        expectThrows(
+            XContentParseException.class,
+            () -> SmileXContentImpl.smileXContent().createParser(XContentParserConfiguration.EMPTY, json, 0, json.length)
         );
     }
 }

@@ -20,6 +20,7 @@ import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -120,14 +121,18 @@ public final class SmileXContentImpl implements XContent {
             || header[0] != SmileConstants.HEADER_BYTE_1
             || header[1] != SmileConstants.HEADER_BYTE_2
             || header[2] != SmileConstants.HEADER_BYTE_3) {
-            throw new JsonParseException(null, "Input does not start with Smile format header");
+            throw new XContentParseException(null, "Input does not start with Smile format header");
         }
         return input;
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(data, offset, length));
+        try {
+            return new SmileXContentParser(config, smileFactory.createParser(data, offset, length));
+        } catch (JsonParseException e) {
+            throw new XContentParseException(null, e.getMessage(), e);
+        }
     }
 
     @Override

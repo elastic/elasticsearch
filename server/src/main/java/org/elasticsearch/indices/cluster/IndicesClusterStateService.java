@@ -145,7 +145,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     // A list of shards that failed during recovery.
     // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
     final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
-    // SAMX TO READ: why need this
     private final Map<ShardId, PendingShardCreation> pendingShardCreations = new HashMap<>();
     private final RepositoriesService repositoriesService;
 
@@ -352,16 +351,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
 
-        // SAMX TO READ
         updateFailedShardsCache(state);
 
-        // SAMX TO READ
         deleteIndices(event); // also deletes shards of deleted indices
 
-        // SAMX TO READ
         removeIndicesAndShards(event); // also removes shards of removed indices
 
-        // SAMX TO READ
         updateIndices(event); // can also fail shards, but these are then guaranteed to be in failedShardsCache
 
         createIndicesAndUpdateShards(state);
@@ -632,7 +627,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 final var indexService = indicesService.indexService(index);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
                     // the master thinks we are active, but we don't have this shard at all, mark it as failed
-                    // SAMX TO READ
                     sendFailShard(
                         shardRouting,
                         "master marked shard as active, but shard has not been created, mark shard as failed",
@@ -674,7 +668,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     );
                 }
                 for (ShardRouting shardRouting : entry.getValue()) {
-                    // SAMX TO READ
                     sendFailShard(shardRouting, failShardReason, e, state);
                 }
                 continue;
@@ -692,7 +685,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
             createShard(shardRouting, state);
         } else {
-            // SAMX TO READ
             updateShard(shardRouting, shard, state);
         }
     }
@@ -767,7 +759,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             } else {
                 sourceNode = null;
             }
-            // SAMX TO READ: why need this
             final var primaryTerm = project.index(shardRouting.index()).primaryTerm(shardRouting.id());
 
             final var pendingShardCreation = createOrRefreshPendingShardCreation(shardId, state.stateUUID());

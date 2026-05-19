@@ -126,8 +126,8 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
             }, 1, TimeUnit.MINUTES);
 
             // Verify cleanup
-            assertBusy(() -> assertNoIndexExists(candidateIndex));
-            assertBusy(() -> assertNoIndexExists(cloneIndexName));
+            assertBusy(() -> assertFalse("index [" + candidateIndex + "] still exists", indexExists(candidateIndex)));
+            assertBusy(() -> assertFalse("index [" + cloneIndexName + "] still exists", indexExists(cloneIndexName)));
 
             // Ensure frozen index is marked correctly
             Map<String, Object> frozenIndexInfo = getIndex(expectedFrozenIndexName);
@@ -213,12 +213,6 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
         Request request = new Request("GET", "/_data_stream/" + name);
         Response response = adminClient().performRequest(request);
         return ObjectPath.createFromResponse(response);
-    }
-
-    private static void assertNoIndexExists(String name) throws IOException {
-        Request request = new Request("HEAD", "/" + name);
-        Response response = adminClient().performRequest(request);
-        assertEquals("index [" + name + "] still exists", 404, response.getStatusLine().getStatusCode());
     }
 
     private static Map<String, Object> getIndex(String name) throws IOException {

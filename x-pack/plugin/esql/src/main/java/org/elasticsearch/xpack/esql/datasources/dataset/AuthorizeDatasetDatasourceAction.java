@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -29,6 +30,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * {@link org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageDatasourcePrivileges}.
  */
 public class AuthorizeDatasetDatasourceAction extends ActionType<AcknowledgedResponse> {
+
+    /**
+     * All nodes in the cluster must be at least this version before PUT dataset may execute the
+     * {@link AuthorizeDatasetDatasourceAction}; older nodes do not register the transport handler (mixed-cluster BWC).
+     */
+    public static final TransportVersion AUTHORIZE_DATASET_DATASOURCE_TRANSPORT_VERSION = TransportVersion.fromName(
+        "esql_authorize_dataset_datasource_action"
+    );
 
     public static final AuthorizeDatasetDatasourceAction INSTANCE = new AuthorizeDatasetDatasourceAction();
     public static final String NAME = EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME;

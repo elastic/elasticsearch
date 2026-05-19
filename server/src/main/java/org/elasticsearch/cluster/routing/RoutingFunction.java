@@ -9,18 +9,31 @@
 
 package org.elasticsearch.cluster.routing;
 
-/// Calculates shard id for a document identified by the provided hash.
-@FunctionalInterface
-public interface RoutingFunction {
-    int shardId(int hash);
+/// Calculates shard that a document identified by the provided hash should be routed to.
+public sealed interface RoutingFunction permits RoutingFunction.ModuloRoutingFunction, RoutingFunction.LegacyRoutingFunction {
+    int shardNum(int hash);
 
-    /// Converts a hash into a shard id using modulo operation.
+    /// Converts a hash into a shard number using modulo operation.
     static RoutingFunction moduloNumberOfShards(int numberOfShards) {
-        return hash -> Math.floorMod(hash, numberOfShards);
+        return new ModuloRoutingFunction(numberOfShards);
     }
 
-    /// Converts a hash into a shard id using the old routingNumShards mechanism.
+    /// Converts a hash into a shard number using the old routingNumShards mechanism.
     static RoutingFunction legacyRoutingNumberOfShards(int routingNumShards, int routingFactor) {
-        return hash -> Math.floorMod(hash, routingNumShards) / routingFactor;
+        return new LegacyRoutingFunction(routingNumShards, routingFactor);
+    }
+
+    record ModuloRoutingFunction(int numberOfShards) implements RoutingFunction {
+        @Override
+        public int shardNum(int hash) {
+            return Math.floorMod(hash, numberOfShards);
+        }
+    }
+
+    record LegacyRoutingFunction(int routingNumShards, int routingFactor) implements RoutingFunction {
+        @Override
+        public int shardNum(int hash) {
+            return Math.floorMod(hash, routingNumShards) / routingFactor;
+        }
     }
 }

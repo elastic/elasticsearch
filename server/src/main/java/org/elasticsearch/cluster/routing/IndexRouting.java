@@ -324,12 +324,12 @@ public abstract class IndexRouting {
 
         @Override
         protected int shardId(String id, @Nullable String routing) {
-            return routingFunction.shardId(effectiveRoutingToHash(routing == null ? id : routing));
+            return routingFunction.shardNum(effectiveRoutingToHash(routing == null ? id : routing));
         }
 
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
-            consumer.accept(rerouteSearchIfResharding(routingFunction.shardId(effectiveRoutingToHash(routing))));
+            consumer.accept(rerouteSearchIfResharding(routingFunction.shardNum(effectiveRoutingToHash(routing))));
         }
     }
 
@@ -352,14 +352,14 @@ public abstract class IndexRouting {
                 );
             }
             int offset = Math.floorMod(effectiveRoutingToHash(id), routingPartitionSize);
-            return routingFunction.shardId(effectiveRoutingToHash(routing) + offset);
+            return routingFunction.shardNum(effectiveRoutingToHash(routing) + offset);
         }
 
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
             int hash = effectiveRoutingToHash(routing);
             for (int i = 0; i < routingPartitionSize; i++) {
-                consumer.accept(rerouteSearchIfResharding(routingFunction.shardId(hash + i)));
+                consumer.accept(rerouteSearchIfResharding(routingFunction.shardNum(hash + i)));
             }
         }
     }
@@ -415,7 +415,7 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(indexRequest.routing());
             hash = hashSource(indexRequest);
-            int shardId = routingFunction.shardId(hash);
+            int shardId = routingFunction.shardNum(hash);
             return rerouteWritesIfResharding(shardId);
         }
 
@@ -426,9 +426,9 @@ public abstract class IndexRouting {
                 if (routing == null) {
                     throw new IllegalStateException("Routing should be set by the coordinator");
                 }
-                return routingFunction.shardId(TimeSeriesRoutingHashFieldMapper.decode(indexRequest.routing()));
+                return routingFunction.shardNum(TimeSeriesRoutingHashFieldMapper.decode(indexRequest.routing()));
             } else if (addIdWithRoutingHash) {
-                return routingFunction.shardId(idToHash(indexRequest.id()));
+                return routingFunction.shardNum(idToHash(indexRequest.id()));
             } else {
                 checkNoRouting(indexRequest.routing());
                 return indexShard(indexRequest);
@@ -503,7 +503,7 @@ public abstract class IndexRouting {
                 // For TSDB, the hash is stored as the id prefix.
                 hash = ByteUtils.readIntLE(idBytes, 0);
             }
-            return routingFunction.shardId(hash);
+            return routingFunction.shardNum(hash);
         }
 
         @Override
@@ -563,7 +563,7 @@ public abstract class IndexRouting {
             int shardIdForRoutingHash(RoutingHashBuilder builder) {
                 int h = builder.buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
                 setRecordedHash(h);
-                return rerouteWritesIfResharding(routingFunction.shardId(h));
+                return rerouteWritesIfResharding(routingFunction.shardNum(h));
             }
 
             public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -647,7 +647,7 @@ public abstract class IndexRouting {
                 indexRequest.tsid(tsid);
                 int h = hash(tsid);
                 setRecordedHash(h);
-                return rerouteWritesIfResharding(routingFunction.shardId(h));
+                return rerouteWritesIfResharding(routingFunction.shardNum(h));
             }
 
             /** Used by {@link DimensionsExtractor} to evaluate the dimension-path predicate once per leaf column. */

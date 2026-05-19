@@ -21,7 +21,7 @@ public class RoutingFunctionTests extends ESTestCase {
         for (int i = 1; i < iterations; i++) {
             for (int shardId = 0; shardId < shards; shardId++) {
                 // Since we use modulo, we get the same results in every iteration.
-                assertEquals(shardId, function.shardId(hash));
+                assertEquals(shardId, function.shardNum(hash));
                 hash++;
             }
         }
@@ -39,7 +39,7 @@ public class RoutingFunctionTests extends ESTestCase {
                 // We use modulo of routingNumShards and then divide by the routingFactor.
                 // So we get the same destination shard every routingFactor iterations.
                 int expected = routingShardId / routingFactor;
-                assertEquals(expected, function.shardId(hash));
+                assertEquals(expected, function.shardNum(hash));
                 hash++;
             }
         }

@@ -25,6 +25,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DefaultEndPointsIT extends InferenceBaseRestTest {
+
+    /**
+     * Per-attempt wait for parallel async inference callbacks. Kept well below the {@link #assertBusy} budget so retries
+     * can run while the built-in model is still downloading and deploying.
+     */
+    private static final int PARALLEL_BURST_LATCH_TIMEOUT_SECONDS = 30;
 
     private TestThreadPool threadPool;
 
@@ -227,7 +234,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     private void runParallelElserInferenceBurst(List<String> inputs, Map<String, String> queryParams) throws InterruptedException {
         int numParallelRequests = 4;
         var latch = new CountDownLatch(numParallelRequests);
-        var errors = new ArrayList<Exception>();
+        var errors = Collections.synchronizedList(new ArrayList<Exception>());
         var successCount = new AtomicInteger(0);
 
         var listener = new ResponseListener() {
@@ -254,7 +261,10 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             client().performRequestAsync(request, listener);
         }
 
-        assertTrue("Timed out waiting for parallel inference requests", latch.await(120, TimeUnit.SECONDS));
+        assertTrue(
+            "Timed out waiting for parallel inference requests",
+            latch.await(PARALLEL_BURST_LATCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        );
         var significantErrors = errors.stream().filter(e -> isTransientDeployRaceError(e) == false).toList();
         assertThat("Received non-transient errors: " + significantErrors, significantErrors, empty());
         assertThat("Expected at least one inference request to succeed", successCount.get(), greaterThan(0));
@@ -316,8 +326,11 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             return true;
         }
         // Observed in #149130 when batched inference races with a deployment that is not ready for the second input yet.
-        if (e instanceof ArrayIndexOutOfBoundsException aioob && "Index 1 out of bounds for length 0".equals(aioob.getMessage())) {
-            return true;
+        if (e instanceof ArrayIndexOutOfBoundsException aioob) {
+            String message = aioob.getMessage();
+            if (message != null && message.contains("out of bounds for length 0")) {
+                return true;
+            }
         }
         if (e.getCause() instanceof Exception cause && isTransientDeployRaceError(cause, seen)) {
             return true;

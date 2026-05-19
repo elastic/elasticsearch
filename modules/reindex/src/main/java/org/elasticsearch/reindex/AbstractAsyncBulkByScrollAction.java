@@ -263,6 +263,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         this.remoteVersion = remoteVersion;
+        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
+        this.breakerLabel = Objects.requireNonNull(breakerLabel);
         paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
             prepareSearchRequest(
@@ -275,8 +277,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
-        this.breakerLabel = Objects.requireNonNull(breakerLabel);
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -591,6 +591,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         if (asyncResponse.hasRemainingHits() == false) {
+            asyncResponse.releaseRemainingHits();
             refreshAndFinish(emptyList(), emptyList(), false);
             return;
         }

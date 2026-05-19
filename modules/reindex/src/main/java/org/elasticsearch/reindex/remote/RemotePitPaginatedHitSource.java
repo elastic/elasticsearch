@@ -134,6 +134,7 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
                 response.getSearchAfterValues(),
                 response.getPitId()
             );
+            response.moveBodyReleasableTo(delivered);
         }
         searchListener.onResponse(delivered);
     }

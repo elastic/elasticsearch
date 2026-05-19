@@ -279,6 +279,17 @@ public abstract class PaginatedHitSource {
         }
 
         /**
+         * Moves the body releasable from this response to {@code dest}.
+         * After this call {@link #closeBodyReleasable()} on this instance is a no-op; the caller is
+         * responsible for releasing via {@code dest}.
+         */
+        public void moveBodyReleasableTo(Response dest) {
+            assert dest.bodyReleasable == null : "dest already has a bodyReleasable";
+            dest.bodyReleasable = this.bodyReleasable;
+            this.bodyReleasable = null;
+        }
+
+        /**
          * Did this batch time out?
          */
         public boolean isTimedOut() {

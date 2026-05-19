@@ -5,8 +5,7 @@
       "description": "List all running reindex operations"
     },
     "stability": "beta",
-    "visibility": "feature_flag",
-    "feature_flag": "reindex_resilience",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

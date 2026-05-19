@@ -795,9 +795,6 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByPaginatedSearchTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
-            return;
-        }
         // set up reindex relocation, specifically the supplier which says which node to relocate to.
         // we have 3 states to handle:
         // 1. leader which has >= 2 subslices: initialized with a centralized node picker. workers will fetch this and use it.

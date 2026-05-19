@@ -5,8 +5,7 @@
       "description": "Cancel a reindex operation"
     },
     "stability": "beta",
-    "visibility": "feature_flag",
-    "feature_flag": "reindex_resilience",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

@@ -18,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +51,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     /**
      * Sentinel for {@link Serialized#uncompressedSize} indicating that the uncompressed length was not transmitted by the peer
      * (i.e. {@link #COMPRESS_DELAYABLE_WRITEABLE} was supported but {@link #DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE} was not).
+     * This value is never written to the wire.
      */
     private static final long UNKNOWN_UNCOMPRESSED_SIZE = -1L;
 
@@ -173,13 +175,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            return new Serialized<>(
-                reader,
-                TransportVersion.current(),
-                registry,
-                ReleasableBytesReference.wrap(buffer.bytes()),
-                uncompressedSize
-            );
+            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()), uncompressedSize);
         }
 
         @Override
@@ -209,6 +205,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         private final ReleasableBytesReference serialized;
         // Set when known: size the bytes would occupy if written without compression. Negative when the
         // bytes were received from a peer that did not transmit the uncompressed size on the wire.
+        // TODO: can be final once UNKNOWN_UNCOMPRESSED_SIZE is no longer needed (i.e. all supported versions transmit the size).
         private long uncompressedSize;
 
         private Serialized(
@@ -298,6 +295,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         /**
          * Used only during cluster upgrades, when the old cluster doesn't send the original size back.
+         * Decompresses the serialized bytes into a null sink to count the raw uncompressed byte count.
          */
         private long computeUncompressedSize() {
             try (
@@ -305,13 +303,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                     ? CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())
                     : serialized.streamInput()
             ) {
-                long count = 0;
-                final byte[] buffer = new byte[1024];
-                int n;
-                while ((n = in.read(buffer)) != -1) {
-                    count += n;
-                }
-                return count;
+                return in.transferTo(OutputStream.nullOutputStream());
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to compute uncompressed size of serialized DelayableWriteable", e);
             }

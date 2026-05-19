@@ -357,6 +357,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final AtomicInteger totalTasksEnqueued = new AtomicInteger();
         final AtomicInteger totalTasksFinished = new AtomicInteger();
         final DynamicTaskLatch taskLatch = new DynamicTaskLatch();
+        final int maxNumberOfTasks = 1000;
 
         final RecoveryListener noopUserListener = new RecoveryListener() {
             @Override
@@ -372,17 +373,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
 
-        final long deadlineMillis = System.currentTimeMillis() + TimeUnit.MILLISECONDS.toMillis(1000);
         final int producerThreads = between(1, 6);
         final List<Thread> threads = new ArrayList<>(producerThreads);
         for (int t = 0; t < producerThreads; t++) {
             final int index = t;
             Thread thread = new Thread(() -> {
                 try {
-                    long phaseClock = System.currentTimeMillis();
-                    while (System.currentTimeMillis() < deadlineMillis) {
-                        long elapsedPhase = System.currentTimeMillis() - phaseClock;
-                        boolean highContention = (elapsedPhase / TimeUnit.MILLISECONDS.toMillis(100)) % 2 == 0;
+                    while (totalTasksEnqueued.get() < maxNumberOfTasks) {
+                        boolean highContention = (totalTasksEnqueued.get() / 100) % 2 == 0;
                         if (index == 0 && rarely()) {
                             int nextLimit = between(1, 20);
                             clusterSettings.applySettings(
@@ -392,7 +390,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                         }
                         if (highContention) {
                             int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
-                            for (int b = 0; b < burst && System.currentTimeMillis() < deadlineMillis; b++) {
+                            for (int b = 0; b < burst && totalTasksEnqueued.get() < maxNumberOfTasks; b++) {
                                 taskLatch.incRef();
                                 totalTasksEnqueued.incrementAndGet();
                                 service.enqueue(
@@ -409,9 +407,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                 );
                             }
                         } else {
-                            int sleepMs = between(15, 80);
+                            int sleepMs = between(1, 5);
                             Thread.sleep(sleepMs);
-                            if (System.currentTimeMillis() < deadlineMillis) {
+                            if (totalTasksEnqueued.get() < maxNumberOfTasks) {
                                 taskLatch.incRef();
                                 totalTasksEnqueued.incrementAndGet();
                                 service.enqueue(

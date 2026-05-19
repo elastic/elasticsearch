@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -101,6 +102,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -262,6 +264,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         "stateless.search.cache_recovery_bcc.enabled",
         true,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * How often to log INFO progress while a batched compound commit (VBCC) upload is in flight. Set to {@code 0} to disable periodic
+     * progress logs.
+     */
+    public static final Setting<TimeValue> OBJECT_STORE_UPLOAD_PROGRESS_LOG_INTERVAL = Setting.timeSetting(
+        "stateless.object_store.upload_progress_log_interval",
+        TimeValue.timeValueSeconds(30L),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
@@ -1553,6 +1567,31 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
+    /**
+     * Invokes a callback at most once after {@link #close()} completes (including when the delegate is closed more than once).
+     */
+    private static final class RunOnCloseInputStream extends FilterInputStream {
+
+        private final Runnable onClose;
+        private final AtomicBoolean onCloseExecuted = new AtomicBoolean();
+
+        RunOnCloseInputStream(InputStream in, Runnable onClose) {
+            super(Objects.requireNonNull(in, "in"));
+            this.onClose = Objects.requireNonNull(onClose, "onClose");
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                super.close();
+            } finally {
+                if (onCloseExecuted.compareAndSet(false, true)) {
+                    onClose.run();
+                }
+            }
+        }
+    }
+
     private class BatchedCommitFileUploadTask extends ObjectStoreTask {
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
@@ -1584,11 +1623,38 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         protected void doRun() {
             boolean success = false;
+            final TimeValue progressLogInterval = clusterService.getClusterSettings().get(OBJECT_STORE_UPLOAD_PROGRESS_LOG_INTERVAL);
+            final boolean useConcurrentMultipartUploads = concurrentMultipartUploads && blobContainer.supportsConcurrentMultipartUploads();
+            UploadProgressMonitor progressMonitor = null;
             try {
+                progressMonitor = UploadProgressMonitor.newInstance(
+                    logger,
+                    threadPool,
+                    blobContainer,
+                    virtualBatchedCompoundCommit,
+                    progressLogInterval,
+                    useConcurrentMultipartUploads
+                );
                 long before = isDebugEnabled ? threadPool.rawRelativeTimeInMillis() : 0L;
                 final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
-                if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
-                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
+                if (useConcurrentMultipartUploads) {
+                    virtualBatchedCompoundCommit.mustIncRef();
+                    try {
+                        final UploadProgressMonitor monitor = progressMonitor;
+                        blobContainer.writeBlobAtomic(
+                            OperationPurpose.INDICES,
+                            virtualBatchedCompoundCommit.getBlobName(),
+                            totalSizeInBytes,
+                            (offset, length) -> new LocalIOInputStream(
+                                monitor.monitor(virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length))
+                            ),
+                            false
+                        );
+                    } finally {
+                        virtualBatchedCompoundCommit.decRef();
+                    }
+                } else {
+                    try (var vbccInputStream = progressMonitor.monitor(virtualBatchedCompoundCommit.getFrozenInputStreamForUpload())) {
                         blobContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,
                             virtualBatchedCompoundCommit.getBlobName(),
@@ -1596,21 +1662,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                             totalSizeInBytes,
                             false
                         );
-                    }
-                } else {
-                    virtualBatchedCompoundCommit.mustIncRef();
-                    try {
-                        blobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            totalSizeInBytes,
-                            (offset, length) -> new LocalIOInputStream(
-                                virtualBatchedCompoundCommit.getFrozenInputStreamForUpload(offset, length)
-                            ),
-                            false
-                        );
-                    } finally {
-                        virtualBatchedCompoundCommit.decRef();
                     }
                 }
                 if (isDebugEnabled) {
@@ -1634,6 +1685,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
+                if (progressMonitor != null) {
+                    progressMonitor.cancel();
+                }
                 if (success) {
                     listener.onResponse(null);
                 }

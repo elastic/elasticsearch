@@ -196,6 +196,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /**
+     * Log at INFO when a batched compound commit upload waits longer than this for earlier BCC uploads on the same shard.
+     * Set to {@link TimeValue#ZERO} to disable.
+     */
+    public static final Setting<TimeValue> STATELESS_UPLOAD_GENERATION_QUEUE_SLOW_LOG_THRESHOLD = Setting.timeSetting(
+        "stateless.upload.generation_queue_slow_log_threshold",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
@@ -226,6 +237,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
     private final int bccUploadMaxIoRetries;
+    private final long bccUploadGenerationQueueSlowLogThresholdMillis;
     private final boolean useInternalFilesReplicatedContent;
     private final int cacheRegionSizeInBytes;
     private final LongHistogram bccSizeInMegabytesHistogram;
@@ -302,6 +314,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
+        this.bccUploadGenerationQueueSlowLogThresholdMillis = STATELESS_UPLOAD_GENERATION_QUEUE_SLOW_LOG_THRESHOLD.get(settings).millis();
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
         this.cacheRegionSizeInBytes = cacheService.getRegionSize();
         this.estimatedMaxHeaderSizeInBytes = BlobCacheUtils.toIntBytes(Math.max(0L, cacheRegionSizeInBytes - bccUploadMaxSizeInBytes));
@@ -2118,18 +2131,54 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ActionListener<BatchedCompoundCommit> listener,
             long generation
         ) {
+            boolean trackQueueWait = bccUploadGenerationQueueSlowLogThresholdMillis > 0;
+            runUploadWhenCommitIsReady(uploadListener, listener, generation, trackQueueWait, 0L);
+        }
+
+        private void runUploadWhenCommitIsReady(
+            ActionListener<Void> uploadListener,
+            ActionListener<BatchedCompoundCommit> listener,
+            long generation,
+            boolean trackQueueWait,
+            long accumulatedQueueWait
+        ) {
             Optional<VirtualBatchedCompoundCommit> optVBCC = getMaxPendingUploadBccBeforeGeneration(generation);
             if (optVBCC.isPresent() == false) {
+                if (trackQueueWait) {
+                    maybeLogSlowBccUploadGenerationQueueWait(generation, accumulatedQueueWait);
+                }
                 // Run the upload.
                 uploadListener.onResponse(null);
             } else {
                 long vbccGeneration = optVBCC.get().getPrimaryTermAndGeneration().generation();
                 logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, vbccGeneration, generation);
+                final long blockedAt = trackQueueWait ? threadPool.relativeTimeInMillis() : 0L;
                 addListenerForUploadedGeneration(vbccGeneration, listener.delegateFailure((unusedListener, unusedResponse) -> {
                     assert pendingUploadBccGenerations.containsKey(vbccGeneration) == false
                         : "missingGeneration [" + vbccGeneration + "] still in " + pendingUploadBccGenerations.keySet();
-                    runUploadWhenCommitIsReady(uploadListener, listener, generation);
+                    final long segmentQueueWait = trackQueueWait ? threadPool.relativeTimeInMillis() - blockedAt : 0L;
+                    runUploadWhenCommitIsReady(
+                        uploadListener,
+                        listener,
+                        generation,
+                        trackQueueWait,
+                        accumulatedQueueWait + segmentQueueWait
+                    );
                 }));
+            }
+        }
+
+        private void maybeLogSlowBccUploadGenerationQueueWait(long generation, long queueWaitInMs) {
+            if (queueWaitInMs >= bccUploadGenerationQueueSlowLogThresholdMillis) {
+                logger.info(
+                    () -> format(
+                        "%s batched compound commit [%s] waited [%s]ms for earlier BCC uploads on the same shard (%s still pending)",
+                        shardId,
+                        generation,
+                        queueWaitInMs,
+                        pendingUploadBccGenerations.size()
+                    )
+                );
             }
         }
 

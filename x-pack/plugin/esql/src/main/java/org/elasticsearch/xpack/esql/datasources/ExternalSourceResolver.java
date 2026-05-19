@@ -818,7 +818,10 @@ public class ExternalSourceResolver {
         for (Map.Entry<String, DataType> entry : partitionColumns.entrySet()) {
             String name = entry.getKey();
             DataType type = entry.getValue();
-            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, true));
+            // synthetic=false: partition columns are user-addressable (referenceable in WHERE, STATS BY, EVAL, ...).
+            // Marking them synthetic causes AnalyzerRules.maybeResolveAgainstList to skip them during name resolution
+            // and produces "Unknown column [X], did you mean [X]?" errors.
+            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
         }
 
         List<Attribute> finalSchema = List.copyOf(enrichedSchema);

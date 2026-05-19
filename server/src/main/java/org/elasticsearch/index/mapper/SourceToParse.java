@@ -242,6 +242,16 @@ public class SourceToParse {
             }
         }
 
+        public int estimatedRecoverySizeInBytes() {
+            if (originalSourceBytes != null) {
+                return originalSourceBytes.length();
+            }
+            if (row != null) {
+                return row.sizeInBytes();
+            }
+            return 0;
+        }
+
         // Synchronized for now to be safe. Probably unnecessary.
         public synchronized BytesReference originalBytes() {
             if (originalSourceBytes == null) {

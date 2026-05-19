@@ -21,7 +21,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -47,9 +46,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,6 +96,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
+    // Data-attribute view of {@link #attributes} (metadata attributes stripped). Built once at
+    // construction; used to shape pages handed to SchemaAdaptingIterator and to scope filter
+    // adaptation in mapFilters.
+    private final ExternalSchema queryDataSchema;
     /**
      * {@link #attributes} minus the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}, used when
      * we hand a "file's resolved schema" to a reader (e.g. {@link RangeReadContext#resolvedAttributes()}
@@ -214,6 +215,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.formatReader = formatReader;
         this.path = path;
         this.attributes = attributes;
+        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
         this.readerResolvedAttributes = stripRowPosition(attributes);
         this.executor = executor;
         this.batchSize = batchSize;
@@ -676,22 +678,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return result;
     }
 
-    private CloseableIterator<Page> adaptSchema(
-        CloseableIterator<Page> pages,
-        SchemaReconciliation.ColumnMapping mapping,
-        DriverContext driverContext
-    ) {
+    private CloseableIterator<Page> adaptSchema(CloseableIterator<Page> pages, ColumnMapping mapping, DriverContext driverContext) {
         if (mapping == null || mapping.isIdentity()) {
             return pages;
         }
-        List<Attribute> dataColumns = attributes.subList(0, mapping.columnCount());
         // When deferred extraction is enabled for this factory, the reader appends the synthetic
         // {@link ColumnExtractor#ROW_POSITION_COLUMN} to the file's data columns (see
         // {@link #perFileQueryProjection}). Tell the adapter where to find it so the block flows
         // through to downstream operators unchanged. When deferred extraction is off, the
         // reader's output has only data columns and the adapter ignores this slot.
-        int rowPositionInputIndex = deferredExtraction ? mapping.columnCount() : -1;
-        return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory(), rowPositionInputIndex);
+        int rowPositionInputIndex = deferredExtraction ? mapping.width() : -1;
+        return new SchemaAdaptingIterator(
+            pages,
+            queryDataSchema.attributes(),
+            mapping,
+            driverContext.blockFactory(),
+            rowPositionInputIndex
+        );
     }
 
     /**
@@ -703,28 +706,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (pushedExpressions.isEmpty() || pushdownSupport == null) {
             return formatReader;
         }
-        SchemaReconciliation.ColumnMapping mapping = fileSplit.columnMapping();
-        if (mapping == null || (mapping.hasMissingColumns() == false && mapping.hasCasts() == false)) {
+        ColumnMapping mapping = fileSplit.columnMapping();
+        if (mapping == null) {
             return formatReader;
         }
-        Set<String> fileColumnNames = new LinkedHashSet<>();
-        Map<String, DataType> fileColumnTypes = new HashMap<>();
-        assert mapping.columnCount() <= attributes.size()
-            : "column mapping count [" + mapping.columnCount() + "] exceeds attributes size [" + attributes.size() + "]";
-        for (int i = 0; i < mapping.columnCount(); i++) {
-            if (mapping.localIndex(i) != -1) {
-                String name = attributes.get(i).name();
-                fileColumnNames.add(name);
-                DataType castTarget = mapping.cast(i);
-                if (castTarget != null) {
-                    DataType fileType = inferFileType(castTarget);
-                    if (fileType != null) {
-                        fileColumnTypes.put(name, fileType);
-                    }
-                }
-            }
+        List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
+        if (adapted == pushedExpressions) {
+            return formatReader;
         }
-        List<Expression> adapted = FilterAdaptation.adaptFilterForFile(pushedExpressions, fileColumnNames, fileColumnTypes);
         if (adapted.isEmpty()) {
             return formatReader.withPushedFilter(null);
         }
@@ -733,19 +722,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return formatReader.withPushedFilter(result.pushedFilter());
         }
         return formatReader.withPushedFilter(null);
-    }
-
-    /**
-     * Infers the file's native type from the cast target. Only returns a narrower type when
-     * the adaptation is safe for integral comparisons (LONG→INTEGER).
-     * DOUBLE→INTEGER narrowing is not supported because {@code Number.longValue()} truncates
-     * fractional values, which changes comparison semantics (e.g., {@code col < 2.7} vs {@code col < 2}).
-     */
-    private static DataType inferFileType(DataType castTarget) {
-        if (castTarget == DataType.LONG) {
-            return DataType.INTEGER;
-        }
-        return null;
     }
 
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
@@ -768,7 +744,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Multi-file read path (legacy, non-slice-queue). Per-file filter adaptation is not applied
-     * here because this path does not carry {@link FileSplit} with {@link SchemaReconciliation.ColumnMapping};
+     * here because this path does not carry {@link FileSplit} with {@link ColumnMapping};
      * UNION_BY_NAME queries use the slice-queue path ({@link #startSliceQueueRead}) instead.
      */
     private void startMultiFileRead(
@@ -1224,13 +1200,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
-            SchemaReconciliation.ColumnMapping mapping = null;
+            ColumnMapping mapping = null;
             List<Attribute> perFileReadSchema = null;
             if (state.schemaInfo != null) {
                 SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
                 if (info != null) {
                     mapping = info.mapping();
-                    perFileReadSchema = info.fileSchema();
+                    perFileReadSchema = info.fileSchema().attributes();
                 }
             }
             List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);

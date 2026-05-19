@@ -9,22 +9,41 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 
-public class DoublesBlockLoader extends AbstractDoublesFromDocValuesBlockLoader {
+import java.io.IOException;
+
+public class DoublesBlockLoader extends AbstractNumericBlockLoader<BlockLoader.DoubleBuilder> {
+    protected final BlockDocValuesReader.ToDouble toDouble;
+
     public DoublesBlockLoader(String fieldName, BlockDocValuesReader.ToDouble toDouble) {
-        super(fieldName, toDouble);
+        this(fieldName, toDouble, false);
+    }
+
+    public DoublesBlockLoader(String fieldName, BlockDocValuesReader.ToDouble toDouble, boolean readInArrayOrder) {
+        super(fieldName, "DoublesFromDocValues", readInArrayOrder);
+        this.toDouble = toDouble;
     }
 
     @Override
-    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Singleton(docValues, toDouble);
+    public DoubleBuilder builder(BlockFactory factory, int expectedCount) {
+        return factory.doubles(expectedCount);
     }
 
     @Override
-    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Sorted(docValues, toDouble);
+    protected DoubleBuilder newBuilder(BlockFactory factory, int expectedCount) {
+        return factory.doublesFromDocValues(expectedCount);
+    }
+
+    @Override
+    protected void appendValue(DoubleBuilder builder, long rawValue) {
+        builder.appendDouble(toDouble.convert(rawValue));
+    }
+
+    @Override
+    protected Block tryDirectRead(OptionalColumnAtATimeReader direct, BlockFactory factory, Docs docs, int offset, boolean nullsFiltered)
+        throws IOException {
+        return direct.tryRead(factory, docs, offset, nullsFiltered, toDouble, false, false);
     }
 
     @Override

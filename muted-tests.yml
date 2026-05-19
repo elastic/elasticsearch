@@ -566,3 +566,45 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
   method: testReshardedLongLivedPitRelocation
   issue: https://github.com/elastic/elasticsearch/issues/149273
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testIpLocationServiceLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/149284
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/149285
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:tdigest.isNotNullFilter (timeseries mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/149293
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:exponential_histogram.isNotNullFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/149291
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testBasic
+  issue: https://github.com/elastic/elasticsearch/issues/149338
+- class: org.elasticsearch.xpack.stateless.CorruptionIT
+  method: testConcurrentOperations
+  issue: https://github.com/elastic/elasticsearch/issues/149342
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogLocalFailureOnlyStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/149343
+- class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
+  method: testConsumerScopedDownloads
+  issue: https://github.com/elastic/elasticsearch/issues/149264
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/149350
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149352
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testDynamicStringMappingWithoutAutoTextSubfield
+  issue: https://github.com/elastic/elasticsearch/issues/149374
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjsonZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149432
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupNdjson
+  issue: https://github.com/elastic/elasticsearch/issues/149434
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
+  method: testStatsBlowupCsvZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149437

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
@@ -66,7 +67,7 @@ public class PromqlBuiltinFunctionDefinitions {
                         source,
                         Literal.keyword(source, ChronoField.DAY_OF_WEEK.name()),
                         date,
-                        configuration.withZoneId(ZoneOffset.UTC)
+                        configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC)
                     )
                 ),
                 Literal.fromDouble(source, 7.0)
@@ -96,7 +97,7 @@ public class PromqlBuiltinFunctionDefinitions {
                     Literal.keyword(source, "day"),
                     Literal.keyword(source, "month"),
                     date,
-                    configuration.withZoneId(ZoneOffset.UTC)
+                    configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC)
                 )
             )
         )
@@ -119,7 +120,12 @@ public class PromqlBuiltinFunctionDefinitions {
             .dateTime(
                 (source, date, configuration) -> new ToDouble(
                     source,
-                    new DateExtract(source, Literal.keyword(source, field.name()), date, configuration.withZoneId(ZoneOffset.UTC))
+                    new DateExtract(
+                        source,
+                        Literal.keyword(source, field.name()),
+                        date,
+                        configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC)
+                    )
                 )
             )
             .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED);

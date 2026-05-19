@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -45,6 +46,11 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
     private static final DataType[] TIME_RANGE_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS, DataType.KEYWORD };
     private static final DataType[] TIMESTAMP_TYPES = new DataType[] { DataType.DATETIME, DataType.DATE_NANOS };
     private static final DataType[] COUNT_STEP_TYPES = { DataType.INTEGER, DataType.LONG };
+
+    /** Builds a Configuration with the given {@code now} and {@link QuerySettings#TIME_ZONE} override. */
+    private static Configuration tStepConfig(Instant now, ZoneId zoneId) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).now(now).setting(QuerySettings.TIME_ZONE, zoneId).build();
+    }
 
     public TStepTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -172,10 +178,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                 matcher(args, step.toMillis(), now)
             ).withConfiguration(
                 TEST_SOURCE,
-                randomConfigurationBuilder().query(TEST_SOURCE.text())
-                    .now(now)
-                    .zoneId(timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
-                    .build()
+                tStepConfig(now, timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
             );
         }));
     }
@@ -209,10 +212,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                             : Matchers.startsWith("DateTruncDatetimeEvaluator["),
                         timestampType,
                         equalTo(encodedTimestamp(expectedMillis, timestampType))
-                    ).withConfiguration(
-                        TEST_SOURCE,
-                        randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
-                    );
+                    ).withConfiguration(TEST_SOURCE, tStepConfig(end, ZoneOffset.UTC));
                 }));
             }
         }
@@ -245,10 +245,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                                 : Matchers.startsWith("DateTruncDatetimeEvaluator["),
                             timestampType,
                             equalTo(encodedTimestamp(expectedBucket.toEpochMilli(), timestampType))
-                        ).withConfiguration(
-                            TEST_SOURCE,
-                            randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build()
-                        );
+                        ).withConfiguration(TEST_SOURCE, tStepConfig(end, ZoneOffset.UTC));
                     }));
                 }
             }
@@ -486,7 +483,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         DataType timestampType,
         ZoneId zoneId
     ) {
-        Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(zoneId).build();
+        Configuration configuration = tStepConfig(end, zoneId);
         Literal timestampLiteral = timestampLiteral(timestamp, timestampType);
         TStep tStep = (TStep) new TStep(Source.EMPTY, Literal.timeDuration(Source.EMPTY, step), timestampLiteral, configuration)
             .withTimestampBounds(timestampLiteral(start, timestampType), timestampLiteral(end, timestampType));
@@ -501,7 +498,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         DataType timestampType,
         ZoneId zoneId
     ) {
-        Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(zoneId).build();
+        Configuration configuration = tStepConfig(end, zoneId);
         Literal timestampLiteral = timestampLiteral(timestamp, timestampType);
         TStep tStep = new TStep(
             Source.EMPTY,

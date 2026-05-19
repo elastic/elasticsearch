@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -59,7 +60,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             Literal.NULL,
             Literal.NULL,
             Literal.dateTime(Source.EMPTY, Instant.parse("2023-12-31T23:30:00Z")),
-            EsqlTestUtils.TEST_CFG.withZoneId(ZoneId.of("Europe/Paris"))
+            EsqlTestUtils.TEST_CFG.withSetting(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"))
         );
 
         var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction("year", Source.EMPTY, null, ctx, List.of());

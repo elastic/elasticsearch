@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -421,9 +422,19 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * Returns a new Configuration with the given zone id.
+     * Returns a new Configuration with one {@link QuerySettingDef} value overridden. Generic — caller
+     * names the setting via the {@link QuerySettingDef} constant.
      */
-    public Configuration withZoneId(ZoneId newZoneId) {
+    public <T> Configuration withSetting(QuerySettingDef<T> def, T value) {
+        return withResolvedSettings(resolvedSettings.withOverride(def, value));
+    }
+
+    /**
+     * Returns a new Configuration with the given resolved settings. Use this when overriding any
+     * {@link QuerySettingDef}-backed knob — compose the new {@link ResolvedSettings} via
+     * {@link ResolvedSettings#withOverride} on the caller side and hand it in.
+     */
+    public Configuration withResolvedSettings(ResolvedSettings newResolvedSettings) {
         return new Configuration(
             now,
             locale,
@@ -439,7 +450,7 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            resolvedSettings.withOverride(QuerySettings.TIME_ZONE, newZoneId.normalized()),
+            newResolvedSettings,
             viewQueries,
             explainOnly
         );

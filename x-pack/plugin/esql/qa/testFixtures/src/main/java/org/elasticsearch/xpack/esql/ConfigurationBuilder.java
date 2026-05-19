@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -83,10 +83,6 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    public ConfigurationBuilder zoneId(ZoneId zoneId) {
-        this.resolvedSettings = resolvedSettings.withOverride(QuerySettings.TIME_ZONE, zoneId.normalized());
-        return this;
-    }
 
     public ConfigurationBuilder pragmas(QueryPragmas pragmas) {
         this.pragmas = pragmas;
@@ -143,14 +139,20 @@ public class ConfigurationBuilder {
         return this;
     }
 
-    public ConfigurationBuilder projectRouting(String projectRouting) {
-        this.resolvedSettings = resolvedSettings.withOverride(QuerySettings.PROJECT_ROUTING, projectRouting);
-        return this;
-    }
-
     public ConfigurationBuilder resolvedSettings(ResolvedSettings resolvedSettings) {
         this.resolvedSettings = resolvedSettings;
         return this;
+    }
+
+    /** Override one {@link QuerySettingDef} value on the resolved-settings view. Generic — caller names the setting. */
+    public <T> ConfigurationBuilder setting(QuerySettingDef<T> def, T value) {
+        this.resolvedSettings = resolvedSettings.withOverride(def, value);
+        return this;
+    }
+
+    /** Returns the current resolved-settings view; callers compose with {@link ResolvedSettings#withOverride} as needed. */
+    public ResolvedSettings resolvedSettings() {
+        return resolvedSettings;
     }
 
     public ConfigurationBuilder explainOnly(boolean explainOnly) {

@@ -450,7 +450,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * error store. Once a new master is elected the DLM service resumes and the frozen index
      * eventually appears in the data stream.
      */
-    public void testMasterFailoverDuringSnapshot() throws Exception {
+    public void testMasterFailoverDuringSnapshotPhase() throws Exception {
         String candidateIndex = setupClusterAndInfrastructure(3);
 
         CountDownLatch latch = registerDisruptionInterceptor(TransportGetSnapshotsAction.TYPE.name(), () -> {

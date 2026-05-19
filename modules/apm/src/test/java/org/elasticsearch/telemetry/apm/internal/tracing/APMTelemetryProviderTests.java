@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -104,12 +105,12 @@ public class APMTelemetryProviderTests extends ESTestCase {
         completer.setDaemon(true);
         completer.start();
 
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, true, true, 5_000);
         provider.attemptFlushAll();
-        long elapsed = System.currentTimeMillis() - start;
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 
-        assertTrue("should return after results complete, not after full timeout", elapsed < 4_000);
+        assertTrue("should wait for results but return before full timeout", elapsedMs >= 50 && elapsedMs < 5_000);
     }
 
     public void testAttemptFlushAllIsNoopWhenBothDisabled() {

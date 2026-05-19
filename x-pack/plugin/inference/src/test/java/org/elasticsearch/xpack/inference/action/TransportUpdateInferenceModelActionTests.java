@@ -597,12 +597,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testValidateConsumedUpdateSettings_EmptyMaps_DoesNotThrow() {
-        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(
-            service,
-            SERVICE_NAME_VALUE,
-            new HashMap<>(),
-            new HashMap<>()
-        );
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, new HashMap<>(), new HashMap<>());
     }
 
     public void testValidateConsumedUpdateSettings_UnknownServiceSetting_ThrowsBadRequest() {
@@ -611,12 +606,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(
-                service,
-                SERVICE_NAME_VALUE,
-                serviceSettings,
-                null
-            )
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, serviceSettings, null)
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
@@ -631,12 +621,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(
-                service,
-                SERVICE_NAME_VALUE,
-                null,
-                taskSettings
-            )
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings)
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));

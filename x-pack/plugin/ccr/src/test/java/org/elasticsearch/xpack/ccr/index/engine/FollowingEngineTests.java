@@ -273,8 +273,6 @@ public class FollowingEngineTests extends ESTestCase {
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
-            .externalRefreshListener(List.of())
-            .internalRefreshListener(List.of())
             .circuitBreakerService(new NoneCircuitBreakerService())
             .globalCheckpointSupplier(globalCheckpoint::longValue)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)

@@ -81,9 +81,7 @@ public final class EngineConfig {
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    @Nullable
     private final List<ReferenceManager.RefreshListener> externalRefreshListener;
-    @Nullable
     private final List<ReferenceManager.RefreshListener> internalRefreshListener;
     @Nullable
     private final Sort indexSort;
@@ -526,8 +524,8 @@ public final class EngineConfig {
         private QueryCachingPolicy queryCachingPolicy;
         private TranslogConfig translogConfig;
         private TimeValue flushMergesAfter;
-        private List<ReferenceManager.RefreshListener> externalRefreshListener;
-        private List<ReferenceManager.RefreshListener> internalRefreshListener;
+        private List<ReferenceManager.RefreshListener> externalRefreshListener = List.of();
+        private List<ReferenceManager.RefreshListener> internalRefreshListener = List.of();
         private Sort indexSort;
         private CircuitBreakerService circuitBreakerService;
         private LongSupplier globalCheckpointSupplier;
@@ -655,12 +653,12 @@ public final class EngineConfig {
         }
 
         public Builder externalRefreshListener(List<ReferenceManager.RefreshListener> externalRefreshListener) {
-            this.externalRefreshListener = externalRefreshListener;
+            this.externalRefreshListener = Objects.requireNonNull(externalRefreshListener, "externalRefreshListener");
             return this;
         }
 
         public Builder internalRefreshListener(List<ReferenceManager.RefreshListener> internalRefreshListener) {
-            this.internalRefreshListener = internalRefreshListener;
+            this.internalRefreshListener = Objects.requireNonNull(internalRefreshListener, "internalRefreshListener");
             return this;
         }
 

@@ -163,7 +163,6 @@ public class RefreshListenersTests extends ESTestCase {
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of(listeners))
-            .internalRefreshListener(List.of())
             .circuitBreakerService(new NoneCircuitBreakerService())
             .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)

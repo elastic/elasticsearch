@@ -1553,13 +1553,8 @@ public class StatelessPlugin extends Plugin
                     false // translog is replicated to the object store, no need fsync that
                 );
 
-                var internalRefreshListeners = config.getInternalRefreshListener();
-                if (internalRefreshListeners == null) {
-                    internalRefreshListeners = List.of();
-                }
-
-                internalRefreshListeners = Stream.concat(
-                    internalRefreshListeners.stream(),
+                var internalRefreshListeners = Stream.concat(
+                    config.getInternalRefreshListener().stream(),
                     Stream.of(getUpdateMetricsRefreshListener(config))
                 ).toList();
 

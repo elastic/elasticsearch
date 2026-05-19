@@ -374,8 +374,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()))
-            .externalRefreshListener(List.of())
-            .internalRefreshListener(List.of())
             .circuitBreakerService(new NoneCircuitBreakerService())
             .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
@@ -527,7 +525,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .store(store)
             .eventListener(new CapturingEngineEventListener())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
-            .externalRefreshListener(List.of())
             .retentionLeasesSupplier(() -> {
                 throw new AssertionError();
             })
@@ -625,7 +622,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .store(store)
             .eventListener(new CapturingEngineEventListener())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
-            .externalRefreshListener(List.of())
             .retentionLeasesSupplier(() -> {
                 throw new AssertionError();
             })

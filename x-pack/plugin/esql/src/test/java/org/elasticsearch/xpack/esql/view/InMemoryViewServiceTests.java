@@ -185,7 +185,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs2");
         addIndex("logs3");
         LogicalPlan plan = query("FROM logs*,-logs3");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM logs2),(FROM logs*,-logs3)")));
     }
 
     /**
@@ -204,7 +204,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("data-view-extra");
         addView("data-view-origin", "FROM data-index-origin");
         LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM data-index-origin),(FROM -*-view-*,data-view-*)")));
     }
 
     /**
@@ -373,7 +373,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("viewX");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view*, -donotexist");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*,-donotexist")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1),(FROM view*,-donotexist)")));
     }
 
     public void testPositionalExclusion() {

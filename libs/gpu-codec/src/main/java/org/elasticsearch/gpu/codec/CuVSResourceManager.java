@@ -206,18 +206,7 @@ public interface CuVSResourceManager {
             lock.lock();
             try {
                 long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType, cagraIndexParams);
-                logger.debug(
-                    "Try acquiring resource for [{}] (nonBlocking=[{}]): [{}] vectors, [{}] dims, type [{}], "
-                        + "estimated [{}] B, pool state: [{}] created, [{}] locked",
-                    reason,
-                    nonBlocking,
-                    numVectors,
-                    dims,
-                    dataType.name(),
-                    requiredMemoryInBytes,
-                    createdCount,
-                    numLockedResources()
-                );
+                logAcquireAttempt(reason, nonBlocking, numVectors, dims, dataType, requiredMemoryInBytes);
 
                 boolean allConditionsMet = false;
                 ManagedCuVSResources res = null;
@@ -231,34 +220,15 @@ public interface CuVSResourceManager {
                         long totalMemoryInBytes = gpuMemoryService.totalMemoryInBytes(res);
                         long availableMemoryInBytes = gpuMemoryService.availableMemoryInBytes(res);
                         enoughMemory = requiredMemoryInBytes <= availableMemoryInBytes;
-                        logger.debug(
-                            "Memory check: available [{}] B / total [{}] B, required [{}] B, enoughMemory [{}], locked [{}]",
-                            availableMemoryInBytes,
-                            totalMemoryInBytes,
-                            requiredMemoryInBytes,
-                            enoughMemory,
-                            numLockedResources()
-                        );
+                        logMemoryCheck(availableMemoryInBytes, totalMemoryInBytes, requiredMemoryInBytes, enoughMemory);
 
                         if (requiredMemoryInBytes > totalMemoryInBytes) {
-                            String message = Strings.format(
-                                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
-                                numVectors,
-                                dims,
-                                totalMemoryInBytes
-                            );
-                            logger.error(message);
-                            throw new IllegalArgumentException(message);
+                            throw memoryExceededError(numVectors, dims, totalMemoryInBytes);
                         }
 
                         // If no resource in the pool is locked, we must proceed to avoid livelock
                         if (enoughMemory == false && numLockedResources() == 0) {
-                            logger.warn(
-                                "Insufficient GPU memory ([{}] B available, [{}] B required) "
-                                    + "but no locked resources to wait on; proceeding to avoid livelock",
-                                availableMemoryInBytes,
-                                requiredMemoryInBytes
-                            );
+                            logLivelockBypass(availableMemoryInBytes, requiredMemoryInBytes);
                             break;
                         }
                     } else {
@@ -278,14 +248,7 @@ public interface CuVSResourceManager {
                         enoughResourcesCondition.await();
                     }
                 }
-                var elapsed = System.nanoTime() - started;
-                logger.debug(
-                    "Resource acquired for [{}] in [{}] ms, reserving [{}] B, locked after acquire [{}]",
-                    reason,
-                    elapsed / 1_000_000.0,
-                    requiredMemoryInBytes,
-                    numLockedResources() + 1
-                );
+                logAcquired(reason, started, requiredMemoryInBytes);
                 gpuMemoryService.reserveMemory(requiredMemoryInBytes);
                 res.lock(() -> gpuMemoryService.releaseMemory(requiredMemoryInBytes));
                 return res;
@@ -364,6 +327,61 @@ public interface CuVSResourceManager {
                 assert res != null;
                 res.delegate.close();
             }
+        }
+
+        private IllegalArgumentException memoryExceededError(int numVectors, int dims, long totalMemoryInBytes) {
+            String message = Strings.format(
+                "Requested GPU memory for [%d] vectors, [%d] dims is greater than the GPU total memory [%d B]",
+                numVectors,
+                dims,
+                totalMemoryInBytes
+            );
+            logger.error(message);
+            return new IllegalArgumentException(message);
+        }
+
+        private void logAcquireAttempt(
+            String reason,
+            boolean nonBlocking,
+            int numVectors,
+            int dims,
+            CuVSMatrix.DataType dataType,
+            long requiredMemoryInBytes
+        ) {
+            logger.debug(
+                "[{}] Try acquire(nonBlocking={}): [{}] vectors, dims={} type={}, estimated={}B, state:([{}] created, [{}] locked)",
+                reason,
+                nonBlocking,
+                numVectors,
+                dims,
+                dataType.name(),
+                requiredMemoryInBytes,
+                createdCount,
+                numLockedResources()
+            );
+        }
+
+        private void logMemoryCheck(long available, long total, long required, boolean enough) {
+            logger.debug("Memory check: available={}B, total={}B, required={}B, enough={}", available, total, required, enough);
+        }
+
+        private void logLivelockBypass(long available, long required) {
+            logger.warn(
+                "Insufficient GPU memory ({}B available, {}B required) but no locked resources; proceeding to avoid livelock",
+                available,
+                required
+            );
+        }
+
+        private void logAcquired(String reason, long startedNanos, long reservedBytes) {
+            logger.debug(
+                "[{}] acquired in {}ms, reserving {}B, state:([{}] created, [{}] locked)",
+                reason,
+                (System.nanoTime() - startedNanos) / 1_000_000.0,
+                reservedBytes,
+                createdCount,
+                numLockedResources() + 1
+            );
         }
     }
 

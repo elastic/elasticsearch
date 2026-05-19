@@ -52,3 +52,82 @@ EXTERNAL "{{employees_hive}}"
 count:long
 10
 ;
+
+hivePartitionWhereIsNotNull
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| WHERE lang IS NOT NULL
+| STATS count = COUNT(*);
+
+count:long
+90
+;
+
+// `lang == 3` keeps the lang=3 bucket (17); `gender == "M"` keeps M rows from the
+// other partitions. Kleene OR pulls in lang=null/gender=M rows (NULL OR TRUE = TRUE).
+// M rows per partition: 9+11+11+8+7=46 (lang=1,2,4,5,null), plus 17 lang=3.
+hivePartitionOrNonPartitionFilter
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| WHERE lang == 3 OR gender == "M"
+| STATS count = COUNT(*);
+
+count:long
+63
+;
+
+// NOT (lang == 3 OR gender == "M") survives only when both sides are explicitly
+// FALSE: lang in {1,2,4,5} AND gender = "F". F rows: 4+5+6+9 = 24. lang=null and
+// gender=null rows are filtered out by Kleene (NULL → NULL → NOT NULL = NULL).
+hivePartitionNotOrFilter
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| WHERE NOT (lang == 3 OR gender == "M")
+| STATS count = COUNT(*);
+
+count:long
+24
+;
+
+// NOT (lang == 3 AND gender == "M") drops only lang=3 AND gender=M rows (11).
+// lang!=3 rows survive (73). lang=3 gender=F survives (6). lang=null gender=F
+// survives (NULL AND FALSE = FALSE → NOT FALSE = TRUE; 3 rows).
+hivePartitionNotAndFilter
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| WHERE NOT (lang == 3 AND gender == "M")
+| STATS count = COUNT(*);
+
+count:long
+82
+;
+
+hivePartitionStatsByLangAndGender
+required_capability: external_command
+
+EXTERNAL "{{employees_hive}}"
+| STATS count = COUNT(*) BY lang, gender
+| SORT lang NULLS LAST, gender NULLS LAST;
+
+count:long | lang:integer | gender:keyword
+4          | 1            | F
+9          | 1            | M
+2          | 1            | null
+5          | 2            | F
+11         | 2            | M
+3          | 2            | null
+6          | 3            | F
+11         | 3            | M
+6          | 4            | F
+11         | 4            | M
+1          | 4            | null
+9          | 5            | F
+8          | 5            | M
+4          | 5            | null
+3          | null         | F
+7          | null         | M
+;

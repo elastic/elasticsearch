@@ -1,5 +1,12 @@
 #!/bin/bash
 
+if [[ -f build/task-status.json ]]; then
+  cd build
+  gzip task-status.json
+  buildkite-agent artifact upload task-status.json.gz
+  cd -
+fi
+
 # Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in
 # Gradle 9, even with --no-daemon). When preempted, the Gradle build writes the desired
 # exit code (default 47) to a well-known file so retry rules (exit_status: 47) fire

@@ -207,6 +207,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private final ErrorPolicy effectivePolicy;
 
+    /**
+     * Boundary-scanner strategy chosen at construction. Held as a {@code final} field so the JIT
+     * sees a stable {@link CsvBoundaryScanner.Impl} at every dispatch site on this reader — in
+     * production every reader is built with the same default ({@link CsvBoundaryScanner#PREFIX_XOR}),
+     * so the call site is monomorphic and inlines through the interface.
+     */
+    private final CsvBoundaryScanner.Impl boundaryScanner;
+
     public CsvFormatReader(BlockFactory blockFactory) {
         this(
             blockFactory,
@@ -215,16 +223,64 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List.of(".csv", ".tsv"),
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
-            ErrorPolicy.STRICT
+            ErrorPolicy.STRICT,
+            defaultBoundaryScanner()
         );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
+        this(
+            blockFactory,
+            CsvFormatOptions.DEFAULT,
+            format,
+            extensions,
+            null,
+            CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ErrorPolicy.STRICT,
+            defaultBoundaryScanner()
+        );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
-        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
+        this(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            null,
+            CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ErrorPolicy.STRICT,
+            defaultBoundaryScanner()
+        );
+    }
+
+    /**
+     * Test-only entry point: build a reader with an explicit boundary-scanner strategy. Lets
+     * equivalence tests compare {@link CsvBoundaryScanner#PREFIX_XOR} and
+     * {@link CsvBoundaryScanner#REFERENCE} end-to-end through the public reader API.
+     */
+    CsvFormatReader(BlockFactory blockFactory, CsvBoundaryScanner.Impl boundaryScanner) {
+        this(
+            blockFactory,
+            CsvFormatOptions.DEFAULT,
+            "csv",
+            List.of(".csv", ".tsv"),
+            null,
+            CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ErrorPolicy.STRICT,
+            boundaryScanner
+        );
+    }
+
+    /** Test-only: same as the four-arg public constructor plus an explicit boundary-scanner. */
+    CsvFormatReader(
+        BlockFactory blockFactory,
+        CsvFormatOptions options,
+        String format,
+        List<String> extensions,
+        CsvBoundaryScanner.Impl boundaryScanner
+    ) {
+        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT, boundaryScanner);
     }
 
     private CsvFormatReader(
@@ -234,7 +290,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<String> extensions,
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
-        ErrorPolicy effectivePolicy
+        ErrorPolicy effectivePolicy,
+        CsvBoundaryScanner.Impl boundaryScanner
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -243,7 +300,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
+        this.boundaryScanner = boundaryScanner;
         this.sharedCsvMapper = createMapper(options);
+    }
+
+    /**
+     * Resolves the production default boundary-scanner strategy. Defaults to the per-byte scalar
+     * {@link CsvBoundaryScanner#REFERENCE} — behaviourally identical to the original scanner, so
+     * landing this PR changes nothing for existing deployments. Opt into the prefix-XOR fast path
+     * by setting {@code -D}{@value CsvBoundaryScanner#FAST_PATH_PROPERTY}{@code =true} at JVM
+     * start. A follow-up will flip the default once both implementations have soaked.
+     */
+    private static CsvBoundaryScanner.Impl defaultBoundaryScanner() {
+        String prop = System.getProperty(CsvBoundaryScanner.FAST_PATH_PROPERTY);
+        return Boolean.parseBoolean(prop) ? CsvBoundaryScanner.PREFIX_XOR : CsvBoundaryScanner.REFERENCE;
     }
 
     private static CsvMapper createMapper(CsvFormatOptions opts) {
@@ -407,12 +477,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions, format, extensions, resolvedSchema, schemaSampleSize, effectivePolicy);
+        return new CsvFormatReader(
+            blockFactory,
+            newOptions,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            boundaryScanner
+        );
     }
 
     @Override
     public CsvFormatReader withSchema(List<Attribute> schema) {
-        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
+        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy, boundaryScanner);
     }
 
     @Override
@@ -433,7 +512,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 result.extensions,
                 result.resolvedSchema,
                 newSampleSize,
-                resolvedPolicy
+                resolvedPolicy,
+                result.boundaryScanner
             );
         }
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
@@ -846,32 +926,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * An unpaired opening quote leaves {@code inQuotes == true} for the rest of the buffer, so
      * any {@code \n} inside the unterminated tail is skipped and the returned offset stays before
      * the open region — the open-tail rule the segmentator's grow loop requires.
+     * <p>
+     * Implementation delegates to the {@link CsvBoundaryScanner.Impl} chosen at construction
+     * (defaults to {@link CsvBoundaryScanner#PREFIX_XOR}, which batches the per-byte state machine
+     * into bit-parallel operations on 64-byte blocks; falls back to {@link CsvBoundaryScanner#REFERENCE}
+     * when {@code -D}{@value CsvBoundaryScanner#FAST_PATH_PROPERTY}{@code =false} is set).
      */
     private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
-        if (length <= 0) {
-            return -1;
-        }
-        int lastBoundary = -1;
-        boolean inQuotes = false;
-        byte quoteAsByte = (byte) options.quoteChar();
-        for (int i = 0; i < length; i++) {
-            byte b = buf[i];
-            if (b == quoteAsByte) {
-                if (inQuotes) {
-                    if (i + 1 < length && buf[i + 1] == quoteAsByte) {
-                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
-                        i++;
-                    } else {
-                        inQuotes = false;
-                    }
-                } else {
-                    inQuotes = true;
-                }
-            } else if (b == '\n' && inQuotes == false) {
-                lastBoundary = i;
-            }
-        }
-        return lastBoundary;
+        return boundaryScanner.findLastRealTerminator(buf, 0, length, (byte) options.quoteChar());
     }
 
     /**

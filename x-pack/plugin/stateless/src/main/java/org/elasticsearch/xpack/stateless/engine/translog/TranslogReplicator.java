@@ -697,6 +697,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final AtomicLong currentGeneration = new AtomicLong(0);
         private final PriorityQueue<UploadTranslogTask> ongoingUploads = new PriorityQueue<>();
+        private boolean closed = false;
 
         private final AtomicLong validateClusterStateGeneration = new AtomicLong(0);
         private final PriorityQueue<ValidateClusterStateForUploadTask> ongoingValidateClusterState = new PriorityQueue<>();
@@ -706,6 +707,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private void markUploadStarting(final UploadTranslogTask uploadTranslogTask) {
             synchronized (ongoingUploads) {
                 ongoingUploads.add(uploadTranslogTask);
+
+                if (closed) {
+                    uploadTranslogTask.cancel(new ElasticsearchException("Node shutting down"));
+                    return;
+                }
 
                 BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
@@ -967,6 +973,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         public void close() {
             synchronized (ongoingUploads) {
+                closed = true;
                 // Don't remove. Just cancel since this only happens on shutdown.
                 ongoingUploads.forEach(r -> r.cancel(new ElasticsearchException("Node shutting down")));
             }

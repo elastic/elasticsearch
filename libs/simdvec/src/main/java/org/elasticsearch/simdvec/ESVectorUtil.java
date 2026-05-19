@@ -483,7 +483,7 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("distances array must have length >= 8, but was: " + distances.length);
         }
         if (distancesOffset < 0 || distancesOffset > distances.length - 8) {
-            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 8");
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 8");
         }
         IMPL.squareDistanceBulk(q, 0, q.length, v0, v1, v2, v3, v4, v5, v6, v7, distancesOffset, distances);
     }

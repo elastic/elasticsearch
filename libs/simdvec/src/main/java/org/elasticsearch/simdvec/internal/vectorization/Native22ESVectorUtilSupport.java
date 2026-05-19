@@ -175,7 +175,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             MemorySegment.ofArray(v7),
             MemorySegment.ofArray(query).asSlice((long) queryOffset * Float.BYTES, (long) length * Float.BYTES),
             length,
-            MemorySegment.ofArray(distances).asSlice((long) distancesOffset * Float.BYTES, (long) 8 * Float.BYTES)
+            MemorySegment.ofArray(distances).asSlice((long) distancesOffset * Float.BYTES, 8L * Float.BYTES)
         );
     }
 }

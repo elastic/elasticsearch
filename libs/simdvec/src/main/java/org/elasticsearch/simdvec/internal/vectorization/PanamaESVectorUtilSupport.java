@@ -996,21 +996,25 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int distancesOffset,
         float[] distances
     ) {
-        new DefaultESVectorUtilSupport().squareDistanceBulk(
-            query,
-            queryOffset,
-            length,
-            v0,
-            v1,
-            v2,
-            v3,
-            v4,
-            v5,
-            v6,
-            v7,
-            distancesOffset,
-            distances
-        );
+        if (queryOffset == 0 && length == query.length) {
+            distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+            distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+            distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+            distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+            distances[distancesOffset + 4] = VectorUtil.squareDistance(query, v4);
+            distances[distancesOffset + 5] = VectorUtil.squareDistance(query, v5);
+            distances[distancesOffset + 6] = VectorUtil.squareDistance(query, v6);
+            distances[distancesOffset + 7] = VectorUtil.squareDistance(query, v7);
+        } else {
+            distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+            distances[distancesOffset + 4] = squareDistance(query, v4, queryOffset, length);
+            distances[distancesOffset + 5] = squareDistance(query, v5, queryOffset, length);
+            distances[distancesOffset + 6] = squareDistance(query, v6, queryOffset, length);
+            distances[distancesOffset + 7] = squareDistance(query, v7, queryOffset, length);
+        }
     }
 
     @Override

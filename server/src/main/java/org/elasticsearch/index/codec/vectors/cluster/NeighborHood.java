@@ -60,7 +60,7 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
             neighborQueues[i] = new NeighborQueue(clustersPerNeighborhood, true);
         }
         final float[] scores = new float[SQR_BULK_SIZE];
-        final int limit = k - SQR_BULK_SIZE - 1;
+        final int limit = k - (SQR_BULK_SIZE - 1);
         for (int i = 0; i < k - 1; i++) {
             float[] center = centers[i];
             int j = i + 1;

@@ -51,14 +51,14 @@ public final class AutomatonQueryCostEstimator implements QueryCostEstimator {
      * gaps by ensuring a minimum reservation regardless of DFA size. Production telemetry on the
      * reservation/actual ratio should be used to refine the multiplier over time.
      */
-    public static final int COMPILED_AUTOMATON_PEAK_MULTIPLIER = 200;
+    static final int COMPILED_AUTOMATON_PEAK_MULTIPLIER = 200;
 
     /**
      * Lower bound on the pre-flight reservation. Prevents under-reservation for tiny DFAs that
      * disproportionately blow up during {@code CompiledAutomaton} construction (e.g. small
      * automatons with wide-alphabet transitions like {@code ?×N}).
      */
-    public static final long COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES = 128L * 1024L;
+    static final long COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES = 128L * 1024L;
 
     private final long dfaRamBytes;
 

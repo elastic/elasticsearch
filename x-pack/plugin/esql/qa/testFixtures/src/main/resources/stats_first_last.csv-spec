@@ -467,3 +467,148 @@ FROM voyager
 x01:datetime | x02:datetime | x03:integer | x04:integer | x05:boolean | x06:boolean | x07:long    | x08:long    | x09:keyword | x10:keyword
 null         | null         | [3, 4]      | [3, 4]      | false       | false       | 21190910703 | 21190910703 | yellow      | yellow
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on version type
+required_capability: first_agg_extended_types
+
+FROM all_types
+| STATS first_v = FIRST(version, long)
+;
+
+first_v:version
+1.0.0
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on unsigned_long type
+required_capability: first_agg_extended_types
+
+FROM all_types
+| STATS first_ul = FIRST(unsigned_long, long)
+;
+
+first_ul:unsigned_long
+100
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on geo_point type
+required_capability: first_agg_extended_types
+
+FROM k8s
+| STATS first_pt = FIRST(event_city, @timestamp)
+;
+
+first_pt:geo_point
+POINT(-4.0333 5.3167)
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on cartesian_point type
+required_capability: first_agg_extended_types
+
+FROM k8s
+| STATS first_pt = FIRST(event_location, @timestamp)
+;
+
+first_pt:cartesian_point
+POINT (8455502.60394535 3613330.7325705294)
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on geo_shape type
+required_capability: first_agg_extended_types
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM airport_city_boundaries
+| WHERE abbrev == "PMI"
+| EVAL sort = 1::long
+| STATS first_shape = FIRST(city_boundary, sort)
+;
+
+first_shape:geo_shape
+POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on cartesian_shape type
+required_capability: first_agg_extended_types
+
+FROM k8s
+| STATS first_shape = FIRST(event_shape, @timestamp)
+;
+
+first_shape:cartesian_shape
+MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)), ((2 0, 3 0, 3 1, 2 1, 2 0)), ((2 2, 3 2, 3 3, 2 3, 2 2)), ((0 2, 1 2, 1 3, 0 3, 0 2)))
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on geohash type
+required_capability: first_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+  "1 | u3bu",
+  "3 | dr5r",
+  "2 | 9q8y"
+]
+| MV_EXPAND rows
+| DISSECT rows "%{n} | %{hash}"
+| EVAL sort = TO_LONG(n), gh = TO_GEOHASH(hash)
+| STATS first_gh = FIRST(gh, sort)
+;
+
+first_gh:geohash
+u3bu
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on geotile type
+required_capability: first_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+  "1 | 4/8/5",
+  "3 | 3/4/2",
+  "2 | 2/2/1"
+]
+| MV_EXPAND rows
+| DISSECT rows "%{n} | %{tile}"
+| EVAL sort = TO_LONG(n), gt = TO_GEOTILE(tile)
+| STATS first_gt = FIRST(gt, sort)
+;
+
+first_gt:geotile
+4/8/5
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on geohex type
+required_capability: first_agg_extended_types
+required_capability: spatial_grid_types
+
+ROW rows = [
+  "1 | 841f059ffffffff",
+  "3 | 812bbffffffffff",
+  "2 | 81397ffffffffff"
+]
+| MV_EXPAND rows
+| DISSECT rows "%{n} | %{hex}"
+| EVAL sort = TO_LONG(n), gh = TO_GEOHEX(hex)
+| STATS first_gh = FIRST(gh, sort)
+;
+
+first_gh:geohex
+841f059ffffffff
+;
+

@@ -321,7 +321,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
                 SearchPhaseResult result;
-                SearchShardTarget shardTarget = new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias());
+                SearchShardTarget shardTarget = new SearchShardTarget(
+                    searchContextIdForNode.getNode(),
+                    shardId,
+                    searchContextIdForNode.getClusterAlias()
+                );
                 if (frequently()) {
                     result = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(shardTarget);
                 } else {

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 
@@ -78,18 +79,35 @@ final class VirtualColumnInjector {
         int positions = dataPage.getPositionCount();
         Block[] blocks = new Block[fullOutput.size()];
 
-        int dataBlockIdx = 0;
-        for (int idx : dataColumnIndices) {
-            blocks[idx] = dataPage.getBlock(dataBlockIdx++);
-        }
+        // Format readers (e.g. parquet) emit a placeholder block for every entry in their
+        // attribute list, including partition columns that aren't actually in the file (only when
+        // projectedColumns is empty — see ParquetFormatReader.buildProjectedAttributes, which then
+        // falls back to all resolved attributes, and the iterator's null-fill loop produces a
+        // ConstantNullBlock for the missing partition column slot). Those placeholder blocks are
+        // owned by dataPage; if we silently drop dataPage we leak them. So we retain the data
+        // blocks we actually want via incRef and then release dataPage, which decRefs everything
+        // — net effect: kept blocks survive, placeholder/unused blocks are released.
+        try {
+            int dataBlockIdx = 0;
+            for (int idx : dataColumnIndices) {
+                Block b = dataPage.getBlock(dataBlockIdx++);
+                b.incRef();
+                blocks[idx] = b;
+            }
 
-        for (int idx : partitionColumnIndices) {
-            Attribute attr = fullOutput.get(idx);
-            Object value = partitionValues.get(attr.name());
-            blocks[idx] = createConstantBlock(attr, value, positions);
-        }
+            for (int idx : partitionColumnIndices) {
+                Attribute attr = fullOutput.get(idx);
+                Object value = partitionValues.get(attr.name());
+                blocks[idx] = createConstantBlock(attr, value, positions);
+            }
 
-        return new Page(positions, blocks);
+            return new Page(positions, blocks);
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        } finally {
+            dataPage.releaseBlocks();
+        }
     }
 
     private static int[] toIntArray(List<Integer> list) {
@@ -106,7 +124,9 @@ final class VirtualColumnInjector {
             case Long longVal -> blockFactory.newConstantLongBlockWith(longVal, positions);
             case Double doubleVal -> blockFactory.newConstantDoubleBlockWith(doubleVal, positions);
             case Boolean boolVal -> blockFactory.newConstantBooleanBlockWith(boolVal, positions);
-            case null -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(""), positions);
+            // Hive's __HIVE_DEFAULT_PARTITION__ sentinel is decoded to Java null by HivePartitionDetector;
+            // surface it as SQL NULL so IS NULL / STATS BY / type inference all behave correctly.
+            case null -> blockFactory.newConstantNullBlock(positions);
             default -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(value.toString()), positions);
         };
     }

@@ -182,16 +182,6 @@ public abstract class EngineTestCase extends ESTestCase {
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
     protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
 
-    protected static void assertVisibleCount(Engine engine, int numDocs, boolean refresh) throws IOException {
-        if (refresh) {
-            engine.refresh("test");
-        }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
-            assertThat(totalHits, equalTo(numDocs));
-        }
-    }
-
     protected Settings indexSettings() {
         // TODO randomize more settings
         return Settings.builder()

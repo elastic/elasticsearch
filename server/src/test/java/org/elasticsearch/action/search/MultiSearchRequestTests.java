@@ -257,6 +257,25 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertEquals("request does not support [_slice]", ex.getMessage());
     }
 
+    public void testParseRequestAllowsDifferentRoutingModesPerSubRequestWithoutTopLevel() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        MultiSearchRequest request = parseMultiSearchRequestFromString("""
+            {"routing":"r1"}
+            {"query":{"match_all":{}}}
+            {"_slice":"s1"}
+            {"query":{"match_all":{}}}
+            """);
+        assertThat(request.requests().size(), equalTo(2));
+        SearchRequest routingRequest = request.requests().get(0);
+        assertThat(routingRequest.routing(), equalTo("r1"));
+        assertFalse(routingRequest.isRoutingFromSlice());
+        assertNull(routingRequest.searchSlice());
+        SearchRequest sliceRequest = request.requests().get(1);
+        assertThat(sliceRequest.routing(), equalTo("s1"));
+        assertTrue(sliceRequest.isRoutingFromSlice());
+        assertThat(sliceRequest.searchSlice(), equalTo("s1"));
+    }
+
     public void testWriteSearchRequestParamsUsesSliceFieldWhenRoutingFromSlice() throws IOException {
         SearchRequest request = new SearchRequest();
         request.routing("s1");

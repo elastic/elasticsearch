@@ -26,7 +26,7 @@ setup:
 "size_in_bytes body param causes early termination":
 
   - requires:
-      cluster_features: ["gte_v9.5.0"]
+      cluster_features: ["search.size_in_bytes"]
       reason: size_in_bytes was added in 9.5
 
   - do:
@@ -43,7 +43,7 @@ setup:
 "size_in_bytes URL param causes early termination":
 
   - requires:
-      cluster_features: ["gte_v9.5.0"]
+      cluster_features: ["search.size_in_bytes"]
       reason: size_in_bytes was added in 9.5
 
   - do:
@@ -59,7 +59,7 @@ setup:
 "size_in_bytes large value returns all results":
 
   - requires:
-      cluster_features: ["gte_v9.5.0"]
+      cluster_features: ["search.size_in_bytes"]
       reason: size_in_bytes was added in 9.5
 
   - do:

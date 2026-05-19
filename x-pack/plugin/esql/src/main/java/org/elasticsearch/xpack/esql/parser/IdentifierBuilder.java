@@ -314,6 +314,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             throwInvalidIndexNameException(index, BLANK_INDEX_ERROR_MESSAGE, ctx);
         }
 
+        boolean startsWithStar = index.startsWith("*");
         hasSeenStar = hasSeenStar || index.contains(WILDCARD);
         index = index.replace(WILDCARD, "").strip();
         if (index.isBlank()) {
@@ -340,8 +341,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 return;
             }
 
-            // The "must not start with '_', '-', or '+'" rule does not apply if the pattern begins with '*'.
-            if (index.startsWith(WILDCARD) && e.getMessage().contains("must not start with")) {
+            // The "must not start with ..." rules do not apply if the pattern begins with '*'.
+            if (startsWithStar && e.getMessage().contains("must not start with")) {
                 return;
             }
 

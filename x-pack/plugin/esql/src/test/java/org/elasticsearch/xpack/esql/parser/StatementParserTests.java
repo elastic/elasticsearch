@@ -1016,7 +1016,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
             String lineNumber = command.equals("FROM") ? "line 1:6: " : "line 1:4: ";
             expectError(command + " _logs*", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
-            expectError(command + " _*log", lineNumber + "Invalid index name [_log], must not start with '_', '-', or '+'");
+            expectError(command + " _*logs", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
             expectError(command + " +logs*", lineNumber + "Invalid index name [+logs], must not start with '_', '-', or '+'");
         }
     }

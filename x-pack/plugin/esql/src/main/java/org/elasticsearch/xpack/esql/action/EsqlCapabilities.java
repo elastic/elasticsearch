@@ -2559,7 +2559,7 @@ public class EsqlCapabilities {
          * histogram field itself is present, so the null-filtered guarantee does not hold for them.
          * See <a href="https://github.com/elastic/elasticsearch/issues/147854">#147854</a>
          */
-        FIX_HISTOGRAM_BLOCKLOADERS_ISNULL
+        FIX_HISTOGRAM_BLOCKLOADERS_ISNULL,
 
         /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping

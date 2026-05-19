@@ -1,5 +1,7 @@
 ---
 "Return empty object if field doesn't exist, but index does":
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
         indices.create:
@@ -12,6 +14,8 @@
                   analyzer: whitespace
 
   - do:
+      allowed_warnings:
+        - "The get field mapping API is no longer maintained. Use the get mapping API (`GET /<index>/_mapping`) instead."
       indices.get_field_mapping:
         index: test_index
         fields: not_existent

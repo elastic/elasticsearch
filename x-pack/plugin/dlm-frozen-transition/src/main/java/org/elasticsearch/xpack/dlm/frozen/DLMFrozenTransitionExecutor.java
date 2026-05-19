@@ -19,9 +19,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
@@ -58,7 +59,7 @@ class DLMFrozenTransitionExecutor {
         ExecutorService executor
     ) {
         this.maxSubmitted = maxSubmitted;
-        this.submittedTransitions = new ConcurrentHashMap<>(maxSubmitted);
+        this.submittedTransitions = Collections.synchronizedMap(new HashMap<>(maxSubmitted));
         this.executor = executor;
         this.frozenTransitionSettings = frozenTransitionSettings;
         this.errorStore = errorStore;
@@ -83,7 +84,7 @@ class DLMFrozenTransitionExecutor {
     public synchronized void stop() {
         isAccepting = false;
         submittedTransitions.values().forEach(future -> future.cancel(true));
-        submittedTransitions = new ConcurrentHashMap<>(maxSubmitted);
+        submittedTransitions = Collections.synchronizedMap(new HashMap<>(maxSubmitted));
     }
 
     public synchronized void start() {

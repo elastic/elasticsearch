@@ -647,6 +647,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var taskType = model.getConfigurations().getTaskType();
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 inferTextEmbedding(esModel, input, inputType, timeout, listener);
+            } else if (TaskType.RERANK.equals(taskType)) {
+                inferRerank(esModel, query, input, returnDocuments, topN, inputType, timeout, taskSettings, listener);
             } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
                 inferSparseEmbedding(esModel, input, inputType, timeout, listener);
             } else {

@@ -202,7 +202,7 @@ $$$ignore-dynamic-beyond-limit$$$
 
 $$$tokens-per-field-limit$$$
 `index.mapping.tokens_per_field.limit` {applies_to}`stack: ga 9.5` {applies_to}`serverless: all`
-:   The maximum number of tokens that can be produced for any single field value when indexing a document. This protects against out-of-memory errors when Lucene's analysis phase produces too many tokens (for example, large text fields with n-gram analyzers). When the limit is exceeded, the document is rejected with a `400` error. For multi-value fields, the limit applies independently to each value. Default is `-1` (no limit).
+:   The maximum number of tokens a single field value can produce during indexing. This setting prevents out-of-memory errors when Lucene's analysis phase produces too many tokens, for example, when analyzing large text fields with n-gram analyzers. Documents that exceed the limit are rejected with a `400` error. For multi-value fields, the limit applies independently to each value. Default is `-1` (no limit).
 
 `index.mapping.field_name_length.limit`
 :   Setting for the maximum length of a field name. This setting isn’t really something that addresses mappings explosion but might still be useful if you want to limit the field length. It usually shouldn’t be necessary to set this setting. The default is okay unless a user starts to add a huge number of fields with really long names. Default is `Long.MAX_VALUE` (no limit).

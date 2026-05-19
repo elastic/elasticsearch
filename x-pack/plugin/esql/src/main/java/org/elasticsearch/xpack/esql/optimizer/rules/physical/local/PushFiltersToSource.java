@@ -336,7 +336,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
      */
     private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
-        FormatReaderRegistry formatReaderRegistry = ctx.formatReaderRegistry();
+        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
         if (formatReaderRegistry == null) {
             return null;
         }

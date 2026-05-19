@@ -81,9 +81,11 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
     }
 
     /**
-     * Returns the sum of null counts across children for the named column.
-     * Returns {@code -1} if any child returns an unknown null count for the column,
-     * or if the column is not present in any child.
+     * Returns the sum of null counts across children for the named column under the SPI's
+     * "implicit nulls" contract: a child whose split lacks the column contributes its full
+     * row count (every row is an implicit null), and explicit nulls in present columns are
+     * summed normally. Returns {@code -1} only if a child returns {@code -1}, which signals
+     * the rare "column physically present but stats unknown" case (Parquet stats disabled).
      */
     @Override
     public long columnNullCount(String name) {
@@ -99,19 +101,35 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
     }
 
     /**
-     * Returns the minimum of children's min values for the named column.
-     * Returns {@code null} if any child returns null for the column min, or if
-     * the column is not present in any child. Cross-type numeric widening is applied
-     * via {@link SplitStats#mergedMin}.
+     * Returns the minimum of children's min values for the named column under the SPI's
+     * "implicit nulls" contract:
+     * <ul>
+     *   <li>A child with {@code columnNullCount(name) == child.rowCount()} contributes no candidate
+     *       min — the column is either absent from that file or its rows are all null. We
+     *       <b>skip</b> that child rather than poison.</li>
+     *   <li>A child with {@code columnNullCount(name) < 0} represents the rare "present but stats
+     *       unknown" case (Parquet stats disabled) and <b>poisons</b> the aggregate; we cannot
+     *       know whether that child has a smaller value than the running min.</li>
+     *   <li>A child with a known, finite null count and a non-null min participates in the merge
+     *       via {@link SplitStats#mergedMin}; incompatible numeric types poison defensively.</li>
+     * </ul>
+     * Returns {@code null} when poisoned or when no child contributes a value.
      */
     @Override
     @Nullable
     public Object columnMin(String name) {
         Object result = null;
         for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
+            long nc = child.columnNullCount(name);
+            if (nc < 0) {
+                return null;
+            }
+            if (nc == child.rowCount()) {
+                continue;
+            }
             Object childMin = child.columnMin(name);
             if (childMin == null) {
-                // Unknown min in any child poisons the aggregate
+                // Present, not all-null, but reader produced no min — inconsistent; poison defensively.
                 return null;
             }
             result = SplitStats.mergedMin(result, childMin);
@@ -124,24 +142,29 @@ public final class MergedSplitStats implements org.elasticsearch.xpack.esql.data
     }
 
     /**
-     * Returns the maximum of children's max values for the named column.
-     * Returns {@code null} if any child returns null for the column max, or if
-     * the column is not present in any child. Cross-type numeric widening is applied
-     * via {@link SplitStats#mergedMax}.
+     * Returns the maximum of children's max values for the named column under the SPI's
+     * "implicit nulls" contract. Mirrors {@link #columnMin} — children whose null count equals
+     * their row count have no max value to contribute and are skipped; only an explicit
+     * unknown ({@code columnNullCount &lt; 0}) poisons the aggregate.
      */
     @Override
     @Nullable
     public Object columnMax(String name) {
         Object result = null;
         for (org.elasticsearch.xpack.esql.datasources.spi.SplitStats child : children) {
+            long nc = child.columnNullCount(name);
+            if (nc < 0) {
+                return null;
+            }
+            if (nc == child.rowCount()) {
+                continue;
+            }
             Object childMax = child.columnMax(name);
             if (childMax == null) {
-                // Unknown max in any child poisons the aggregate
                 return null;
             }
             result = SplitStats.mergedMax(result, childMax);
             if (result == null) {
-                // Incompatible types — clear the stat
                 return null;
             }
         }

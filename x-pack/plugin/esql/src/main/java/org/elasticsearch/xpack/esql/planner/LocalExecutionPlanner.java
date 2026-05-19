@@ -111,6 +111,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
+import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
@@ -145,6 +147,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -322,6 +325,8 @@ public class LocalExecutionPlanner {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
+        } else if (node instanceof ExternalFieldExtractExec extExtract) {
+            return planExternalFieldExtract(extExtract, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -545,6 +550,80 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
+    }
+
+    /**
+     * Plan an {@link ExternalFieldExtractExec} (inserted by {@code InsertExternalFieldExtraction})
+     * by appending an {@link ExternalFieldExtractOperator} above the upstream operator chain.
+     * <p>
+     * The upstream source factory must implement {@link DeferredExtractionCapable} so the new
+     * operator can resolve the per-driver {@link org.elasticsearch.xpack.esql.datasources.SourceExtractors
+     * SourceExtractors} registry; otherwise we fail loudly because the optimizer rule should never
+     * have inserted us above an incapable source. The pairing is invariant because
+     * {@code FileSourceFactory} flips the deferred-extraction switch on the underlying
+     * {@code AsyncExternalSourceOperatorFactory} based on the very same
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor#ROW_POSITION_COLUMN
+     * _rowPosition} column the rule injected.
+     * <p>
+     * Layout: the upstream layout is rewritten to drop the {@code _rowPosition} channel and
+     * append channels for every {@code attributesToExtract}. The
+     * {@link ExternalFieldExtractOperator} mirrors that channel reshaping at runtime.
+     */
+    private PhysicalOperation planExternalFieldExtract(ExternalFieldExtractExec exec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(exec.child(), context);
+
+        if ((source.sourceOperatorFactory instanceof DeferredExtractionCapable) == false) {
+            throw new IllegalStateException(
+                "ExternalFieldExtractExec planned above source factory ["
+                    + source.sourceOperatorFactory.getClass().getName()
+                    + "] which does not implement DeferredExtractionCapable; "
+                    + "InsertExternalFieldExtraction must only fire above ColumnExtractorAware sources"
+            );
+        }
+        DeferredExtractionCapable capable = (DeferredExtractionCapable) source.sourceOperatorFactory;
+
+        Attribute rowPosition = exec.rowPositionAttribute();
+        Layout.ChannelAndType rpEntry = source.layout.get(rowPosition.id());
+        if (rpEntry == null) {
+            throw new IllegalStateException(
+                "_rowPosition attribute ["
+                    + rowPosition
+                    + "] is not present in upstream layout; "
+                    + "InsertExternalFieldExtraction must include it in the narrowed source projection"
+            );
+        }
+        int rowPositionChannel = rpEntry.channel();
+
+        // Pass-through channels: every channel from the upstream layout except the row-position
+        // channel, in increasing channel order. The output layout below is built from the
+        // upstream layout's inverse list using the same skip-rule, then has the deferred
+        // attributes appended; channel indices line up with the operator's output assembly.
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        int upstreamChannels = source.layout.numberOfChannels();
+        List<Integer> passThroughChannels = new ArrayList<>(upstreamChannels - 1);
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        for (int ch = 0; ch < upstreamChannels; ch++) {
+            if (ch == rowPositionChannel) {
+                continue;
+            }
+            passThroughChannels.add(ch);
+            layoutBuilder.append(inverse.get(ch));
+        }
+        layoutBuilder.append(exec.attributesToExtract());
+        Layout newLayout = layoutBuilder.build();
+
+        List<String> deferredColumnNames = new ArrayList<>(exec.attributesToExtract().size());
+        for (Attribute a : exec.attributesToExtract()) {
+            deferredColumnNames.add(a.name());
+        }
+
+        ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(
+            rowPositionChannel,
+            passThroughChannels,
+            deferredColumnNames,
+            capable::sourceExtractorsFor
+        );
+        return source.with(factory, newLayout);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {

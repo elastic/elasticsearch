@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -31,7 +32,7 @@ public class IbmWatsonxChatCompletionModelTests extends ESTestCase {
         String projectId,
         String apiKey
     ) {
-        return createModel1(uri, apiVersion, modelId, projectId, apiKey, TaskType.COMPLETION);
+        return createModel(uri, apiVersion, modelId, projectId, apiKey, TaskType.COMPLETION, "foo");
     }
 
     public static IbmWatsonxChatCompletionModel createChatCompletionModel(
@@ -41,23 +42,25 @@ public class IbmWatsonxChatCompletionModelTests extends ESTestCase {
         String projectId,
         String apiKey
     ) {
-        return createModel1(uri, apiVersion, modelId, projectId, apiKey, TaskType.CHAT_COMPLETION);
+        return createModel(uri, apiVersion, modelId, projectId, apiKey, TaskType.CHAT_COMPLETION, "foo");
     }
 
-    private static IbmWatsonxChatCompletionModel createModel1(
+    public static IbmWatsonxChatCompletionModel createModel(
         URI uri,
         String apiVersion,
         String modelId,
         String projectId,
         String apiKey,
-        TaskType taskType
+        TaskType taskType,
+        String authHeaderValue
     ) {
         return new IbmWatsonxChatCompletionModel(
             "id",
             taskType,
             "service",
             new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, null),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 

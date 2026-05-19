@@ -15,6 +15,8 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandles;
+import java.lang.ref.Reference;
+import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -130,12 +132,26 @@ public final class JitConstantSpinner {
     private static volatile int admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
 
     /**
-     * Spun class cache. Weak refs let the JVM reclaim classes when no live
-     * evaluator instances reference them — the cache becomes a transparent index,
-     * never an artificial retention root. A class is alive iff any code holds a
-     * strong ref to it (typically an evaluator instance in a Driver).
+     * Cache-entry reachability. {@code SoftReference} keeps a spun class alive until
+     * the JVM is under genuine heap pressure (cleared only to avoid OOM), so the
+     * JIT-folded class survives ordinary GC and stays a cache hit. {@code WeakReference}
+     * is cleared at the next GC regardless of free heap, which under a memory-stressed
+     * node degrades the cache to pure re-spin churn. Soft is the default; weak is kept
+     * as an opt-out for workloads that prefer the most aggressive reclamation.
      */
-    private static final ConcurrentHashMap<CacheKey, WeakReference<Class<?>>> CLASSES = new ConcurrentHashMap<>();
+    private static volatile boolean useSoftReferences = true;
+
+    private static Reference<Class<?>> newRef(Class<?> cls) {
+        return useSoftReferences ? new SoftReference<>(cls) : new WeakReference<>(cls);
+    }
+
+    /**
+     * Spun class cache. The reference strength is governed by {@link #useSoftReferences}:
+     * the JVM reclaims classes when no live evaluator instances reference them (weak) or
+     * when under heap pressure (soft). Either way the cache is a transparent index, never
+     * an artificial retention root.
+     */
+    private static final ConcurrentHashMap<CacheKey, Reference<Class<?>>> CLASSES = new ConcurrentHashMap<>();
 
     /**
      * Admission tracker. Counts recently-seen keys; spin only triggers when a
@@ -267,6 +283,16 @@ public final class JitConstantSpinner {
         admissionThreshold = newThreshold;
     }
 
+    /**
+     * Choose cache-entry reachability. {@code true} (default) uses {@code SoftReference}
+     * — spun classes survive ordinary GC and are reclaimed only under heap pressure.
+     * {@code false} uses {@code WeakReference} — cleared at the next GC regardless of
+     * free heap. See {@link #useSoftReferences} for the rationale.
+     */
+    public static void setUseSoftReferences(boolean soft) {
+        useSoftReferences = soft;
+    }
+
     /** @deprecated use {@link #setAdmissionCapacity(int)}; this maps to the admission tracker. */
     @Deprecated
     public static void setCacheCapacity(int newCapacity) {
@@ -292,6 +318,7 @@ public final class JitConstantSpinner {
         FALLBACKS.reset();
         admissionCapacity = DEFAULT_ADMISSION_CAPACITY;
         admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
+        useSoftReferences = true;
     }
 
     // ----- internals -----
@@ -334,7 +361,7 @@ public final class JitConstantSpinner {
         CacheKey key = new CacheKey(baseClass, methodName, value);
 
         // Layer 1: class cache hit (weak ref still alive)
-        WeakReference<Class<?>> ref = CLASSES.get(key);
+        Reference<Class<?>> ref = CLASSES.get(key);
         if (ref != null) {
             Class<?> cls = ref.get();
             if (cls != null) {
@@ -356,7 +383,7 @@ public final class JitConstantSpinner {
 
         // Layer 3: spin. computeIfAbsent prevents stampede — only one thread spins per key.
         MISSES.increment();
-        WeakReference<Class<?>> spunRef;
+        Reference<Class<?>> spunRef;
         try {
             spunRef = CLASSES.computeIfAbsent(key, k -> {
                 Class<?> spun = primitive
@@ -365,7 +392,7 @@ public final class JitConstantSpinner {
                 SPINS.increment();
                 // Counter no longer needed; drop it so the tracker stays focused on candidates.
                 removeAdmission(key);
-                return new WeakReference<>(spun);
+                return newRef(spun);
             });
         } catch (RuntimeException e) {
             FALLBACKS.increment();

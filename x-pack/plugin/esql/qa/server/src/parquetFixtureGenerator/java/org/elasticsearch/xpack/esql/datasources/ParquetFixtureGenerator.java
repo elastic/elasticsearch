@@ -113,13 +113,6 @@ public final class ParquetFixtureGenerator {
     }
 
     /**
-     * Writes one Parquet file per decade-of-date bucket under
-     * {@code <output-dir>/<dateColumn>_decade=<YYYY0>/<basename>.parquet}.
-     * Rows where the date column is null are written under the literal Hive sentinel directory
-     * {@code <dateColumn>_decade=__HIVE_DEFAULT_PARTITION__}, so the fixture exercises Hive's
-     * null-partition convention end-to-end.
-     */
-    /**
      * Writes one Parquet file per distinct value of {@code sourceColumn} into Hive-style partition
      * directories named after {@code partitionColumn}. Rows where the source column is null go into the
      * literal Hive sentinel directory {@code <partitionColumn>=__HIVE_DEFAULT_PARTITION__}. The source

@@ -29,9 +29,7 @@ public interface HttpRequest extends HttpPreRequest {
     }
 
     /** Returns the URI scheme for this request, either {@code "http"} or {@code "https"}. */
-    default String getScheme() {
-        return "http";
-    }
+    String getScheme();
 
     HttpBody body();
 

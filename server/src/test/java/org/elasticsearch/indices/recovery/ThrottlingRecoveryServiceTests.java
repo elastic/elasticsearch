@@ -11,6 +11,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -418,7 +420,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                         if (highContention) {
                             int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
                             for (int b = 0; b < burst && System.currentTimeMillis() < deadlineMillis; b++) {
-                                taskLatch.taskStarted();
+                                taskLatch.incRef();
                                 totalTasksEnqueued.incrementAndGet();
                                 service.enqueue(
                                     noopUserListener,
@@ -437,7 +439,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             int sleepMs = between(15, 80);
                             Thread.sleep(sleepMs);
                             if (System.currentTimeMillis() < deadlineMillis) {
-                                taskLatch.taskStarted();
+                                taskLatch.incRef();
                                 totalTasksEnqueued.incrementAndGet();
                                 service.enqueue(
                                     noopUserListener,
@@ -468,7 +470,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             thread.join();
         }
 
-        assertTrue("timed out waiting for all stress tasks to finish", taskLatch.awaitZero(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        // taskLatch starts with 1 ref, decremented here
+        taskLatch.decRef();
+        taskLatch.safeAwaitClose();
         assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
         assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimitCeiling.get()));
         assertThat(running.get(), equalTo(0));
@@ -509,58 +513,20 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             running.decrementAndGet();
             totalTasksFinished.incrementAndGet();
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            latch.taskFinished();
+            latch.decRef();
         }
     }
 
-    private static final class DynamicTaskLatch {
-        private final ReentrantLock lock = new ReentrantLock();
-        private final Condition zero = lock.newCondition();
-        private long count;
+    private static final class DynamicTaskLatch extends AbstractRefCounted {
+        private final CountDownLatch latch = new CountDownLatch(1);
 
-        void taskStarted() {
-            lock.lock();
-            try {
-                if (count == Long.MAX_VALUE) {
-                    throw new IllegalStateException("Too many active tasks");
-                }
-                count++;
-            } finally {
-                lock.unlock();
-            }
+        @Override
+        protected void closeInternal() {
+            latch.countDown();
         }
 
-        void taskFinished() {
-            lock.lock();
-            try {
-                if (count == 0) {
-                    throw new IllegalStateException("taskFinished without taskStarted");
-                }
-
-                count--;
-
-                if (count == 0) {
-                    zero.signalAll();
-                }
-            } finally {
-                lock.unlock();
-            }
-        }
-
-        boolean awaitZero(long timeout, TimeUnit unit) throws InterruptedException {
-            lock.lock();
-            try {
-                long nanosRemaining = unit.toNanos(timeout);
-                while (count != 0) {
-                    if (nanosRemaining <= 0) {
-                        return false;
-                    }
-                    nanosRemaining = zero.awaitNanos(nanosRemaining);
-                }
-                return true;
-            } finally {
-                lock.unlock();
-            }
+        private void safeAwaitClose() {
+            safeAwait(latch);
         }
     }
 

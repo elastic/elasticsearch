@@ -827,7 +827,11 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
             assertNotNull(response);
             Clusters clusters = response.getClusters();
-            assertNull(clusters.getCluster(REMOTE_CLUSTER));
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("-prod"));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(0));
             assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(0L));
             for (var hit : response.getHits()) {
                 assertThat(hit.getIndex(), equalTo(localIndex));

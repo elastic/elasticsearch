@@ -56,7 +56,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -108,6 +107,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -943,10 +943,10 @@ public class Reindexer {
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
         /**
-         * Mapper for the {@code _id} of the destination index used to
+         * Transformer for the {@code _id} of the destination index used to
          * normalize {@code _id}s landing in the index.
          */
-        private final IdFieldMapper destinationIndexIdMapper;
+        private final Function<String, String> destinationIndexIdMapper;
 
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
@@ -999,7 +999,7 @@ public class Reindexer {
                 requestBreaker,
                 "reindex_bulk_batch"
             );
-            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
+            this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -1104,7 +1104,7 @@ public class Reindexer {
             }
 
             // id and source always come from the found doc. Scripts can change them but they operate on the index request.
-            index.id(destinationIndexIdMapper.reindexId(doc.getId()));
+            index.id(destinationIndexIdMapper.apply(doc.getId()));
 
             // the source xcontent type and destination could be different
             final XContentType sourceXContentType = doc.getXContentType();

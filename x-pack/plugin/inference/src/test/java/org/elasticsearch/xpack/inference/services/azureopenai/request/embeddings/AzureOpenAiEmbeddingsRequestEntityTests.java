@@ -30,7 +30,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"user":"testuser"}"""));
+            {"input":["abc"],"user":"testuser","encoding_format":"base64"}"""));
     }
 
     public void testXContent_WritesInputTypeWhenDefined() throws IOException {
@@ -41,7 +41,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"user":"testuser","input_type":"classification"}"""));
+            {"input":["abc"],"user":"testuser","input_type":"classification","encoding_format":"base64"}"""));
     }
 
     public void testXContent_DoesNotWriteUserWhenItIsNull() throws IOException {
@@ -52,7 +52,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"]}"""));
+            {"input":["abc"],"encoding_format":"base64"}"""));
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNotSetByUser() throws IOException {
@@ -63,7 +63,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"]}"""));
+            {"input":["abc"],"encoding_format":"base64"}"""));
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNull_EvenIfSetByUserIsTrue() throws IOException {
@@ -74,7 +74,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"]}"""));
+            {"input":["abc"],"encoding_format":"base64"}"""));
     }
 
     public void testXContent_WritesDimensionsWhenNonNull_AndSetByUserIsTrue() throws IOException {
@@ -85,6 +85,6 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"input":["abc"],"dimensions":100}"""));
+            {"input":["abc"],"dimensions":100,"encoding_format":"base64"}"""));
     }
 }

@@ -253,13 +253,26 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     }
 
     /**
-     * Returns the null count for the column with the given name, or {@code -1} if the column
-     * is not found or its null count is unknown.
+     * Returns the null count for the column with the given name under the SPI's "implicit nulls"
+     * contract: a column physically absent from this split contributes {@code rowCount} implicit
+     * nulls, since every row would deserialize as {@code null}. Format readers (Parquet, ORC)
+     * emit at least one column-family stat key (e.g. {@code size_bytes}/{@code null_count}) for
+     * every column they physically contain, so {@link #findColumn} returning {@code -1} is
+     * equivalent to "column is not in this file/split".
+     * <p>
+     * Returns {@code -1} only in the rare case where the column is physically present but the
+     * reader could not extract a null count (e.g. Parquet stats disabled at write time). Callers
+     * such as {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource}
+     * rely on this contract so that {@code Count(col) = rowCount - columnNullCount} is correct
+     * across UNION_BY_NAME mixes where some files lack the column.
      */
     @Override
     public long columnNullCount(String name) {
         int col = findColumn(name);
-        return col >= 0 ? nullCounts[col] : -1;
+        if (col < 0) {
+            return rowCount;
+        }
+        return nullCounts[col];
     }
 
     /** Returns the min value for the column with the given name, or {@code null} if not found. */

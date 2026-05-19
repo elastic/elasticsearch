@@ -133,7 +133,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
-        if (TransformMetadata.upgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(state)) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot stop any Transform while the Transform feature is upgrading.", RestStatus.CONFLICT)
             );

@@ -121,7 +121,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -219,7 +218,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 try {
                     logger.info("--> excluding [{}]", nodeToRemove);
                     updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToRemove), indexName);
-                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToRemove))));
+                    internalCluster().awaitNodeVacated(indexName, nodeToRemove);
                 } finally {
                     running.set(false);
                     for (Thread thread : threads) {
@@ -1199,7 +1198,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureStableCluster(3);
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNode))));
+        internalCluster().awaitNodeVacated(indexName, indexNode);
         ensureGreen(indexName);
 
         var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();

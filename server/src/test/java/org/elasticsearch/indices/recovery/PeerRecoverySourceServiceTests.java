@@ -45,7 +45,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         // Fill both slots
         final var handler1 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
@@ -84,7 +84,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         final var handler1 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
             newStartRecoveryRequest(primary1),
@@ -113,7 +113,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
@@ -133,6 +133,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         service.ongoingRecoveries.cancel(primary3);
         assertEquals(0, service.ongoingRecoveries.pendingRecoveriesCount());
         assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
+        assertEquals(0, primary3.recoveryStats().currentAsSource());
         assertNotNull(capturedFailure.get());
         assertThat(capturedFailure.get(), instanceOf(DelayRecoveryException.class));
         assertThat(capturedFailure.get().getMessage(), containsString("index shard closed"));
@@ -146,7 +147,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
@@ -192,7 +193,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
@@ -222,7 +223,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         final var request = newStartRecoveryRequest(primary, randomAlphaOfLength(10));
         final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(request, task, primary, ActionListener.noop());
@@ -263,7 +264,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
@@ -302,7 +303,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         final var activeRequest = newStartRecoveryRequest(primary1);
         service.ongoingRecoveries.addOrEnqueueNewRecovery(activeRequest, task, primary1, ActionListener.noop());
@@ -335,7 +336,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary2 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         // Two handlers for the same shard each consume one slot
         final var handler1 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
@@ -371,7 +372,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         final var request = newStartRecoveryRequest(primary);
         final var handler = service.ongoingRecoveries.addOrEnqueueNewRecovery(request, task, primary, ActionListener.noop());
@@ -406,7 +407,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService();
         service.start();
-        final var task = recoveryTask();
+        final var task = newRecoveryTask();
 
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
@@ -465,7 +466,11 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     private PeerRecoverySourceService newPeerRecoverySourceService() {
         final var indicesService = mock(IndicesService.class);
         final var clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(NodeRoles.dataNode());
+        final var settings = Settings.builder()
+            .put(NodeRoles.dataNode())
+            .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTBOUND_RECOVERIES_SETTING.getKey(), 2)
+            .build();
+        when(clusterService.getSettings()).thenReturn(settings);
         when(indicesService.clusterService()).thenReturn(clusterService);
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         return new PeerRecoverySourceService(
@@ -496,7 +501,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         );
     }
 
-    private Task recoveryTask() {
+    private Task newRecoveryTask() {
         return new Task(randomNonNegativeLong(), "test", START_RECOVERY, "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
     }
 }

@@ -11,6 +11,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -42,7 +43,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.LazySoftDeletesDirectoryReaderWrapper;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -196,10 +196,7 @@ public class SearchEngine extends Engine {
             this.directory = store.directory();
             this.searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
             directoryReader = ElasticsearchDirectoryReader.wrap(
-                new LazySoftDeletesDirectoryReaderWrapper(
-                    DirectoryReader.open(directory, config.getLeafSorter()),
-                    Lucene.SOFT_DELETES_FIELD
-                ),
+                new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(directory, config.getLeafSorter()), Lucene.SOFT_DELETES_FIELD),
                 shardId
             );
             IndexCommit initialCommit = directoryReader.getIndexCommit();

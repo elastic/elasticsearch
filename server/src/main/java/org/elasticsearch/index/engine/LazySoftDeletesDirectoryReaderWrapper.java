@@ -47,7 +47,6 @@ import java.util.Objects;
  * @see SoftDeletesRetentionMergePolicy
  */
 public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectoryReader {
-    private final String field;
     private final CacheHelper readerCacheHelper;
 
     /**
@@ -57,13 +56,12 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
      */
     public LazySoftDeletesDirectoryReaderWrapper(DirectoryReader in, String field) throws IOException {
         super(in, new LazySoftDeletesSubReaderWrapper(field));
-        this.field = field;
-        this.readerCacheHelper = in.getReaderCacheHelper() == null ? null : new DelegatingCacheHelper(in.getReaderCacheHelper());
+        readerCacheHelper = in.getReaderCacheHelper() == null ? null : new DelegatingCacheHelper(in.getReaderCacheHelper());
     }
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new LazySoftDeletesDirectoryReaderWrapper(in, field);
+        throw new UnsupportedOperationException();
     }
 
     @Override

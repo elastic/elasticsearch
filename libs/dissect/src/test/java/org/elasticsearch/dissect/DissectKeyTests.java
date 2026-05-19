@@ -9,6 +9,8 @@
 
 package org.elasticsearch.dissect;
 
+// flakiness-detection smoke test
+
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 

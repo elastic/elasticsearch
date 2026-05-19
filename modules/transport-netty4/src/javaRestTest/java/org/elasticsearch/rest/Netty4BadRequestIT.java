@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest;
 
+// flakiness-detection smoke test
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;

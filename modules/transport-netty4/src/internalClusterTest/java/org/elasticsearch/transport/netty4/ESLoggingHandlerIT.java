@@ -9,6 +9,8 @@
 
 package org.elasticsearch.transport.netty4;
 
+// flakiness-detection smoke test
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ESNetty4IntegTestCase;

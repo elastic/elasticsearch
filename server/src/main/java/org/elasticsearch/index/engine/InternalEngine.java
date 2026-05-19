@@ -1601,7 +1601,7 @@ public class InternalEngine extends Engine {
      */
     private IndexingStrategy[] planPrimarySubBatch(Index[] ops, int count) throws IOException {
         final VersionValue[] resolvedVersions = new VersionValue[count];
-        final boolean[] onFastPath = new boolean[count];
+        final boolean[] optimizeAppendOnly = new boolean[count];
         final boolean[] needsLucene = new boolean[count];
         boolean anyNeedsVersionLookup = false;
         boolean anyNeedsLucene = false;
@@ -1609,9 +1609,8 @@ public class InternalEngine extends Engine {
         // Phase 1: per-op fast-path check and versionMap lookups
         for (int i = 0; i < count; i++) {
             final Index op = ops[i];
-            final boolean canOptimize = canOptimizeAddDocument(op);
-            if (canOptimize && mayHaveBeenIndexedBefore(op) == false) {
-                onFastPath[i] = true;
+            if (canOptimizeAddDocument(op) && mayHaveBeenIndexedBefore(op) == false) {
+                optimizeAppendOnly[i] = true;
                 continue;
             }
             if (sequenceNumbersAreDisabled() && op.getIfSeqNo() != UNASSIGNED_SEQ_NO && op.getIfPrimaryTerm() != UNASSIGNED_PRIMARY_TERM) {
@@ -1701,7 +1700,7 @@ public class InternalEngine extends Engine {
         // Phase 3: build a strategy per op using pre-resolved versions
         final IndexingStrategy[] plans = new IndexingStrategy[count];
         for (int i = 0; i < count; i++) {
-            plans[i] = planIndexingAsPrimaryWithVersion(ops[i], resolvedVersions[i], onFastPath[i]);
+            plans[i] = planIndexingAsPrimaryWithVersion(ops[i], resolvedVersions[i], optimizeAppendOnly[i]);
         }
         return plans;
     }
@@ -1717,16 +1716,16 @@ public class InternalEngine extends Engine {
 
     private IndexingStrategy planIndexingAsPrimary(final Index index) throws IOException {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
-        final boolean onFastPath = canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false;
+        final boolean optimizeAppendOnly = canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false;
         VersionValue versionValue = null;
-        if (onFastPath == false
+        if (optimizeAppendOnly == false
             && (sequenceNumbersAreDisabled() == false
                 || index.getIfSeqNo() == UNASSIGNED_SEQ_NO
                 || index.getIfPrimaryTerm() == UNASSIGNED_PRIMARY_TERM)) {
             versionMap.enforceSafeAccess();
             versionValue = resolveDocVersion(index, index.getIfSeqNo() != UNASSIGNED_SEQ_NO);
         }
-        return planIndexingAsPrimaryWithVersion(index, versionValue, onFastPath);
+        return planIndexingAsPrimaryWithVersion(index, versionValue, optimizeAppendOnly);
     }
 
     /**
@@ -1735,18 +1734,18 @@ public class InternalEngine extends Engine {
      * Both the per-op path ({@link #planIndexingAsPrimary}) and the batch path ({@link #planPrimarySubBatch})
      * resolve the version before calling this method, so no reader acquisition happens here.
      *
-     * @param onFastPath   true when the operation can use the optimized append-only path and has been
-     *                     confirmed (via {@link #mayHaveBeenIndexedBefore}) not to be a retry
+     * @param optimizeAppendOnly true when the operation can use the optimized append-only path and has been
+     *                           confirmed (via {@link #mayHaveBeenIndexedBefore}) not to be a retry
      * @param versionValue the resolved version, or null if the document was not found
      */
     private IndexingStrategy planIndexingAsPrimaryWithVersion(
         final Index index,
         final VersionValue versionValue,
-        final boolean onFastPath
+        final boolean optimizeAppendOnly
     ) {
         assert index.origin() == Operation.Origin.PRIMARY : "planning as primary but origin is: " + index.origin();
         final int reservingDocs = index.parsedDoc().docs().size();
-        if (onFastPath) {
+        if (optimizeAppendOnly) {
             final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
             if (reserveError != null) {
                 return IndexingStrategy.failAsTooManyDocs(reserveError, index.id());

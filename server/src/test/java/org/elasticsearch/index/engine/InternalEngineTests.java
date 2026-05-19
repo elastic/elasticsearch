@@ -8312,7 +8312,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testIndexBatchFastPathOnly() throws IOException {
         // appendOnlyPrimary ops with a timestamp > maxUnsafeAutoIdTimestamp (-1 at startup) hit
-        // onFastPath=true in planPrimarySubBatch, skipping the version-map and Lucene phases entirely.
+        // optimizeAppendOnly=true in planPrimarySubBatch, skipping the version-map and Lucene phases entirely.
         long timestamp = System.currentTimeMillis();
         int count = randomIntBetween(2, 10);
         List<Engine.Index> ops = new ArrayList<>();

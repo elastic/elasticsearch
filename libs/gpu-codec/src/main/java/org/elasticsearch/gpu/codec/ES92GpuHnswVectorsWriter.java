@@ -189,38 +189,24 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         for (FieldWriter field : fields) {
             var started = System.nanoTime();
             var fieldInfo = field.fieldInfo;
+            int dims = fieldInfo.getVectorDimension();
 
             var originalVectors = field.flatFieldVectorsWriter.getVectors();
             final List<float[]> vectorsInSortedOrder = sortMap == null
                 ? originalVectors
                 : getVectorsInSortedOrder(field, sortMap, originalVectors);
             int numVectors = vectorsInSortedOrder.size();
-            CagraIndexParams cagraIndexParams = createCagraIndexParams(
-                fieldInfo.getVectorSimilarityFunction(),
-                numVectors,
-                fieldInfo.getVectorDimension()
-            );
+            CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction(), numVectors, dims);
 
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 // Will not be indexed on the GPU
                 generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             } else {
-                var resource = cuVSResourceManager.tryAcquire(
-                    numVectors,
-                    fieldInfo.getVectorDimension(),
-                    CuVSMatrix.DataType.FLOAT,
-                    cagraIndexParams,
-                    "flush " + fieldInfo.name
-                );
+                var resource = cuVSResourceManager.tryAcquire(numVectors, dims, CuVSMatrix.DataType.FLOAT, cagraIndexParams, "flush");
                 if (resource != null) {
                     try (var resourcesHolder = new ResourcesHolder(cuVSResourceManager, resource)) {
-                        var builder = CuVSMatrix.deviceBuilder(
-                            resourcesHolder.resources(),
-                            numVectors,
-                            fieldInfo.getVectorDimension(),
-                            CuVSMatrix.DataType.FLOAT
-                        );
+                        var builder = CuVSMatrix.deviceBuilder(resourcesHolder.resources(), numVectors, dims, CuVSMatrix.DataType.FLOAT);
                         for (var vector : vectorsInSortedOrder) {
                             builder.addVector(vector);
                         }
@@ -715,13 +701,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 try (
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(
-                            numVectors,
-                            fieldInfo.getVectorDimension(),
-                            dataType,
-                            cagraIndexParams,
-                            "merge " + fieldInfo.name
-                        )
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     );
                     var packedSegmentHolder = getContiguousPackedMemorySegment(
                         memorySegmentAccessInput,
@@ -763,13 +743,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(
-                            numVectors,
-                            fieldInfo.getVectorDimension(),
-                            dataType,
-                            cagraIndexParams,
-                            "merge " + fieldInfo.name
-                        )
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -790,13 +764,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(
-                        numVectors,
-                        fieldInfo.getVectorDimension(),
-                        dataType,
-                        cagraIndexParams,
-                        "merge " + fieldInfo.name
-                    )
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -829,13 +797,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 try (
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(
-                            numVectors,
-                            fieldInfo.getVectorDimension(),
-                            dataType,
-                            cagraIndexParams,
-                            "merge " + fieldInfo.name
-                        )
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     );
                     var memorySegmentHolder = getContiguousMemorySegment(
                         memorySegmentAccessInput,
@@ -868,13 +830,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(
-                            numVectors,
-                            fieldInfo.getVectorDimension(),
-                            dataType,
-                            cagraIndexParams,
-                            "merge " + fieldInfo.name
-                        )
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -896,13 +852,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(
-                        numVectors,
-                        fieldInfo.getVectorDimension(),
-                        dataType,
-                        cagraIndexParams,
-                        "merge " + fieldInfo.name
-                    )
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);

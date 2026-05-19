@@ -50,9 +50,9 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * TSDB metrics {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
    * `counter`
    * `gauge`
-   * `aggregate_metric_double`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
-   * `tdigest` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+   * `aggregate_metric_double`: Aggregation functions that do not natively support `aggregate_metric_double` will use the average value and treat it as a `double`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * `tdigest` {applies_to}`stack: preview 9.3+, ga 9.4.0`
 
 
 ### Unsupported types [_unsupported_types]
@@ -93,7 +93,7 @@ Querying a column with an unsupported type returns an error. If a column with an
 
 Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
 
-* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
+* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying an expression that evaluates to one of these types as a sort key will result in an error:
 
     * `geo_point`
     * `geo_shape`
@@ -257,6 +257,32 @@ Work around this limitation by converting the field to single value with one of 
 [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.
 
 Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
+
+
+## Subquery and view limitations [esql-limitations-subquery-views]
+
+[Subqueries](/reference/query-languages/esql/esql-subquery.md) and
+[views](/reference/query-languages/esql/esql-views.md) are closely related,
+since both extend the
+[`FROM`](/reference/query-languages/esql/commands/from.md) command with
+branched query plans. They share the overall branching constraints but each
+has its own additional limitations, described in turn below.
+
+### Subquery limitations [esql-limitations-subquery]
+
+:::{include} _snippets/common/subquery_limitations.md
+:::
+
+### View limitations [esql-limitations-views]
+
+[Views](/reference/query-languages/esql/esql-views.md) reuse the same
+branching model as subqueries, nested branching is generally not supported, but
+views can work around this limitation via
+[query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
+Beyond that, views have a few additional restrictions of their own, listed next.
+
+:::{include} _snippets/common/view_limitations.md
+:::
 
 
 ## Kibana limitations [esql-limitations-kibana]

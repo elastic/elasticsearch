@@ -163,9 +163,13 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(
+            "meta",
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
+        checker.registerConflictCheck("disable_templating", b -> b.field("disable_templating", true));
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "positions"));
     }
 
     @Override
@@ -351,7 +355,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));
-        var fielddataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        var fielddataContext = new FieldDataContext("", null, () -> null, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT);
         var fdt = fielddataContext.fielddataOperation();
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
@@ -539,7 +543,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 
@@ -634,7 +645,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 
@@ -666,7 +684,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 

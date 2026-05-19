@@ -29,12 +29,14 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.test.fixture.RequestEntry;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -47,6 +49,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -67,6 +70,7 @@ import static org.w3c.dom.Node.ELEMENT_NODE;
 public class S3HttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
+    public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
 
     private final String bucket;
     private final String basePath;
@@ -74,9 +78,10 @@ public class S3HttpHandler implements HttpHandler {
     private final S3ConsistencyModel consistencyModel;
     private final Supplier<String> uuidGenerator;
 
-    private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, BlobEntry> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
+    private final List<RequestEntry> requestLog = new CopyOnWriteArrayList<>();
 
     public S3HttpHandler(final String bucket, S3ConsistencyModel consistencyModel) {
         this(bucket, null, consistencyModel);
@@ -101,11 +106,24 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
 
+    /**
+     * Default {@code LastModified} for ListBucket {@code Contents} entries. Real S3 returns ISO-8601
+     * timestamps; clients such as the AWS SDK map missing elements to {@code null} last-modified.
+     */
+    public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "1970-01-01T00:00:00.000Z";
+
+    public List<RequestEntry> requestLog() {
+        return Collections.unmodifiableList(requestLog);
+    }
+
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         // Remove custom query parameters before processing the request. This simulates how S3 ignores them.
         // https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html#LogFormatCustom
         final S3Request request = parseRequest(exchange);
+        requestLog.add(
+            new RequestEntry(System.nanoTime(), request.method(), request.path(), exchange.getRequestHeaders().getFirst("Range"))
+        );
 
         if (METHODS_HAVING_NO_REQUEST_BODY.contains(request.method())) {
             int read = exchange.getRequestBody().read();
@@ -114,13 +132,16 @@ public class S3HttpHandler implements HttpHandler {
 
         try (exchange) {
             if (request.isHeadObjectRequest()) {
-                final BytesReference blob = blobs.get(request.path());
-                if (blob == null) {
+                final BlobEntry blobEntry = blobs.get(request.path());
+                if (blobEntry == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
-                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.length()));
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    if (!"STANDARD".equals(blobEntry.storageClass())) {
+                        exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
+                    }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
             } else if (request.isListMultipartUploadsRequest()) {
@@ -157,7 +178,7 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isInitiateMultipartUploadRequest()) {
-                final var upload = putUpload(request.path().substring(bucket.length() + 2));
+                final var upload = putUpload(request.path().substring(bucket.length() + 2), getRequestStorageClass(exchange));
                 final var uploadResult = new StringBuilder();
                 uploadResult.append("<?xml version='1.0' encoding='UTF-8'?>");
                 uploadResult.append("<InitiateMultipartUploadResult>");
@@ -179,8 +200,8 @@ public class S3HttpHandler implements HttpHandler {
                     // CopyPart is UploadPart with an x-amz-copy-source header
                     final var copySource = copySourceName(exchange);
                     if (copySource != null) {
-                        var sourceBlob = blobs.get(copySource);
-                        if (sourceBlob == null) {
+                        var sourceBlobEntry = blobs.get(copySource);
+                        if (sourceBlobEntry == null) {
                             exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                         } else {
                             var range = parsePartRange(exchange);
@@ -189,7 +210,7 @@ public class S3HttpHandler implements HttpHandler {
                             }
                             int start = Math.toIntExact(range.start());
                             int len = Math.toIntExact(range.end() - range.start() + 1);
-                            var part = sourceBlob.slice(start, len);
+                            var part = sourceBlobEntry.contents().slice(start, len);
                             var etag = getEtagFromContents(part);
                             upload.addPart(etag, part);
                             byte[] response = ("""
@@ -233,7 +254,11 @@ public class S3HttpHandler implements HttpHandler {
                             }
                         } else {
                             final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-                            responseCode = updateBlobContents(exchange, request.path(), blobContents);
+                            responseCode = updateBlobContents(
+                                exchange,
+                                request.path(),
+                                new BlobEntry(blobContents, upload.getStorageClass())
+                            );
                             if (responseCode == RestStatus.OK) {
                                 responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                                     + "<CompleteMultipartUploadResult>\n"
@@ -282,11 +307,11 @@ public class S3HttpHandler implements HttpHandler {
                         throw new AssertionError("If-Match: * header is not supported here");
                     }
 
-                    var sourceBlob = blobs.get(copySource);
-                    if (sourceBlob == null) {
+                    var sourceBlobEntry = blobs.get(copySource);
+                    if (sourceBlobEntry == null) {
                         exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     } else {
-                        blobs.put(request.path(), sourceBlob);
+                        blobs.put(request.path(), new BlobEntry(sourceBlobEntry.contents(), getRequestStorageClass(exchange)));
 
                         byte[] response = ("""
                             <?xml version="1.0" encoding="UTF-8"?>
@@ -297,7 +322,11 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    final var updateResponseCode = updateBlobContents(exchange, request.path(), blob.v2());
+                    final var updateResponseCode = updateBlobContents(
+                        exchange,
+                        request.path(),
+                        new BlobEntry(blob.v2(), getRequestStorageClass(exchange))
+                    );
 
                     if (updateResponseCode == RestStatus.OK) {
                         exchange.getResponseHeaders().add("ETag", blob.v1());
@@ -321,7 +350,7 @@ public class S3HttpHandler implements HttpHandler {
                 // Would be good to test pagination here (the only real difference between ListObjects and ListObjectsV2) but for now
                 // we return all the results at once.
                 list.append("<IsTruncated>false</IsTruncated>");
-                for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
+                for (Map.Entry<String, BlobEntry> blob : blobs.entrySet()) {
                     if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
                         continue;
                     }
@@ -336,7 +365,9 @@ public class S3HttpHandler implements HttpHandler {
                     }
                     list.append("<Contents>");
                     list.append("<Key>").append(blobPath).append("</Key>");
-                    list.append("<Size>").append(blob.getValue().length()).append("</Size>");
+                    list.append("<LastModified>").append(DEFAULT_LIST_OBJECT_LAST_MODIFIED).append("</LastModified>");
+                    list.append("<Size>").append(blob.getValue().contents().length()).append("</Size>");
+                    list.append("<StorageClass>").append(blob.getValue().storageClass()).append("</StorageClass>");
                     list.append("</Contents>");
                 }
                 commonPrefixes.forEach(
@@ -350,12 +381,13 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseBody().write(response);
 
             } else if (request.isGetObjectRequest()) {
-                final BytesReference blob = blobs.get(request.path());
-                if (blob == null) {
+                final BlobEntry blobEntry = blobs.get(request.path());
+                if (blobEntry == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
 
+                final BytesReference blob = blobEntry.contents();
                 final String etagFromContents = getEtagFromContents(blob);
                 final String ifMatchHeader = exchange.getRequestHeaders().getFirst("If-Match");
                 if (ifMatchHeader != null && ifMatchHeader.equals("*") == false) {
@@ -377,6 +409,9 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 exchange.getResponseHeaders().add("ETag", etagFromContents);
+                if (!"STANDARD".equals(blobEntry.storageClass())) {
+                    exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
+                }
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -386,35 +421,38 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range
-                // This handler supports both bounded ranges (bytes=0-100) and open-ended ranges (bytes=100-)
+                // Supports bounded (bytes=0-100), open-ended (bytes=100-), and suffix (bytes=-N) ranges
                 final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
-                long start = range.start();
-                // For open-ended ranges (bytes=N-), end is null, meaning "to end of file"
-                long end = range.end() != null ? range.end() : blob.length() - 1;
-                if (end < start) {
+                // A byte-range with end < start is invalid. Real S3 ignores it and returns the full object
+                // with 200 OK, so the fixture mirrors that behavior. This check must run before
+                // resolveAgainst, otherwise an invalid range whose start is also beyond EOF (e.g.
+                // "bytes=300-50" against a 200-byte object) would be reported as 416 instead of being ignored.
+                if (range.end() != null && range.end() < range.start()) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
                     blob.writeTo(exchange.getResponseBody());
                     return;
-                } else if (blob.length() <= start) {
+                }
+                final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.length());
+                if (resolved == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                     return;
                 }
-                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
-                end = start + responseBlob.length() - 1;
+                var responseBlob = blob.slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length()));
+                exchange.getResponseHeaders()
+                    .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", resolved.start(), resolved.end(), blob.length()));
                 exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
                 responseBlob.writeTo(exchange.getResponseBody());
 
             } else if (request.isDeleteObjectRequest()) {
                 int deletions = 0;
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
-                    Map.Entry<String, BytesReference> blob = iterator.next();
+                for (Iterator<Map.Entry<String, BlobEntry>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
+                    Map.Entry<String, BlobEntry> blob = iterator.next();
                     if (blob.getKey().startsWith(request.path())) {
                         iterator.remove();
                         deletions++;
@@ -428,8 +466,8 @@ public class S3HttpHandler implements HttpHandler {
                 final StringBuilder deletes = new StringBuilder();
                 deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 deletes.append("<DeleteResult>");
-                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
-                    Map.Entry<String, BytesReference> blob = iterator.next();
+                for (Iterator<Map.Entry<String, BlobEntry>> iterator = blobs.entrySet().iterator(); iterator.hasNext();) {
+                    Map.Entry<String, BlobEntry> blob = iterator.next();
                     String key = blob.getKey().replace("/" + bucket + "/", "");
                     if (requestBody.contains("<Key>" + key + "</Key>")) {
                         deletes.append("<Deleted><Key>").append(key).append("</Key></Deleted>");
@@ -463,10 +501,10 @@ public class S3HttpHandler implements HttpHandler {
      *
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
-    private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
+    private RestStatus updateBlobContents(HttpExchange exchange, String path, BlobEntry newEntry) {
         if (consistencyModel.hasConditionalWrites()) {
             if (isProtectOverwrite(exchange)) {
-                return blobs.putIfAbsent(path, newContents) == null
+                return blobs.putIfAbsent(path, newEntry) == null
                     ? RestStatus.OK
                     : ESTestCase.randomFrom(RestStatus.PRECONDITION_FAILED, RestStatus.CONFLICT);
             }
@@ -474,24 +512,24 @@ public class S3HttpHandler implements HttpHandler {
             final var requireExistingETag = getRequiredExistingETag(exchange);
             if (requireExistingETag != null) {
                 final var responseCode = new AtomicReference<>(RestStatus.OK);
-                blobs.compute(path, (ignoredPath, existingContents) -> {
-                    if (existingContents != null && requireExistingETag.equals(getEtagFromContents(existingContents))) {
-                        return newContents;
+                blobs.compute(path, (ignoredPath, existingEntry) -> {
+                    if (existingEntry != null && requireExistingETag.equals(getEtagFromContents(existingEntry.contents()))) {
+                        return newEntry;
                     }
 
                     responseCode.set(
                         ESTestCase.randomFrom(
-                            existingContents == null ? RestStatus.NOT_FOUND : RestStatus.PRECONDITION_FAILED,
+                            existingEntry == null ? RestStatus.NOT_FOUND : RestStatus.PRECONDITION_FAILED,
                             RestStatus.CONFLICT
                         )
                     );
-                    return existingContents;
+                    return existingEntry;
                 });
                 return responseCode.get();
             }
         }
 
-        blobs.put(path, newContents);
+        blobs.put(path, newEntry);
         return RestStatus.OK;
     }
 
@@ -504,7 +542,7 @@ public class S3HttpHandler implements HttpHandler {
         return '"' + SHA_256_ETAG_PREFIX + MessageDigests.toHexString(MessageDigests.digest(blobContents, MessageDigests.sha256())) + '"';
     }
 
-    public Map<String, BytesReference> blobs() {
+    public Map<String, BlobEntry> blobs() {
         return blobs;
     }
 
@@ -638,6 +676,11 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
+    private static String getRequestStorageClass(final HttpExchange exchange) {
+        final var storageClassHeader = exchange.getRequestHeaders().getFirst(STORAGE_CLASS_HEADER);
+        return storageClassHeader != null ? storageClassHeader : "STANDARD";
+    }
+
     @Nullable // if no X-amz-copy-source header present
     private static String copySourceName(final HttpExchange exchange) {
         final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
@@ -709,8 +752,8 @@ public class S3HttpHandler implements HttpHandler {
         throw new AssertionError("multiple If-Match headers found: " + ifMatch);
     }
 
-    MultipartUpload putUpload(String path) {
-        final var upload = new MultipartUpload(uuidGenerator.get(), path);
+    MultipartUpload putUpload(String path, String storageClass) {
+        final var upload = new MultipartUpload(uuidGenerator.get(), path, storageClass);
         synchronized (uploads) {
             assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
             return upload;

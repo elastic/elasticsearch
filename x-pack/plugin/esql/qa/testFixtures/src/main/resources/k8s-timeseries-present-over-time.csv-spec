@@ -22,6 +22,8 @@ true                    | two         | 2024-05-10T00:22:00.000Z
 
 present_over_time_events_received_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;
@@ -29,14 +31,14 @@ PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:
 ignoreOrder:true
 
 events_received:double | step:datetime            | pod:keyword
-1.0                    | 2024-05-10T00:02:00.000Z | two
-1.0                    | 2024-05-10T00:08:00.000Z | two
-0.0                    | 2024-05-10T00:10:00.000Z | two
+1.0                    | 2024-05-10T00:04:00.000Z | two
+1.0                    | 2024-05-10T00:10:00.000Z | two
 0.0                    | 2024-05-10T00:12:00.000Z | two
-1.0                    | 2024-05-10T00:14:00.000Z | two
+0.0                    | 2024-05-10T00:14:00.000Z | two
 1.0                    | 2024-05-10T00:16:00.000Z | two
-0.0                    | 2024-05-10T00:18:00.000Z | two
-1.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:18:00.000Z | two
+0.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:22:00.000Z | two
 ;
 
 present_over_time_of_long
@@ -71,6 +73,22 @@ is_present:double | step:datetime            | cluster:keyword
 1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | staging
+;
+
+present_over_time_of_long_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
+| TS_COLLAPSE
+| SORT cluster;
+
+is_present:double  | step:datetime                                                                                  | cluster:keyword
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | prod
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | qa
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | staging
 ;
 
 present_over_time_of_boolean
@@ -589,6 +607,8 @@ events_received:integer | pod:keyword | time_bucket:datetime
 
 present_over_time_events_received_as_integer_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;
@@ -596,12 +616,12 @@ PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:
 ignoreOrder:true
 
 events_received:double | step:datetime            | pod:keyword
-1.0                    | 2024-05-10T00:02:00.000Z | two
-1.0                    | 2024-05-10T00:08:00.000Z | two
-0.0                    | 2024-05-10T00:10:00.000Z | two
+1.0                    | 2024-05-10T00:04:00.000Z | two
+1.0                    | 2024-05-10T00:10:00.000Z | two
 0.0                    | 2024-05-10T00:12:00.000Z | two
-1.0                    | 2024-05-10T00:14:00.000Z | two
+0.0                    | 2024-05-10T00:14:00.000Z | two
 1.0                    | 2024-05-10T00:16:00.000Z | two
-0.0                    | 2024-05-10T00:18:00.000Z | two
-1.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:18:00.000Z | two
+0.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:22:00.000Z | two
 ;

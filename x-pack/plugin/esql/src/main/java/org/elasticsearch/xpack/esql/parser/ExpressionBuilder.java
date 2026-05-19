@@ -16,6 +16,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -86,7 +85,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -126,7 +124,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry, InferenceSettings inferenceSettings, String viewName) {}
+    public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
@@ -717,14 +715,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 args = singletonList(Literal.keyword(source(ctx), "*"));
             }
         }
-        return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+        return new UnresolvedFunction(source(ctx), name, args);
     }
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        String name = functionName(ctx);
-        context.telemetry().function(name);
-        return name;
+        return functionName(ctx);
     }
 
     private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
@@ -760,9 +756,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
-                if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
-                }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
@@ -805,7 +798,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Expression expr = expression(parseTree);
         var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
-        context.telemetry().function(convertFunction.getClass());
+        if (Build.current().isSnapshot() == false && EsqlFunctionRegistry.isSnapshotOnly(convertFunction.getClass())) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
         return convertFunction;
     }
 
@@ -813,7 +808,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
         DataType dataType = DataType.fromNameOrAlias(typeName);
-        if (dataType == DataType.UNSUPPORTED) {
+        if (dataType == DataType.UNSUPPORTED || dataType.supportedVersion().supportedLocally() == false) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }
         return dataType;

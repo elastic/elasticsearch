@@ -109,6 +109,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(
         AllocatedPersistentTask task,
         ReindexDataStreamTaskParams params,

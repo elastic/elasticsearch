@@ -9,9 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractDoublesFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
@@ -21,74 +22,23 @@ import static org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongs
 /**
  * Loads the MAX {@code double} in each doc.
  */
-public class MvMaxDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDocValuesBlockLoader {
+public class MvMaxDoublesFromDocValuesBlockLoader extends DoublesBlockLoader {
     public MvMaxDoublesFromDocValuesBlockLoader(String fieldName, BlockDocValuesReader.ToDouble toDouble) {
         super(fieldName, toDouble);
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Singleton(docValues, toDouble);
-    }
-
-    @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new MvMaxSorted(docValues, toDouble);
-    }
-
-    @Override
-    public String toString() {
-        return "DoublesFromDocValues[" + fieldName + "]";
-    }
-
-    private static class MvMaxSorted extends BlockDocValuesReader {
-        private final TrackingSortedNumericDocValues numericDocValues;
-        private final ToDouble toDouble;
-
-        MvMaxSorted(TrackingSortedNumericDocValues numericDocValues, ToDouble toDouble) {
-            super(null);
-            this.numericDocValues = numericDocValues;
-            this.toDouble = toDouble;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        return new AbstractNumericBlockLoader.Sorted<>(this, "MvMaxDoublesFromDocValues", docValues) {
+            @Override
+            protected void readSortedDoc(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
+                if (values.docValues().advanceExact(doc) == false) {
+                    builder.appendNull();
+                    return;
                 }
-                return builder.build();
+                discardAllButLast(values.docValues());
+                appendValue(builder, values.docValues().nextValue());
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (DoubleBuilder) builder);
-        }
-
-        private void read(int doc, DoubleBuilder builder) throws IOException {
-            if (false == numericDocValues.docValues().advanceExact(doc)) {
-                builder.appendNull();
-                return;
-            }
-            discardAllButLast(numericDocValues.docValues());
-            builder.appendDouble(toDouble.convert(numericDocValues.docValues().nextValue()));
-        }
-
-        @Override
-        public int docId() {
-            return numericDocValues.docValues().docID();
-        }
-
-        @Override
-        public String toString() {
-            return "MvMaxDoublesFromDocValues.Sorted";
-        }
-
-        @Override
-        public void close() {
-            numericDocValues.close();
-        }
+        };
     }
 }

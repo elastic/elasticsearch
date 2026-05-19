@@ -286,6 +286,23 @@ Very Tall           | null                     | 9         | fork1
 Medium Height       | null                     | null      | fork2
 ;
 
+
+forkWithUnsupportedAttributes2
+required_capability: fork_v9
+
+FROM k8s-downsampled, k8s
+| FORK (WHERE TRUE) (WHERE TRUE)
+| WHERE client.ip == "10.10.20.34"
+| SORT @timestamp, cluster, pod
+| KEEP network.eth*
+| LIMIT 1
+;
+
+network.eth0.currently_connected_clients:integer	| network.eth0.firmware_version:version	| network.eth0.last_up:date_nanos	| network.eth0.rx:unsupported	| network.eth0.tx:unsupported	| network.eth0.up:boolean
+862                                             	| 7.8.4                                	| 2024-04-13T05:15:29.735829818Z 	| null                       	| null                       	| true  
+;
+
+
 forkAfterLookupJoin
 required_capability: fork_v9
 
@@ -992,4 +1009,58 @@ FROM books METADATA _score
 ;
 
 author:text | _fork:keyword | total:long
+;
+
+forkWithFinalStatsCount
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| stats x = count(*), y = count(*) by emp_no
+| FORK (where emp_no > 10050)
+| stats y = count(*)
+;
+
+y:long
+50
+;
+
+forkWithEmptyBranchOutputs
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| fork ( stats salary = count(*)::int, z = count(*) by gender
+        | where NOT starts_with(gender, "v")
+        | eval gender = gender::keyword )
+       ( stats gender = values(gender), z = count(*) by salary
+        | where salary > 100000 )
+       ( where emp_no > 10050
+        | eval gender = gender::keyword )
+| sort salary
+| stats y = count(*)
+;
+
+y:long
+52
+;
+
+forkWithEmptyBranchOutputsAndNoRows
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| fork ( stats salary = count(*)::int, z = count(*) by gender
+        | where starts_with(gender, "zzz")
+        | eval gender = gender::keyword )
+       ( stats gender = values(gender), z = count(*) by salary
+        | where salary < 0 )
+       ( where emp_no < 0
+        | eval gender = gender::keyword )
+| sort salary
+| stats y = count(*)
+;
+
+y:long
+0
 ;

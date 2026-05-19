@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
@@ -26,6 +27,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,6 +39,7 @@ import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -72,6 +76,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramT
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
@@ -187,6 +192,15 @@ public final class CsvAssert {
         }
     }
 
+    public static void assertDocumentsFound(String expected, long actual) {
+        if (expected != null) {
+            assertTrue(
+                format(null, "Different numbers of documents found; expected {} but actual was {}", expected, actual),
+                CsvAssert.equals(CsvTestUtils.Type.LONG.convert(expected), actual, false)
+            );
+        }
+    }
+
     private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
@@ -268,7 +282,7 @@ public final class CsvAssert {
             }
             if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
                 if (value instanceof String s) {
-                    value = s.replaceAll("\\\\n", "\n");
+                    value = s.replaceAll("\\\\n", "\n").replaceAll("\\\\#", "#");
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
@@ -588,8 +602,8 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
-            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
         };
     }
 
@@ -610,8 +624,32 @@ public final class CsvAssert {
                 String.class,
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
+            case FLATTENED -> {
+                if (actualValue instanceof List<?> list) {
+                    // VALUES(flattened) returns a list of maps from REST; convert each to a JSON string
+                    yield list.stream().map(v -> convertActualFlattenedValue(v)).toList();
+                }
+                yield convertActualFlattenedValue(actualValue);
+            }
             default -> actualValue;
         };
+    }
+
+    private static Object convertActualFlattenedValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            // REST tests come back as a LinkedHashMap and our assertions are json strings.
+            // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
+            @SuppressWarnings("unchecked")
+            Map<String, Object> typedMap = (Map<String, Object>) map;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.map(typedMap);
+                return BytesReference.bytes(builder).utf8ToString();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        // CsvIT: value is already a JSON string from the block loader — compare directly
+        return value;
     }
 
     private static Object rebuildExpected(Object expectedValue, Class<?> clazz, Function<Object, Object> mapper) {

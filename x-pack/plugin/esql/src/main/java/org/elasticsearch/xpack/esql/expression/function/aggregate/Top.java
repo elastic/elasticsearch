@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -66,7 +67,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
@@ -78,6 +78,7 @@ public class Top extends AggregateFunction
         SurrogateExpression,
         PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class).quaternary(Top::new).name("top");
 
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";
@@ -189,7 +190,7 @@ public class Top extends AggregateFunction
         ).and(isNotNull(limitField(), sourceText(), SECOND))
             .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
             .and(isNotNull(orderField(), sourceText(), THIRD))
-            .and(isString(orderField(), sourceText(), THIRD));
+            .and(isType(orderField(), dt -> dt == DataType.KEYWORD, sourceText(), THIRD, "keyword"));
         if (outputField() != null) {
             typeResolution = typeResolution.and(
                 isType(

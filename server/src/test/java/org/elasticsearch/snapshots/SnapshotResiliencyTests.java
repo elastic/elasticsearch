@@ -1040,6 +1040,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() {
+
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -1335,7 +1336,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
-                + Strings.toString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
+                + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
             testListener.isDone()
         );
         safeAwait(testListener); // shouldn't throw
@@ -1559,7 +1560,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
-                + Strings.toString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
+                + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
             testListener.isDone()
         );
         safeAwait(testListener); // shouldn't throw

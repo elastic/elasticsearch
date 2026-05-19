@@ -320,7 +320,24 @@ public class RestControllerTests extends ESTestCase {
             eq(threadContext),
             eq(channel.request()),
             eq("GET /"),
-            eq(Map.of("http.method", "GET", "http.flavour", "1.1", "http.url", "/"))
+            eq(
+                Map.of(
+                    "http.method",
+                    "GET",
+                    "http.request.method",
+                    "GET",
+                    "http.flavour",
+                    "1.1",
+                    "network.protocol.version",
+                    "1.1",
+                    "http.url",
+                    "/",
+                    "url.full",
+                    "/",
+                    "url.path",
+                    "/"
+                )
+            )
         );
     }
 
@@ -1186,6 +1203,19 @@ public class RestControllerTests extends ESTestCase {
         restController.getApiProtections().setEnabled(false);
         checkUnprotected.accept(accessiblePaths);
         checkUnprotected.accept(inaccessiblePaths);
+    }
+
+    public void testGetAllHandlersPreservesMultiValueParams() {
+        restController.registerHandler(new Route(GET, "/{index}"), (request, channel, client) -> {});
+
+        var params = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var it = restController.getAllHandlers(params, "/my-index");
+        while (it.hasNext()) {
+            it.next();
+        }
+
+        // Multi-values must survive the per-iteration reset that PathTrie triggers
+        assertThat(params.getAll("format"), equalTo(List.of("json", "yaml")));
     }
 
     @ServerlessScope(Scope.PUBLIC)

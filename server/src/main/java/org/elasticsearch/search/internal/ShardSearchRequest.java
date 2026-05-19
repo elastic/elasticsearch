@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,6 +31,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -55,6 +57,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
@@ -88,6 +91,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     private final TransportVersion channelVersion;
 
+    private DiscoveryNode coordinatingNode;
+
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
      * Use this to test if the mapping supports synthetic _source and to get a sense
@@ -95,6 +100,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
      * enabling synthetic source natively in the index.
      */
     private final boolean forceSyntheticSource;
+    @Nullable
+    private final String sliceRouting;
 
     /**
      * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
@@ -166,7 +173,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
             searchRequest.getWaitForCheckpointsTimeout(),
             searchRequest.isForceSyntheticSource(),
-            splitShardCountSummary
+            splitShardCountSummary,
+            searchRequest.searchSlice()
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -188,13 +196,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         return waitForCheckpoint;
     }
 
-    // Used by ValidateQueryAction, ExplainAction, FieldCaps, TermsEnumAction, lookup join in ESQL
+    // Used by ValidateQueryAction, FieldCaps, TermsEnumAction
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
         // TODO fix SplitShardCountSummary
         this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
     }
 
-    // Used by ESQL and field_caps API
+    // Used by ESQL, field_caps API, TransportExplainAction
     public ShardSearchRequest(
         ShardId shardId,
         long nowInMillis,
@@ -221,7 +229,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT,
             false,
-            splitShardCountSummary
+            splitShardCountSummary,
+            null
         );
     }
 
@@ -245,7 +254,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         long waitForCheckpoint,
         TimeValue waitForCheckpointsTimeout,
         boolean forceSyntheticSource,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        @Nullable String sliceRouting
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -268,6 +278,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
         this.splitShardCountSummary = splitShardCountSummary;
+        this.sliceRouting = sliceRouting;
     }
 
     @SuppressWarnings("this-escape")
@@ -294,6 +305,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
         this.splitShardCountSummary = clone.splitShardCountSummary;
+        this.sliceRouting = clone.sliceRouting;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -319,6 +331,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         waitForCheckpoint = in.readLong();
         waitForCheckpointsTimeout = in.readTimeValue();
         forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            sliceRouting = in.readOptionalString();
+        } else {
+            sliceRouting = null;
+        }
         if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary = new SplitShardCountSummary(in);
         } else {
@@ -326,6 +343,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         }
 
         originalIndices = OriginalIndices.readOriginalIndices(in);
+
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+        }
     }
 
     @Override
@@ -333,6 +354,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         super.writeTo(out);
         innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
+
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            out.writeOptionalWriteable(coordinatingNode);
+        }
     }
 
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -362,6 +387,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         out.writeLong(waitForCheckpoint);
         out.writeTimeValue(waitForCheckpointsTimeout);
         out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeOptionalString(sliceRouting);
+        }
         if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary.writeTo(out);
         }
@@ -526,6 +554,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         return splitShardCountSummary;
     }
 
+    @Nullable
+    public String sliceRouting() {
+        return sliceRouting;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
@@ -664,4 +697,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     public boolean isForceSyntheticSource() {
         return forceSyntheticSource;
     }
+
+    public void setCoordinatingNode(DiscoveryNode node) {
+        this.coordinatingNode = node;
+    }
+
+    public DiscoveryNode getCoordinatingNode() {
+        return coordinatingNode;
+    }
+
 }

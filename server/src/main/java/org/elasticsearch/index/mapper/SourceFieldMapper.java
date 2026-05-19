@@ -350,11 +350,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (enabled) {
-                BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
-                if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, false);
-                } else if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, true);
+                var config = blContext.blockLoaderFunctionConfig();
+                if (config instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata tsm) {
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, tsm.loadMetrics());
                 }
                 return new SourceFieldBlockLoader();
             }
@@ -424,9 +422,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        XContentType contentType = context.sourceToParse().getXContentType();
-
-        final var originalSource = context.sourceToParse().source();
+        SourceToParse.Source sourceObject = context.sourceToParse().source();
+        XContentType contentType = sourceObject.xContentType();
+        // TODO: Optimize if source not materialized
+        final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 

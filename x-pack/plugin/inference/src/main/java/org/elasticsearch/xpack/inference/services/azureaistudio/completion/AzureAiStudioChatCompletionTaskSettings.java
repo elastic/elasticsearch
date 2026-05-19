@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioCon
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,7 +32,6 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 
 public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "azure_ai_studio_chat_completion_task_settings";
-    public static final Integer DEFAULT_MAX_NEW_TOKENS = 64;
 
     public static AzureAiStudioChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -62,9 +60,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
@@ -129,10 +125,6 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
 
     public Integer maxNewTokens() {
         return maxNewTokens;
-    }
-
-    public boolean areAnyParametersAvailable() {
-        return temperature != null && topP != null && doSample != null && maxNewTokens != null;
     }
 
     @Override
@@ -212,7 +204,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         AzureAiStudioChatCompletionRequestTaskSettings requestSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
+            newSettings
         );
         return of(this, requestSettings);
     }

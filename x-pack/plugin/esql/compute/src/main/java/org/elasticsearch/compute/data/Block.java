@@ -218,8 +218,14 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     ElementType elementType();
 
+    /**
+     * {@return the maximum byte size of any single value in this block}
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
+     */
+    int valueMaxByteSize();
+
     /** The block factory associated with this block. */
-    // TODO: renaming this to owning blockFactory once we pass blockFactory for filter and expand
     BlockFactory blockFactory();
 
     /**
@@ -351,6 +357,18 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     }
 
     /**
+     * Return a subset of this {@link Block} from position {@code beginInclusive} to
+     * position {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     * <p>
+     *     NOTE: Implementations will not try to optimize zero length slices
+     *     as we expect them to be rare.
+     * </p>
+     */
+    Block slice(int beginInclusive, int endExclusive);
+
+    /**
      * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
      * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
      */
@@ -468,7 +486,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
                     blocks[b] = builders[b].build();
                 }
             } finally {
-                if (blocks[blocks.length - 1] == null) {
+                if (blocks.length > 0 && blocks[blocks.length - 1] == null) {
                     Releasables.closeExpectNoException(blocks);
                 }
             }

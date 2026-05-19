@@ -10,8 +10,18 @@ package org.elasticsearch.xpack.esql.arrow;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.Float2Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.SmallIntVector;
+import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampSecVector;
+import org.apache.arrow.vector.TinyIntVector;
+import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt2Vector;
+import org.apache.arrow.vector.UInt4Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.Types;
@@ -39,7 +49,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
     @Before
     public void setup() {
         allocator = new RootAllocator();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
     @After
@@ -57,7 +67,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.set(4, 4.5);
             vector.setValueCount(5);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromFloat64();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof DoubleBlock);
                 DoubleBlock doubleBlock = (DoubleBlock) block;
@@ -80,7 +90,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.setNull(2);
             vector.setValueCount(3);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromFloat64();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof DoubleBlock);
                 DoubleBlock doubleBlock = (DoubleBlock) block;
@@ -103,7 +113,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.set(4, 400L);
             vector.setValueCount(5);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromInt64();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof LongBlock);
                 LongBlock longBlock = (LongBlock) block;
@@ -128,7 +138,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.set(4, 40);
             vector.setValueCount(5);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromInt32();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof IntBlock);
                 IntBlock intBlock = (IntBlock) block;
@@ -153,7 +163,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.set(4, 0);
             vector.setValueCount(5);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromBoolean();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof BooleanBlock);
                 BooleanBlock booleanBlock = (BooleanBlock) block;
@@ -178,7 +188,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.set(4, "bar".getBytes(StandardCharsets.UTF_8));
             vector.setValueCount(5);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromVarChar();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof BytesRefBlock);
                 BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
@@ -203,7 +213,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.set(4, new byte[] { 10, 11, 12 });
             vector.setValueCount(5);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromVarBinary();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof BytesRefBlock);
                 BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
@@ -218,13 +228,240 @@ public class ArrowToBlockConverterTests extends ESTestCase {
         }
     }
 
+    public void testFromFloat16() {
+        try (Float2Vector vector = new Float2Vector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, Float.floatToFloat16(1.5f));
+            vector.set(1, Float.floatToFloat16(-3.0f));
+            vector.setNull(2);
+            vector.set(3, Float.floatToFloat16(65504.0f)); // max finite float16
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof DoubleBlock);
+                DoubleBlock db = (DoubleBlock) block;
+                assertEquals(4, db.getPositionCount());
+                assertEquals(1.5, db.getDouble(0), 0.001);
+                assertEquals(-3.0, db.getDouble(1), 0.001);
+                assertTrue(db.isNull(2));
+                assertEquals(65504.0, db.getDouble(3), 0.0);
+            }
+        }
+    }
+
+    public void testFromTinyInt() {
+        try (TinyIntVector vector = new TinyIntVector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, 0);
+            vector.set(1, 127);
+            vector.setNull(2);
+            vector.set(3, -128);
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof IntBlock);
+                IntBlock ib = (IntBlock) block;
+                assertEquals(4, ib.getPositionCount());
+                assertEquals(0, ib.getInt(0));
+                assertEquals(127, ib.getInt(1));
+                assertTrue(ib.isNull(2));
+                assertEquals(-128, ib.getInt(3));
+            }
+        }
+    }
+
+    public void testFromSmallInt() {
+        try (SmallIntVector vector = new SmallIntVector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, 0);
+            vector.set(1, 32767);
+            vector.setNull(2);
+            vector.set(3, -32768);
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof IntBlock);
+                IntBlock ib = (IntBlock) block;
+                assertEquals(4, ib.getPositionCount());
+                assertEquals(0, ib.getInt(0));
+                assertEquals(32767, ib.getInt(1));
+                assertTrue(ib.isNull(2));
+                assertEquals(-32768, ib.getInt(3));
+            }
+        }
+    }
+
+    public void testFromUInt1() {
+        try (UInt1Vector vector = new UInt1Vector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, 0);
+            vector.set(1, 127);
+            vector.setNull(2);
+            vector.set(3, 255);
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof IntBlock);
+                IntBlock ib = (IntBlock) block;
+                assertEquals(4, ib.getPositionCount());
+                assertEquals(0, ib.getInt(0));
+                assertEquals(127, ib.getInt(1));
+                assertTrue(ib.isNull(2));
+                assertEquals(255, ib.getInt(3));
+            }
+        }
+    }
+
+    public void testFromUInt2() {
+        try (UInt2Vector vector = new UInt2Vector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, 0);
+            vector.set(1, 1000);
+            vector.setNull(2);
+            vector.set(3, 65535);
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof IntBlock);
+                IntBlock ib = (IntBlock) block;
+                assertEquals(4, ib.getPositionCount());
+                assertEquals(0, ib.getInt(0));
+                assertEquals(1000, ib.getInt(1));
+                assertTrue(ib.isNull(2));
+                assertEquals(65535, ib.getInt(3));
+            }
+        }
+    }
+
+    public void testFromUInt4() {
+        try (UInt4Vector vector = new UInt4Vector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, 0);
+            vector.set(1, 100_000);
+            vector.setNull(2);
+            vector.set(3, 0xFFFFFFFF); // unsigned: 4294967295
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof LongBlock);
+                LongBlock lb = (LongBlock) block;
+                assertEquals(4, lb.getPositionCount());
+                assertEquals(0L, lb.getLong(0));
+                assertEquals(100_000L, lb.getLong(1));
+                assertTrue(lb.isNull(2));
+                assertEquals(4294967295L, lb.getLong(3));
+            }
+        }
+    }
+
+    public void testFromTimestampSec() {
+        try (TimeStampSecVector vector = new TimeStampSecVector("test", allocator)) {
+            vector.allocateNew(3);
+            vector.set(0, 1_700_000_000L); // seconds since epoch
+            vector.setNull(1);
+            vector.set(2, 0L);
+            vector.setValueCount(3);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof LongBlock);
+                LongBlock lb = (LongBlock) block;
+                assertEquals(3, lb.getPositionCount());
+                assertEquals(1_700_000_000_000L, lb.getLong(0)); // seconds * 1000
+                assertTrue(lb.isNull(1));
+                assertEquals(0L, lb.getLong(2));
+            }
+        }
+    }
+
+    public void testFromTimestampMilli() {
+        try (TimeStampMilliVector vector = new TimeStampMilliVector("test", allocator)) {
+            vector.allocateNew(3);
+            vector.set(0, 1_700_000_000_000L); // millis since epoch
+            vector.setNull(1);
+            vector.set(2, 42L);
+            vector.setValueCount(3);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof LongBlock);
+                LongBlock lb = (LongBlock) block;
+                assertEquals(3, lb.getPositionCount());
+                assertEquals(1_700_000_000_000L, lb.getLong(0)); // direct, no conversion
+                assertTrue(lb.isNull(1));
+                assertEquals(42L, lb.getLong(2));
+            }
+        }
+    }
+
+    public void testFromTimestampMicro() {
+        try (TimeStampMicroVector vector = new TimeStampMicroVector("test", allocator)) {
+            vector.allocateNew(3);
+            vector.set(0, 1_700_000_000_000_000L); // micros since epoch
+            vector.setNull(1);
+            vector.set(2, 42L);
+            vector.setValueCount(3);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof LongBlock);
+                LongBlock lb = (LongBlock) block;
+                assertEquals(3, lb.getPositionCount());
+                assertEquals(1_700_000_000_000_000_000L, lb.getLong(0)); // micros * 1000
+                assertTrue(lb.isNull(1));
+                assertEquals(42_000L, lb.getLong(2));
+            }
+        }
+    }
+
+    public void testFromTimestampNano() {
+        try (TimeStampNanoVector vector = new TimeStampNanoVector("test", allocator)) {
+            vector.allocateNew(3);
+            vector.set(0, 1_700_000_000_000_000_000L); // nanos since epoch
+            vector.setNull(1);
+            vector.set(2, 42_000L);
+            vector.setValueCount(3);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof LongBlock);
+                LongBlock lb = (LongBlock) block;
+                assertEquals(3, lb.getPositionCount());
+                assertEquals(1_700_000_000_000_000_000L, lb.getLong(0)); // direct, no conversion
+                assertTrue(lb.isNull(1));
+                assertEquals(42_000L, lb.getLong(2));
+            }
+        }
+    }
+
     public void testForTypeFactory() {
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.FLOAT2));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.FLOAT4));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.FLOAT8));
-        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.BIGINT));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TINYINT));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.SMALLINT));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.INT));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.BIGINT));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.UINT1));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.UINT2));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.UINT4));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.BIT));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.VARCHAR));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.VARBINARY));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPSEC));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPSECTZ));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPMILLI));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPMILLITZ));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPMICRO));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPMICROTZ));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPNANO));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPNANOTZ));
         assertNull(ArrowToBlockConverter.forType(Types.MinorType.NULL));
         assertNull(ArrowToBlockConverter.forType(Types.MinorType.STRUCT));
     }
@@ -234,7 +471,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             vector.allocateNew(0);
             vector.setValueCount(0);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromFloat64();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof DoubleBlock);
                 DoubleBlock doubleBlock = (DoubleBlock) block;
@@ -256,7 +493,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
             }
             vector.setValueCount(size);
 
-            ArrowToBlockConverter converter = new ArrowToBlockConverter.FromInt32();
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             try (Block block = converter.convert(vector, blockFactory)) {
                 assertTrue(block instanceof IntBlock);
                 IntBlock intBlock = (IntBlock) block;
@@ -294,7 +531,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
                     vector.setValueCount(originalBlock.getPositionCount());
 
                     // Convert Arrow → Block using ArrowToBlockConverter
-                    ArrowToBlockConverter converter = new ArrowToBlockConverter.FromFloat64();
+                    ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
                     try (Block convertedBlock = converter.convert(vector, blockFactory)) {
                         assertTrue(convertedBlock instanceof DoubleBlock);
                         DoubleBlock convertedDoubleBlock = (DoubleBlock) convertedBlock;

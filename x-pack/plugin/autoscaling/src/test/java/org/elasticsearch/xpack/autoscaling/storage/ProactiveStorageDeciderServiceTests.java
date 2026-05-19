@@ -25,7 +25,9 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -56,6 +58,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderServiceTests.mockAllocationService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -97,10 +100,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
         });
         AllocationDeciders allocationDeciders = new AllocationDeciders(allocationDecidersList);
+        AllocationService allocationService = mockAllocationService(allocationDeciders);
         ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(
             Settings.EMPTY,
             clusterSettings,
-            allocationDeciders,
+            allocationService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         AutoscalingCapacity currentCapacity = ReactiveStorageDeciderDecisionTests.randomCurrentCapacity();
@@ -336,14 +340,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterState randomAllocate(ClusterState state) {
-        RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            state.mutableRoutingNodes(),
-            state,
-            null,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).mutable();
         randomAllocate(allocation);
         return ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
     }
@@ -367,14 +364,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterState startAll(ClusterState state) {
-        RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            state.mutableRoutingNodes(),
-            state,
-            null,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).mutable();
         startAll(allocation);
         return ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
     }

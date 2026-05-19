@@ -10,6 +10,9 @@
     "managed": true
   },
   "template": {
+    "lifecycle": {
+      "data_retention": "90d"
+    },
     "settings": {
       "index.auto_expand_replicas": "0-1",
       "index.hidden": true,

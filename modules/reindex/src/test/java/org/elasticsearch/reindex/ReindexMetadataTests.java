@@ -9,12 +9,14 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 
 /**
  * Reindex test for routing.
@@ -82,7 +84,12 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID),
                 null,
                 request(),
-                listener()
+                listener(),
+                randomBoolean() ? null : Version.CURRENT,
+                randomPositiveTimeValue(),
+                null,
+                new ReindexSettings(),
+                new NoopCircuitBreaker("test")
             );
         }
 

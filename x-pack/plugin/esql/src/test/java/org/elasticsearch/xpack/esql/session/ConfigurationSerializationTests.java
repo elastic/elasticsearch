@@ -33,7 +33,10 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
     @Override
     protected Writeable.Reader<Configuration> instanceReader() {
         return in -> new Configuration(
-            new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
+            new BlockStreamInput(
+                in,
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
+            )
         );
     }
 
@@ -110,7 +113,9 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             in.resultTruncationMaxSize(true),
             in.resultTruncationDefaultSize(true),
             null,
-            Map.of()
+            null,
+            Map.of(),
+            randomBoolean() // explainOnly
         );
     }
 }

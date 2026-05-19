@@ -34,17 +34,12 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
   private final int precision;
 
-  public CountDistinctBytesRefAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, HllStates.SingleState state, int precision) {
+  CountDistinctBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      int precision) {
+    this.precision = precision;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.precision = precision;
-  }
-
-  public static CountDistinctBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int precision) {
-    return new CountDistinctBytesRefAggregatorFunction(driverContext, channels, CountDistinctBytesRefAggregator.initSingle(driverContext, precision), precision);
+    this.state = CountDistinctBytesRefAggregator.initSingle(driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -71,6 +66,18 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -81,6 +88,18 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -147,6 +166,15 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block hllUncast = page.getBlock(channels.get(0));
     if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();

@@ -110,7 +110,7 @@ public class EsqlQueryLogTests extends ESTestCase {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
                 new Versioned<>(
-                    new Result(List.of(), List.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
+                    new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
                     TransportVersion.current()
                 ),
                 query
@@ -192,6 +192,9 @@ public class EsqlQueryLogTests extends ESTestCase {
             @Override
             public EsqlQueryProfile queryProfile() {
                 return new EsqlQueryProfile(
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),

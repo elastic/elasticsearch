@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -148,7 +149,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     auditor,
                     new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    mock(ProjectResolver.class)
                 ),
                 checkpointProvider,
                 initialState,
@@ -482,9 +485,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+        searchHits.decRef(); // transfer ownership to searchResponse
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
@@ -563,9 +566,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+        searchHits.decRef(); // transfer ownership to searchResponse
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
@@ -647,9 +650,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+        searchHits.decRef(); // transfer ownership to searchResponse
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = new Function<>() {
@@ -878,9 +881,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
     }
 
     private static Function<SearchRequest, SearchResponse> returnHit() {
-        return request -> SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        return request -> {
+            SearchHits hits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+            SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+            hits.decRef(); // transfer ownership to response
+            return response;
+        };
     }
 
     /**

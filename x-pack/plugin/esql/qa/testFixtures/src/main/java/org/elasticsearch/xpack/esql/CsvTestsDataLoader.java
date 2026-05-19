@@ -16,7 +16,6 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -34,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,6 +43,8 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -67,7 +69,6 @@ public class CsvTestsDataLoader {
     static {
         // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
         // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 
@@ -84,10 +85,21 @@ public class CsvTestsDataLoader {
         )
         .build();
 
-    public static final Map<String, TestDataset> CSV_DATASET_MAP = Stream.of(
+    public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
+            .withTypeMapping(removeFields("first_name", "last_name"))
+            .withDynamic("false")
+            .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
+            .withTypeMapping(Map.of("gender", "text"))
+            .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
+            .withTypeMapping(removeFields("gender"))
+            .withDynamic("false")
+            .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
         new TestDataset("hosts"),
         new TestDataset("apps"),
@@ -107,10 +119,9 @@ public class CsvTestsDataLoader {
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
+        new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
-        new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").withTypeMapping(
-            Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword"))
-        ),
+        new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -150,6 +161,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ages"),
         new TestDataset("heights"),
         new TestDataset("decades"),
+        new TestDataset("mv_decades"),
         new TestDataset("airports"),
         new TestDataset("airports").withIndex("airports_mp").withData("airports_mp.csv").withSetting("lookup-settings.json"),
         new TestDataset("airports_no_doc_values").withData("airports.csv"),
@@ -166,16 +178,47 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
+        new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
         new TestDataset("distances"),
         new TestDataset("addresses"),
+        new TestDataset("addresses").withIndex("addresses_no_continent")
+            .withTypeMapping(removeFields("city.country.continent"))
+            .withDynamic("false"),
+        new TestDataset("addresses").withIndex("addresses_text")
+            .withTypeMapping(
+                Map.of(
+                    "street",
+                    "text",
+                    "number",
+                    "text",
+                    "zip_code",
+                    "text",
+                    "city.name",
+                    "text",
+                    "city.country.name",
+                    "text",
+                    "city.country.continent.name",
+                    "text",
+                    "city.country.continent.planet.name",
+                    "text",
+                    "city.country.continent.planet.galaxy",
+                    "text"
+                )
+            ),
         new TestDataset("books").withSetting("books-settings.json"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
+        new TestDataset("dense_vector_coalesce").withRequiredCapabilities(EsqlCapabilities.Cap.COALESCE_DENSE_VECTOR),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
@@ -205,12 +248,29 @@ public class CsvTestsDataLoader {
             "histogram_standard_index.csv",
             "settings-histogram_time_series_index.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
-        new TestDataset("many_numbers"),
+        new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
-        new TestDataset("json_logs").withRequiredCapabilities(EsqlCapabilities.Cap.FN_JSON_EXTRACT)
+        new TestDataset("json_logs"),
+        new TestDataset("flattened_otel_logs"),
+        new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
+        new TestDataset(
+            "metric_temporality",
+            "metric_temporality-mappings.json",
+            "metric_temporality.csv",
+            "metric_temporality-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V7),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
+    // Developer flags for faster iteration when debugging specific csv-spec tests:
+    // -Dtests.spec_indices=index1,index2 load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
+    // -Dtests.spec_enrich_policies=p1,p2 load only the specified enrich policies (overrides the spec_indices skipping of enrich)
+    @Nullable
+    private static final Set<String> specIndices = parseSetProperty("tests.spec_indices");
+    @Nullable
+    private static final Set<String> specEnrichPolicies = parseSetProperty("tests.spec_enrich_policies");
+
+    public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(
         new EnrichConfig("languages_policy", "enrich-policy-languages.json", "languages"),
         new EnrichConfig("clientip_policy", "enrich-policy-clientips.json", "clientips"),
         new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json", "client_cidr"),
@@ -222,23 +282,27 @@ public class CsvTestsDataLoader {
         new EnrichConfig("city_airports", "enrich-policy-city_airports.json", "airport_city_boundaries"),
         new EnrichConfig("city_locations", "enrich-policy-city_locations.json", "airport_city_boundaries"),
         new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json", "colors_cmyk")
-    );
+    ).collect(toMap(EnrichConfig::policyName, Function.identity()));
 
     public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
         new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING),
         new InferenceConfig("test_dense_inference", TaskType.TEXT_EMBEDDING),
+        new InferenceConfig("test_embedding_inference", TaskType.EMBEDDING),
         new InferenceConfig("test_reranker", TaskType.RERANK),
         new InferenceConfig("test_completion", TaskType.COMPLETION)
     ).collect(toMap(InferenceConfig::id, Function.identity()));
 
-    public static final List<ViewConfig> VIEW_CONFIGS = List.of(
+    public static final Map<String, ViewConfig> VIEW_CONFIGS = Stream.of(
         new ViewConfig("country_addresses"),
         new ViewConfig("country_airports"),
         new ViewConfig("country_languages"),
         new ViewConfig("airports_mp_filtered"),
         new ViewConfig("employees_rehired"),
-        new ViewConfig("employees_not_rehired")
-    );
+        new ViewConfig("employees_not_rehired"),
+        new ViewConfig("employees_all"),
+        new ViewConfig("employees_extra"),
+        new ViewConfig("view_with_subquery")
+    ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
      * <p>
@@ -258,7 +322,6 @@ public class CsvTestsDataLoader {
      */
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
         boolean indexes = false;
         boolean policies = false;
@@ -377,7 +440,7 @@ public class CsvTestsDataLoader {
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
-        for (TestDataset dataset : CSV_DATASET_MAP.values()) {
+        for (TestDataset dataset : CSV_DATASET.values()) {
             if ((inferenceEnabled || dataset.inferenceEndpoints().isEmpty())
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
@@ -387,7 +450,17 @@ public class CsvTestsDataLoader {
             }
         }
 
+        if (specIndices != null) {
+            testDataSets.removeIf(d -> specIndices.contains(d.indexName) == false);
+        }
+
         return testDataSets;
+    }
+
+    @Nullable
+    private static Set<String> parseSetProperty(String name) {
+        String prop = System.getProperty(name);
+        return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
     private static boolean isLookupDataset(TestDataset dataset) throws IOException {
@@ -417,8 +490,17 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false, null);
     }
+
+    private static final IndexCreator INDEX_CREATOR = (restClient, indexName, indexMapping, indexSettings) -> ESRestTestCase.createIndex(
+        restClient,
+        indexName,
+        indexSettings,
+        indexMapping,
+        null,
+        DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
+    );
 
     public static void loadDataSetIntoEs(
         RestClient client,
@@ -428,26 +510,94 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
-        loadDataSets(
+        loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
             capabilityCheck,
-            (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(
-                    restClient,
-                    indexName,
-                    indexSettings,
-                    indexMapping,
-                    null,
-                    DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
-                );
-            }
+            null
         );
-        if (timeSeriesOnly == false) {
-            loadEnrichPolicies(client);
+    }
+
+    /**
+     * Load test datasets into Elasticsearch.
+     *
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices.
+     *                      When non-null, enrich policies whose source index is in this list are also loaded (unless skipped by
+     *                      {@code tests.spec_indices} / {@code tests.spec_enrich_policies}).
+     */
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        @Nullable List<String> indicesToLoad
+    ) throws IOException {
+        if (indicesToLoad != null && indicesToLoad.isEmpty()) {
+            return;
+        }
+        if (indicesToLoad != null) {
+            loadDatasetsIntoEs(client, indicesToLoad);
+            if (timeSeriesOnly == false) {
+                loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
+            }
+        } else {
+            loadDataSets(
+                client,
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck,
+                INDEX_CREATOR
+            );
+            if (timeSeriesOnly == false) {
+                loadEnrichPolicies(client);
+            }
+        }
+    }
+
+    /**
+     * Loads enrich policies whose source index is in {@code loadedIndexNames}, mirroring
+     * {@link #loadEnrichPolicies(RestClient)} rules for {@code tests.spec_indices} /
+     * {@code tests.spec_enrich_policies}.
+     */
+    private static void loadEnrichPoliciesForLoadedSourceIndices(RestClient client, List<String> loadedIndexNames) throws IOException {
+        if (specEnrichPolicies != null || specIndices == null) {
+            Set<String> loaded = new HashSet<>(loadedIndexNames);
+            logger.info("Loading enrich policies for loaded indices {}", loadedIndexNames);
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (loaded.contains(policy.index()) == false) {
+                    continue;
+                }
+                if (specEnrichPolicies != null && specEnrichPolicies.contains(policy.policyName()) == false) {
+                    continue;
+                }
+                loadEnrichPolicy(client, policy);
+            }
+        }
+    }
+
+    /**
+     * Load only the specified indices from CSV_DATASET into the cluster.
+     * Used by external source tests that need lookup indices (e.g. languages_lookup) for LOOKUP JOIN.
+     */
+    public static void loadDatasetsIntoEs(RestClient client, List<String> indexNames) throws IOException {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (String indexName : indexNames) {
+            TestDataset dataset = CSV_DATASET.get(indexName);
+            if (dataset == null) {
+                throw new IllegalArgumentException("Dataset [" + indexName + "] not found in CSV_DATASET");
+            }
+            load(client, dataset, INDEX_CREATOR);
+            loadedDatasets.add(dataset.indexName());
+        }
+        if (loadedDatasets.isEmpty() == false) {
+            forceMerge(client, loadedDatasets);
         }
     }
 
@@ -476,16 +626,21 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
-        logger.info("Loading enrich policies");
-        for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy);
+        // Does not load any enrich policies if specIndices is set and specEnrichPolicies is not.
+        if (specEnrichPolicies != null || specIndices == null) {
+            logger.info("Loading enrich policies");
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (specEnrichPolicies == null || specEnrichPolicies.contains(policy.policyName)) {
+                    loadEnrichPolicy(client, policy);
+                }
+            }
         }
     }
 
     public static void loadViewsIntoEs(RestClient client) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
-            for (var view : VIEW_CONFIGS) {
+            for (var view : VIEW_CONFIGS.values()) {
                 loadView(client, view);
             }
         } else {
@@ -496,7 +651,7 @@ public class CsvTestsDataLoader {
     public static void deleteViews(RestClient client) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.debug("Deleting views");
-            for (var view : VIEW_CONFIGS) {
+            for (var view : VIEW_CONFIGS.values()) {
                 deleteView(client, view.name);
             }
         } else {
@@ -526,14 +681,22 @@ public class CsvTestsDataLoader {
 
     private static void deleteEnrichPolicies(RestClient client) throws IOException {
         logger.debug("Deleting enrich policies");
-        for (var policy : ENRICH_POLICIES) {
+        for (var policy : ENRICH_POLICIES.values()) {
             deleteEnrichPolicy(client, policy.policyName);
         }
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
-        for (var config : INFERENCE_CONFIGS.values()) {
-            if (hasInferenceEndpoint(client, config) == false) {
+        createInferenceEndpoints(client, INFERENCE_CONFIGS.keySet());
+    }
+
+    /**
+     * Creates only the listed inference endpoints (by id in {@link #INFERENCE_CONFIGS}), skipping any that already exist.
+     */
+    public static void createInferenceEndpoints(RestClient client, Collection<String> inferenceIds) throws IOException {
+        for (String id : inferenceIds) {
+            InferenceConfig config = INFERENCE_CONFIGS.get(id);
+            if (config != null && hasInferenceEndpoint(client, config) == false) {
                 createInferenceEndpoint(client, config);
             }
         }
@@ -588,7 +751,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
-        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
 
@@ -658,32 +821,113 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static String readMappingFile(TestDataset dataset) throws IOException {
+    /**
+     * Creates a type mapping that removes the given fields from the mapping.
+     * For use with {@link TestDataset#withTypeMapping}.
+     */
+    private static Map<String, String> removeFields(String... fields) {
+        var map = new HashMap<String, String>();
+        for (String field : fields) {
+            map.put(field, null);
+        }
+        return map;
+    }
+
+    public static String readMappingFile(TestDataset dataset) throws IOException {
         String mappingJsonText = dataset.loadMappings();
-        if (dataset.typeMapping == null || dataset.typeMapping.isEmpty()) {
+        boolean hasTypeMappingOverrides = dataset.typeMapping != null && dataset.typeMapping.isEmpty() == false;
+        if (hasTypeMappingOverrides == false && dataset.dynamic == null) {
             return mappingJsonText;
         }
         boolean modified = false;
         ObjectMapper mapper = new ObjectMapper();
         JsonNode mappingNode = mapper.readTree(mappingJsonText);
-        JsonNode propertiesNode = mappingNode.path("properties");
 
-        for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
-            String key = entry.getKey();
-            String newType = entry.getValue();
+        if (hasTypeMappingOverrides) {
+            for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
+                String key = entry.getKey();
+                String newType = entry.getValue();
 
-            if (propertiesNode.has(key)) {
-                modified = true;
-                ((ObjectNode) propertiesNode.get(key)).put("type", newType);
+                // Navigate dotted paths to find the parent properties node and leaf field name.
+                String[] segments = key.split("\\.");
+                ObjectNode propertiesNode = (ObjectNode) mappingNode.path("properties");
+                for (int i = 0; i < segments.length - 1 && propertiesNode != null; i++) {
+                    JsonNode child = propertiesNode.get(segments[i]);
+                    propertiesNode = child != null ? (ObjectNode) child.path("properties") : null;
+                }
+                String leafName = segments[segments.length - 1];
+
+                if (propertiesNode == null) {
+                    continue;
+                }
+                if (newType == null) {
+                    // null value means remove the field from the mapping
+                    if (propertiesNode.has(leafName)) {
+                        propertiesNode.remove(leafName);
+                        modified = true;
+                    }
+                } else if (propertiesNode.has(leafName)) {
+                    ((ObjectNode) propertiesNode.get(leafName)).put("type", newType);
+                    modified = true;
+                }
             }
         }
+
+        if (dataset.dynamic != null) {
+            ((ObjectNode) mappingNode).put("dynamic", dataset.dynamic);
+            modified = true;
+        }
+
         if (modified) {
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mappingNode);
         }
         return mappingJsonText;
     }
 
-    record ColumnHeader(String name, String type) {}
+    record Column(String name, String type) {}
+
+    public record Document(String id, StringBuilder json) {}
+
+    public static List<Document> readCsvDocuments(InputStream resource, boolean allowSubFields) {
+        try (BufferedReader reader = reader(resource)) {
+            var documents = new ArrayList<Document>();
+            String line;
+            int lineNumber = 1;
+            Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
+            List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                // ignore comments
+                if (line.isEmpty() || line.startsWith("//")) {
+                    continue;
+                }
+                String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
+                // the schema row
+                if (columns == null) {
+                    columns = parseHeaders(entries, allowSubFields, subFieldsIndices);
+                }
+                // data rows
+                else {
+                    if (entries.length != columns.length) {
+                        throw new IllegalArgumentException(
+                            format(
+                                null,
+                                "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
+                                lineNumber,
+                                columns.length,
+                                entries.length
+                            )
+                        );
+                    }
+                    documents.add(parseDocument(columns, entries, lineNumber, subFieldsIndices));
+                }
+                lineNumber++;
+            }
+            return documents;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
@@ -700,105 +944,47 @@ public class CsvTestsDataLoader {
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
     public static void loadCsvData(RestClient client, String indexName, InputStream resource, boolean allowSubFields) throws IOException {
-
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
-            ColumnHeader[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
+            Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
-
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
-                if (line.isEmpty() == false && line.startsWith("//") == false) {
-                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
-                    // the schema row
-                    if (columns == null) {
-                        columns = new ColumnHeader[entries.length];
-                        for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(':');
-                            if (split < 0) {
-                                columns[i] = new ColumnHeader(entries[i].trim(), null);
-                            } else {
-                                String name = entries[i].substring(0, split).trim();
-                                String type = entries[i].substring(split + 1).trim();
-                                if (allowSubFields || name.contains(".") == false) {
-                                    columns[i] = new ColumnHeader(name, type);
-                                } else {// if it's a subfield, ignore it in the _bulk request
-                                    columns[i] = null;
-                                    subFieldsIndices.add(i);
-                                }
-                            }
-                        }
+                if (line.isEmpty() || line.startsWith("//")) {
+                    continue;
+                }
+                String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
+                // the schema row
+                if (columns == null) {
+                    columns = parseHeaders(entries, allowSubFields, subFieldsIndices);
+                }
+                // data rows
+                else {
+                    if (entries.length != columns.length) {
+                        throw new IllegalArgumentException(
+                            format(
+                                null,
+                                "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
+                                lineNumber,
+                                columns.length,
+                                entries.length
+                            )
+                        );
                     }
-                    // data rows
-                    else {
-                        if (entries.length != columns.length) {
-                            throw new IllegalArgumentException(
-                                format(
-                                    null,
-                                    "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
-                                    lineNumber,
-                                    columns.length,
-                                    entries.length
-                                )
-                            );
-                        }
-                        StringBuilder row = new StringBuilder();
-                        String idField = null;
-                        for (int i = 0; i < entries.length; i++) {
-                            // ignore values that belong to subfields and don't add them to the bulk request
-                            if (subFieldsIndices.contains(i) == false) {
-                                if ("".equals(entries[i])) {
-                                    // Value is null, skip
-                                    continue;
-                                }
-                                if (columns[i] != null && "_id".equals(columns[i].name)) {
-                                    // Value is an _id
-                                    idField = entries[i];
-                                    continue;
-                                }
-                                try {
-                                    // add a comma after the previous value, only when there was actually a value before
-                                    if (i > 0 && row.length() > 0) {
-                                        row.append(",");
-                                    }
-                                    // split on comma ignoring escaped commas
-                                    String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
-                                    if (multiValues.length > 1) {
-                                        StringBuilder rowStringValue = new StringBuilder("[");
-                                        for (String s : multiValues) {
-                                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
-                                        }
-                                        // remove the last comma and put a closing bracket instead
-                                        rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
-                                        entries[i] = rowStringValue.toString();
-                                    } else {
-                                        entries[i] = toJson(columns[i].type, entries[i]);
-                                    }
-                                    // replace any escaped commas with single comma
-                                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
-                                } catch (Exception e) {
-                                    throw new IllegalArgumentException(
-                                        format(
-                                            null,
-                                            "Error line [{}]: Cannot parse entry [{}] with value [{}]",
-                                            lineNumber,
-                                            i + 1,
-                                            entries[i]
-                                        ),
-                                        e
-                                    );
-                                }
-                            }
-                        }
-                        String idPart = idField != null ? "\", \"_id\": \"" + idField : "";
-                        builder.append("{\"index\": {\"_index\":\"" + indexName + idPart + "\"}}\n");
-                        builder.append("{" + row + "}\n");
-                    }
+                    // id, document
+                    var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
+                    builder.append(
+                        "{\"index\": {\"_index\":\""
+                            + indexName
+                            + "\""
+                            + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
+                            + "}}\n"
+                    );
+                    builder.append(document.json());
                 }
                 lineNumber++;
                 if (builder.length() > BULK_DATA_SIZE) {
@@ -816,6 +1002,74 @@ public class CsvTestsDataLoader {
             }
             throw new IOException("Data loading failed with " + failures.size() + " errors: " + failures.get(0));
         }
+    }
+
+    private static Column[] parseHeaders(String[] entries, boolean allowSubFields, List<Integer> subFieldsIndices) {
+        var columns = new Column[entries.length];
+        for (int i = 0; i < entries.length; i++) {
+            int split = entries[i].indexOf(':');
+            if (split < 0) {
+                columns[i] = new Column(entries[i].trim(), null);
+            } else {
+                String name = entries[i].substring(0, split).trim();
+                String type = entries[i].substring(split + 1).trim();
+                if (allowSubFields || name.contains(".") == false) {
+                    columns[i] = new Column(name, type);
+                } else {// if it's a subfield, ignore it in the _bulk request
+                    columns[i] = null;
+                    subFieldsIndices.add(i);
+                }
+            }
+        }
+        return columns;
+    }
+
+    private static Document parseDocument(Column[] columns, String[] entries, int lineNumber, List<Integer> subFieldsIndices) {
+        StringBuilder row = new StringBuilder("{");
+        String id = null;
+        for (int i = 0; i < entries.length; i++) {
+            // ignore values that belong to subfields and don't add them to the bulk request
+            if (subFieldsIndices.contains(i) == false) {
+                if ("".equals(entries[i])) {
+                    // Value is null, skip
+                    continue;
+                }
+                if (columns[i] != null && "_id".equals(columns[i].name)) {
+                    // Value is an _id
+                    id = entries[i];
+                    continue;
+                }
+                try {
+                    // add a comma after the previous value, only when there was actually a value before
+                    if (i > 0 && row.length() > 1) {
+                        row.append(",");
+                    }
+                    // split on comma ignoring escaped commas
+                    String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
+                    if (multiValues.length > 1) {
+                        StringBuilder rowStringValue = new StringBuilder("[");
+                        for (String s : multiValues) {
+                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
+                        }
+                        // remove the last comma and put a closing bracket instead
+                        rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
+                        entries[i] = rowStringValue.toString();
+                    } else {
+                        entries[i] = toJson(columns[i].type, entries[i]);
+                    }
+                    // replace any escaped commas with single comma
+                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
+                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException(
+                        format(null, "Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entries[i]),
+                        e
+                    );
+                }
+            }
+        }
+        row.append("}\n");
+        return new Document(id, row);
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
@@ -908,22 +1162,23 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
-        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
+        @Nullable Map<String, String> typeMapping,
+        @Nullable Map<String, String> dynamicTypeMapping,
+        @Nullable String dynamic,
         List<String> inferenceEndpoints,
         List<EsqlCapabilities.Cap> requiredCapabilities
     ) {
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, List.of(), List.of());
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
-            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset withIndex(String indexName) {
@@ -935,6 +1190,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -949,6 +1205,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -963,6 +1220,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -977,6 +1235,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -991,11 +1250,20 @@ public class CsvTestsDataLoader {
                 false,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Overrides the types of fields in the mapping file. Each entry maps a field name to its new type
+         * (e.g. {@code Map.of("client_ip", "keyword")} changes client_ip from ip to keyword).
+         * A {@code null} value removes the field from the mapping entirely, making it unmapped for this index.
+         * <p>
+         * This affects both the Elasticsearch index mapping (via {@link CsvTestsDataLoader#readMappingFile}) and
+         * the in-memory mapping used by CSV unit tests.
+         */
         public TestDataset withTypeMapping(Map<String, String> typeMapping) {
             return new TestDataset(
                 indexName,
@@ -1005,12 +1273,31 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Adds field mappings that are not present in the mapping file, but will be in the field caps response, e.g. because during
+         * ingestion more fields are added dynamically. Required for csv tests which do not ingest the csvs into real indices.
+         */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            if (dynamicTypeMapping != null && mappingFileName != null) {
+                Map<String, EsField> mappedFields = LoadMapping.loadMapping(streamMapping());
+                for (String fieldName : dynamicTypeMapping.keySet()) {
+                    if (isMappedField(mappedFields, fieldName)) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + fieldName
+                                + "] in dynamicTypeMapping for dataset ["
+                                + indexName
+                                + "] is already mapped; use withTypeMapping instead"
+                        );
+                    }
+                }
+            }
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1019,6 +1306,45 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
+                inferenceEndpoints,
+                requiredCapabilities
+            );
+        }
+
+        private static boolean isMappedField(Map<String, EsField> mapping, String fieldName) {
+            String[] segments = fieldName.split("\\.");
+            Map<String, EsField> currentMap = mapping;
+            for (int i = 0; i < segments.length; i++) {
+                EsField field = currentMap.get(segments[i]);
+                if (field == null) {
+                    return false;
+                }
+                if (i == segments.length - 1) {
+                    return true;
+                }
+                currentMap = field.getProperties();
+                if (currentMap == null || currentMap.isEmpty()) {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Sets the "dynamic" mapping parameter (e.g. "false", "strict", "runtime").
+         * This prevents unmapped fields in the data from being automatically indexed.
+         */
+        public TestDataset withDynamic(String dynamic) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1033,6 +1359,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 List.of(inferenceEndpoints),
                 requiredCapabilities
             );
@@ -1047,6 +1374,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 List.of(requiredCapabilities)
             );

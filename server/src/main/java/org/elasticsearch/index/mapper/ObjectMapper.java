@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -53,10 +54,6 @@ public class ObjectMapper extends Mapper {
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
-    /**
-     * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
-     * any objects that are present in the mappings and flattens any fields defined outside the predefined objects.
-     */
     public enum Subobjects {
         ENABLED(Boolean.TRUE),
         DISABLED(Boolean.FALSE);
@@ -91,6 +88,7 @@ public class ObjectMapper extends Mapper {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Explicit<Subobjects> SUBOBJECTS = Explicit.implicit(Subobjects.ENABLED);
+        public static final Explicit<Subobjects> SUBOBJECTS_COLUMNAR = Explicit.implicit(Subobjects.DISABLED);
         public static final Explicit<Boolean> STORE_ARRAY_SOURCE = Explicit.IMPLICIT_FALSE;
         public static final Dynamic DYNAMIC = Dynamic.TRUE;
     }
@@ -203,6 +201,10 @@ public class ObjectMapper extends Mapper {
             builder.dynamic = this.dynamic;
             builder.sourceKeepMode = this.sourceKeepMode;
             return builder;
+        }
+
+        public List<Mapper.Builder> getChildBuilders() {
+            return mappersBuilders;
         }
 
         private static Builder findObjectBuilder(String fullName, DocumentParserContext context) {
@@ -508,7 +510,7 @@ public class ObjectMapper extends Mapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
-            Explicit<Subobjects> subobjects = parseSubobjects(node);
+            Explicit<Subobjects> subobjects = parseSubobjects(node, parserContext);
             Builder builder = new Builder(name, subobjects);
             parseObjectFields(node, parserContext, builder);
             parserContext.decrementMappingObjectDepth();
@@ -573,10 +575,17 @@ public class ObjectMapper extends Mapper {
             return false;
         }
 
-        protected static Explicit<Subobjects> parseSubobjects(Map<String, Object> node) {
+        protected static Explicit<Subobjects> parseSubobjects(Map<String, Object> node, MappingParserContext parserContext) {
+            boolean strictColumnar = IndexSettings.MODE.get(parserContext.getSettings()).isStrictColumnar();
             Object subobjectsNode = node.remove("subobjects");
             if (subobjectsNode != null) {
+                if (strictColumnar) {
+                    throw new MapperParsingException("subobjects params are not supported in columnar mode");
+                }
                 return Explicit.of(Subobjects.from(subobjectsNode));
+            }
+            if (strictColumnar) {
+                return Defaults.SUBOBJECTS_COLUMNAR;
             }
             return Defaults.SUBOBJECTS;
         }
@@ -754,6 +763,10 @@ public class ObjectMapper extends Mapper {
 
     public Mapper getMapper(String field) {
         return mappers.get(field);
+    }
+
+    public Map<String, Mapper> getMappers() {
+        return mappers;
     }
 
     @Override
@@ -936,9 +949,11 @@ public class ObjectMapper extends Mapper {
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
-        if (mapper instanceof MetadataFieldMapper metaMapper) {
-            return metaMapper.syntheticFieldLoader();
+        // We always need the ignored source to load other fields
+        if (mapper instanceof IgnoredSourceFieldMapper ignoredSourceMapper) {
+            return ignoredSourceMapper.syntheticFieldLoader();
         }
+
         if (filter != null && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

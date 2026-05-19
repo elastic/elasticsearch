@@ -9,22 +9,31 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 
-public class BooleansBlockLoader extends AbstractBooleansBlockLoader {
+public class BooleansBlockLoader extends AbstractNumericBlockLoader<BlockLoader.BooleanBuilder> {
+
     public BooleansBlockLoader(String fieldName) {
-        super(fieldName);
+        this(fieldName, false);
+    }
+
+    public BooleansBlockLoader(String fieldName, boolean readInArrayOrder) {
+        super(fieldName, "BooleansFromDocValues", readInArrayOrder);
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
-        return new Singleton(docValues);
+    public BooleanBuilder builder(BlockFactory factory, int expectedCount) {
+        return factory.booleans(expectedCount);
     }
 
     @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new Sorted(docValues);
+    protected BooleanBuilder newBuilder(BlockFactory factory, int expectedCount) {
+        return factory.booleansFromDocValues(expectedCount);
+    }
+
+    @Override
+    protected void appendValue(BooleanBuilder builder, long rawValue) {
+        builder.appendBoolean(rawValue != 0);
     }
 
     @Override

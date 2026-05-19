@@ -9,25 +9,41 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
+
+import java.io.IOException;
 
 /**
  * Loads {@code int}s from doc values.
  */
-public class IntsBlockLoader extends AbstractIntsFromDocValuesBlockLoader {
+public class IntsBlockLoader extends AbstractNumericBlockLoader<BlockLoader.IntBuilder> {
     public IntsBlockLoader(String fieldName) {
-        super(fieldName);
+        this(fieldName, false);
+    }
+
+    public IntsBlockLoader(String fieldName, boolean readInArrayOrder) {
+        super(fieldName, "IntsFromDocValues", readInArrayOrder);
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
-        return new Singleton(docValues);
+    public IntBuilder builder(BlockFactory factory, int expectedCount) {
+        return factory.ints(expectedCount);
     }
 
     @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new Sorted(docValues);
+    protected IntBuilder newBuilder(BlockFactory factory, int expectedCount) {
+        return factory.intsFromDocValues(expectedCount);
+    }
+
+    @Override
+    protected void appendValue(IntBuilder builder, long rawValue) {
+        builder.appendInt(Math.toIntExact(rawValue));
+    }
+
+    @Override
+    protected Block tryDirectRead(OptionalColumnAtATimeReader direct, BlockFactory factory, Docs docs, int offset, boolean nullsFiltered)
+        throws IOException {
+        return direct.tryRead(factory, docs, offset, nullsFiltered, null, true, false);
     }
 
     @Override

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -29,6 +31,8 @@ public class AnalyzerContext {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
+    private final Map<IndexPattern, IndexResolution> optionalLinkedResolution;  // CPS-specific resolution for remote indexes matching local
+                                                                                // views
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
     private final ExternalSourceResolution externalSourceResolution;
@@ -36,6 +40,7 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
+    private final TimestampBounds timestampBounds;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -43,22 +48,26 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
+        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumVersion,
-        UnmappedResolution unmappedResolution
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
+        this.optionalLinkedResolution = optionalLinkedResolution;
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
         this.externalSourceResolution = externalSourceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
+        this.timestampBounds = timestampBounds;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -82,11 +91,13 @@ public class AnalyzerContext {
             null,
             indexResolution,
             lookupResolution,
+            Map.of(),
             enrichResolution,
             inferenceResolution,
             ExternalSourceResolution.EMPTY,
             minimumVersion,
-            unmappedResolution
+            unmappedResolution,
+            null
         );
     }
 
@@ -104,6 +115,13 @@ public class AnalyzerContext {
 
     public Map<String, IndexResolution> lookupResolution() {
         return lookupResolution;
+    }
+
+    /**
+     * Contains resolution for optional linked patterns. Such patterns include linked indices (if exist) that shadow local views.
+     */
+    public Map<IndexPattern, IndexResolution> optionalLinkedResolution() {
+        return optionalLinkedResolution;
     }
 
     public EnrichResolution enrichResolution() {
@@ -138,6 +156,14 @@ public class AnalyzerContext {
         return unmappedResolution;
     }
 
+    /**
+     * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.
+     */
+    @Nullable
+    public TimestampBounds timestampBounds() {
+        return timestampBounds;
+    }
+
     public Set<String> allowedTags() {
         Set<String> result = new HashSet<>();
         result.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
@@ -163,7 +189,8 @@ public class AnalyzerContext {
         EsqlFunctionRegistry functionRegistry,
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
-        EsqlSession.PreAnalysisResult result
+        EsqlSession.PreAnalysisResult result,
+        @Nullable TimestampBounds timestampBounds
     ) {
         this(
             configuration,
@@ -171,11 +198,13 @@ public class AnalyzerContext {
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),
+            result.optionalLinkedResolution(),
             result.enrichResolution(),
             result.inferenceResolution(),
             result.externalSourceResolution(),
             result.minimumTransportVersion(),
-            unmappedResolution
+            unmappedResolution,
+            timestampBounds
         );
     }
 }

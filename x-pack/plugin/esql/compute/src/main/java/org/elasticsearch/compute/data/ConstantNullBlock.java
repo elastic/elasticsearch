@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -32,7 +33,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         LongRangeBlock,
         TDigestBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
+    public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
     private BlockFactory blockFactory;
 
@@ -87,6 +88,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return 0;
+    }
+
+    @Override
     public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
@@ -94,6 +100,15 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public ConstantNullBlock deepCopy(BlockFactory blockFactory) {
         return (ConstantNullBlock) blockFactory.newConstantNullBlock(positionCount);
+    }
+
+    @Override
+    public ConstantNullBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(endExclusive - beginInclusive);
     }
 
     @Override
@@ -134,7 +149,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED;
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -252,7 +267,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
         @Override
         public long estimatedBytes() {
-            return BASE_RAM_BYTES_USED;
+            return RAM_BYTES_USED;
         }
 
         @Override
@@ -278,6 +293,12 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }
@@ -319,7 +340,13 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public TDigestHolder getTDigestHolder(int valueIndex) {
+    public TDigestHolder getTDigestHolder(int valueIndex, TDigestHolder scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

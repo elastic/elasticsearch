@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -53,6 +54,10 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         "CountDistinct",
         CountDistinct::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
+        .binary(CountDistinct::new)
+        .capabilities("flattened")
+        .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         // Booleans ignore the precision because there are only two possible values anyway
@@ -66,7 +71,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.FLATTENED, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -119,7 +125,19 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version", "_tsid" },
+            type = {
+                "boolean",
+                "date",
+                "date_nanos",
+                "double",
+                "flattened",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version",
+                "_tsid" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(

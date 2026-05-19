@@ -27,11 +27,8 @@ dependencies {
   // GCS fixture infrastructure for mocking GCS operations
   javaRestTestImplementation project(':test:fixtures:gcs-fixture')
 
-  // S3 datasource provider for discovery tests
-  javaRestTestImplementation project(xpackModule('esql-datasource-s3'))
-  
   // Parquet support - needed for reading test fixtures
-  javaRestTestImplementation('org.apache.parquet:parquet-hadoop-bundle:1.16.0')
+  javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
@@ -39,17 +36,81 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
-  
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+
   // The parquet datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-parquet'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
-// The parquet fixtures (employees.parquet and parquet-basic.csv-spec) are included
-// directly in this module's javaRestTest/resources directory
+// Generate Parquet fixtures at build time from CSV.
+// Uses shared ParquetFixtureGenerator from esql:qa:server.
+ext.serverProject = project(xpackModule('esql:qa:server'))
+ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
+def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
+ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books']
+
+tasks.register('syncIcebergFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesDataDir) {
+    include csvToParquetFixtures.collect { "${it}.csv" }
+  }
+  into parquetFixtureDir
+}
+
+ext.generateParquetTasks = []
+csvToParquetFixtures.each { baseName ->
+  def taskName = "generateParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetFile = file("${parquetFixtureDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava'), syncIcebergFixtures
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetFile.path]
+    inputs.file(csvInput)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateParquetTasks.add(tasks.named(taskName))
+}
+
+// Generate multifile fixtures by splitting employees.csv into 3 parts.
+def multifileDir = file("${parquetFixtureOutputDir}/multifile")
+def multifileEmployeesCsv = new File(testFixturesDataDir, "employees.csv")
+tasks.register('generateMultifileParquet_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+  args = [multifileEmployeesCsv.path, multifileDir.path, '3']
+  inputs.file(multifileEmployeesCsv)
+  outputs.dir(multifileDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+}
+generateParquetTasks.add(tasks.named('generateMultifileParquet_employees'))
+
+// Generate compressed Parquet fixtures for each supported internal codec.
+// Each codec gets its own directory: standalone-snappy/, standalone-gzip/, etc.
+apply from: serverProject.file('compressed-parquet-fixtures.gradle')
+
+tasks.register('generateParquetFixtures') {
+  dependsOn generateParquetTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn generateParquetFixtures
+}
 
 // S3GlobDiscoveryIT extends ESTestCase (not ESRestTestCase) since it tests S3StorageProvider
 // directly against the S3HttpFixture without needing an Elasticsearch cluster.
@@ -63,6 +124,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('javaRestTest') {
+  dependsOn generateParquetFixtures
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
@@ -19,71 +19,22 @@ import java.io.IOException;
 /**
  * Loads the MIN {@code long} in each doc.
  */
-public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValuesBlockLoader {
+public class MvMinLongsFromDocValuesBlockLoader extends LongsBlockLoader {
     public MvMinLongsFromDocValuesBlockLoader(String fieldName) {
         super(fieldName);
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
-        return new Singleton(docValues);
-    }
-
-    @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new MvMinSorted(docValues);
-    }
-
-    @Override
-    public String toString() {
-        return "LongsFromDocValues[" + fieldName + "]";
-    }
-
-    private static class MvMinSorted extends BlockDocValuesReader {
-        private final TrackingSortedNumericDocValues numericDocValues;
-
-        MvMinSorted(TrackingSortedNumericDocValues numericDocValues) {
-            super(null);
-            this.numericDocValues = numericDocValues;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        return new AbstractNumericBlockLoader.Sorted<>(this, "MvMinLongsFromDocValues", docValues) {
+            @Override
+            protected void readSortedDoc(int doc, BlockLoader.LongBuilder builder) throws IOException {
+                if (values.docValues().advanceExact(doc) == false) {
+                    builder.appendNull();
+                    return;
                 }
-                return builder.build();
+                appendValue(builder, values.docValues().nextValue());
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (LongBuilder) builder);
-        }
-
-        private void read(int doc, LongBuilder builder) throws IOException {
-            if (false == numericDocValues.docValues().advanceExact(doc)) {
-                builder.appendNull();
-                return;
-            }
-            builder.appendLong(numericDocValues.docValues().nextValue());
-        }
-
-        @Override
-        public int docId() {
-            return numericDocValues.docValues().docID();
-        }
-
-        @Override
-        public String toString() {
-            return "MvMinLongsFromDocValues.Sorted";
-        }
-
-        @Override
-        public void close() {
-            numericDocValues.close();
-        }
+        };
     }
 }

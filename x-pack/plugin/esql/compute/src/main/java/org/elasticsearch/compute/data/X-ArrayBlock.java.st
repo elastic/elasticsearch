@@ -12,6 +12,9 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -94,6 +97,11 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
         return null;
     }
 
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
 $if(BytesRef)$
     @Override
     public OrdinalBytesRefBlock asOrdinals() {
@@ -133,6 +141,13 @@ $else$
 $endif$
     }
 
+$if(BytesRef)$
+    @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
+$endif$
     @Override
     public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
 $if(BytesRef)$

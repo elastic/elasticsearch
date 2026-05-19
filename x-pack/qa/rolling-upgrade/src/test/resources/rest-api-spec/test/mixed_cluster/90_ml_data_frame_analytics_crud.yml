@@ -62,7 +62,7 @@ setup:
       ml.stop_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
         force: true
-        timeout: "60s"
+        timeout: "3m"
   - match: { stopped: true }
 
   - do:
@@ -109,7 +109,7 @@ setup:
       ml.stop_data_frame_analytics:
         id: "old_cluster_regression_job"
         force: true
-        timeout: "60s"
+        timeout: "3m"
   - match: { stopped: true }
 
   - do:
@@ -187,7 +187,7 @@ setup:
       ml.stop_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
         force: true
-        timeout: "60s"
+        timeout: "3m"
   - match: { stopped: true }
 
   - do:

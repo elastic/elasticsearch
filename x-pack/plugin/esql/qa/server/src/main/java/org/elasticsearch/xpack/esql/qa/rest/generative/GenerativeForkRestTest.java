@@ -15,9 +15,11 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
@@ -44,21 +46,18 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
-        boolean addLimitAfterFork = randomBoolean();
-
-        String suffix = " | FORK (WHERE true) (WHERE true) ";
-        suffix = addLimitAfterFork ? suffix + " | LIMIT 300 " : suffix;
-
-        suffix = suffix + "| WHERE _fork == \"fork1\" | DROP _fork";
-
-        String query = testCase.query + suffix;
+        // we add a LIMIT in one of the branches, so we prevent the filter pushdown that would end up removing one of the branches.
+        String query = testCase.query + " | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == \"fork1\" | DROP _fork";
         doTest(query);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        shouldSkipForkTest(testCase);
+    }
 
+    static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase) {
         assumeFalse(
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
@@ -67,6 +66,12 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Tests using INSIST are not supported for now",
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
+        );
+
+        // FORK is not supported with unmapped_fields="load", see https://github.com/elastic/elasticsearch/issues/142033
+        assumeFalse(
+            "FORK is not supported with unmapped_fields=\"load\"",
+            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V5.capabilityName())
         );
 
         assumeFalse(
@@ -85,8 +90,13 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
+            "FORK with ESQL WITHOUT grouping is not supported yet (plan consistency)",
+            testCase.requiredCapabilities.contains(ESQL_WITHOUT_GROUPING.capabilityName())
+        );
+
+        assumeFalse(
             "Tests using query approximation are skipped since query approximation is not supported with FORK",
-            testCase.requiredCapabilities.contains(APPROXIMATION.capabilityName())
+            testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
         );
 
         assumeFalse(

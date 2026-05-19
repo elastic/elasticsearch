@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -55,7 +56,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -352,12 +352,11 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testFunctionExpressions() {
-        assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), whereExpression("fn()"));
+        assertEquals(new UnresolvedFunction(EMPTY, "fn", new ArrayList<>()), whereExpression("fn()"));
         assertEqualsIgnoringIds(
             new UnresolvedFunction(
                 EMPTY,
                 "invoke",
-                DEFAULT,
                 new ArrayList<>(
                     List.of(
                         new UnresolvedAttribute(EMPTY, "a"),
@@ -667,7 +666,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private LogicalPlan parse(String s) {
-        return EsqlParser.INSTANCE.parseQuery(s);
+        return TEST_PARSER.parseQuery(s);
     }
 
     private Literal l(Object value, DataType type) {

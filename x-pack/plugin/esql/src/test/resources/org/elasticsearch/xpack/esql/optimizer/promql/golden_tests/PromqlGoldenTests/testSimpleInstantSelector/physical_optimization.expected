@@ -1,0 +1,12 @@
+ProjectExec[[network.bytes_in{r}#0, step{r}#1, _timeseries{r}#2 AS _timeseries#3]]
+\_LimitExec[10000[INTEGER],null]
+  \_FilterExec[ISNOTNULL(network.bytes_in{r}#0)]
+    \_EvalExec[[UNPACKDIMENSION(group__timeseries_$1{r}#4) AS _timeseries#2, TODOUBLE(network.bytes_in{r}#5) AS network.bytes_in#0]]
+      \_AggregateExec[[step{r}#1, pack__timeseries_$1{r}#6],[VALUES(LASTOVERTIME_$1{r}#7,true[BOOLEAN],PT0S[TIME_DURATION]) AS network.bytes_in#5, step{r}#1 AS step#1, pack__timeseries_$1{r}#6 AS group__timeseries_$1#4],SINGLE,[step{r}#1, pack__timeseries_$1{r}#6, $$network.bytes_in$values{r}#8],null]
+        \_EvalExec[[PACKDIMENSION(_timeseries{r}#9) AS pack__timeseries_$1#6]]
+          \_TimeSeriesAggregateExec[[_tsid{m}#10, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#11,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#12) AS LASTOVERTIME_$1#7, DIMENSIONVALUES(_timeseries{f}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#9, step{r}#1],FINAL,[_tsid{m}#10, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#13, $$LASTOVERTIME_$1$values{r}#14, $$_timeseries$values{r}#15],null,BUCKET(@timestamp{f}#12,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#12,PT1H[TIME_DURATION]),false]
+            \_ExchangeExec[[_tsid{m}#10, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#13, $$LASTOVERTIME_$1$values{r}#14, $$_timeseries$values{r}#15],true]
+              \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+TimeSeriesAggregate[[_tsid{m}#10, step{r}#1],[LASTOVERTIME(network.bytes_in{f}#11,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#12) AS LASTOVERTIME_$1#7, DIMENSIONVALUES(_timeseries{f}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#9, step{r}#1],BUCKET(@timestamp{f}#12,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#12,PT1H[TIME_DURATION]),@timestamp{f}#12,false]
+\_Eval[[BUCKET(@timestamp{f}#12,PT1H[TIME_DURATION]) AS step#1]]
+  \_EsRelation[k8s][@timestamp{f}#12, client.ip{f}#16, cluster{f}#17, event{f}#18, event_city{f}#19, event_city_boundary{f}#20, event_location{f}#21, event_log{f}#22, event_shape{f}#23, events_received{f}#24, network.bytes_in{f}#11, network.cost{f}#25, network.eth0.currently_connected_clients{f}#26, network.eth0.firmware_version{f}#27, network.eth0.last_up{f}#28, network.eth0.rx{f}#29, network.eth0.tx{f}#30, network.eth0.up{f}#31, network.total_bytes_in{f}#32, network.total_bytes_out{f}#33, network.total_cost{f}#34, pod{f}#35, region{f}#36, _timeseries{f}#2, _tsid{m}#10]<>]]

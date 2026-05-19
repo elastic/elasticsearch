@@ -18,6 +18,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
@@ -83,9 +84,10 @@ public class TermVectorsService {
 
         try (
             Engine.GetResult get = indexShard.get(
-                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType())
+                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType()),
+                request.getSplitShardCountSummary()
             );
-            Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")
+            Engine.Searcher searcher = indexShard.acquireExternalSearcher("term_vector", request.getSplitShardCountSummary())
         ) {
             Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
@@ -136,6 +138,9 @@ public class TermVectorsService {
                 );
             }
             termVectorsResponse.setTookInMillis(TimeUnit.NANOSECONDS.toMillis(nanoTimeSupplier.getAsLong() - startTime));
+        } catch (StaleRequestException sre) {
+            // The exception type is important to execute retries during resharding.
+            throw sre;
         } catch (Exception ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         }

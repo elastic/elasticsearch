@@ -2,6 +2,7 @@
 #define AMD64_VEC_COMMON_INCLUDED
 
 #include "vec_common.h"
+#include <algorithm>
 #include <emmintrin.h>
 #include <immintrin.h>
 
@@ -12,6 +13,45 @@ static inline void prefetch(const void* ptr, int lines) {
     for (int k = 0; k < lines; ++k) {
         _mm_prefetch((void*)(base + k * CACHE_LINE_SIZE), _MM_HINT_T0);
     }
+}
+
+// Head prefetch: at the batch boundary, fetch the first `lines` cache lines
+// of every next-batch vector so the very first inner-loop iter never waits
+// on a demand miss. Counterpart to `spread_prefetch` below.
+template <int batches, int lines, typename T>
+static inline void head_prefetch(const T* const (&next_vecs)[batches]) {
+    apply_indexed<batches>([&](auto I) {
+        const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+        apply_indexed<lines>([&](auto K) {
+            _mm_prefetch((const void*)(base + K * CACHE_LINE_SIZE), _MM_HINT_T0);
+        });
+    });
+}
+
+// Spread prefetch: at outer-iter byte cursor `i` (relative to the document
+// start), fetch `lines_per_iter` cache lines starting `lines_per_iter` lines
+// ahead. Used together with `head_prefetch` to keep the per-core L1d
+// fill-buffer occupancy bounded (callers issue `batches * lines_per_iter`
+// prefetches per iter instead of `batches * lines_to_fetch` at the boundary).
+//
+// For callers whose outer step is < CACHE_LINE_SIZE the call site must gate
+// on `(i & (CACHE_LINE_SIZE - 1)) == 0` so the spread fires only on the iter
+// that crosses a cache-line boundary (otherwise we'd re-prefetch the same
+// line on consecutive iters).
+template <int batches, int lines_per_iter, typename T>
+static inline void spread_prefetch(
+    const T* const (&next_vecs)[batches], int i, int lines_to_fetch
+) {
+    const int next_line_start = i / CACHE_LINE_SIZE + lines_per_iter;
+    apply_indexed<lines_per_iter>([&](auto U) {
+        const int line = next_line_start + U;
+        if (line < lines_to_fetch) {
+            apply_indexed<batches>([&](auto I) {
+                const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
+            });
+        }
+    });
 }
 
 /* Utility functions to perform reduce operations (horizontal ops) over a vector
@@ -75,6 +115,66 @@ static inline int64_t mm256_reduce_epi64(const __m256i a) {
     const __m128i hi64 = _mm_unpackhi_epi64(op128, op128);
     const __m128i op64 = mm_op_epi64(hi64, op128);
     return _mm_cvtsi128_si64(op64);
+}
+
+/**
+ * Bulk scoring template for i8 vectors with prefetch.
+ *
+ * Processes `batches` vectors at a time, prefetching the next batch while
+ * computing the current one. inner_op handles the full vector including any
+ * non-aligned tail (scalar loop on AVX2, masked ops on AVX-512).
+ *
+ * Template parameters:
+ *   TData:    type of the input data pointer (e.g. int8_t or const int8_t*)
+ *   mapper:   resolves the i-th vector to a direct pointer
+ *   inner_op: computes the full vector operation for all dims (including tail)
+ *   batches:  number of vectors per batch (default 2 for AVX2, prefer 4 for AVX-512)
+ */
+template <
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
+    int32_t(*inner_op)(const int8_t*, const int8_t*, const int32_t),
+    int batches = 2
+>
+static inline void call_i8_bulk(
+    const TData* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* current_vecs[batches];
+    init_pointers<batches, TData, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
+
+    for (; c + batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)inner_op(current_vecs[I], b, dims);
+        });
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
+    }
+
+    // Tail-handling: remaining vectors (fewer than batches)
+    for (; c < count; c++) {
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = (f32_t)inner_op(a0, b, dims);
+    }
 }
 
 #endif // AMD64_VEC_COMMON_INCLUDED

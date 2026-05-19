@@ -12,9 +12,9 @@ package org.elasticsearch.test.apmintegration;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -27,17 +27,24 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 @SuppressForbidden(reason = "Uses an HTTP server for testing")
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
+    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
-    private static HttpServer server;
+    /**
+     * The "Resource" (telemetry source identity) observed by this server. The test JVM emits
+     * a single Resource, so we record the first one and ignore the rest.
+     */
+    private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
+
+    private HttpServer server;
     private final Thread messageConsumerThread = consumerThread();
-    private volatile Consumer<String> consumer;
+    private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
 
     @Override
@@ -52,16 +59,18 @@ public class RecordingApmServer extends ExternalResource {
 
     private Thread consumerThread() {
         return new Thread(() -> {
-            while (running) {
+            while (running && Thread.currentThread().isInterrupted() == false) {
                 if (consumer != null) {
                     try {
-                        String msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null && msg.isEmpty() == false) {
+                        ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                        if (msg != null) {
                             consumer.accept(msg);
                         }
-
                     } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                        Thread.currentThread().interrupt();
+                        return;
+                    } catch (Exception e) {
+                        logger.warn("failed to process message", e);
                     }
                 }
             }
@@ -71,21 +80,36 @@ public class RecordingApmServer extends ExternalResource {
     @Override
     protected void after() {
         running = false;
-        server.stop(1);
+        messageConsumerThread.interrupt();
+        if (server != null) {
+            server.stop(1);
+        }
         consumer = null;
+        try {
+            messageConsumerThread.join(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
+            String path = exchange.getRequestURI().getPath();
             if (running) {
-                try {
-                    try (InputStream requestBody = exchange.getRequestBody()) {
-                        if (requestBody != null) {
-                            var read = readJsonMessages(requestBody);
-                            received.addAll(read);
+                try (InputStream requestBody = exchange.getRequestBody()) {
+                    if (requestBody != null) {
+                        switch (path) {
+                            case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
+                            case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
+                            case "/intake/v2/events" -> {
+                                List<String> lines = readJsonMessages(requestBody);
+                                for (String line : lines) {
+                                    ApmIntakeMessageParser.parseLine(line).ifPresent(this::route);
+                                }
+                            }
+                            default -> logger.debug("ignoring request to unhandled path [{}]", path);
                         }
                     }
-
                 } catch (Throwable t) {
                     // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
                     // messages before the test starts running. We should also stop handling them before the test ends (and the test
@@ -101,6 +125,20 @@ public class RecordingApmServer extends ExternalResource {
         }
     }
 
+    /**
+     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the
+     * {@link #resource} reference (we just need one since the test JVM emits a single
+     * Resource); everything else is queued for consumers.
+     */
+    private void route(ReceivedTelemetry msg) {
+        logger.debug("telemetry received: {}", msg);
+        if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
+            resource.compareAndSet(null, r);
+        } else {
+            received.add(msg);
+        }
+    }
+
     private List<String> readJsonMessages(InputStream input) {
         // parse NDJSON
         return new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).lines().toList();
@@ -110,7 +148,44 @@ public class RecordingApmServer extends ExternalResource {
         return server.getAddress().getPort();
     }
 
-    public void addMessageConsumer(Consumer<String> messageConsumer) {
+    /**
+     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+     */
+    public String getHttpAddress() {
+        String host = server.getAddress().getHostString();
+        if (host.contains(":")) {
+            // IPv6 address needs brackets
+            host = "[" + host + "]";
+        }
+        return host + ":" + getPort();
+    }
+
+    public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
     }
+
+    /**
+     * Clears any recorded telemetry to leave the server in a clean state.
+     * <p>
+     * This server's lifetime coincides with that of the cluster it's attached to,
+     * but that same cluster (and hence this server) may be used for multiple tests.
+     * This method is intended to be used in a test class's {@code @Before}
+     * and/or {@code @After} methods to prevent tests from interfering with each other.
+     * <p>
+     * Tests are advised to flush their telemetry, or else buffered telemetry from
+     * one test may be exported during a subsequent test.
+     */
+    public void reset() {
+        consumer = null;
+        received.clear();
+    }
+
+    /**
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed in this server's
+     *         lifetime, or {@code null} if no resource event has arrived yet
+     */
+    public ReceivedTelemetry.ReceivedResource resource() {
+        return resource.get();
+    }
+
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -81,7 +82,13 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        return createShardSearchRequest(createSearchRequest());
+        SearchRequest searchRequest = createSearchRequest();
+        if (randomBoolean()) {
+            final String slice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(2, 10);
+            searchRequest.searchSlice(slice);
+            searchRequest.routing(SliceIndexing.SLICE_ALL.equals(slice) ? null : slice);
+        }
+        return createShardSearchRequest(searchRequest);
     }
 
     private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
@@ -191,6 +198,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.getClusterAlias(), copy.getClusterAlias());
         assertEquals(orig.allowPartialSearchResults(), copy.allowPartialSearchResults());
         assertEquals(orig.canReturnNullResponseIfMatchNoDocs(), orig.canReturnNullResponseIfMatchNoDocs());
+        assertEquals(orig.sliceRouting(), copy.sliceRouting());
     }
 
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {

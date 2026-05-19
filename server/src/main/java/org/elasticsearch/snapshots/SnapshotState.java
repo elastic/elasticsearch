@@ -31,9 +31,6 @@ public enum SnapshotState {
      * the same time, and (unless the deletion fails) will remove the {@code FAILED} snapshot from the repository once all running snapshots
      * have finished.
      * <p>
-     * This enum value appears in {@link SnapshotInfo} only for snapshots and not for clones: aborted clones are removed from the cluster
-     * state without being finalized, so they are never seen as {@code FAILED} in get-snapshot responses.
-     * <p>
      * {@code FAILED} snapshots are not available for restore; see {@link #PARTIAL} for partial backups that are retained.
      */
     FAILED((byte) 2, true, false),

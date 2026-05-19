@@ -1,0 +1,8 @@
+Project[[max_bits{r}#0, step{r}#1]]
+\_Limit[10000[INTEGER],false,false]
+  \_Filter[ISNOTNULL(max_bits{r}#0)]
+    \_Eval[[TODOUBLE(max_bits{r}#2) * 8.0[DOUBLE] AS max_bits#3, TODOUBLE(max_bits{r}#3) AS max_bits#0]]
+      \_Aggregate[[step{r}#1],[MAX(LASTOVERTIME_$1{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bits#2, step{r}#1]]
+        \_TimeSeriesAggregate[[_tsid{m}#5, step{r}#1],[LASTOVERTIME(network.total_bytes_in{f}#6,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#7) AS LASTOVERTIME_$1#4, step{r}#1 AS step#1],BUCKET(@timestamp{f}#7,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#7,PT1H[TIME_DURATION]),@timestamp{f}#7,false]
+          \_Eval[[BUCKET(@timestamp{f}#7,PT1H[TIME_DURATION]) AS step#1]]
+            \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#8, cluster{f}#9, event{f}#10, event_city{f}#11, event_city_boundary{f}#12, event_location{f}#13, event_log{f}#14, event_shape{f}#15, events_received{f}#16, network.bytes_in{f}#17, network.cost{f}#18, network.eth0.currently_connected_clients{f}#19, network.eth0.firmware_version{f}#20, network.eth0.last_up{f}#21, network.eth0.rx{f}#22, network.eth0.tx{f}#23, network.eth0.up{f}#24, network.total_bytes_in{f}#6, network.total_bytes_out{f}#25, network.total_cost{f}#26, pod{f}#27, region{f}#28, _tsid{m}#5]

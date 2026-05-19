@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * To resolve this, the pass-through spec specifies which object takes precedence through required parameter "priority"; non-negative
  * integer values are accepted, with the highest priority value winning in case of conflicting aliases.
  */
-public class PassThroughObjectMapper extends ObjectMapper {
+public final class PassThroughObjectMapper extends ObjectMapper implements PassThroughFieldSource {
     public static final String CONTENT_TYPE = "passthrough";
     public static final String PRIORITY_PARAM_NAME = "priority";
 
@@ -166,8 +166,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return timeSeriesDimensionSubFields.value();
     }
 
+    @Override
     public int priority() {
         return priority;
+    }
+
+    @Override
+    public Collection<FieldMapper> passThroughSubFields() {
+        return mappers.values().stream().filter(m -> m instanceof FieldMapper).map(m -> (FieldMapper) m).toList();
     }
 
     public Explicit<Boolean> timeSeriesDimensionSubFields() {
@@ -244,20 +250,20 @@ public class PassThroughObjectMapper extends ObjectMapper {
     }
 
     /**
-     * Checks the passed objects for duplicate or negative priorities.
-     * @param passThroughMappers objects to check
+     * Checks the passed sources for duplicate priorities.
+     * @param passThroughSources sources to check
      */
-    public static void checkForDuplicatePriorities(Collection<PassThroughObjectMapper> passThroughMappers) {
+    public static void checkForDuplicatePriorities(Collection<? extends PassThroughFieldSource> passThroughSources) {
         Map<Integer, String> seen = new HashMap<>();
-        for (PassThroughObjectMapper mapper : passThroughMappers) {
-            String conflict = seen.put(mapper.priority, mapper.fullPath());
+        for (PassThroughFieldSource source : passThroughSources) {
+            String conflict = seen.put(source.priority(), source.fullPath());
             if (conflict != null) {
                 throw new MapperException(
-                    "Pass-through object ["
-                        + mapper.fullPath()
+                    "Pass-through source ["
+                        + source.fullPath()
                         + "] has a conflicting param [priority="
-                        + mapper.priority
-                        + "] with object ["
+                        + source.priority()
+                        + "] with source ["
                         + conflict
                         + "]"
                 );

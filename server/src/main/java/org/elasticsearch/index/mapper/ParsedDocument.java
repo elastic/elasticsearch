@@ -40,8 +40,8 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private BytesReference source;
-    private XContentType xContentType;
+    private final BytesReference source;
+    private final XContentType xContentType;
     private CompressedXContent dynamicMappingsUpdate;
 
     /**
@@ -111,10 +111,10 @@ public class ParsedDocument {
 
             if (useDocValuesSkipper) {
                 document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
-                document.add(SortedNumericDocValuesField.indexedField("@timestamp", timestamp));
+                document.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
             } else {
                 document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
-                document.add(new LongField("@timestamp", timestamp, Field.Store.NO));
+                document.add(new LongField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp, Field.Store.NO));
             }
             var field = new SortedDocValuesField(
                 TimeSeriesRoutingHashFieldMapper.NAME,
@@ -137,6 +137,19 @@ public class ParsedDocument {
             null,
             XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        SourceToParse.Source source,
+        CompressedXContent dynamicMappingsUpdate,
+        long normalizedSize
+    ) {
+        this(version, seqID, id, routing, documents, source.originalBytes(), source.xContentType(), dynamicMappingsUpdate, normalizedSize);
     }
 
     public ParsedDocument(
@@ -195,11 +208,6 @@ public class ParsedDocument {
 
     public XContentType getXContentType() {
         return this.xContentType;
-    }
-
-    public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
     }
 
     /**

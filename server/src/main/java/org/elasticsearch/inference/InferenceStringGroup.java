@@ -9,10 +9,10 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -43,9 +43,15 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
     public static final String CONTENT_FIELD = "content";
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
         InferenceStringGroup.class.getSimpleName(),
-        args -> new InferenceStringGroup((List<InferenceString>) args[0])
+        args -> {
+            List<InferenceString> inferenceStrings = (List<InferenceString>) args[0];
+            if (inferenceStrings.isEmpty()) {
+                throw new XContentParseException(Strings.format("[%s] field cannot be an empty array", CONTENT_FIELD));
+            }
+            return new InferenceStringGroup(inferenceStrings);
+        }
     );
 
     static {
@@ -54,13 +60,18 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
 
     private final List<InferenceString> inferenceStrings;
     private final boolean containsNonTextEntry;
+    private final boolean containsPdfEntry;
 
     /**
      * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
      */
     public InferenceStringGroup(List<InferenceString> inferenceStrings) {
-        this.inferenceStrings = inferenceStrings;
-        containsNonTextEntry = inferenceStrings.stream().anyMatch(s -> s.isText() == false);
+        this.inferenceStrings = Objects.requireNonNull(inferenceStrings);
+        if (this.inferenceStrings.isEmpty()) {
+            throw new IllegalArgumentException("InferenceStringGroup constructor argument cannot be an empty list");
+        }
+        containsNonTextEntry = inferenceStrings.stream().anyMatch(InferenceString::isNonText);
+        containsPdfEntry = inferenceStrings.stream().anyMatch(InferenceString::isPdf);
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {
@@ -84,8 +95,16 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
         return containsNonTextEntry;
     }
 
+    public boolean containsPdfEntry() {
+        return containsPdfEntry;
+    }
+
+    public int size() {
+        return inferenceStrings.size();
+    }
+
     public boolean containsMultipleInferenceStrings() {
-        return inferenceStrings.size() > 1;
+        return size() > 1;
     }
 
     @Override
@@ -102,15 +121,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
     }
 
     public static InferenceStringGroup parse(XContentParser parser) throws IOException {
-        var token = parser.currentToken();
-        if (token == XContentParser.Token.VALUE_STRING) {
-            // Create content object from String
-            return new InferenceStringGroup(parser.text());
-        } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-            // Create content object from InferenceString(s)
-            return InferenceStringGroup.PARSER.apply(parser, null);
-        }
-        throw new XContentParseException("Unsupported token [" + token + "]");
+        return InferenceStringGroup.PARSER.apply(parser, null);
     }
 
     public InferenceString value() {
@@ -124,7 +135,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
     }
 
     private void assertSingleElement() {
-        assert inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
+        assert size() == 1 : "Multiple-input InferenceStringGroup used in code path expecting a single input.";
     }
 
     /**
@@ -138,10 +149,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      * @return a list of {@link InferenceString}
      */
     public static List<InferenceString> toInferenceStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return inferenceStringGroups.stream().map(group -> {
-            assert group.inferenceStrings.size() == 1 : "Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList";
-            return group.inferenceStrings.getFirst();
-        }).toList();
+        return inferenceStringGroups.stream().map(InferenceStringGroup::value).toList();
     }
 
     /**
@@ -156,7 +164,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      * @return a list of {@link InferenceString}
      */
     public static List<String> toStringList(List<InferenceStringGroup> inferenceStringGroups) {
-        return InferenceString.toStringList(toInferenceStringList(inferenceStringGroups));
+        return inferenceStringGroups.stream().map(InferenceStringGroup::textValue).toList();
     }
 
     /**

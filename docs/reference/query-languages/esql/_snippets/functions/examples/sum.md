@@ -22,4 +22,28 @@ FROM employees
 | --- |
 | 446.75 |
 
+`SUM` can also operate on `exponential_histogram` fields, computing the sum of the values which were used to construct the histograms.
+
+```esql
+TS exp_histo_sample
+| WHERE instance == "instance-0"
+| STATS total = ROUND(SUM(responseTime), 2)
+```
+
+| total:double |
+| --- |
+| 1472.74 |
+
+`SUM` can also operate on `tdigest` and casted `histogram` fields, computing the sum of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS total = ROUND(SUM(responseTime::tdigest), 2)
+```
+
+| total:double |
+| --- |
+| 1472.74 |
+
 

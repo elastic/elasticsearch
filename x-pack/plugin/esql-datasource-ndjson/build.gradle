@@ -7,6 +7,11 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 esplugin {
   name = 'esql-datasource-ndjson'
@@ -30,6 +35,7 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
   testImplementation project(':test:framework')
+  testImplementation project(path: xpackModule('esql'))
   testImplementation('commons-io:commons-io:2.15.1')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

@@ -25,7 +25,7 @@ import java.util.function.Consumer;
  * Limit the number of concurrent inbound recoveries (target side). Slots are released when {@link RecoveryListener}
  * terminates ({@link RecoveryListener#onRecoveryDone} / {@link RecoveryListener#onRecoveryFailure}).
  */
-public final class ThrottledInboundRecoveryService {
+public final class ThrottlingRecoveryService {
     /**
      * Controls the number of concurrent recoveries allowed on target node.
      * Target node is the node that owns the shard after recovery is finished.
@@ -48,7 +48,7 @@ public final class ThrottledInboundRecoveryService {
     /** In-flight tasks: dispatched to {@link ThreadPool#generic()} and not yet completed ({@link #closeAndMaybeDispatch()} not run). */
     private int running;
 
-    public ThrottledInboundRecoveryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
+    public ThrottlingRecoveryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
         this.threadPool = threadPool;
         clusterSettings.initializeAndWatch(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }

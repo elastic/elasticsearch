@@ -147,7 +147,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.ThrottledInboundRecoveryService;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -295,7 +295,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MergeMetrics mergeMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
-    private final ThrottledInboundRecoveryService throttledInboundRecoveryService;
+    private final ThrottlingRecoveryService throttlingRecoveryService;
 
     @Override
     protected void doStart() {
@@ -421,7 +421,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
-        this.throttledInboundRecoveryService = new ThrottledInboundRecoveryService(threadPool, clusterService.getClusterSettings());
+        this.throttlingRecoveryService = new ThrottlingRecoveryService(threadPool, clusterService.getClusterSettings());
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -994,7 +994,7 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        throttledInboundRecoveryService.enqueue(
+        throttlingRecoveryService.enqueue(
             recoveryListener,
             (recoveryListener1) -> projectResolver.executeOnProject(
                 projectId,

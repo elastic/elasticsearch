@@ -621,3 +621,41 @@
             exists:
               field: rt_field.count
   - is_true: timed_out
+
+---
+"Search timeout aborts a long-running script_score loop":
+  - do:
+      indices.create:
+        index: test_script_score_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_script_score_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_script_score_timeout
+        timeout: 100ms
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: |
+                  long start = System.currentTimeMillis();
+                  while (System.currentTimeMillis() - start < 60000L) {
+                      /* deliberately empty: rely on timeout to cancel */
+                  }
+                  return 0.0;
+  - is_true: timed_out

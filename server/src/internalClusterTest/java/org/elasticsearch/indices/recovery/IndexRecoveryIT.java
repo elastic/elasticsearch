@@ -2082,7 +2082,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         flush(indexName);
         ensureGreen(indexName);
 
-        // Stall the first recovery and keeps its source slot occupied.
+        // Stall the recovery and keeps its source slot occupied.
         final CountDownLatch fileChunkLatch = new CountDownLatch(1);
         MockTransportService.getInstance(sourceNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {

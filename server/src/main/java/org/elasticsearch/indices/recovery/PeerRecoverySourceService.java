@@ -12,7 +12,6 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -225,28 +224,27 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
     }
 
-    // TODO: add actual OTel metrics for how many recoveries are queued vs ongoing. RecoveryStats is only exposed via REST calls.
+    // TODO: add actual OTel metrics for how many recoveries are queued vs ongoing. RecoveryStats are only exposed via REST calls.
     final class OngoingRecoveries {
 
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
 
         private final Map<DiscoveryNode, Collection<RemoteRecoveryTargetHandler>> nodeToHandlers = new HashMap<>();
 
-        // TODO: should we do some smarter aggregation by shard?
         private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
 
-        private int activeRecoveryHandlersCount = 0;
+        private int activeRecoveryHandlerCount = 0;
 
         @Nullable
         private List<ActionListener<Void>> emptyListeners;
 
         // visible for testing
         synchronized int activeRecoveryCount() {
-            return activeRecoveryHandlersCount;
+            return activeRecoveryHandlerCount;
         }
 
         // visible for testing
-        synchronized int pendingRecoveriesCount() {
+        synchronized int queuedRecoveryCount() {
             return pendingRecoveries.size();
         }
 
@@ -260,7 +258,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ) {
             assert lifecycle.started();
             ensureNoDuplicateAllocationId(request.targetAllocationId());
-            if (activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries) {
+            if (activeRecoveryHandlerCount < maxConcurrentOutboundRecoveries) {
                 return addNewRecovery(request, task, shard);
             }
             shard.recoveryStats().incCurrentAsSourceQueued();
@@ -271,8 +269,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
             assert lifecycle.started();
-            assert activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries;
-            activeRecoveryHandlersCount++;
+            assert activeRecoveryHandlerCount < maxConcurrentOutboundRecoveries;
+            activeRecoveryHandlerCount++;
             final ShardRecoveryContext shardContext = activeRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
             final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, task, shard);
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
@@ -313,8 +311,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ) {
             assert lifecycle.started();
             final ShardRecoveryContext shardContext = activeRecoveries.get(shard);
-            if (shardContext != null) {
-                shardContext.reestablishRecovery(request, listener);
+            if (shardContext != null && shardContext.reestablishRecovery(request, listener)) {
                 return;
             }
             // The recovery may still be pending. Stack the new listener onto the existing one so both
@@ -343,9 +340,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final RecoverySourceHandler nextHandler;
             synchronized (this) {
                 remove(shard, handler);
-                if (activeRecoveryHandlersCount < maxConcurrentOutboundRecoveries && pendingRecoveries.isEmpty() == false) {
+                if (activeRecoveryHandlerCount < maxConcurrentOutboundRecoveries && pendingRecoveries.isEmpty() == false) {
                     // TODO: switch to < once we have made maxConcurrentOutboundRecoveries dynamic
-                    assert activeRecoveryHandlersCount == maxConcurrentOutboundRecoveries - 1;
+                    assert activeRecoveryHandlerCount == maxConcurrentOutboundRecoveries - 1;
                     nextRecovery = pendingRecoveries.poll();
                     nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
                     nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
@@ -392,7 +389,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final RemoteRecoveryTargetHandler removed = shardRecoveryContext.recoveryHandlers.remove(handler);
             assert removed != null : "Handler was not registered [" + handler + "]";
             if (removed != null) {
-                activeRecoveryHandlersCount--;
+                activeRecoveryHandlerCount--;
                 shard.recoveryStats().decCurrentAsSource();
                 removed.cancel();
                 assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
@@ -531,9 +528,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
 
             /**
-             * Adds recovery source handler.
+             * Adds listener to recovery source handler.
              */
-            void reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+            boolean reestablishRecovery(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
                 assert Thread.holdsLock(OngoingRecoveries.this);
                 RecoverySourceHandler handler = null;
                 for (RecoverySourceHandler existingHandler : recoveryHandlers.keySet()) {
@@ -544,11 +541,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     }
                 }
                 if (handler == null) {
-                    throw new ResourceNotFoundException(
-                        "Cannot reestablish recovery, recovery id [" + request.recoveryId() + "] not found."
-                    );
+                    return false;
                 }
                 handler.addListener(listener);
+                return true;
             }
 
             private Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> createRecoverySourceHandler(

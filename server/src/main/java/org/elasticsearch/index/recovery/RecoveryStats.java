@@ -38,11 +38,11 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     public RecoveryStats(StreamInput in) throws IOException {
         currentAsSource.set(in.readVInt());
-        currentAsTarget.set(in.readVInt());
-        throttleTimeInNanos.set(in.readLong());
         if (in.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
             currentAsSourceQueued.set(in.readVInt());
         }
+        currentAsTarget.set(in.readVInt());
+        throttleTimeInNanos.set(in.readLong());
     }
 
     public void add(RecoveryStats recoveryStats) {
@@ -120,8 +120,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.RECOVERY);
         builder.field(Fields.CURRENT_AS_SOURCE, currentAsSource());
-        builder.field(Fields.CURRENT_AS_TARGET, currentAsTarget());
         builder.field(Fields.CURRENT_AS_SOURCE_QUEUED, currentAsSourceQueued());
+        builder.field(Fields.CURRENT_AS_TARGET, currentAsTarget());
         builder.humanReadableField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
         return builder;
@@ -139,11 +139,11 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(currentAsSource.get());
-        out.writeVInt(currentAsTarget.get());
-        out.writeLong(throttleTimeInNanos.get());
         if (out.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
             out.writeVInt(currentAsSourceQueued.get());
         }
+        out.writeVInt(currentAsTarget.get());
+        out.writeLong(throttleTimeInNanos.get());
     }
 
     @Override
@@ -152,8 +152,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         RecoveryStats that = (RecoveryStats) o;
         return currentAsSource() == that.currentAsSource()
-            && currentAsTarget() == that.currentAsTarget()
             && currentAsSourceQueued() == that.currentAsSourceQueued()
+            && currentAsTarget() == that.currentAsTarget()
             && Objects.equals(throttleTime(), that.throttleTime());
     }
 
@@ -166,10 +166,10 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     public String toString() {
         return "recoveryStats, currentAsSource ["
             + currentAsSource()
-            + "],currentAsTarget ["
-            + currentAsTarget()
             + "],currentAsSourceQueued ["
             + currentAsSourceQueued()
+            + "],currentAsTarget ["
+            + currentAsTarget()
             + "], throttle ["
             + throttleTime()
             + "]";

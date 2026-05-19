@@ -52,10 +52,15 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
         // The shared RegexMatchTestCases suppliers only emit `<text>*` prefix shapes via the `optionalPattern=() -> "*"` argument,
         // so the WildcardLike fast paths visible here are StartsWith and (for the empty optional) AutomataMatch. Contains
         // is not reachable from these suppliers and so is not in the matcher.
+        // StartsWith/EndsWith carry @Fixed(jitConstant=true) on the prefix/suffix; the WildcardLike
+        // rewrite always supplies a literal there, so the factory selects the JIT-folded
+        // *ConstantEvaluator. Both shapes are valid depending on admission/spin timing.
         Matcher<String> evaluatorMatcher = anyOf(
             startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
             startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
-            startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix=")
+            startsWith("StartsWithConstantEvaluator[str=Attribute[channel=0], prefix="),
+            startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix="),
+            startsWith("EndsWithConstantEvaluator[str=Attribute[channel=0], suffix=")
         );
         List<Object[]> cases = (List<Object[]>) parameterSuppliersFromTypedData(
             RegexMatchTestCases.buildCases(escapeString, () -> "*", evaluatorMatcher)
@@ -83,7 +88,10 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(str, type, "str"),
                         new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
                     ),
-                    startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
+                    anyOf(
+                        startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
+                        startsWith("StartsWithConstantEvaluator[str=Attribute[channel=0], prefix=")
+                    ),
                     DataType.BOOLEAN,
                     equalTo(match)
                 );
@@ -99,7 +107,10 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(str, type, "str"),
                         new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
                     ),
-                    startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix="),
+                    anyOf(
+                        startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix="),
+                        startsWith("EndsWithConstantEvaluator[str=Attribute[channel=0], suffix=")
+                    ),
                     DataType.BOOLEAN,
                     equalTo(match)
                 );

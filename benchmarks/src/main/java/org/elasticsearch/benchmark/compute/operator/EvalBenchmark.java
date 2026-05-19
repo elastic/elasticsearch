@@ -148,6 +148,7 @@ public class EvalBenchmark {
             "equal_to_const",
             "json_extract",
             "json_extract_object",
+            "json_extract_var",
             "long_equal_to_long",
             "long_equal_to_int",
             "mod_long_long",
@@ -279,6 +280,22 @@ public class EvalBenchmark {
                     new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user"), DataType.KEYWORD)),
                     layout(keywordField)
                 ).get(driverContext);
+            }
+            case "json_extract_var" -> {
+                FieldAttribute json = keywordField();
+                FieldAttribute path = keywordField("path");
+                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new JsonExtract(Source.EMPTY, json, path),
+                    layout(json, path)
+                ).get(driverContext);
+                if (evaluator.toString().contains("JsonExtractEvaluator") == false
+                    || evaluator.toString().contains("JsonExtractConstant") != false) {
+                    throw new IllegalArgumentException(
+                        "Evaluator was [" + evaluator + "] but expected one containing [JsonExtractEvaluator] (non-constant)"
+                    );
+                }
+                yield evaluator;
             }
             case "long_equal_to_long" -> {
                 FieldAttribute lhs = longField();
@@ -823,6 +840,16 @@ public class EvalBenchmark {
                 BytesRef expected = new BytesRef("John");
                 checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
             }
+            case "json_extract_var" -> {
+                BytesRef expected = new BytesRef("John");
+                BytesRefVector v = actual.<BytesRefBlock>getBlock(2).asVector();
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (v.getBytesRef(i, scratch).equals(expected) == false) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + scratch + "]");
+                    }
+                }
+            }
             case "json_extract_object" -> {
                 BytesRef expected = new BytesRef("{\"name\":\"John\",\"age\":30}");
                 checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
@@ -902,6 +929,17 @@ public class EvalBenchmark {
                     builder.appendBytesRef(json);
                 }
                 yield new Page(builder.build().asBlock());
+            }
+            case "json_extract_var" -> {
+                var jsonCol = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                var pathCol = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef json = new BytesRef("{\"user\":{\"name\":\"John\",\"age\":30},\"active\":true}");
+                BytesRef path = new BytesRef("user.name");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    jsonCol.appendBytesRef(json);
+                    pathCol.appendBytesRef(path);
+                }
+                yield new Page(jsonCol.build().asBlock(), pathCol.build().asBlock());
             }
             case "long_equal_to_long" -> {
                 var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);

@@ -5,8 +5,9 @@
  * 2.0.
  */
 
-module org.elasticsearch.security.spi.encryption {
+module org.elasticsearch.security.spi {
     requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
 
     exports org.elasticsearch.xpack.security.spi.encryption;
 }

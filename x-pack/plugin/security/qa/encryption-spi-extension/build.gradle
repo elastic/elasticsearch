@@ -9,7 +9,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(':x-pack:plugin:security:spi-encryption')
+  compileOnly project(':x-pack:plugin:security:spi')
   clusterPlugins project(':x-pack:plugin:security:qa:encryption-spi-extension')
 
   javaRestTestImplementation project(':x-pack:plugin:core')

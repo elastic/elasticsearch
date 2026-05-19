@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;

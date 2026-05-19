@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.crypto;
+package org.elasticsearch.xpack.security.spi.encryption;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;

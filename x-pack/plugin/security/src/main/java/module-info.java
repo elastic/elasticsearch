@@ -21,7 +21,7 @@ module org.elasticsearch.security {
     requires org.elasticsearch.transport.netty4;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
-    requires org.elasticsearch.security.spi.encryption;
+    requires org.elasticsearch.security.spi;
 
     requires org.apache.commons.codec;
     requires org.apache.httpcomponents.httpcore;

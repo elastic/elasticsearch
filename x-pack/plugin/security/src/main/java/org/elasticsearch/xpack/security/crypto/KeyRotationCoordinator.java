@@ -31,7 +31,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
 
 import java.io.Closeable;

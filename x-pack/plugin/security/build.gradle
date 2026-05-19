@@ -24,7 +24,7 @@ configurations {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  spi project(':x-pack:plugin:security:spi-encryption')
+  spi project(':x-pack:plugin:security:spi')
   api project(path: ':modules:transport-netty4')
 
   testImplementation project(path: xpackModule('ilm'))

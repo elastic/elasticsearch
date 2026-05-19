@@ -13,7 +13,7 @@ import java.util.Collections;
  * SPI extension point for plugins that contribute {@link EncryptedDataHandler}s to the primary encryption key rotation coordinator.
  *
  * <p>A plugin contributes handlers by declaring {@code extendedPlugins = ['x-pack-security']} in its {@code esplugin {}} block,
- * adding a {@code compileOnly project(':x-pack:plugin:security:spi-encryption')} dependency, and shipping a
+ * adding a {@code compileOnly project(':x-pack:plugin:security:spi')} dependency, and shipping a
  * {@code META-INF/services/org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider} entry pointing at the
  * implementation class.
  */

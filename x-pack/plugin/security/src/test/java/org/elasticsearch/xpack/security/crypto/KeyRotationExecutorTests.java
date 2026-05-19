@@ -14,8 +14,7 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata.KeyEntry;
+import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyMetadata.KeyEntry;
 
 import java.util.HashMap;
 import java.util.Map;

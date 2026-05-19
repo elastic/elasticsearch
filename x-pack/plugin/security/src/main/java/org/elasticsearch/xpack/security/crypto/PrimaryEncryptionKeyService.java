@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
 
 import java.util.HashMap;
 import java.util.Map;

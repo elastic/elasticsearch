@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.security.crypto;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.crypto.EncryptedData;
-import org.elasticsearch.xpack.core.crypto.EncryptionKeyNotYetAvailableException;
-import org.elasticsearch.xpack.core.crypto.EncryptionService;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedData;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptionKeyNotYetAvailableException;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptionService;
 
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;

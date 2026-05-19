@@ -175,7 +175,13 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()), uncompressedSize);
+            return new Serialized<>(
+                reader,
+                TransportVersion.current(),
+                registry,
+                ReleasableBytesReference.wrap(buffer.bytes()),
+                uncompressedSize
+            );
         }
 
         @Override

@@ -32,6 +32,8 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
@@ -571,7 +573,9 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                         RESPONSE_PARSER,
                         RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
                         threadPool,
-                        restClient
+                        restClient,
+                        new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                        "test"
                     );
                 } else {
                     super.doFirstSearch(searchListener);
@@ -662,7 +666,9 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             remoteInfo(),
             searchRequest,
             initialRemoteVersion,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            "test"
         );
     }
 
@@ -702,7 +708,9 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 remoteInfo,
                 RemoteScrollablePaginatedHitSourceTests.this.searchRequest,
                 randomBoolean() ? Version.CURRENT : null,
-                keepaliveDeadline()
+                keepaliveDeadline(),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                "test"
             );
         }
     }

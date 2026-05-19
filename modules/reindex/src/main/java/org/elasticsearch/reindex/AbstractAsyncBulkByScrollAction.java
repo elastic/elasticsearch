@@ -171,6 +171,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
 
+    protected CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
     AbstractAsyncBulkByScrollAction(
         BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
@@ -623,6 +627,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
+            asyncResponse.response().closeBodyReleasable();
         });
         boolean cleanupHandedOff = false;
         try {
@@ -1364,6 +1369,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             for (; consumedOffset < hits.size(); consumedOffset++) {
                 hits.get(consumedOffset).release();
             }
+            asyncResponse.response().closeBodyReleasable();
         }
 
         void done(TimeValue extraKeepAlive) {

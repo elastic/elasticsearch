@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -28,9 +27,9 @@ public class LookupPhysicalOptimizerContext extends LocalPhysicalOptimizerContex
         FoldContext foldCtx,
         SearchStats searchStats,
         AliasFilter aliasFilter,
-        FormatReaderRegistry formatReaderRegistry
+        ExternalOptimizerContext external
     ) {
-        super(plannerSettings, flags, configuration, foldCtx, searchStats, formatReaderRegistry);
+        super(plannerSettings, flags, configuration, foldCtx, searchStats, external);
         this.aliasFilter = aliasFilter;
     }
 
@@ -42,7 +41,7 @@ public class LookupPhysicalOptimizerContext extends LocalPhysicalOptimizerContex
         SearchStats searchStats,
         AliasFilter aliasFilter
     ) {
-        this(plannerSettings, flags, configuration, foldCtx, searchStats, aliasFilter, null);
+        this(plannerSettings, flags, configuration, foldCtx, searchStats, aliasFilter, ExternalOptimizerContext.NONE);
     }
 
     public AliasFilter aliasFilter() {

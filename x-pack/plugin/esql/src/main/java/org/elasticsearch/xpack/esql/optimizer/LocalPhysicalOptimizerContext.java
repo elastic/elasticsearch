@@ -19,7 +19,7 @@ public class LocalPhysicalOptimizerContext {
     private final Configuration configuration;
     private final FoldContext foldCtx;
     private final SearchStats searchStats;
-    private final FormatReaderRegistry formatReaderRegistry;
+    private final ExternalOptimizerContext external;
 
     public LocalPhysicalOptimizerContext(
         PlannerSettings plannerSettings,
@@ -27,14 +27,14 @@ public class LocalPhysicalOptimizerContext {
         Configuration configuration,
         FoldContext foldCtx,
         SearchStats searchStats,
-        FormatReaderRegistry formatReaderRegistry
+        ExternalOptimizerContext external
     ) {
         this.plannerSettings = plannerSettings;
         this.flags = flags;
         this.configuration = configuration;
         this.foldCtx = foldCtx;
         this.searchStats = searchStats;
-        this.formatReaderRegistry = formatReaderRegistry;
+        this.external = external;
     }
 
     /**
@@ -72,7 +72,7 @@ public class LocalPhysicalOptimizerContext {
         return searchStats;
     }
 
-    public FormatReaderRegistry formatReaderRegistry() {
-        return formatReaderRegistry;
+    public ExternalOptimizerContext external() {
+        return external;
     }
 }

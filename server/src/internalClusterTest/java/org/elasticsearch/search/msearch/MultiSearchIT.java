@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
@@ -36,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiSearchIT extends ESIntegTestCase {
@@ -196,6 +198,64 @@ public class MultiSearchIT extends ESIntegTestCase {
             assertTrue(mreq.requests().getFirst().isCcsMinimizeRoundtrips());
             assertFalse(mreq.requests().getLast().isCcsMinimizeRoundtrips());
         }
+    }
+
+    public void testTopLevelSliceParamIsAppliedToAllSubRequests() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String body = """
+            {"index": "index-1" }
+            {"query" : {"match" : { "message": "this is a test"}}}
+            {"index": "index-2" }
+            {"query" : {"match_all" : {}}}
+            """;
+        MultiSearchRequest mreq = parseRequest(body, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+        assertThat(mreq.requests().size(), Matchers.is(2));
+        for (SearchRequest req : mreq.requests()) {
+            assertEquals("s1,s2", req.routing());
+            assertTrue(req.isRoutingFromSlice());
+            assertEquals("s1,s2", req.searchSlice());
+        }
+    }
+
+    public void testRoutingAndSliceCannotBeMixedAcrossRequestLevels() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String body = """
+            {"_slice": "s1" }
+            {"query" : {"match_all" : {}}}
+            """;
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseRequest(body, Map.of("routing", "r1")));
+        assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
+    }
+
+    public void testSliceEnabledIndexRequiresSliceAndRejectsRoutingInExecution() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("slice-enabled", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
+        ensureGreen("slice-enabled");
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        request.add(
+            new SearchRequest("slice-enabled").source(
+                new org.elasticsearch.search.builder.SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+            )
+        );
+        request.add(
+            new SearchRequest("slice-enabled").routing("r1")
+                .source(new org.elasticsearch.search.builder.SearchSourceBuilder().query(QueryBuilders.matchAllQuery()))
+        );
+        assertResponse(client().multiSearch(request), response -> {
+            assertThat(response.getResponses().length, equalTo(2));
+            assertTrue(response.getResponses()[0].isFailure());
+            assertThat(
+                response.getResponses()[0].getFailure().getMessage(),
+                containsString("[_slice] is required when [index.slice.enabled] is true")
+            );
+            assertTrue(response.getResponses()[1].isFailure());
+            assertThat(
+                response.getResponses()[1].getFailure().getMessage(),
+                containsString("[routing] is not allowed when [index.slice.enabled] is true")
+            );
+            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [_slice] instead"));
+        });
     }
 
     private RestRequest mkRequest(String body, Map<String, String> params) {

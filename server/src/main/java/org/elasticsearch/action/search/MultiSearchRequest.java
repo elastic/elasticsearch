@@ -15,6 +15,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -53,6 +55,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
+    private static final String ROUTING_AND_SLICE_COMBINATION_ERROR =
+        "[routing] and [_slice] cannot be combined in the same _msearch request";
 
     private int maxConcurrentSearchRequests = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
@@ -182,7 +186,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
         IndicesOptions indicesOptions,
-        String routing,
+        @Nullable SliceIndexing.ParsedRouting routingOrSlice,
         String searchType,
         Boolean ccsMinimizeRoundtrips,
         boolean allowExplicitIndex,
@@ -200,7 +204,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             consumer,
             indices,
             indicesOptions,
-            routing,
+            routingOrSlice,
             searchType,
             ccsMinimizeRoundtrips,
             allowExplicitIndex,
@@ -218,7 +222,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
         IndicesOptions indicesOptions,
-        String routing,
+        @Nullable SliceIndexing.ParsedRouting routingOrSlice,
         String searchType,
         Boolean ccsMinimizeRoundtrips,
         boolean allowExplicitIndex,
@@ -246,9 +250,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             if (indicesOptions != null) {
                 searchRequest.indicesOptions(indicesOptions);
             }
-            if (routing != null) {
-                searchRequest.routing(routing);
-            }
+            applySearchRoutingOrSlice(searchRequest, routingOrSlice);
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
@@ -278,6 +280,12 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
                     Object allowNoIndices = null;
+                    final boolean topLevelFromSlice = routingOrSlice != null && routingOrSlice.fromSlice();
+                    final boolean topLevelHasRouting = routingOrSlice != null
+                        && routingOrSlice.fromSlice() == false
+                        && routingOrSlice.routing() != null;
+                    boolean routingProvided = false;
+                    boolean sliceProvided = false;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if (crossProjectEnabled.orElse(false)
@@ -301,7 +309,18 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                         } else if ("preference".equals(entry.getKey())) {
                             searchRequest.preference(nodeStringValue(value, null));
                         } else if ("routing".equals(entry.getKey())) {
+                            if (sliceProvided || topLevelFromSlice) {
+                                throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
+                            }
                             searchRequest.routing(nodeStringValue(value, null));
+                            searchRequest.searchSlice(null);
+                            routingProvided = true;
+                        } else if (SliceIndexing.PARAM_NAME.equals(entry.getKey())) {
+                            if (routingProvided || topLevelHasRouting) {
+                                throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
+                            }
+                            applySearchRoutingOrSlice(searchRequest, parseSearchRoutingOrSlice(nodeStringValue(value, null)));
+                            sliceProvided = true;
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
                         } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
@@ -368,6 +387,33 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         }
     }
 
+    private static void applySearchRoutingOrSlice(SearchRequest searchRequest, @Nullable SliceIndexing.ParsedRouting parsedRouting) {
+        if (parsedRouting == null) {
+            return;
+        }
+        searchRequest.routing(parsedRouting.routing());
+        searchRequest.searchSlice(
+            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+        );
+    }
+
+    private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [_slice]");
+        }
+        if (SliceIndexing.SLICE_ALL.equals(sliceValue)) {
+            return new SliceIndexing.ParsedRouting(null, true);
+        }
+        final String[] slices = Strings.splitStringByCommaToArray(sliceValue);
+        if (slices.length == 0) {
+            throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");
+        }
+        for (String slice : slices) {
+            SliceIndexing.validateUserSliceValue(slice);
+        }
+        return new SliceIndexing.ParsedRouting(String.join(",", slices), true);
+    }
+
     private static int findNextMarker(byte marker, int from, BytesReference data) {
         final int res = data.indexOf(marker, from);
         if (res != -1) {
@@ -421,7 +467,9 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         if (request.preference() != null) {
             xContentBuilder.field("preference", request.preference());
         }
-        if (request.routing() != null) {
+        if (request.isRoutingFromSlice()) {
+            xContentBuilder.field(SliceIndexing.PARAM_NAME, request.searchSlice());
+        } else if (request.routing() != null) {
             xContentBuilder.field("routing", request.routing());
         }
         if (request.allowPartialSearchResults() != null) {

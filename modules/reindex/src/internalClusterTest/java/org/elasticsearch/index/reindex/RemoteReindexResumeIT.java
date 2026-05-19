@@ -16,7 +16,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -102,75 +101,6 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "*:*")
             .build();
-    }
-
-    /**
-     * Resume remote reindex using scroll.
-     * The remote URL is this cluster's HTTP endpoint (real Elasticsearch), matching the scroll id obtained locally.
-     */
-    public void testResumeReindexFromScroll() {
-        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        int totalDocs = randomIntBetween(20, 100);
-        int batchSize = randomIntBetween(1, 10);
-
-        createIndex(sourceIndex);
-        indexRandom(true, sourceIndex, totalDocs);
-
-        // Manually initiate a scroll search to get a scroll ID
-        String scrollId;
-        int remainingDocs = totalDocs - batchSize;
-        SearchResponse searchResponse = client().prepareSearch(sourceIndex).setScroll(DEFAULT_SCROLL_TIMEOUT).setSize(batchSize).get();
-        try {
-            scrollId = searchResponse.getScrollId();
-            assertNotNull(scrollId);
-            assertEquals((int) searchResponse.getHits().getTotalHits().value(), totalDocs);
-            assertEquals(searchResponse.getHits().getHits().length, batchSize);
-        } finally {
-            searchResponse.decRef();
-        }
-
-        // Resume reindexing from the manual scroll with remote search
-        BulkByPaginatedSearchTask.Status randomStats = randomStats();
-        // random start time in the past to ensure that "took" is updated
-        long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
-        InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
-        ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setDestIndex(destIndex)
-            .setSourceBatchSize(batchSize)
-            .setRefresh(true)
-            .setRequestsPerSecond(randomStats.getRequestsPerSecond())
-            .setRemoteInfo(
-                new RemoteInfo(
-                    "http",
-                    remoteAddress.getHostString(),
-                    remoteAddress.getPort(),
-                    null,
-                    new BytesArray("{\"match_all\":{}}"),
-                    null,
-                    null,
-                    Map.of(),
-                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
-                    RemoteInfo.DEFAULT_CONNECT_TIMEOUT
-                )
-            )
-            .setResumeInfo(
-                new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, Version.CURRENT), null)
-            );
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
-        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
-            .setWaitForCompletion(true)
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        assertStatus(getTaskResponse.getTask(), randomStats, totalDocs, batchSize, remainingDocs);
-        // ensure remaining docs were indexed
-        assertHitCount(prepareSearch(destIndex), remainingDocs);
-        // ensure the scroll is cleared
-        assertEquals(0, currentNumberOfScrollContexts());
     }
 
     /**

@@ -159,6 +159,7 @@ tasks.named("internalClusterTest").configure {
       injected.fs.sync {
         from snippetsDocFolder
         into snippetsFolder
+        includeEmptyDirs = false
       }
     }
   } else {
@@ -187,6 +188,7 @@ tasks.named("internalClusterTest").configure {
           from snippetsFolder
           into snippetsDocFolder
           include '**/*.md'
+          includeEmptyDirs = false
           preserve {
             include '**/*.md'
           }

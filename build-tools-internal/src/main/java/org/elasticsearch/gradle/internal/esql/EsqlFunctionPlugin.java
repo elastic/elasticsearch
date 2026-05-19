@@ -153,14 +153,17 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                         injected.getFs().sync(spec -> {
                             spec.from(snippetsDocFolder);
                             spec.into(snippetsFolder);
+                            spec.setIncludeEmptyDirs(false);
                         });
                         injected.getFs().sync(spec -> {
                             spec.from(imagesDocFolder);
                             spec.into(imagesFolder);
+                            spec.setIncludeEmptyDirs(false);
                         });
                         injected.getFs().sync(spec -> {
                             spec.from(kibanaDocFolder);
                             spec.into(kibanaFolder);
+                            spec.setIncludeEmptyDirs(false);
                         });
                     }
                 }
@@ -243,6 +246,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 spec.from(snippetsFolder);
                 spec.into(snippetsDocFolder);
                 spec.include("**/*.md");
+                spec.setIncludeEmptyDirs(false);
                 if (countTypes <= 100) {
                     spec.preserve(preserveSpec -> preserveSpec.include("**/*.md"));
                 } else {
@@ -279,6 +283,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 spec.from(imagesFolder);
                 spec.into(imagesDocFolder);
                 spec.include("**/*.svg");
+                spec.setIncludeEmptyDirs(false);
                 if (countImages <= 100) {
                     spec.preserve(preserveSpec -> preserveSpec.include("**/*.svg"));
                 }
@@ -315,6 +320,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
                 spec.from(kibanaFolder);
                 spec.into(kibanaDocFolder);
                 spec.include("**/*.md", "**/*.json");
+                spec.setIncludeEmptyDirs(false);
                 spec.preserve(preserveSpec -> {
                     if (countKibana <= 100) {
                         preserveSpec.include("**/*.md", "**/*.json");

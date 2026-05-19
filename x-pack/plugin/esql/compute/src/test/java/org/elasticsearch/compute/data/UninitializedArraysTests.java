@@ -41,6 +41,11 @@ public class UninitializedArraysTests extends ESTestCase {
         boolean[] arr = UninitializedArrays.newBooleanArray(len);
         assertEquals(len, arr.length);
         assertSame(boolean.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            boolean v = randomBoolean();
+            arr[i] = v;
+            assertEquals(v, arr[i]);
+        }
     }
 
     public void testNewByteArray() {
@@ -48,6 +53,11 @@ public class UninitializedArraysTests extends ESTestCase {
         byte[] arr = UninitializedArrays.newByteArray(len);
         assertEquals(len, arr.length);
         assertSame(byte.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            byte v = randomByte();
+            arr[i] = v;
+            assertEquals(v, arr[i]);
+        }
     }
 
     public void testNewShortArray() {
@@ -55,6 +65,11 @@ public class UninitializedArraysTests extends ESTestCase {
         short[] arr = UninitializedArrays.newShortArray(len);
         assertEquals(len, arr.length);
         assertSame(short.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            short v = randomShort();
+            arr[i] = v;
+            assertEquals(v, arr[i]);
+        }
     }
 
     public void testNewCharArray() {
@@ -62,6 +77,11 @@ public class UninitializedArraysTests extends ESTestCase {
         char[] arr = UninitializedArrays.newCharArray(len);
         assertEquals(len, arr.length);
         assertSame(char.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            char v = (char) randomIntBetween(0, Character.MAX_VALUE);
+            arr[i] = v;
+            assertEquals(v, arr[i]);
+        }
     }
 
     public void testNewIntArray() {
@@ -69,6 +89,11 @@ public class UninitializedArraysTests extends ESTestCase {
         int[] arr = UninitializedArrays.newIntArray(len);
         assertEquals(len, arr.length);
         assertSame(int.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            int v = randomInt();
+            arr[i] = v;
+            assertEquals(v, arr[i]);
+        }
     }
 
     public void testNewLongArray() {
@@ -76,6 +101,11 @@ public class UninitializedArraysTests extends ESTestCase {
         long[] arr = UninitializedArrays.newLongArray(len);
         assertEquals(len, arr.length);
         assertSame(long.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            long v = randomLong();
+            arr[i] = v;
+            assertEquals(v, arr[i]);
+        }
     }
 
     public void testNewFloatArray() {
@@ -83,6 +113,11 @@ public class UninitializedArraysTests extends ESTestCase {
         float[] arr = UninitializedArrays.newFloatArray(len);
         assertEquals(len, arr.length);
         assertSame(float.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            float v = randomFloat();
+            arr[i] = v;
+            assertEquals(v, arr[i], 0f);
+        }
     }
 
     public void testNewDoubleArray() {
@@ -90,5 +125,10 @@ public class UninitializedArraysTests extends ESTestCase {
         double[] arr = UninitializedArrays.newDoubleArray(len);
         assertEquals(len, arr.length);
         assertSame(double.class, arr.getClass().getComponentType());
+        for (int i = 0; i < arr.length; i++) {
+            double v = randomDouble();
+            arr[i] = v;
+            assertEquals(v, arr[i], 0d);
+        }
     }
 }

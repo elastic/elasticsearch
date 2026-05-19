@@ -1041,6 +1041,42 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     }
 
     @SuppressWarnings("unchecked")
+    public void testInfer_RoutesRerankTaskTypeToInferRerank() {
+        var inputs = generateTestDocs(randomIntBetween(2, 10), randomIntBetween(50, 100));
+        var query = randomAlphaOfLength(10);
+        var model = new ElasticRerankerModel(
+            randomAlphaOfLength(10),
+            TaskType.RERANK,
+            ElasticsearchInternalService.NAME,
+            ElasticRerankerServiceSettingsTests.createRandomWithoutChunkingConfiguration(randomAlphaOfLength(8)),
+            new RerankTaskSettings(randomBoolean())
+        );
+
+        var mlTrainedModelResults = new ArrayList<InferenceResults>();
+        for (int i = 0; i < inputs.size(); i++) {
+            mlTrainedModelResults.add(TextSimilarityInferenceResultsTests.createRandomResults());
+        }
+        var mlResponse = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
+
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(mlResponse);
+            return null;
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
+
+        var service = createService(client);
+
+        ActionListener<InferenceServiceResults> listener = ActionListener.wrap(results -> {
+            assertThat(results, instanceOf(RankedDocsResults.class));
+            assertThat(((RankedDocsResults) results).getRankedDocs(), hasSize(inputs.size()));
+        }, ESTestCase::fail);
+
+        service.infer(model, query, null, null, inputs, false, Map.of(), InputType.INTERNAL_SEARCH, null, listener);
+    }
+
+    @SuppressWarnings("unchecked")
     private void testRerankInfer_ElasticReranker(ElasticRerankerModel model, List<String> inputs) {
         var query = randomAlphaOfLength(10);
         var mlTrainedModelResults = new ArrayList<InferenceResults>();

@@ -1045,6 +1045,11 @@ public abstract class DocsV3Support {
                 }
 
                 @Override
+                public boolean tsdbCompatible() {
+                    return orig.tsdbCompatible();
+                }
+
+                @Override
                 public FunctionAppliesTo[] appliesTo() {
                     return orig.appliesTo();
                 }
@@ -1852,6 +1857,9 @@ public abstract class DocsV3Support {
             }
             builder.field("preview", info.preview());
             builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
+            if (info.tsdbCompatible() == false) {
+                builder.field("tsdb_compatible", false);
+            }
 
             String rendered = Strings.toString(builder.endObject());
             logger.info("Writing kibana function definition for [{}]", name);

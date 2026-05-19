@@ -86,6 +86,9 @@ The document’s `attachment` object contains extracted properties for the file:
 
 
 ## Limit raw attachment field size [attachment-raw-field-size-limits]
+```{applies_to}
+stack: ga 9.5
+```
 
 In some cases, attachment sizes can result in significant memory overhead, as can any further processing (for example, by Apache Tika). To restrict the raw size of the attachment source field, use the node setting `ingest.attachment.max_field_size` or the processor parameter `max_field_bytes`. Limits are enforced early in the process (for example, before base64 decoding) to avoid allocating or decoding oversized payloads. If a document exceeds the limit, use an `on_failure` handler to address the resulting ingest failure.
 

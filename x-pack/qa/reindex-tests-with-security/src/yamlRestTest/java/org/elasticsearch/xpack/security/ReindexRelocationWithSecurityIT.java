@@ -10,6 +10,7 @@ import org.apache.http.HttpHost;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -142,11 +144,13 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // Stage 3: assert that the list API works
             assertListViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 4: rethrottle to unlimited via a *non-coordinator* node, since the coordinator's HTTP transport is being torn down.
+            // Stage 4: rethrottle to unlimited via a non-coordinator*node, since the coordinator's HTTP transport is being torn down.
             unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 5: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
-            // successfully. Without the fix, the resume action is rejected by RBAC and this never happens.
+            // Stage 5: wait for the coordinator to be fully removed from cluster state.
+            waitForCoordinatorRemovedFromCluster(dataNodeAddress, coordNodeId);
+
+            // Stage 6: wait for the relocated task to complete successfully.
             assertReindexCompletesOnDataNode(dataNodeAddress, taskId, numDocs);
         } finally {
             stopThread.join(TimeUnit.SECONDS.toMillis(60));
@@ -282,6 +286,17 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         }
     }
 
+    private void waitForCoordinatorRemovedFromCluster(String dataNodeAddress, String coordNodeId) throws Exception {
+        try (RestClient dataClient = buildClient(restAdminSettings(), new HttpHost[] { HttpHost.create(dataNodeAddress) })) {
+            assertBusy(() -> {
+                final Request clusterStateRequest = new Request("GET", "/_cluster/state/nodes");
+                final ObjectPath clusterState = ObjectPath.createFromResponse(dataClient.performRequest(clusterStateRequest));
+                final Map<String, Object> nodes = clusterState.evaluate("nodes");
+                assertThat("coordinator node should be removed from cluster state", nodes.keySet(), not(hasItem(coordNodeId)));
+            }, 30, TimeUnit.SECONDS);
+        }
+    }
+
     private void assertReindexCompletesOnDataNode(String dataNodeAddress, String originalTaskId, int numDocs) throws Exception {
         try (
             RestClient dataClient = buildClient(restClientSettingsForUser(GET_USER), new HttpHost[] { HttpHost.create(dataNodeAddress) })
@@ -291,16 +306,21 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                 // it follows the relocated_task_id chain server-side and returns the final task once completed.
                 final Request get = new Request("GET", "/_reindex/" + originalTaskId);
                 get.addParameter("wait_for_completion", "true");
-                get.addParameter("timeout", "30s");
-                final ObjectPath body = ObjectPath.createFromResponse(dataClient.performRequest(get));
-                assertThat("original reindex task should complete (after relocation)", body.evaluate("completed"), equalTo(true));
-                // No security_exception should be surfaced anywhere in the chain.
-                assertThat("relocation hand-off should not have produced a exception", body.evaluate("error"), nullValue());
-                final Object created = body.evaluate("response.created");
-                assertThat("relocated reindex should have created destination docs", ((Number) created).intValue(), greaterThan(0));
-                final Object total = body.evaluate("response.total");
-                assertThat("relocated reindex should report the full source size", ((Number) total).intValue(), equalTo(numDocs));
-            }, 90, TimeUnit.SECONDS);
+                get.addParameter("timeout", "10s");
+                try {
+                    final ObjectPath body = ObjectPath.createFromResponse(dataClient.performRequest(get));
+                    assertThat("original reindex task should complete (after relocation)", body.evaluate("completed"), equalTo(true));
+                    // No security_exception should be surfaced anywhere in the chain.
+                    assertThat("relocation hand-off should not have produced a exception", body.evaluate("error"), nullValue());
+                    final Object created = body.evaluate("response.created");
+                    assertThat("relocated reindex should have created destination docs", ((Number) created).intValue(), greaterThan(0));
+                    final Object total = body.evaluate("response.total");
+                    assertThat("relocated reindex should report the full source size", ((Number) total).intValue(), equalTo(numDocs));
+                } catch (ResponseException e) {
+                    // Translate to ResponseException (e.g. timeouts) to AssertionErrors so assertBusy will retry
+                    throw new AssertionError("get reindex task failed: " + e.getMessage(), e);
+                }
+            }, 60, TimeUnit.SECONDS);
         }
     }
 

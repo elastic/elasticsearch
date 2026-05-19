@@ -996,16 +996,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    /**
-     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146073">#146073</a>.
-     * <p>
-     * Patterns containing a wildcard may have a literal portion abutting a reserved index-name
-     * prefix character ('_', '-', or '+'). The wildcard itself can match any prefix, so these
-     * patterns are valid: e.g. {@code *_logs} matches {@code app_logs}, {@code nginx_logs}, etc.
-     * Previously the parser stripped the wildcard and then validated the remainder as a literal
-     * index name, which incorrectly rejected the pattern with the misleading message
-     * {@code "Invalid index name [_logs], must not start with '_', '-', or '+'"}.
-     */
+    /** Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146073">#146073</a>. */
     public void testWildcardPatternWithReservedPrefixChar() {
         List<String> commands = new ArrayList<>();
         commands.add("FROM");
@@ -1015,14 +1006,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (String command : commands) {
             assertStringAsIndexPattern("*_logs", command + " *_logs");
             assertStringAsIndexPattern("*+logs", command + " *+logs");
-            assertStringAsIndexPattern("_logs*", command + " _logs*");
-            assertStringAsIndexPattern("+logs*", command + " +logs*");
+            assertStringAsIndexPattern("**_logs", command + " **_logs");
             assertStringAsIndexPattern("foo*_logs", command + " foo*_logs");
             assertStringAsIndexPattern("*_logs,*_metrics", command + " *_logs,*_metrics");
             assertStringAsIndexPattern("cluster:*_logs", command + " cluster:*_logs");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
                 assertStringAsIndexPattern("*_logs::data", command + " *_logs::data");
             }
+
+            String lineNumber = command.equals("FROM") ? "line 1:6: " : "line 1:4: ";
+            expectError(command + " _logs*", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " _*log", lineNumber + "Invalid index name [_log], must not start with '_', '-', or '+'");
+            expectError(command + " +logs*", lineNumber + "Invalid index name [+logs], must not start with '_', '-', or '+'");
         }
     }
 

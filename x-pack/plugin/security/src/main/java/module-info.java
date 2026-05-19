@@ -42,6 +42,9 @@ module org.elasticsearch.security {
     requires org.opensaml.xmlsec.impl;
     requires org.opensaml.xmlsec;
 
+    requires com.azure.core;
+    requires com.google.auth;
+    requires com.google.auth.oauth2;
     requires com.nimbusds.jose.jwt;
     requires io.netty.common;
     requires io.netty.codec.http;
@@ -52,6 +55,8 @@ module org.elasticsearch.security {
     requires net.shibboleth.utilities.java.support;
     requires oauth2.oidc.sdk;
     requires org.slf4j;
+    requires software.amazon.awssdk.auth;
+    requires software.amazon.awssdk.identity.spi;
     requires unboundid.ldapsdk;
     requires org.elasticsearch.logging;
 

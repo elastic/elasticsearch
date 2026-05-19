@@ -84,6 +84,13 @@ dependencies {
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "joda-time:joda-time:2.10.10"
 
+  // Dependencies for workload identity federation
+  api "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  api "com.azure:azure-core:1.51.0"
+  api 'com.google.auth:google-auth-library-credentials:1.33.1'
+  api 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
+
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:11.22.2"
   runtimeOnly "com.nimbusds:content-type:2.3"

@@ -699,7 +699,7 @@ required_capability: categorize_multiple_groupings
 // tag::docsCategorizeByTime[]
 FROM sample_data
 | STATS count = COUNT(*) BY category = CATEGORIZE(message), time_bucket = BUCKET(@timestamp, 1 HOUR)
-| SORT time_bucket DESC, count DESC
+| SORT time_bucket DESC, count DESC, category
 // end::docsCategorizeByTime[]
 ;
 

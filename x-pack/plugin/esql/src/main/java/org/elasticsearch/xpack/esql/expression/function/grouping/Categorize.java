@@ -108,7 +108,8 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
             @Example(
                 file = "docs",
                 tag = "docsCategorizeByTime",
-                description = "Group log message categories by time interval by combining `CATEGORIZE` with `BUCKET` in the same `BY` clause. "
+                description = "Group log message categories by time interval by combining "
+                    + "`CATEGORIZE` with `BUCKET` in the same `BY` clause. "
             ) },
         type = FunctionType.GROUPING,
         appliesTo = {

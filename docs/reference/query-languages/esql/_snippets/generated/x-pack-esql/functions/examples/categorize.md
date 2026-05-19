@@ -20,7 +20,7 @@ Group log message categories by time interval by combining `CATEGORIZE` with `BU
 ```esql
 FROM sample_data
 | STATS count = COUNT(*) BY category = CATEGORIZE(message), time_bucket = BUCKET(@timestamp, 1 HOUR)
-| SORT time_bucket DESC, count DESC
+| SORT time_bucket DESC, count DESC, category
 ```
 
 | count:long | category:keyword | time_bucket:datetime |

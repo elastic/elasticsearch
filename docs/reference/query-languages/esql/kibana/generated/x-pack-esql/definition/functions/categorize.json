@@ -35,7 +35,7 @@
   ],
   "examples" : [
     "FROM sample_data\n| STATS count=COUNT() BY category=CATEGORIZE(message)",
-    "FROM sample_data\n| STATS count = COUNT(*) BY category = CATEGORIZE(message), time_bucket = BUCKET(@timestamp, 1 HOUR)\n| SORT time_bucket DESC, count DESC"
+    "FROM sample_data\n| STATS count = COUNT(*) BY category = CATEGORIZE(message), time_bucket = BUCKET(@timestamp, 1 HOUR)\n| SORT time_bucket DESC, count DESC, category"
   ],
   "preview" : false,
   "snapshot_only" : false

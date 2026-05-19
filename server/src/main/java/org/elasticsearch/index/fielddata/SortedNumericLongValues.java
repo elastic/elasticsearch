@@ -12,6 +12,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
 
 import java.io.IOException;
@@ -22,22 +23,22 @@ import java.io.IOException;
 public abstract class SortedNumericLongValues {
 
     private final boolean isSingleton;
+    private final DocIdSetIterator docIdSetIterator;
     private LongValues longValues;
 
-    /** Sole constructor. (For invocation by subclass
-     * constructors, typically implicit.) */
-    protected SortedNumericLongValues() {
-        this(false);
+    protected SortedNumericLongValues(DocIdSetIterator docIdSetIterator) {
+        this(false, docIdSetIterator);
     }
 
-    protected SortedNumericLongValues(boolean isSingleton) {
+    protected SortedNumericLongValues(boolean isSingleton, DocIdSetIterator docIdSetIterator) {
         this.isSingleton = isSingleton;
+        this.docIdSetIterator = docIdSetIterator;
     }
 
     /**
      * A {@link SortedNumericLongValues} instance that does not have a value for any document
      */
-    public static SortedNumericLongValues EMPTY = new SortedNumericLongValues() {
+    public static SortedNumericLongValues EMPTY = new SortedNumericLongValues(null) {
         @Override
         public boolean advanceExact(int target) {
             return false;
@@ -79,6 +80,10 @@ public abstract class SortedNumericLongValues {
         return isSingleton;
     }
 
+    public DocIdSetIterator docIdIterator() {
+        return docIdSetIterator;
+    }
+
     /**
      * Converts a {@link SortedNumericLongValues} values to a singly valued {@link LongValues}
      * if possible
@@ -113,7 +118,7 @@ public abstract class SortedNumericLongValues {
      * Converts a {@link LongValues} to a {@link SortedNumericLongValues}
      */
     public static SortedNumericLongValues singleton(LongValues values) {
-        return new SortedNumericLongValues(true) {
+        return new SortedNumericLongValues(true, null) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -145,7 +150,7 @@ public abstract class SortedNumericLongValues {
      */
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        return new SortedNumericLongValues(singleton != null) {
+        return new SortedNumericLongValues(singleton != null, values) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -167,7 +172,7 @@ public abstract class SortedNumericLongValues {
         private final SortedNumericDoubleValues doubleValues;
 
         protected SortedNumericDoubleWrapper(SortedNumericDoubleValues doubleValues) {
-            super(doubleValues.isSingleton());
+            super(doubleValues.isSingleton(), doubleValues.docIdIterator());
             this.doubleValues = doubleValues;
         }
 

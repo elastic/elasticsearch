@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -24,6 +25,11 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
     }
 
     @Override
+    protected String expectedType() {
+        return "gcs";
+    }
+
+    @Override
     protected Map<String, Object> sampleConfigWithAllSecrets() {
         return Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "sample-proj");
     }
@@ -33,18 +39,30 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         return Set.of("credentials");
     }
 
-    public void testType() {
-        assertEquals("gcs", validator.type());
+    @Override
+    protected String sampleResource() {
+        return "gs://bucket/path/*.parquet";
+    }
+
+    @Override
+    protected String wrongSchemeResource() {
+        return "s3://bucket/path";
+    }
+
+    @Override
+    protected Map<String, DataSourceSetting> storedSettingsFromSampleConfig() {
+        return GcsConfiguration.fromMap(sampleConfigWithAllSecrets()).toStoredSettings();
+    }
+
+    @Override
+    protected Map<String, Object> datasetSettingsWithMultipleErrors() {
+        return Map.of("error_mode", "banana", "schema_sample_size", "abc");
     }
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "proj"));
         assertTrue(result.get("credentials").secret());
         assertFalse(result.get("project_id").secret());
-    }
-
-    public void testValidateDatasourceEmpty() {
-        assertTrue(validator.validateDatasource(Map.of()).isEmpty());
     }
 
     public void testValidateDatasourceRejectsUnknown() {
@@ -67,17 +85,6 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         assertEquals("hive", result.get("partition_detection"));
     }
 
-    public void testValidateDatasetRequiresResource() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
-    }
-
-    public void testValidateDatasetWrongScheme() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://bucket/path", Map.of())
-        );
-    }
-
     public void testValidateDatasetRejectsUnknown() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
@@ -93,10 +100,6 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         );
     }
 
-    public void testValidateDatasourceNullSettings() {
-        assertTrue(validator.validateDatasource(null).isEmpty());
-    }
-
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new java.util.HashMap<String, Object>();
         settings.put("project_id", "my-project");
@@ -104,29 +107,5 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         var result = validator.validateDatasource(settings);
         assertEquals("my-project", result.get("project_id").nonSecretValue());
         assertNull(result.get("endpoint"));
-    }
-
-    public void testValidateDatasetBlankResource() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
-    }
-
-    public void testValidateDatasetNullSettings() {
-        assertTrue(validator.validateDataset(Map.of(), "gs://b/p", null).isEmpty());
-    }
-
-    public void testValidateDatasetAccumulatesMultipleErrors() {
-        var e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("error_mode", "banana", "schema_sample_size", "abc"))
-        );
-        assertEquals(2, e.validationErrors().size());
-    }
-
-    public void testToStoredSettingsSecretClassification() {
-        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "proj"));
-        var result = config.toStoredSettings();
-        assertTrue(result.get("credentials").secret());
-        assertFalse(result.get("project_id").secret());
-        assertEquals("{\"type\":\"service_account\"}", result.get("credentials").rawValue());
     }
 }

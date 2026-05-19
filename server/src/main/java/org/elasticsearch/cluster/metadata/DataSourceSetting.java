@@ -40,7 +40,7 @@ import java.util.Objects;
  */
 public final class DataSourceSetting implements Writeable, ToXContentObject {
 
-    static final String MASK_SENTINEL = "::es_redacted::";
+    public static final String MASK_SENTINEL = "::es_redacted::";
 
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField SECRET = new ParseField("secret");

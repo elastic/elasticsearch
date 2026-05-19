@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -28,10 +29,16 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
     }
 
     @Override
+    protected String expectedType() {
+        return "azure";
+    }
+
+    @Override
     protected Map<String, Object> sampleConfigWithAllSecrets() {
         // Azure accepts one of three authentication forms; we exercise key-based auth which marks the
         // `key` field secret. connection_string and sas_token are mutually exclusive with key (the
-        // validator rejects mixed-auth configs), so this sample tests the key path.
+        // validator rejects mixed-auth configs), so this sample tests the key path. The other two
+        // auth forms are covered by testToStoredSettingsClassifiesAllAuthForms below.
         return Map.of("account", "sampleaccount", "key", "sample-key-base64=");
     }
 
@@ -40,18 +47,30 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         return Set.of("key");
     }
 
-    public void testType() {
-        assertEquals("azure", validator.type());
+    @Override
+    protected String sampleResource() {
+        return "wasbs://c@a.blob.core.windows.net/p/*.parquet";
+    }
+
+    @Override
+    protected String wrongSchemeResource() {
+        return "s3://bucket/path";
+    }
+
+    @Override
+    protected Map<String, DataSourceSetting> storedSettingsFromSampleConfig() {
+        return AzureConfiguration.fromMap(sampleConfigWithAllSecrets()).toStoredSettings();
+    }
+
+    @Override
+    protected Map<String, Object> datasetSettingsWithMultipleErrors() {
+        return Map.of("error_mode", "banana", "schema_sample_size", "abc");
     }
 
     public void testValidateDatasourceWithSharedKey() {
         var result = validator.validateDatasource(Map.of("account", "myaccount", "key", "mykey"));
         assertFalse(result.get("account").secret());
         assertTrue(result.get("key").secret());
-    }
-
-    public void testValidateDatasourceEmpty() {
-        assertTrue(validator.validateDatasource(Map.of()).isEmpty());
     }
 
     public void testValidateDatasourceRejectsUnknown() {
@@ -102,17 +121,6 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         }
     }
 
-    public void testValidateDatasetRequiresResource() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
-    }
-
-    public void testValidateDatasetWrongScheme() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://bucket/path", Map.of())
-        );
-    }
-
     public void testValidateDatasetRejectsUnknown() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
@@ -132,10 +140,6 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
-    public void testValidateDatasourceNullSettings() {
-        assertTrue(validator.validateDatasource(null).isEmpty());
-    }
-
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new java.util.HashMap<String, Object>();
         settings.put("account", "myaccount");
@@ -145,27 +149,13 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         assertNull(result.get("endpoint"));
     }
 
-    public void testValidateDatasetBlankResource() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
-    }
-
-    public void testValidateDatasetNullSettings() {
-        assertTrue(validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", null).isEmpty());
-    }
-
-    public void testValidateDatasetAccumulatesMultipleErrors() {
-        var e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(
-                Map.of(),
-                "wasbs://c@a.blob.core.windows.net/p",
-                Map.of("error_mode", "banana", "schema_sample_size", "abc")
-            )
-        );
-        assertEquals(2, e.validationErrors().size());
-    }
-
-    public void testToStoredSettingsSecretClassification() {
+    /**
+     * Extra Azure-specific coverage on top of the inherited {@code testToStoredSettingsSecretClassification}:
+     * walks all three Azure auth forms through {@code fromMap → toStoredSettings} in a single call to
+     * confirm each is classified as secret. The inherited base test only covers the key form (which is
+     * what {@link #sampleConfigWithAllSecrets()} declares); this fills in sas_token and connection_string.
+     */
+    public void testToStoredSettingsClassifiesAllAuthForms() {
         AzureConfiguration config = AzureConfiguration.fromMap(Map.of("account", "myaccount", "key", "mykey", "sas_token", "?sv=2020"));
         var result = config.toStoredSettings();
         assertFalse(result.get("account").secret());

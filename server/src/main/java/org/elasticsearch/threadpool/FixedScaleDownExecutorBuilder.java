@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 public final class FixedScaleDownExecutorBuilder extends FixedExecutorBuilder {
 
     private final TimeValue scaleDownDelay;
-    private final ThreadFactory threadFactory;
 
     public FixedScaleDownExecutorBuilder(
         Settings settings,
@@ -36,18 +35,17 @@ public final class FixedScaleDownExecutorBuilder extends FixedExecutorBuilder {
         TimeValue scaleDownDelay,
         String prefix,
         EsExecutors.TaskTrackingConfig taskTrackingConfig,
-        boolean isSystemThread,
-        ThreadFactory threadFactory
+        boolean isSystemThread
     ) {
         super(settings, name, defaultSize, defaultQueueSize, prefix, taskTrackingConfig, isSystemThread);
         this.scaleDownDelay = scaleDownDelay;
-        this.threadFactory = threadFactory;
     }
 
     @Override
     ThreadPool.ExecutorHolder build(FixedExecutorSettings settings, ThreadContext threadContext) {
         int size = settings.getSize();
         int queueSize = settings.getQueueSize();
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name(), isSystemThread());
         final EsThreadPoolExecutor executor = EsExecutors.newFixed(
             settings.nodeName + "/" + name(),
             size,

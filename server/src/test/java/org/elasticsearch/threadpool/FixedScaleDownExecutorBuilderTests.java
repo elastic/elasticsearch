@@ -48,8 +48,7 @@ public class FixedScaleDownExecutorBuilderTests extends ESTestCase {
             TimeValue.timeValueMinutes(10),
             prefix,
             EsExecutors.TaskTrackingConfig.DEFAULT,
-            false,
-            EsExecutors.daemonThreadFactory(settings, poolName)
+            false
         );
 
         final FixedExecutorBuilder.FixedExecutorSettings executorSettings = builder.getSettings(settings);
@@ -96,8 +95,7 @@ public class FixedScaleDownExecutorBuilderTests extends ESTestCase {
             scaleDownDelay,
             prefix,
             EsExecutors.TaskTrackingConfig.DEFAULT,
-            false,
-            EsExecutors.daemonThreadFactory(settings, poolName)
+            false
         );
 
         final FixedExecutorBuilder.FixedExecutorSettings executorSettings = builder.getSettings(settings);

@@ -58,8 +58,7 @@ public class DLMFrozenTransitionPlugin extends Plugin {
             new TimeValue(10, TimeUnit.MINUTES),
             "dlm.frozen.transition.thread_pool",
             EsExecutors.TaskTrackingConfig.DEFAULT,
-            false,
-            EsExecutors.daemonThreadFactory(settings, EXECUTOR_NAME)
+            false
         );
         return List.of(builder);
     }

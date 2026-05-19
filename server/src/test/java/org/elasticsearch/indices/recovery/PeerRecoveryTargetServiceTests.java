@@ -355,7 +355,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,

@@ -74,7 +74,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private volatile MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
-    private final PeerRecoveryTargetService.RecoveryListener listener;
+    private final RecoveryListener listener;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -110,7 +110,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
         @Nullable Releasable snapshotFileDownloadsPermit,
-        PeerRecoveryTargetService.RecoveryListener listener
+        RecoveryListener listener
     ) {
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();

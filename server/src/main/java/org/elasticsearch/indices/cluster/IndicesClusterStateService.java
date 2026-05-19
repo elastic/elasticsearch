@@ -1082,7 +1082,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private record PendingShardCreation(String clusterStateUUID, long startTimeMillis) {}
 
-    private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
+    private class RecoveryListener implements org.elasticsearch.indices.recovery.RecoveryListener {
 
         /**
          * ShardRouting with which the shard was created
@@ -1405,7 +1405,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ProjectId projectId,
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
-            PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            org.elasticsearch.indices.recovery.RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
             GlobalCheckpointSyncer globalCheckpointSyncer,

@@ -11,7 +11,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService.RecoveryListener;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
@@ -22,7 +21,7 @@ import java.util.function.Consumer;
 /**
  * Schedules inbound shard recoveries on the target node with bounded concurrency.
  * <p>
- * Capacity slots are tied to {@link PeerRecoveryTargetService.RecoveryListener} terminal callbacks.
+ * Capacity slots are tied to {@link RecoveryListener} terminal callbacks.
  * <p>
  * Limit the number of concurrent inbound recoveries (target side). Slots are released when {@link RecoveryListener}
  * terminates ({@link RecoveryListener#onRecoveryDone} / {@link RecoveryListener#onRecoveryFailure}).

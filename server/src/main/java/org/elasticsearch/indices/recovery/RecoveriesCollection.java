@@ -51,7 +51,7 @@ public class RecoveriesCollection {
         DiscoveryNode sourceNode,
         long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
-        PeerRecoveryTargetService.RecoveryListener listener,
+        RecoveryListener listener,
         @Nullable Releasable snapshotFileDownloadsPermit
     ) {
         RecoveryTarget recoveryTarget = new RecoveryTarget(

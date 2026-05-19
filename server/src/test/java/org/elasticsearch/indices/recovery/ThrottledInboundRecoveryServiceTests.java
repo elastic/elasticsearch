@@ -10,7 +10,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService.RecoveryListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;

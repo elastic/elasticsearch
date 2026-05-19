@@ -275,8 +275,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * {@code _getCancellationCheck()} and therefore only receive the legacy counter.
      */
     protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
-        if (scriptScope.getScriptClassInfo().supportsCancellation()
-                && irFunctionNode.hasCondition(IRCStatic.class) == false) {
+        if (scriptScope.getScriptClassInfo().supportsCancellation() && irFunctionNode.hasCondition(IRCStatic.class) == false) {
             irFunctionNode.attachCondition(IRCCancellationCheck.class);
         }
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));

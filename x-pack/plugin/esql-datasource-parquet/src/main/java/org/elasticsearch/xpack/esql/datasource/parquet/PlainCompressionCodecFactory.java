@@ -155,16 +155,35 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     }
 
     /**
-     * Snappy decompressor. The JNI {@code Snappy.uncompress(ByteBuffer, ByteBuffer)} requires both
-     * buffers to be direct; heap buffers fall back to the byte-array path. The JNI call returns the
-     * number of decompressed bytes written but does not advance the output buffer position, so we
-     * advance it manually.
+     * Snappy decompressor. Two JNI overloads are used depending on input shape:
+     * <ul>
+     *   <li>{@code Snappy.uncompress(byte[], int, int, byte[], int)} when the compressed input is
+     *       backed by a Java heap array (the common case for the prefetch path: column chunks
+     *       arrive as {@link ByteBuffer#wrap(byte[], int, int)}-style {@code BytesInput}s).</li>
+     *   <li>{@code Snappy.uncompress(ByteBuffer, ByteBuffer)} when both input and output are
+     *       direct buffers — the only case where the JNI binding can avoid a copy.</li>
+     * </ul>
+     * The JNI call returns the number of decompressed bytes written but does not advance the
+     * output buffer position; we advance it manually for the {@code ByteBuffer} overload.
      */
     private static class SnappyBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = new byte[decompressedSize];
-            Snappy.uncompress(bytes.toByteArray(), 0, (int) bytes.size(), out, 0);
+            // Fast path: avoid BytesInput.toByteArray() for byte-array- or heap-buffer-backed inputs
+            // (the hot path for S3-prefetched column chunks). The default toByteArray() for those
+            // BytesInput subtypes funnels bytes through a sized ByteArrayOutputStream, adding one
+            // allocation and one System.arraycopy that the JNI Snappy binding does not need.
+            ByteBuffer input = bytes.toByteBuffer();
+            if (input.hasArray()) {
+                Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);
+            } else {
+                // Off-heap inputs (rare on this path) fall back to a single byte[] copy via
+                // toByteArray(). The byte[] overload is preferred over the ByteBuffer overload
+                // because the latter would also need to copy into a direct output buffer.
+                byte[] in = bytes.toByteArray();
+                Snappy.uncompress(in, 0, in.length, out, 0);
+            }
             return BytesInput.from(out);
         }
 

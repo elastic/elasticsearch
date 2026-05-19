@@ -314,7 +314,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             throwInvalidIndexNameException(index, BLANK_INDEX_ERROR_MESSAGE, ctx);
         }
 
-        hasSeenStar = hasSeenStar || index.contains(WILDCARD);
+        boolean currentPatternHasWildcard = index.contains(WILDCARD);
+        hasSeenStar = hasSeenStar || currentPatternHasWildcard;
         index = index.replace(WILDCARD, "").strip();
         if (index.isBlank()) {
             return;
@@ -337,6 +338,17 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         } catch (InvalidIndexNameException e) {
             // ignore invalid index name if it has exclusions and there is an index with wildcard before it
             if (hasSeenStar && hasExclusion) {
+                return;
+            }
+
+            /*
+             * The "must not start with '_', '-', or '+'" rule restricts the first character of a literal
+             * index name; it does not restrict the first character of a wildcard pattern, since the
+             * wildcard can match any prefix (e.g. "*_logs" legitimately matches "app_logs", "nginx_logs").
+             * Don't reject patterns just because the literal portion left after stripping wildcards
+             * begins with one of those characters.
+             */
+            if (currentPatternHasWildcard && e.getMessage().contains("must not start with")) {
                 return;
             }
 

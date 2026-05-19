@@ -15,13 +15,12 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,7 +52,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
 
     /** Work starts on {@link org.elasticsearch.threadpool.ThreadPool#generic()}, not on the enqueueing thread. */
     public void testSynchronousTaskRunsOutsideEnqueueingThread() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(between(2, 4)));
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, newClusterSettings(between(2, 4)));
         Thread caller = Thread.currentThread();
         AtomicReference<Thread> executionThread = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
@@ -85,7 +84,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
      * so the user listener observes completion before the consumer runnable returns.
      */
     public void testSynchronousTaskNotifiesUserListenerBeforeConsumerReturns() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(1));
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, newClusterSettings(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch done = new CountDownLatch(1);
         RecoveryListener userListener = new RecoveryListener() {
@@ -117,7 +116,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
      * runnable must only invoke {@link RecoveryListener#onRecoveryDone} after the consumer body has finished.
      */
     public void testAsynchronousTaskCompletesOnlyAfterConsumerReturns() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(1));
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, newClusterSettings(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch proceedNested = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(1);
@@ -162,7 +161,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         final int maxConcurrentRecoveries = between(2, 5);
         ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(
             threadPool,
-            getClusterSettings(maxConcurrentRecoveries)
+            newClusterSettings(maxConcurrentRecoveries)
         );
         AtomicInteger running = new AtomicInteger();
         AtomicInteger peakConcurrent = new AtomicInteger();
@@ -228,9 +227,108 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         assertThat(peakConcurrent.get(), lessThanOrEqualTo(maxConcurrentRecoveries));
     }
 
+    /** Raising the limit should start queued work without waiting for running recoveries to finish. */
+    public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() throws Exception {
+        final ClusterSettings clusterSettings = newClusterSettings(2);
+        final ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, clusterSettings);
+        final CountDownLatch firstBatchStarted = new CountDownLatch(2);
+        final CountDownLatch secondBatchStarted = new CountDownLatch(4);
+        final CountDownLatch unblockAll = new CountDownLatch(1);
+        final RecoveryListener noopUserListener = noopRecoveryListener();
+
+        for (int i = 0; i < 4; i++) {
+            service.enqueue(noopUserListener, schedulingListener -> {
+                firstBatchStarted.countDown();
+                secondBatchStarted.countDown();
+                try {
+                    assertTrue(unblockAll.await(30, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                } finally {
+                    schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                }
+            });
+        }
+
+        assertTrue(firstBatchStarted.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 4).build());
+        assertTrue(secondBatchStarted.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        unblockAll.countDown();
+    }
+
+    /**
+     * Lowering the limit must not cancel running recoveries, but recoveries should not be started from the pending queue
+     * until enough running work finishes that a slot is free under the new limit.
+     */
+    public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() throws Exception {
+        final ClusterSettings clusterSettings = newClusterSettings(3);
+        final ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, clusterSettings);
+        final CountDownLatch runningEntered = new CountDownLatch(3);
+        final List<CountDownLatch> unblockEachFirstBatch = List.of(new CountDownLatch(1), new CountDownLatch(1), new CountDownLatch(1));
+        final AtomicBoolean[] pendingStarted = new AtomicBoolean[] { new AtomicBoolean(), new AtomicBoolean(), new AtomicBoolean() };
+        final RecoveryListener noopUserListener = noopRecoveryListener();
+        final CyclicBarrier pendingBarrier = new CyclicBarrier(2);
+
+        for (int i = 0; i < 3; i++) {
+            final int index = i;
+            service.enqueue(noopUserListener, schedulingListener -> {
+                threadPool.generic().execute(() -> {
+                    runningEntered.countDown();
+                    try {
+                        assertTrue(unblockEachFirstBatch.get(index).await(30, TimeUnit.SECONDS));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(e);
+                    } finally {
+                        schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                    }
+                });
+            });
+        }
+
+        assertTrue(runningEntered.await(30, TimeUnit.SECONDS));
+
+        for (int p = 0; p < 3; p++) {
+            final int pendingIndex = p;
+            service.enqueue(noopUserListener, schedulingListener -> {
+                pendingStarted[pendingIndex].set(true);
+                safeAwait(pendingBarrier);
+                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            });
+        }
+
+        for (AtomicBoolean started : pendingStarted) {
+            assertFalse(started.get());
+        }
+
+        clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build());
+
+        unblockEachFirstBatch.get(0).countDown();
+        Thread.yield();
+        for (AtomicBoolean started : pendingStarted) {
+            assertFalse(started.get());
+        }
+
+        unblockEachFirstBatch.get(1).countDown();
+        Thread.yield();
+        for (AtomicBoolean started : pendingStarted) {
+            assertFalse(started.get());
+        }
+
+        // Unlocking the last running task should leave space for all pending tasks to run, one by one
+        unblockEachFirstBatch.get(2).countDown();
+        safeAwait(pendingBarrier);
+        safeAwait(pendingBarrier);
+        safeAwait(pendingBarrier);
+        for (AtomicBoolean started : pendingStarted) {
+            assertTrue(started.get());
+        }
+    }
+
     /** With one slot, synchronous completions preserve enqueue order. */
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() throws Exception {
-        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, getClusterSettings(1));
+        ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, newClusterSettings(1));
         int total = between(10, 20);
         List<Integer> completionOrder = new CopyOnWriteArrayList<>();
         CountDownLatch allDone = new CountDownLatch(total);
@@ -269,19 +367,19 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
     /**
      * Stress one {@link ThrottledInboundRecoveryService} from many producer threads for one second: alternating bursty
      * submits (high contention on the throttle) and idle periods (little to no contention). Verify that all tasks finish
-     * and that no more than {@code maxConcurrentRecoveries} consumer bodies overlap.
+     * and that consumer-body overlap never exceeds the highest {@code indices.recovery.max_concurrent_recoveries} applied
+     * during the run (running work is not cancelled when the limit drops).
      *
      * By randomizing burst sizes we exercise different backlog shapes where in some executions there are always pending
      * recoveries, and in others the pending queue sometimes drains during idle periods.
      */
     public void testStressConcurrentEnqueueMaintainsBoundsFifoAndCompleteness() throws Exception {
-        final int maxConcurrentRecoveries = between(1, 20);
-        final int highContentionBurstSizeMin = between(1, maxConcurrentRecoveries);
-        final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, maxConcurrentRecoveries * 2);
-        final ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(
-            threadPool,
-            getClusterSettings(maxConcurrentRecoveries)
-        );
+        final int initialMaxConcurrentRecoveries = between(1, 20);
+        final ClusterSettings clusterSettings = newClusterSettings(initialMaxConcurrentRecoveries);
+        final AtomicInteger peakLimitCeiling = new AtomicInteger(initialMaxConcurrentRecoveries);
+        final int highContentionBurstSizeMin = between(1, initialMaxConcurrentRecoveries);
+        final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, initialMaxConcurrentRecoveries * 2);
+        final ThrottledInboundRecoveryService service = new ThrottledInboundRecoveryService(threadPool, clusterSettings);
         final AtomicInteger running = new AtomicInteger();
         final AtomicInteger peakRunning = new AtomicInteger();
         final AtomicInteger totalTasksEnqueued = new AtomicInteger();
@@ -306,12 +404,20 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         final int producerThreads = between(1, 6);
         final List<Thread> threads = new ArrayList<>(producerThreads);
         for (int t = 0; t < producerThreads; t++) {
+            final int index = t;
             Thread thread = new Thread(() -> {
                 try {
                     long phaseClock = System.currentTimeMillis();
                     while (System.currentTimeMillis() < deadlineMillis) {
                         long elapsedPhase = System.currentTimeMillis() - phaseClock;
                         boolean highContention = (elapsedPhase / TimeUnit.MILLISECONDS.toMillis(100)) % 2 == 0;
+                        if (index == 0 && rarely()) {
+                            int nextLimit = between(1, 20);
+                            clusterSettings.applySettings(
+                                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
+                            );
+                            peakLimitCeiling.accumulateAndGet(nextLimit, Integer::max);
+                        }
                         if (highContention) {
                             int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
                             for (int b = 0; b < burst && System.currentTimeMillis() < deadlineMillis; b++) {
@@ -367,7 +473,7 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
 
         assertTrue("timed out waiting for all stress tasks to finish", taskLatch.awaitZero(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
         assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
-        assertThat(peakRunning.get(), lessThanOrEqualTo(maxConcurrentRecoveries));
+        assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimitCeiling.get()));
         assertThat(running.get(), equalTo(0));
     }
 
@@ -461,10 +567,26 @@ public class ThrottledInboundRecoveryServiceTests extends ESTestCase {
         }
     }
 
-    private static ClusterSettings getClusterSettings(int maxConcurrentRecoveries) {
+    private static ClusterSettings newClusterSettings(int maxConcurrentRecoveries) {
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
             .build();
         return new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    }
+
+    private static RecoveryListener noopRecoveryListener() {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {}
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail(e);
+            }
+        };
     }
 }

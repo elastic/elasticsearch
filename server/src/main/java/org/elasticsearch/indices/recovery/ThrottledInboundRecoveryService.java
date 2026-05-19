@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,15 +40,12 @@ public final class ThrottledInboundRecoveryService {
         Setting.Property.NodeScope
     );
 
-    /** Test-only value: skip concurrency limiting (still forks to {@link ThreadPool#generic()} when unlimited). */
-    public static final int UNLIMITED = -1;
-
-    public static final int DEFAULT = ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES;
-
     private final ThreadPool threadPool;
     private volatile int maxConcurrentRecoveries;
 
     private final Queue<RecoveryTask> pending = new ArrayDeque<>();
+
+    /** In-flight tasks: dispatched to {@link ThreadPool#generic()} and not yet completed ({@link #closeAndMaybeDispatch()} not run). */
     private int running;
 
     public ThrottledInboundRecoveryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
@@ -58,10 +54,9 @@ public final class ThrottledInboundRecoveryService {
     }
 
     public void enqueue(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {
-        RecoveryTask recoveryTask = new RecoveryTask(RecoveryListener.runAfter(recoveryListener, this::scheduleNext), task);
+        RecoveryTask recoveryTask = new RecoveryTask(RecoveryListener.runAfter(recoveryListener, this::closeAndMaybeDispatch), task);
         synchronized (this) {
-            if (running < maxConcurrentRecoveries || maxConcurrentRecoveries == UNLIMITED) {
-                running++;
+            if (running < maxConcurrentRecoveries) {
                 dispatch(recoveryTask);
             } else {
                 pending.add(recoveryTask);
@@ -69,30 +64,44 @@ public final class ThrottledInboundRecoveryService {
         }
     }
 
+    private void closeAndMaybeDispatch() {
+        synchronized (this) {
+            running--;
+            assert running >= 0 : "negative number of running recoveries " + running;
+            maybeDispatch();
+        }
+    }
+
+    private void setMaxConcurrentRecoveries(Integer newMaxConcurrentRecoveries) {
+        synchronized (this) {
+            int oldMax = this.maxConcurrentRecoveries;
+            this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
+            if (oldMax < newMaxConcurrentRecoveries) {
+                maybeDispatch();
+            }
+        }
+    }
+
+    /**
+     * Caller must hold {@code this} lock
+     * @param recoveryTask
+     */
     private void dispatch(RecoveryTask recoveryTask) {
+        running++;
         threadPool.generic().execute(() -> recoveryTask.task.accept(recoveryTask.recoveryListener));
     }
 
-    private void scheduleNext() {
-        RecoveryTask next;
-        synchronized (this) {
-            next = pending.poll();
-            if (next == null) {
-                running--;
-            }
-        }
-        if (next != null) {
+    /**
+     * Dispatch next pending task(s) in queue up to max number of concurrent tasks has been reached or queue is empty.
+     * Caller must hold {@code this} lock
+     */
+    private void maybeDispatch() {
+        while (running < maxConcurrentRecoveries && pending.isEmpty() == false) {
+            assert running < maxConcurrentRecoveries : running + " vs " + maxConcurrentRecoveries;
+            RecoveryTask next = pending.poll();
+            assert next != null;
             dispatch(next);
         }
-    }
-
-    private void setMaxConcurrentRecoveries(Integer maxConcurrentRecoveries) {
-        // todo: If maxConcurrentRecoveries is increased we need to schedule pending tasks up to the new limit
-        //  If maxConcurrentRecoveries decrease we should not cancel or interrupt running tasks,
-        //  but running tasks should not automatically schedule pending without looking at the newly updated limit.
-        //  Is it safe to do the scheduling on the thread that updates the setting?
-        //  Under heavy contention we might block, but everything that happens under synchronized should be quick.
-        this.maxConcurrentRecoveries = maxConcurrentRecoveries;
     }
 
     private record RecoveryTask(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {}

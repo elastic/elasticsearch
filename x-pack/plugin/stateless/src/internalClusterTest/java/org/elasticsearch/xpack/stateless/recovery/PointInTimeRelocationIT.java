@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +34,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -55,7 +53,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -90,14 +87,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-@TestIssueLogging(
-    issueUrl = "test",
-    value = "org.elasticsearch.action.search:TRACE,"
-        + "org.elasticsearch.search.SearchService:TRACE,"
-        + "org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction:DEBUG,"
-        + "org.elasticsearch.xpack.stateless.recovery.PITRelocationService:DEBUG"
-
-)
 public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected boolean addMockFsRepository() {
@@ -1071,6 +1060,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
 
         closePointInTime(updatedPitId.get());
     }
+
     /**
      * Verifies that PIT relocation correctly handles shard search context IDs after node restarts.
      * <p>
@@ -1106,9 +1096,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             new OpenPointInTimeRequest(indexNames).keepAlive(TimeValue.timeValueMinutes(5))
         ).actionGet().getPointInTimeId();
         assertNotNull(originalPitId);
-        logger.info(
-            "Original PIT id: " + new PointInTimeBuilder(originalPitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
-        );
 
         // Run a first search to verify the PIT works
         AtomicLong expectedHits = new AtomicLong();
@@ -1144,16 +1131,11 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
 
         // check PIT still works after the update
         var updatedPitId = new AtomicReference<BytesReference>();
-        assertResponse(
-            prepareSearch().setPointInTime(new PointInTimeBuilder(originalPitId))
-                .setTrackTotalHits(true),
-            resp -> {
-                assertNotNull(resp.getHits().getTotalHits());
-                assertTrue(resp.getHits().getTotalHits().value() > 0);
-                updatedPitId.set(resp.pointInTimeId());
-            }
-        );
-
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(originalPitId)).setTrackTotalHits(true), resp -> {
+            assertNotNull(resp.getHits().getTotalHits());
+            assertTrue(resp.getHits().getTotalHits().value() > 0);
+            updatedPitId.set(resp.pointInTimeId());
+        });
 
         // Search with the original PIT id using the batch query path.
         // On each data node, after the first shard responds, subsequent shards can get canReturnNullResponseIfMatchNoDocs=true.
@@ -1170,14 +1152,10 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                     .setQuery(rangeQuery("finished").gte("2025-02-15"))
                     .setTrackTotalHits(true),
                 resp -> {
-                    logger.info(
-                        "Latest updated PIT id in run " + finalI + ": " + new PointInTimeBuilder(resp.pointInTimeId()).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
-                    );
                     // check that the response PIT id has no null context IDs
-                    String pitIdStr = Base64.getUrlEncoder().withoutPadding().encodeToString(BytesReference.toBytes(resp.pointInTimeId()));
                     SearchContextId decoded = SearchContextId.decode(
                         new NamedWriteableRegistry(Collections.emptyList()),
-                        new BytesArray(Base64.getUrlDecoder().decode(pitIdStr))
+                        resp.pointInTimeId()
                     );
                     boolean hasNullContext = decoded.shards().values().stream().anyMatch(entry -> entry.getSearchContextId() == null);
                     assertFalse(

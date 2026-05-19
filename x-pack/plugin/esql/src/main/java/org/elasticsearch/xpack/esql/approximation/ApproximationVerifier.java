@@ -282,7 +282,17 @@ public class ApproximationVerifier {
             return verifyBranchOrThrow(logicalPlan);
         } else {
             // When there's a FORK, find the structure.
-            assert forks.size() == 1;
+            if (forks.size() > 1) {
+                // Often these queries will fail anyway, because multiple or nested forks or subqueries
+                // are not supported. However, that check is postponed until after logical optimization,
+                // because sometimes they can be flattened. See also: UnionAll::checkNestedUnionAlls.
+                throw new VerificationException(
+                    "line {}:{}: approximation not supported: query with multiple or nested forks or subqueries cannot be approximated",
+                    forks.get(1).source().source().getLineNumber(),
+                    forks.get(1).source().source().getColumnNumber()
+                );
+            }
+
             Fork fork = forks.getFirst();
 
             boolean statsInBranches = fork.anyMatch(plan -> plan instanceof Aggregate);

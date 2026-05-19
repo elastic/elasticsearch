@@ -87,8 +87,6 @@ public interface ESVectorUtilSupport {
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
-    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
-
     void squareDistanceBulk(
         float[] query,
         int queryOffset,
@@ -97,6 +95,10 @@ public interface ESVectorUtilSupport {
         float[] v1,
         float[] v2,
         float[] v3,
+        float[] v4,
+        float[] v5,
+        float[] v6,
+        float[] v7,
         int distancesOffset,
         float[] distances
     );

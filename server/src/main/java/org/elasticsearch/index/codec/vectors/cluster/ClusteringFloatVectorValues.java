@@ -61,7 +61,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         FixedBitSet centroidChanged,
         int[] results
     ) throws IOException {
-        final float[] distances = new float[4];
+        final float[] distances = new float[8];
         final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length, dimension());
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
@@ -112,7 +112,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         NeighborHood[] neighborhoods,
         int[] results
     ) throws IOException {
-        final float[] distances = new float[4];
+        final float[] distances = new float[8];
         final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length, dimension());
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
@@ -328,12 +328,24 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         if (prefixScratch != null) {
             return computeBestCentroidPrefix(vector, centroids, distances, prefixScratch);
         }
-        final int limit = centroids.length - 3;
+        final int limit = centroids.length - 7;
         int bestCentroidOffset = 0;
         float minDsq = Float.MAX_VALUE;
         int i = 0;
-        for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], 0, distances);
+        for (; i < limit; i += 8) {
+            ESVectorUtil.squareDistanceBulk(
+                vector,
+                centroids[i],
+                centroids[i + 1],
+                centroids[i + 2],
+                centroids[i + 3],
+                centroids[i + 4],
+                centroids[i + 5],
+                centroids[i + 6],
+                centroids[i + 7],
+                0,
+                distances
+            );
             for (int j = 0; j < distances.length; j++) {
                 float dsq = distances[j];
                 if (dsq < minDsq) {
@@ -362,8 +374,20 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     private static void computeSquaredDistances(float[] vector, float[][] centroids, float[] distances) {
         final int limit = centroids.length - 3;
         int i = 0;
-        for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], i, distances);
+        for (; i < limit; i += 8) {
+            ESVectorUtil.squareDistanceBulk(
+                vector,
+                centroids[i],
+                centroids[i + 1],
+                centroids[i + 2],
+                centroids[i + 3],
+                centroids[i + 4],
+                centroids[i + 5],
+                centroids[i + 6],
+                centroids[i + 7],
+                i,
+                distances
+            );
         }
         for (; i < centroids.length; i++) {
             distances[i] = ESVectorUtil.squareDistance(vector, centroids[i]);
@@ -399,7 +423,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         assert centroidIdx >= 0 && centroidIdx < centroids.length;
         float minDsq = ESVectorUtil.squareDistance(vector, centroids[centroidIdx]);
         int i = 0;
-        for (; i < limit; i += 4) {
+        for (; i < limit; i += 8) {
             if (minDsq < neighborhood.maxIntraDistance()) {
                 // if the distance found is smaller than the maximum intra-cluster distance
                 // we don't consider it for further re-assignment
@@ -411,6 +435,10 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                 centroids[neighborhood.neighbors()[i + 1]],
                 centroids[neighborhood.neighbors()[i + 2]],
                 centroids[neighborhood.neighbors()[i + 3]],
+                centroids[neighborhood.neighbors()[i + 4]],
+                centroids[neighborhood.neighbors()[i + 5]],
+                centroids[neighborhood.neighbors()[i + 6]],
+                centroids[neighborhood.neighbors()[i + 7]],
                 0,
                 distances
             );
@@ -462,7 +490,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         scratch.reset();
         int limit = neighbors.length - 3;
         int i = 0;
-        for (; i < limit; i += 4) {
+        for (; i < limit; i += 8) {
             ESVectorUtil.squareDistanceBulk(
                 vector,
                 0,
@@ -471,6 +499,10 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                 centroids[neighbors[i + 1]],
                 centroids[neighbors[i + 2]],
                 centroids[neighbors[i + 3]],
+                centroids[neighbors[i + 4]],
+                centroids[neighbors[i + 5]],
+                centroids[neighbors[i + 6]],
+                centroids[neighbors[i + 7]],
                 distances
             );
             for (int k = 0; k < distances.length; k++) {
@@ -486,7 +518,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
 
         final int topLimit = Math.min(PREFIX_TOPK_SIZE, neighbors.length);
         int j = 0;
-        for (; j + 3 < topLimit; j += 4) {
+        for (; j + 3 < topLimit; j += 8) {
             ESVectorUtil.squareDistanceBulk(
                 vector,
                 prefixLength,
@@ -495,9 +527,13 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                 centroids[scratch.topPrefixIds[j + 1]],
                 centroids[scratch.topPrefixIds[j + 2]],
                 centroids[scratch.topPrefixIds[j + 3]],
+                centroids[scratch.topPrefixIds[j + 4]],
+                centroids[scratch.topPrefixIds[j + 5]],
+                centroids[scratch.topPrefixIds[j + 6]],
+                centroids[scratch.topPrefixIds[j + 7]],
                 distances
             );
-            for (int k = 0; k < 4; k++) {
+            for (int k = 0; k < 8; k++) {
                 int centroidOrd = scratch.topPrefixIds[j + k];
                 float fullDistance = scratch.topPrefixDistances[j + k] + distances[k];
                 if (fullDistance < bestDistance) {
@@ -518,7 +554,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
 
         int bulkLimit = centroids.length - 3;
         int i = 0;
-        for (; i < bulkLimit; i += 4) {
+        for (; i < bulkLimit; i += 8) {
             ESVectorUtil.squareDistanceBulk(
                 vector,
                 0,
@@ -527,9 +563,13 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                 centroids[i + 1],
                 centroids[i + 2],
                 centroids[i + 3],
+                centroids[i + 4],
+                centroids[i + 5],
+                centroids[i + 6],
+                centroids[i + 7],
                 distances
             );
-            for (int k = 0; k < 4; k++) {
+            for (int k = 0; k < 8; k++) {
                 scratch.add(distances[k], i + k);
             }
         }
@@ -542,7 +582,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         float bestDistance = Float.MAX_VALUE;
         int topLimit = Math.min(PREFIX_TOPK_SIZE, centroids.length);
         int j = 0;
-        for (; j + 3 < topLimit; j += 4) {
+        for (; j + 3 < topLimit; j += 8) {
             ESVectorUtil.squareDistanceBulk(
                 vector,
                 prefixLength,
@@ -551,9 +591,13 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                 centroids[scratch.topPrefixIds[j + 1]],
                 centroids[scratch.topPrefixIds[j + 2]],
                 centroids[scratch.topPrefixIds[j + 3]],
+                centroids[scratch.topPrefixIds[j + 4]],
+                centroids[scratch.topPrefixIds[j + 5]],
+                centroids[scratch.topPrefixIds[j + 6]],
+                centroids[scratch.topPrefixIds[j + 7]],
                 distances
             );
-            for (int k = 0; k < 4; k++) {
+            for (int k = 0; k < 8; k++) {
                 int centroidOrd = scratch.topPrefixIds[j + k];
                 float fullDistance = scratch.topPrefixDistances[j + k] + distances[k];
                 if (fullDistance < bestDistance) {

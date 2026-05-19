@@ -448,6 +448,10 @@ public class ESVectorUtil {
         float[] v1,
         float[] v2,
         float[] v3,
+        float[] v4,
+        float[] v5,
+        float[] v6,
+        float[] v7,
         int distancesOffset,
         float[] distances
     ) {
@@ -463,13 +467,25 @@ public class ESVectorUtil {
         if (q.length != v3.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
         }
+        if (q.length != v4.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v4.length);
+        }
+        if (q.length != v5.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v5.length);
+        }
+        if (q.length != v6.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v6.length);
+        }
+        if (q.length != v7.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v7.length);
+        }
         if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
             throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
         }
         if (distances.length < 4) {
             throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
         }
-        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+        IMPL.squareDistanceBulk(q, 0, q.length, v0, v1, v2, v3, v4, v5, v6, v7, distancesOffset, distances);
     }
 
     public static void squareDistanceBulk(
@@ -480,6 +496,10 @@ public class ESVectorUtil {
         float[] v1,
         float[] v2,
         float[] v3,
+        float[] v4,
+        float[] v5,
+        float[] v6,
+        float[] v7,
         float[] distances
     ) {
         if (q.length != v0.length) {
@@ -494,11 +514,23 @@ public class ESVectorUtil {
         if (q.length != v3.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v3.length);
         }
+        if (q.length != v4.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v4.length);
+        }
+        if (q.length != v5.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v5.length);
+        }
+        if (q.length != v6.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v6.length);
+        }
+        if (q.length != v7.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!=" + v7.length);
+        }
         if (distances.length != 4) {
             throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
         }
         Objects.checkFromIndexSize(qOffset, length, q.length);
-        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
+        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, v4, v5, v6, v7, 0, distances);
     }
 
     /**

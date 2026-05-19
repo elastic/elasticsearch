@@ -762,4 +762,24 @@ public class Similarities {
             throw rethrow(e);
         }
     }
+
+    public static void squareDistanceF32Bulk8(
+        MemorySegment v0,
+        MemorySegment v1,
+        MemorySegment v2,
+        MemorySegment v3,
+        MemorySegment v4,
+        MemorySegment v5,
+        MemorySegment v6,
+        MemorySegment v7,
+        MemorySegment query,
+        int dimensions,
+        MemorySegment scores
+    ) {
+        try {
+            SQUARE_DISTANCE_F32_BULK8.invokeExact(v0, v1, v2, v3, v4, v5, v6, v7, query, dimensions, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
 }

@@ -981,11 +981,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
-        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distancesOffset, distances);
-    }
-
-    @Override
     public void squareDistanceBulk(
         float[] query,
         int queryOffset,
@@ -994,51 +989,28 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         float[] v1,
         float[] v2,
         float[] v3,
+        float[] v4,
+        float[] v5,
+        float[] v6,
+        float[] v7,
         int distancesOffset,
         float[] distances
     ) {
-        FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
-        FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
-        FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
-        FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
-        final int end = queryOffset + length;
-        final int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
-        int i = queryOffset;
-        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
-            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
-            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
-            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
-            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i);
-            FloatVector diff0 = qv.sub(dv0);
-            sv0 = fma(diff0, diff0, sv0);
-            FloatVector diff1 = qv.sub(dv1);
-            sv1 = fma(diff1, diff1, sv1);
-            FloatVector diff2 = qv.sub(dv2);
-            sv2 = fma(diff2, diff2, sv2);
-            FloatVector diff3 = qv.sub(dv3);
-            sv3 = fma(diff3, diff3, sv3);
-        }
-        float distance0 = sv0.reduceLanes(VectorOperators.ADD);
-        float distance1 = sv1.reduceLanes(VectorOperators.ADD);
-        float distance2 = sv2.reduceLanes(VectorOperators.ADD);
-        float distance3 = sv3.reduceLanes(VectorOperators.ADD);
-
-        for (; i < end; i++) {
-            final float qValue = query[i];
-            final float diff0 = qValue - v0[i];
-            final float diff1 = qValue - v1[i];
-            final float diff2 = qValue - v2[i];
-            final float diff3 = qValue - v3[i];
-            distance0 = fma(diff0, diff0, distance0);
-            distance1 = fma(diff1, diff1, distance1);
-            distance2 = fma(diff2, diff2, distance2);
-            distance3 = fma(diff3, diff3, distance3);
-        }
-        distances[distancesOffset] = distance0;
-        distances[distancesOffset + 1] = distance1;
-        distances[distancesOffset + 2] = distance2;
-        distances[distancesOffset + 3] = distance3;
+        new DefaultESVectorUtilSupport().squareDistanceBulk(
+            query,
+            queryOffset,
+            length,
+            v0,
+            v1,
+            v2,
+            v3,
+            v4,
+            v5,
+            v6,
+            v7,
+            distancesOffset,
+            distances
+        );
     }
 
     @Override

@@ -431,11 +431,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v1 = generateRandomVector(vectorSize);
         float[] v2 = generateRandomVector(vectorSize);
         float[] v3 = generateRandomVector(vectorSize);
-        float[] expectedDistances = new float[4];
-        float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, expectedDistances);
-        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, panamaDistances);
+        float[] v4 = generateRandomVector(vectorSize);
+        float[] v5 = generateRandomVector(vectorSize);
+        float[] v6 = generateRandomVector(vectorSize);
+        float[] v7 = generateRandomVector(vectorSize);
+        float[] expectedDistances = new float[8];
+        float[] panamaDistances = new float[8];
+        float[] nativeDistances = new float[8];
+        defaultedProvider.getVectorUtilSupport()
+            .squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, v4, v5, v6, v7, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport()
+            .squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, v4, v5, v6, v7, 0, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
+        nativeProvider.getVectorUtilSupport()
+            .squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, v4, v5, v6, v7, 0, nativeDistances);
+        assertArrayEquals(expectedDistances, nativeDistances, 1e-3f);
     }
 
     public void testSquareDistanceRange() {
@@ -460,10 +470,18 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v1 = generateRandomVector(vectorSize);
         float[] v2 = generateRandomVector(vectorSize);
         float[] v3 = generateRandomVector(vectorSize);
-        float[] expectedDistances = new float[4];
-        float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, expectedDistances);
-        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, panamaDistances);
+        float[] v4 = generateRandomVector(vectorSize);
+        float[] v5 = generateRandomVector(vectorSize);
+        float[] v6 = generateRandomVector(vectorSize);
+        float[] v7 = generateRandomVector(vectorSize);
+        float[] expectedDistances = new float[8];
+        float[] panamaDistances = new float[8];
+        float[] nativeDistances = new float[8];
+        defaultedProvider.getVectorUtilSupport()
+            .squareDistanceBulk(query, offset, length, v0, v1, v2, v3, v4, v5, v6, v7, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, v4, v5, v6, v7, 0, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
+        nativeProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, v4, v5, v6, v7, 0, nativeDistances);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
     }
 

@@ -108,12 +108,23 @@ public class VectorScorerDistanceBulkBenchmark {
     public void squareDistanceBulk(Blackhole bh) {
         for (int j = 0; j < numQueries; j++) {
             float[] query = queries[j];
-            for (int i = 0; i < numVectors; i += 4) {
-                ESVectorUtil.squareDistanceBulk(query, vectors[i], vectors[i + 1], vectors[i + 2], vectors[i + 3], 0, distances);
+            for (int i = 0; i < numVectors; i += 8) {
+                ESVectorUtil.squareDistanceBulk(
+                    query,
+                    vectors[i],
+                    vectors[i + 1],
+                    vectors[i + 2],
+                    vectors[i + 3],
+                    vectors[i + 4],
+                    vectors[i + 5],
+                    vectors[i + 6],
+                    vectors[i + 7],
+                    0,
+                    distances
+                );
                 for (float distance : distances) {
                     bh.consume(distance);
                 }
-
             }
         }
     }

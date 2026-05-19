@@ -119,7 +119,7 @@ public final class ParquetFixtureGenerator {
      * column is preserved in the parquet payload so the fixture can also be queried on the data column
      * itself; the partition column name is deliberately distinct to avoid colliding with that payload.
      */
-    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out")
+    @SuppressForbidden(reason = "Gradle JavaExec task generator writes progress to System.out")
     private static void generateHivePartitionedByColumn(
         Path sourcePath,
         Path outputDir,

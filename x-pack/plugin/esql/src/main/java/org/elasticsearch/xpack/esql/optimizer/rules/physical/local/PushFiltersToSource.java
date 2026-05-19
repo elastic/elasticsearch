@@ -324,7 +324,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return partitionMetadata.partitionColumns().keySet();
     }
 
-    private static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+    static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 

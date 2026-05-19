@@ -36,7 +36,6 @@ public final class ThrottledInboundRecoveryService {
 
     private final Queue<RecoveryTask> pending = new ArrayDeque<>();
     private int running;
-    private final Object mutex = new Object();
 
     /** Fixed limit for tests (no dynamic updates). */
     public ThrottledInboundRecoveryService(ThreadPool threadPool, int maxConcurrentRecoveries) {

@@ -449,15 +449,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testDynamicSettingUpdateAffectsSubsequentDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/148745
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testBulkPartialFailureOnArrayObjectsLimit
-  issue: https://github.com/elastic/elasticsearch/issues/148746
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testNestedArrayExceeded
-  issue: https://github.com/elastic/elasticsearch/issues/148747
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
@@ -542,15 +533,6 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149256
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testPitRelocationDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/149271
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149272
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testReshardedLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149273
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testIpLocationServiceLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/149284

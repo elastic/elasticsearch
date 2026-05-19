@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
@@ -40,31 +41,35 @@ public class AnthropicUnifiedChatCompletionRequestTests extends ESTestCase {
     private static final String ROLE = "user";
 
     public void testCreateHttpRequestSetsAnthropicHeaders() throws IOException {
-        var request = createRequest(true, 1024);
+        var maxTokens = 1024;
+        var model = AnthropicChatCompletionModelTests.createChatCompletionModel(API_KEY, MODEL_NAME, maxTokens);
+        var request = new AnthropicUnifiedChatCompletionRequest(unifiedChatInput(true), model);
         var httpRequest = createHttpRequest(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        assertThat(httpPost.getURI(), is(request.getURI()));
         assertThat(httpPost.getFirstHeader(X_API_KEY).getValue(), is(API_KEY));
         assertThat(httpPost.getFirstHeader(VERSION).getValue(), is(ANTHROPIC_VERSION_2023_06_01));
-        assertThat(httpPost.getFirstHeader("Content-Type").getValue(), org.hamcrest.Matchers.startsWith("application/json"));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("model"), is(MODEL_NAME));
         assertThat(requestMap.get("stream"), is(true));
-        assertThat(requestMap.get("max_tokens"), is(1024));
+        assertThat(requestMap.get("max_tokens"), is(maxTokens));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("content", INPUT, "role", ROLE))));
     }
 
     public void testCreateHttpRequestNonStreaming() throws IOException {
-        var request = createRequest(false, 512);
+        var maxTokens = 512;
+        var request = createRequest(false, maxTokens);
         var httpRequest = createHttpRequest(request);
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.get("stream"), is(false));
-        assertThat(requestMap.get("max_tokens"), is(512));
+        assertThat(requestMap.get("max_tokens"), is(maxTokens));
     }
 
     public void testTaskTypeReflectsModel() {
@@ -98,8 +103,8 @@ public class AnthropicUnifiedChatCompletionRequestTests extends ESTestCase {
     }
 
     private static HttpRequest createHttpRequest(AnthropicUnifiedChatCompletionRequest request) {
-        PlainActionFuture<HttpRequest> future = new PlainActionFuture<>();
-        request.createHttpRequest(ActionListener.wrap(future::onResponse, future::onFailure));
+        var future = new TestPlainActionFuture<HttpRequest>();
+        request.createHttpRequest(future);
         return future.actionGet();
     }
 }

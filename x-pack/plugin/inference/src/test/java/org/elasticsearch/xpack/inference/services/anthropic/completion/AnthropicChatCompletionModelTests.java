@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AnthropicChatCompletionModelTests extends ESTestCase {
 
-    public void testOverrideWith_OverridesMaxInput() {
+    public void testOf_OverridesMaxInput() {
         var model = createChatCompletionModel("url", "api_key", "model_name", 0);
         var requestTaskSettingsMap = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null);
 
@@ -33,7 +33,7 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel, is(createChatCompletionModel("url", "api_key", "model_name", 1)));
     }
 
-    public void testOverrideWith_EmptyMap() {
+    public void testOf_EmptyMap() {
         var model = createChatCompletionModel("url", "api_key", "model_name", 0);
 
         var requestTaskSettingsMap = Map.<String, Object>of();
@@ -42,14 +42,14 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel, sameInstance(model));
     }
 
-    public void testOverrideWith_NullMap() {
+    public void testOf_NullMap() {
         var model = createChatCompletionModel("url", "api_key", "model_name", 0);
 
         var overriddenModel = AnthropicChatCompletionModel.of(model, (Map<String, Object>) null);
         assertThat(overriddenModel, sameInstance(model));
     }
 
-    public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
+    public void testOf_UnifiedCompletionRequest_OverridesModelId() {
         var model = createChatCompletionModel("api_key", "claude-3-5-sonnet-latest", 1024);
         var unifiedRequest = new UnifiedCompletionRequest(
             List.of(new Message(new ContentString("hello"), "user", null, null)),
@@ -69,7 +69,7 @@ public class AnthropicChatCompletionModelTests extends ESTestCase {
         assertThat(model.getServiceSettings().modelId(), equalTo("claude-3-5-sonnet-latest"));
     }
 
-    public void testOverrideWith_UnifiedCompletionRequest_NoModelOverride_ReturnsSameInstance() {
+    public void testOf_UnifiedCompletionRequest_NoModelOverride_ReturnsSameInstance() {
         var model = createChatCompletionModel("api_key", "claude-3-5-sonnet-latest", 1024);
         var unifiedRequest = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null)));
 

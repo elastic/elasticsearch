@@ -25,7 +25,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
@@ -44,7 +47,6 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -535,11 +537,12 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        streamChatCompletion().hasNoErrors().hasEvent("""
+        streamCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"Hello"},{"delta":", World"}]}""");
     }
 
-    private InferenceEventsAssertion streamChatCompletion() throws Exception {
+    private InferenceEventsAssertion streamCompletion() throws Exception {
+        // Uses the `completion` task type (via infer), not `chat_completion`.
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
@@ -562,9 +565,100 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        streamChatCompletion().hasNoEvents()
-            .hasErrorWithStatusCode(RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus())
-            .hasErrorContaining("blah");
+        streamCompletion().hasNoEvents().hasErrorWithStatusCode(RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus()).hasErrorContaining("blah");
+    }
+
+    public void testUnifiedCompletionInfer() throws Exception {
+        String responseJson =
+            """
+                event: message_start
+                data: {"type":"message_start","message":{"id":"msg_01","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[],"stop_reason":null,"usage":{"input_tokens":10,"output_tokens":1}}}
+
+                event: content_block_start
+                data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+                event: content_block_delta
+                data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello, world!"}}
+
+                event: content_block_stop
+                data: {"type":"content_block_stop","index":0}
+
+                event: message_delta
+                data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":5}}
+
+                event: message_stop
+                data: {"type":"message_stop"}
+
+                """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                MODEL_NAME_VALUE,
+                MAX_TOKENS_VALUE
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null))),
+                TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            var request = webServer.requests().get(0);
+            assertThat(request.getHeader(AnthropicRequestUtils.X_API_KEY), Matchers.equalTo(API_KEY_VALUE));
+            assertThat(
+                request.getHeader(AnthropicRequestUtils.VERSION),
+                Matchers.equalTo(AnthropicRequestUtils.ANTHROPIC_VERSION_2023_06_01)
+            );
+
+            InferenceEventsAssertion.assertThat(result)
+                .hasFinishedStream()
+                .hasNoErrors()
+                // message_start: role, model, initial prompt-token usage
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "msg_01",
+                        "choices": [{"delta": {"role": "assistant"}, "index": 0}],
+                        "model": "claude-sonnet-4-5",
+                        "object": null,
+                        "usage": {"completion_tokens": 1, "prompt_tokens": 10, "total_tokens": 11}
+                    }
+                    """))
+                // content_block_start: initial (empty) text delta
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": null,
+                        "choices": [{"delta": {"content": ""}, "index": 0}],
+                        "model": null,
+                        "object": null
+                    }
+                    """))
+                // content_block_delta: text fragment
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": null,
+                        "choices": [{"delta": {"content": "Hello, world!"}, "index": 0}],
+                        "model": null,
+                        "object": null
+                    }
+                    """))
+                // message_delta: stop reason + output-token usage
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": null,
+                        "choices": [{"delta": {}, "finish_reason": "end_turn", "index": 0}],
+                        "model": null,
+                        "object": null,
+                        "usage": {"completion_tokens": 5, "prompt_tokens": 0, "total_tokens": 5}
+                    }
+                    """));
+        }
     }
 
     public void testGetConfiguration() throws Exception {
@@ -629,13 +723,6 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testSupportsStreaming() throws IOException {
-        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
-        }
-    }
-
     @Override
     public InferenceService createInferenceService() {
         return new AnthropicService(
@@ -643,11 +730,6 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
-    }
-
-    @Override
-    public EnumSet<TaskType> expectedStreamingTasks() {
-        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {

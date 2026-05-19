@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.anthropic.request;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DESCRIPTION_FIELD;
@@ -35,7 +38,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE
 
 /**
  * Builds the request body for the Anthropic Messages API
- * (<a href="https://docs.anthropic.com/en/api/messages">/v1/messages</a>) when invoked through the unified
+ * (<a href="https://platform.claude.com/docs/en/api/messages/create">POST /v1/messages</a>) when invoked through the unified
  * {@code chat_completion} task type. The output mirrors the Anthropic-shaped body produced by
  * {@code GoogleModelGardenAnthropicChatCompletionRequestEntity} but is tailored for the direct Anthropic API
  * (no {@code anthropic_version} body field; that is sent as the {@code anthropic-version} HTTP header).
@@ -49,6 +52,7 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
     private static final String STREAM_FIELD = "stream";
     private static final String SYSTEM_FIELD = "system";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
+    private static final String STOP_SEQUENCES_FIELD = "stop_sequences";
     private static final String TOP_K_FIELD = "top_k";
     private static final String TOOL_CHOICE_TOOL_TYPE = "tool";
     private static final String TEXT_TYPE = "text";
@@ -91,28 +95,35 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
         builder.field(MODEL_FIELD, modelId);
 
         // Anthropic requires system prompts as a top-level "system" field, not inside the messages array.
-        var allMessages = unifiedRequest.messages();
-        var systemMessages = allMessages.stream().filter(m -> SYSTEM_ROLE.equals(m.role())).toList();
-        var nonSystemMessages = allMessages.stream().filter(m -> SYSTEM_ROLE.equals(m.role()) == false).toList();
+        List<Message> systemMessages = new ArrayList<>();
+        List<Message> nonSystemMessages = new ArrayList<>();
+        unifiedRequest.messages().forEach(m -> {
+            if (SYSTEM_ROLE.equals(m.role())) {
+                systemMessages.add(m);
+            } else {
+                nonSystemMessages.add(m);
+            }
+        });
 
         if (systemMessages.isEmpty() == false) {
-            if (systemMessages.size() == 1 && systemMessages.get(0).content() instanceof ContentString cs) {
-                builder.field(SYSTEM_FIELD, cs.content());
-            } else {
-                builder.startArray(SYSTEM_FIELD);
-                for (var msg : systemMessages) {
-                    builder.startObject();
-                    builder.field(TYPE_FIELD, TEXT_TYPE);
-                    if (msg.content() instanceof ContentString cs) {
-                        builder.field(TEXT_FIELD, cs.content());
-                    }
-                    builder.endObject();
+            builder.startArray(SYSTEM_FIELD);
+            for (var msg : systemMessages) {
+                builder.startObject();
+                builder.field(TYPE_FIELD, TEXT_TYPE);
+                if (msg.content() instanceof ContentString cs) {
+                    builder.field(TEXT_FIELD, cs.content());
                 }
-                builder.endArray();
+                builder.endObject();
             }
+            builder.endArray();
         }
 
         builder.field(MESSAGES_FIELD, nonSystemMessages);
+
+        var stop = unifiedRequest.stop();
+        if (stop != null && stop.isEmpty() == false) {
+            builder.field(STOP_SEQUENCES_FIELD, stop);
+        }
 
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());

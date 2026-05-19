@@ -30,4 +30,18 @@ FROM sample_data
 | 1 | .\*?Disconnected.\*? | 2023-10-23T13:00:00.000Z |
 | 2 | .\*?Connected.+?to.\*? | 2023-10-23T12:00:00.000Z |
 
+Surface one representative raw message per category by combining `CATEGORIZE` with `SAMPLE`.
+
+```esql
+FROM sample_data
+| STATS sample_message = SAMPLE(message, 1) BY category = CATEGORIZE(message)
+| SORT category
+```
+
+| sample_message:keyword | category:keyword |
+| --- | --- |
+| Connected to 10.1.0.1 | .\*?Connected.+?to.\*? |
+| Connection error | .\*?Connection.+?error.\*? |
+| Disconnected | .\*?Disconnected.\*? |
+
 

@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,19 +33,48 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServ
 /**
  * Settings for the Cohere reranking service.
  */
-public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public class CohereRerankServiceSettings extends FilteredXContentObject implements CohereServiceSettings {
 
     public static final String NAME = "cohere_rerank_service_settings";
 
+    public static class Builder extends CohereCommonServiceSettings.Builder<CohereRerankServiceSettings> {
+
+        public CohereRerankServiceSettings mergeInto(CohereRerankServiceSettings existing) {
+            var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
+            return new CohereRerankServiceSettings(existing.commonSettings().update(updatedRateLimitSettings));
+        }
+
+        @Override
+        protected CohereRerankServiceSettings build(CohereCommonServiceSettings commonSettings) {
+            return new CohereRerankServiceSettings(commonSettings);
+        }
+    }
+
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
+
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(NAME, ignoreUnknownFields, Builder::new);
+        CohereCommonServiceSettings.declareCommonFields(parser, context);
+        return parser;
+    }
+
     /**
      * Creates {@link CohereRerankServiceSettings} from a map of settings.
-     * @param map the map to parse
+     *
+     * @param map     the map to parse
      * @param context the context in which the parsing is done
      * @return the created {@link CohereRerankServiceSettings}
-     * @throws ValidationException If there are validation errors in the provided settings.
      */
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return new CohereRerankServiceSettings(CohereCommonServiceSettings.fromMap(map, context));
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return CohereCommonServiceSettings.fromMap(NAME, map, context, parser);
     }
 
     private final CohereCommonServiceSettings commonSettings;
@@ -66,7 +98,8 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         }
     }
 
-    public CohereCommonServiceSettings getCommonSettings() {
+    @Override
+    public CohereCommonServiceSettings commonSettings() {
         return commonSettings;
     }
 
@@ -77,10 +110,11 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public CohereRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var updated = commonSettings.update(serviceSettings, validationException);
-        validationException.throwIfValidationErrorsExist();
-        return new CohereRerankServiceSettings(updated);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return REQUEST_PARSER.parse(xParser, ConfigurationParseContext.REQUEST).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Cohere rerank service settings update", e);
+        }
     }
 
     public RateLimitSettings rateLimitSettings() {

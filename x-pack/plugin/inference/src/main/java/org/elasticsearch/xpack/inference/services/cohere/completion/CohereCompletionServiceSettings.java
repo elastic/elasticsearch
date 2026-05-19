@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.completion;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,20 +33,48 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServ
 /**
  * Settings for the Cohere completion service.
  */
-public class CohereCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public class CohereCompletionServiceSettings extends FilteredXContentObject implements CohereServiceSettings {
 
     public static final String NAME = "cohere_completion_service_settings";
+
+    public static class Builder extends CohereCommonServiceSettings.Builder<CohereCompletionServiceSettings> {
+
+        public CohereCompletionServiceSettings mergeInto(CohereCompletionServiceSettings existing) {
+            var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
+            return new CohereCompletionServiceSettings(existing.commonSettings().update(updatedRateLimitSettings));
+        }
+
+        @Override
+        protected CohereCompletionServiceSettings build(CohereCommonServiceSettings commonSettings) {
+            return new CohereCompletionServiceSettings(commonSettings);
+        }
+    }
+
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
+
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(NAME, ignoreUnknownFields, Builder::new);
+        CohereCommonServiceSettings.declareCommonFields(parser, context);
+        return parser;
+    }
 
     /**
      * Creates an instance of {@link CohereCompletionServiceSettings} from a map of settings.
      *
-     * @param map The map containing the settings.
-     * @param context The context for configuration parsing.
-     * @return the created {@link CohereCompletionServiceSettings}.
-     * @throws ValidationException If there are validation errors in the provided settings.
+     * @param map     the map containing the settings
+     * @param context the context for configuration parsing
+     * @return the created {@link CohereCompletionServiceSettings}
      */
     public static CohereCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return new CohereCompletionServiceSettings(CohereCommonServiceSettings.fromMap(map, context));
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return CohereCommonServiceSettings.fromMap(NAME, map, context, parser);
     }
 
     private final CohereCommonServiceSettings commonSettings;
@@ -67,7 +98,8 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         }
     }
 
-    CohereCommonServiceSettings getCommonSettings() {
+    @Override
+    public CohereCommonServiceSettings commonSettings() {
         return commonSettings;
     }
 
@@ -86,10 +118,11 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
 
     @Override
     public CohereCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-        var updated = commonSettings.update(serviceSettings, validationException);
-        validationException.throwIfValidationErrorsExist();
-        return new CohereCompletionServiceSettings(updated);
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return REQUEST_PARSER.parse(xParser, ConfigurationParseContext.REQUEST).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Cohere completion service settings update", e);
+        }
     }
 
     @Override

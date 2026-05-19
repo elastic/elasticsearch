@@ -16,6 +16,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -27,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 
@@ -34,6 +37,21 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
     public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
+
+    /**
+     * Parses a {@link RateLimitSettings} from an XContent object containing only
+     * the {@link #REQUESTS_PER_MINUTE_FIELD} field. The wrapping {@code rate_limit} object
+     * must be consumed by the caller before handing the parser to this instance.
+     */
+    public static final ConstructingObjectParser<RateLimitSettings, Void> PARSER;
+
+    static {
+        PARSER = new ConstructingObjectParser<>("rate_limit_settings", true, args -> {
+            Long requestsPerMinute = (Long) args[0];
+            return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : null;
+        });
+        PARSER.declareLong(optionalConstructorArg(), new ParseField(REQUESTS_PER_MINUTE_FIELD));
+    }
 
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"

@@ -118,6 +118,14 @@ public enum CohereEmbeddingType {
     }
 
     /**
+     * Collapses synonym pairs to a single canonical value ({@code INT8 → BYTE}, {@code BINARY → BIT})
+     * so that objects holding semantically identical embedding types compare as equal.
+     */
+    public CohereEmbeddingType normalize() {
+        return ELEMENT_TYPE_TO_COHERE_EMBEDDING.getOrDefault(this.elementType, this);
+    }
+
+    /**
      * Returns an embedding type that is known based on the transport version provided. If the embedding type enum was not yet
      * introduced it will be defaulted INT8.
      *

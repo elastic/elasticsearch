@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,12 +17,14 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.AbstractCohereServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -39,7 +40,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServ
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereEmbeddingsServiceSettings> {
+public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceSettingsTests<CohereEmbeddingsServiceSettings> {
     private static final String TEST_MODEL_ID = "test-model-id";
     private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
 
@@ -65,13 +66,41 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         SimilarityMeasure similarityMeasure = randomBoolean() ? null : randomFrom(SimilarityMeasure.values());
         Integer dimensions = randomBoolean() ? null : randomIntBetween(1, 2048);
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
-        var modelId = randomAlphaOfLengthOrNull(15);
-        var rateLimitSettings = RateLimitSettingsTests.createRandom();
         var apiVersion = randomFrom(CohereCommonServiceSettings.CohereApiVersion.values());
+        var modelId = apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2
+            ? randomAlphaOfLength(15)
+            : randomAlphaOfLengthOrNull(15);
+        var rateLimitSettings = RateLimitSettingsTests.createRandom();
         var commonSettings = new CohereCommonServiceSettings(modelId, rateLimitSettings, apiVersion);
         var embeddingType = randomFrom(CohereEmbeddingType.values());
 
         return new CohereEmbeddingsServiceSettings(commonSettings, similarityMeasure, dimensions, maxInputTokens, embeddingType);
+    }
+
+    @Override
+    protected CohereEmbeddingsServiceSettings createGivenCommonSettings(
+        Map<String, Object> commonSettings,
+        ConfigurationParseContext context
+    ) {
+        Map<String, Object> serviceSettings = new HashMap<>(commonSettings);
+        CohereEmbeddingsServiceSettings randomInstance = createRandom();
+        if (randomInstance.similarity() != null) {
+            serviceSettings.put(ServiceFields.SIMILARITY, randomInstance.similarity());
+        }
+        if (randomInstance.dimensions() != null) {
+            serviceSettings.put(ServiceFields.DIMENSIONS, randomInstance.dimensions());
+        }
+        if (randomInstance.maxInputTokens() != null) {
+            serviceSettings.put(ServiceFields.MAX_INPUT_TOKENS, randomInstance.maxInputTokens());
+        }
+        serviceSettings.put(ServiceFields.EMBEDDING_TYPE, randomInstance.embeddingType());
+        return CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context);
+    }
+
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(CohereEmbeddingsServiceSettings instance, XContentBuilder builder)
+        throws IOException {
+        return instance.toXContentFragmentOfExposedFields(builder, null);
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
@@ -293,7 +322,12 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromMap_Persistent_V2_NoModelIdFields_ThrowsMissingModelIdError() {
-        assertFromMap_ThrowsMissingModelIdError(CohereCommonServiceSettings.CohereApiVersion.V2, ConfigurationParseContext.PERSISTENT);
+        var thrownException = expectThrows(IllegalArgumentException.class, () -> CohereEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(null, null, TEST_EMBEDDING_TYPE.toString(), CohereCommonServiceSettings.CohereApiVersion.V2),
+            ConfigurationParseContext.PERSISTENT
+        ));
+
+        assertThat(thrownException.getMessage(), is(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
     }
 
     public void assertFromMap_ThrowsMissingModelIdError(
@@ -301,80 +335,62 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         ConfigurationParseContext context
     ) {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(null, null, TEST_EMBEDDING_TYPE.toString(), apiVersion),
                 context
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.;")
-        );
+        assertThat(thrownException.getMessage(), is(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
     }
 
     public void testFromMap_EmptyEmbeddingType_ThrowsError() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "", ServiceFields.MODEL_ID, TEST_MODEL_ID)),
                 ConfigurationParseContext.REQUEST
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    ServiceFields.EMBEDDING_TYPE
-                )
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
     }
 
     public void testFromMap_InvalidEmbeddingType_ThrowsError_ForRequest() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "abc", ServiceFields.MODEL_ID, TEST_MODEL_ID)),
                 ConfigurationParseContext.REQUEST
             )
         );
 
-        assertThat(thrownException.getMessage(), is(Strings.format("""
-            Validation Failed: 1: [service_settings] Invalid value [abc] received. \
-            [embedding_type] must be one of [binary, bit, byte, float, int8];""")));
+        assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
     }
 
     public void testFromMap_InvalidEmbeddingType_ThrowsError_ForPersistent() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "abc")),
                 ConfigurationParseContext.PERSISTENT
             )
         );
 
-        assertThat(thrownException.getMessage(), is(Strings.format("""
-            Validation Failed: 1: [service_settings] Invalid value [abc] received. \
-            [embedding_type] must be one of [bit, byte, float];""")));
+        assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
     }
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, List.of("abc"))),
                 ConfigurationParseContext.PERSISTENT
             )
         );
 
-        assertThat(
-            exception.getMessage(),
-            containsString("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
-        );
+        assertThat(exception.getMessage(), containsString("embedding_type doesn't support values of type: START_ARRAY"));
     }
 
     public void testFromMap_ConvertsElementTypeByte_ToCohereEmbeddingTypeByte() {
@@ -423,16 +439,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
 
     public void testFromMap_ConvertsElementTypeBfloat16_ThrowsError_ForPersistent() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.BFLOAT16.toString())),
                 ConfigurationParseContext.PERSISTENT
             )
         );
 
-        assertThat(thrownException.getMessage(), is(Strings.format("""
-            Validation Failed: 1: [service_settings] Invalid value [%s] received. \
-            [embedding_type] must be one of [bit, byte, float];""", DenseVectorFieldMapper.ElementType.BFLOAT16.toString())));
+        assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
     }
 
     public void testFromMap_ConvertsInt8_ToCohereEmbeddingTypeInt8() {
@@ -528,13 +542,11 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromCohereOrDenseVectorEnumValues() {
-        var validation = new ValidationException();
-        assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte", validation));
-        assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8", validation));
-        assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float", validation));
-        assertEquals(CohereEmbeddingType.BINARY, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("binary", validation));
-        assertEquals(CohereEmbeddingType.BIT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("bit", validation));
-        assertTrue(validation.validationErrors().isEmpty());
+        assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte"));
+        assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8"));
+        assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float"));
+        assertEquals(CohereEmbeddingType.BINARY, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("binary"));
+        assertEquals(CohereEmbeddingType.BIT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("bit"));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -585,54 +597,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testToXContentFragmentOfExposedFields_DoesNotWriteApiVersion() throws IOException {
-        var serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereCommonServiceSettings(
-                TEST_MODEL_ID,
-                new RateLimitSettings(TEST_RATE_LIMIT),
-                CohereCommonServiceSettings.CohereApiVersion.V2
-            ),
-            TEST_SIMILARITY_MEASURE,
-            TEST_DIMENSIONS,
-            TEST_MAX_INPUT_TOKENS,
-            CohereEmbeddingType.INT8
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
-        serviceSettings.toXContentFragmentOfExposedFields(builder, null);
-        builder.endObject();
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(
-            xContentResult,
-            is(
-                XContentHelper.stripWhitespace(
-                    Strings.format(
-                        """
-                            {
-                              "model_id": "%s",
-                              "rate_limit": {
-                                "requests_per_minute": %d
-                              },
-                              "similarity": "%s",
-                              "dimensions": %d,
-                              "max_input_tokens": %d,
-                              "embedding_type": "%s"
-                            }
-                            """,
-                        TEST_MODEL_ID,
-                        TEST_RATE_LIMIT,
-                        TEST_SIMILARITY_MEASURE,
-                        TEST_DIMENSIONS,
-                        TEST_MAX_INPUT_TOKENS,
-                        DenseVectorFieldMapper.ElementType.BYTE
-                    )
-                )
-            )
-        );
-    }
-
     @Override
     protected Writeable.Reader<CohereEmbeddingsServiceSettings> instanceReader() {
         return CohereEmbeddingsServiceSettings::new;
@@ -645,18 +609,21 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstance(CohereEmbeddingsServiceSettings instance) throws IOException {
-        CohereCommonServiceSettings commonSettings = instance.getCommonSettings();
+        CohereCommonServiceSettings commonSettings = instance.commonSettings();
         var similarity = instance.similarity();
         var dimensions = instance.dimensions();
         var maxInputTokens = instance.maxInputTokens();
         var embeddingType = instance.embeddingType();
 
         switch (randomInt(4)) {
-            case 0 -> commonSettings = randomValueOtherThan(instance.getCommonSettings(), CohereCommonServiceSettingsTests::createRandom);
+            case 0 -> commonSettings = randomValueOtherThan(instance.commonSettings(), CohereCommonServiceSettingsTests::createRandom);
             case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
             case 2 -> dimensions = randomValueOtherThan(instance.dimensions(), () -> randomIntBetween(1, 4096));
             case 3 -> maxInputTokens = randomValueOtherThan(instance.maxInputTokens(), () -> randomIntBetween(128, 256));
-            case 4 -> embeddingType = randomValueOtherThan(instance.embeddingType(), () -> randomFrom(CohereEmbeddingType.values()));
+            case 4 -> embeddingType = randomValueOtherThan(
+                instance.embeddingType(),
+                () -> randomFrom(CohereEmbeddingType.values()).normalize()
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -667,11 +634,11 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     protected CohereEmbeddingsServiceSettings mutateInstanceForVersion(CohereEmbeddingsServiceSettings instance, TransportVersion version) {
         var embeddingType = CohereEmbeddingType.translateToVersion(instance.embeddingType(), version);
 
-        var commonSettings = instance.getCommonSettings();
+        var commonSettings = instance.commonSettings();
         if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
             commonSettings = new CohereCommonServiceSettings(
-                instance.getCommonSettings().modelId(),
-                instance.getCommonSettings().rateLimitSettings(),
+                instance.commonSettings().modelId(),
+                instance.commonSettings().rateLimitSettings(),
                 CohereCommonServiceSettings.CohereApiVersion.V1
             );
         }
@@ -733,5 +700,12 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         }
 
         return map;
+    }
+
+    @Override
+    protected CohereEmbeddingsServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return CohereEmbeddingsServiceSettings.createParser(ignoreUnknownFields, PARSE_CONTEXT)
+            .apply(parser, PARSE_CONTEXT)
+            .build(PARSE_CONTEXT);
     }
 }

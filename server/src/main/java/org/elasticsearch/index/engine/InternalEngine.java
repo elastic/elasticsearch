@@ -3902,7 +3902,7 @@ public class InternalEngine extends Engine {
             .add(Queries.newNonNestedFilter(indexVersionCreated), BooleanClause.Occur.MUST) // exclude non-root nested documents
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpec(new StoredFieldsSpec(false, true, Set.of("_id")));
+        final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
             if (scorer == null) {
@@ -3918,6 +3918,7 @@ public class InternalEngine extends Engine {
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
+                leafStoredFieldLoader.advanceTo(docId);
                 String id = leafIdLoader.getId(docId);
                 if (id == null) {
                     assert dv.isTombstone(docId);

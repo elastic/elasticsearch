@@ -2,11 +2,9 @@ import { parse } from "yaml";
 
 import {
   ClassifiedTest,
-  MutedEntry,
-  SOURCE_SET_PATTERNS,
-  toFqcn,
-  toGradleProject,
+  TestRef,
 } from "../domain";
+import { locateTest } from "./locator";
 
 interface RawMutedTest {
   class?: string;
@@ -18,12 +16,12 @@ interface RawMutedTestsFile {
   tests?: RawMutedTest[];
 }
 
-export function parseMutedEntries(yamlText: string): MutedEntry[] {
+export function parseMutedEntries(yamlText: string): TestRef[] {
   if (yamlText.trim() === "") return [];
   const parsed = parse(yamlText) as RawMutedTestsFile | null;
   const rawTests = parsed?.tests ?? [];
 
-  const entries: MutedEntry[] = [];
+  const entries: TestRef[] = [];
   for (const t of rawTests) {
     if (!t.class) continue;
     const methodsList = t.methods ?? [];
@@ -43,80 +41,18 @@ export function parseMutedEntries(yamlText: string): MutedEntry[] {
   return entries;
 }
 
-function mutedEntryKey(e: MutedEntry): string {
+function mutedEntryKey(e: TestRef): string {
   return `${e.className}|${e.method ?? ""}`;
 }
 
-export function diffMutedEntries(before: MutedEntry[], after: MutedEntry[]): MutedEntry[] {
+export function diffMutedEntries(before: TestRef[], after: TestRef[]): TestRef[] {
   const afterKeys = new Set(after.map(mutedEntryKey));
   return before.filter((e) => afterKeys.has(mutedEntryKey(e)) === false);
 }
 
-const YAML_METHOD_REGEX = /^test \{yaml=.+\}$/;
-
-export function locateUnmutedTest(entry: MutedEntry, repoFiles: string[]): ClassifiedTest | null {
-  const pathSuffix = entry.className.replace(/\./g, "/") + ".java";
-  const candidate = repoFiles.find((f) => f === pathSuffix || f.endsWith("/" + pathSuffix));
-  if (candidate === undefined) return null;
-
-  for (const pattern of SOURCE_SET_PATTERNS) {
-    const match = candidate.match(pattern.regex);
-    if (match === null) continue;
-
-    const gradleProject = toGradleProject(match[1]);
-    const kind = pattern.kind;
-
-    switch (kind) {
-      case "test":
-      case "internalClusterTest":
-      case "javaRestTest":
-        return {
-          gradleProject,
-          kind,
-          sourceSet: pattern.sourceSet,
-          fqcn: toFqcn(match[2]),
-        };
-      case "yamlRestTestRunner":
-        // A parameterized yaml test case is identified by its full descriptor
-        // "test {yaml=<path>/<test name>}". We target it exactly via
-        // `--tests "<FQCN>.test {yaml=...}"` rather than `tests.rest.suite`,
-        // which only accepts file/directory paths and cannot address an
-        // individual case.
-        if (entry.method !== undefined && YAML_METHOD_REGEX.test(entry.method)) {
-          return {
-            gradleProject,
-            kind: "yamlRestTestCase",
-            sourceSet: "yamlRestTest",
-            fqcn: entry.className,
-            yamlTest: entry.method,
-          };
-        }
-        return {
-          gradleProject,
-          kind: "yamlRestTestRunner",
-          sourceSet: "yamlRestTest",
-        };
-      case "yamlRestTestSuite":
-        // Unreachable: muted-tests entries reference a Java class, but
-        // yamlRestTestSuite only matches `.yml` resources. Fail loudly so
-        // any future change to SOURCE_SET_PATTERNS that breaks this
-        // invariant surfaces here rather than later as a malformed
-        // ClassifiedTest in generateBatchCommand.
-        throw new Error(`yamlRestTestSuite pattern unexpectedly matched Java file ${candidate}`);
-      default:
-        return assertNever(kind);
-    }
-  }
-  return null;
-}
-
-function assertNever(x: never): never {
-  throw new Error(`Unhandled SOURCE_SET_PATTERN kind: ${x as string}`);
-}
-
 export interface UnmuteDetectionResult {
   located: ClassifiedTest[];
-  unlocated: MutedEntry[];
+  unlocated: TestRef[];
 }
 
 export function findUnmutedTests(
@@ -129,9 +65,9 @@ export function findUnmutedTests(
   const unmuted = diffMutedEntries(before, after);
 
   const located: ClassifiedTest[] = [];
-  const unlocated: MutedEntry[] = [];
+  const unlocated: TestRef[] = [];
   for (const entry of unmuted) {
-    const test = locateUnmutedTest(entry, repoFiles);
+    const test = locateTest(entry, repoFiles);
     if (test === null) {
       unlocated.push(entry);
     } else {

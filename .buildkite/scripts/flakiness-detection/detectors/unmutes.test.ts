@@ -2,10 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   parseMutedEntries,
   diffMutedEntries,
-  locateUnmutedTest,
   findUnmutedTests,
 } from "./unmutes";
-import type { MutedEntry } from "../domain";
+import type { TestRef } from "../domain";
 
 describe("parseMutedEntries", () => {
   test("returns empty array for empty input", () => {
@@ -93,18 +92,18 @@ describe("parseMutedEntries", () => {
 
 describe("diffMutedEntries", () => {
   test("returns empty when before and after match", () => {
-    const entries: MutedEntry[] = [
+    const entries: TestRef[] = [
       { className: "org.elasticsearch.Foo", method: "testBar" },
     ];
     expect(diffMutedEntries(entries, entries)).toEqual([]);
   });
 
   test("reports entries present in before but missing in after", () => {
-    const before: MutedEntry[] = [
+    const before: TestRef[] = [
       { className: "org.elasticsearch.Foo", method: "testBar" },
       { className: "org.elasticsearch.Baz", method: "testQux" },
     ];
-    const after: MutedEntry[] = [
+    const after: TestRef[] = [
       { className: "org.elasticsearch.Foo", method: "testBar" },
     ];
     expect(diffMutedEntries(before, after)).toEqual([
@@ -113,16 +112,16 @@ describe("diffMutedEntries", () => {
   });
 
   test("ignores entries only present in after (newly muted)", () => {
-    const before: MutedEntry[] = [];
-    const after: MutedEntry[] = [
+    const before: TestRef[] = [];
+    const after: TestRef[] = [
       { className: "org.elasticsearch.Foo", method: "testBar" },
     ];
     expect(diffMutedEntries(before, after)).toEqual([]);
   });
 
   test("treats whole-class mute and method-level mute as distinct", () => {
-    const before: MutedEntry[] = [{ className: "org.elasticsearch.Foo" }];
-    const after: MutedEntry[] = [
+    const before: TestRef[] = [{ className: "org.elasticsearch.Foo" }];
+    const after: TestRef[] = [
       { className: "org.elasticsearch.Foo", method: "testBar" },
     ];
     expect(diffMutedEntries(before, after)).toEqual([
@@ -131,112 +130,15 @@ describe("diffMutedEntries", () => {
   });
 
   test("ignores reordering", () => {
-    const before: MutedEntry[] = [
+    const before: TestRef[] = [
       { className: "org.elasticsearch.A", method: "testX" },
       { className: "org.elasticsearch.B", method: "testY" },
     ];
-    const after: MutedEntry[] = [
+    const after: TestRef[] = [
       { className: "org.elasticsearch.B", method: "testY" },
       { className: "org.elasticsearch.A", method: "testX" },
     ];
     expect(diffMutedEntries(before, after)).toEqual([]);
-  });
-});
-
-describe("locateUnmutedTest", () => {
-  const repoFiles = [
-    "server/src/test/java/org/elasticsearch/index/IndexTests.java",
-    "server/src/internalClusterTest/java/org/elasticsearch/cluster/ClusterIT.java",
-    "modules/transport-netty4/src/javaRestTest/java/org/elasticsearch/rest/RestIT.java",
-    "x-pack/plugin/ml/src/yamlRestTest/java/org/elasticsearch/xpack/ml/MlYamlIT.java",
-  ];
-
-  test("locates unit test by fqcn", () => {
-    const entry: MutedEntry = {
-      className: "org.elasticsearch.index.IndexTests",
-      method: "testFoo",
-    };
-    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
-      gradleProject: ":server",
-      kind: "test",
-      sourceSet: "test",
-      fqcn: "org.elasticsearch.index.IndexTests",
-    });
-  });
-
-  test("locates internal cluster test by fqcn", () => {
-    const entry: MutedEntry = {
-      className: "org.elasticsearch.cluster.ClusterIT",
-    };
-    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
-      gradleProject: ":server",
-      kind: "internalClusterTest",
-      sourceSet: "internalClusterTest",
-      fqcn: "org.elasticsearch.cluster.ClusterIT",
-    });
-  });
-
-  test("locates java rest test by fqcn", () => {
-    const entry: MutedEntry = { className: "org.elasticsearch.rest.RestIT" };
-    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
-      gradleProject: ":modules:transport-netty4",
-      kind: "javaRestTest",
-      sourceSet: "javaRestTest",
-      fqcn: "org.elasticsearch.rest.RestIT",
-    });
-  });
-
-  test("classifies yaml runner class as yamlRestTestRunner without a yaml method", () => {
-    const entry: MutedEntry = {
-      className: "org.elasticsearch.xpack.ml.MlYamlIT",
-    };
-    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
-      gradleProject: ":x-pack:plugin:ml",
-      kind: "yamlRestTestRunner",
-      sourceSet: "yamlRestTest",
-    });
-  });
-
-  test("classifies yaml parameterized method as yamlRestTestCase carrying the full descriptor", () => {
-    const entry: MutedEntry = {
-      className: "org.elasticsearch.xpack.ml.MlYamlIT",
-      method: "test {yaml=/10_apm/Test template reinstallation}",
-    };
-    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
-      gradleProject: ":x-pack:plugin:ml",
-      kind: "yamlRestTestCase",
-      sourceSet: "yamlRestTest",
-      fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
-      yamlTest: "test {yaml=/10_apm/Test template reinstallation}",
-    });
-  });
-
-  test("preserves descriptor verbatim when yaml path has no leading slash", () => {
-    const entry: MutedEntry = {
-      className: "org.elasticsearch.xpack.ml.MlYamlIT",
-      method: "test {yaml=ml/anomaly_detectors_get/basic}",
-    };
-    expect(locateUnmutedTest(entry, repoFiles)).toEqual({
-      gradleProject: ":x-pack:plugin:ml",
-      kind: "yamlRestTestCase",
-      sourceSet: "yamlRestTest",
-      fqcn: "org.elasticsearch.xpack.ml.MlYamlIT",
-      yamlTest: "test {yaml=ml/anomaly_detectors_get/basic}",
-    });
-  });
-
-  test("returns null when class file no longer exists", () => {
-    const entry: MutedEntry = {
-      className: "org.elasticsearch.deleted.GoneTests",
-    };
-    expect(locateUnmutedTest(entry, repoFiles)).toBeNull();
-  });
-
-  test("returns null when file path doesn't match any source set pattern", () => {
-    const entry: MutedEntry = { className: "org.elasticsearch.NotATest" };
-    expect(
-      locateUnmutedTest(entry, ["server/src/main/java/org/elasticsearch/NotATest.java"])
-    ).toBeNull();
   });
 });
 

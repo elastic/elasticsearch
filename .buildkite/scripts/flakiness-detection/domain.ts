@@ -55,7 +55,7 @@ export interface ClassifiedTest {
   yamlTest?: string;
 }
 
-export interface MutedEntry {
+export interface TestRef {
   className: string;
   method?: string;
 }

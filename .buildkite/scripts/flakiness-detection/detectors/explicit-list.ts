@@ -1,5 +1,5 @@
-import { ClassifiedTest, MutedEntry } from "../domain";
-import { locateUnmutedTest } from "./unmutes";
+import { ClassifiedTest, TestRef } from "../domain";
+import { locateTest } from "./locator";
 
 export interface UnresolvedSpec {
   spec: string;
@@ -17,10 +17,10 @@ export interface ExplicitListResult {
  *     class-level ClassifiedTest; method filtering is deferred)
  *   - "org.foo.YamlIT.test {yaml=...}"   — specific yaml test case
  *
- * Strategy: parse each spec into a MutedEntry shape, then delegate to
- * locateUnmutedTest, which already knows how to map (class, method) to the
- * right ClassifiedTest. This keeps the source-set + yaml-case heuristics in
- * exactly one place (unmutes.ts).
+ * Strategy: parse each spec into a TestRef shape, then delegate to locateTest,
+ * which already knows how to map (class, method) to the right ClassifiedTest.
+ * This keeps the source-set + yaml-case heuristics in exactly one place
+ * (detectors/locator.ts).
  */
 export function classifyExplicitList(
   specs: string[],
@@ -33,8 +33,8 @@ export function classifyExplicitList(
     const spec = raw.trim();
     if (spec === "") continue;
 
-    const entry = parseSpec(spec);
-    const result = locateUnmutedTest(entry, repoFiles);
+    const ref = parseSpec(spec);
+    const result = locateTest(ref, repoFiles);
     if (result === null) {
       unlocated.push({ spec });
     } else {
@@ -47,7 +47,7 @@ export function classifyExplicitList(
 
 const YAML_METHOD_PREFIX = "test {yaml=";
 
-function parseSpec(spec: string): MutedEntry {
+function parseSpec(spec: string): TestRef {
   // "ClassName.test {yaml=...}" — class is everything before the first dot
   // that precedes the yaml-case prefix.
   const yamlIdx = spec.indexOf(`.${YAML_METHOD_PREFIX}`);

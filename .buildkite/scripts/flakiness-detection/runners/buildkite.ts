@@ -80,11 +80,13 @@ export function toBuildkitePipeline(
     steps.push({
       label: "flakiness report",
       key: "flakiness-detection:analyze",
-      // Download JUnit XML from every preceding batch step before running the
-      // analyzer. The download preserves the upload paths so the analyzer
-      // finds files at the same `*/build/test-results/...` locations a local
-      // run would see.
+      // Install bun (the BK base agent image doesn't ship it), download
+      // JUnit XML from every preceding batch step, then run the analyzer.
+      // The download preserves the upload paths so the analyzer finds files
+      // at the same `*/build/test-results/...` locations a local run would
+      // see.
       command: [
+        "npm install -g bun@1.0.4",
         `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
         "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
       ].join("\n"),

@@ -161,16 +161,19 @@ describe("toBuildkitePipeline", () => {
     // Batch step uploads — auto-uploaded by BK when artifact_paths is set.
     expect(batch.artifact_paths).toBe("**/build/test-results/**/TEST-*.xml");
 
-    // Analyze step downloads from earlier steps before running the analyzer.
+    // Analyze step installs bun, downloads from earlier steps, then runs the analyzer.
     expect(analyze.key).toBe("flakiness-detection:analyze");
     expect(analyze.artifact_paths).toBeUndefined();
+    expect(analyze.command).toContain("npm install -g bun@");
     expect(analyze.command).toContain(
       'buildkite-agent artifact download "**/build/test-results/**/TEST-*.xml" .'
     );
     expect(analyze.command).toContain("bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
-    // Download must run before the analyzer.
-    expect(analyze.command.indexOf("artifact download")).toBeLessThan(
-      analyze.command.indexOf("entrypoints/analyze.ts")
-    );
+    // Order: bun install → download → analyzer.
+    const installIdx = analyze.command.indexOf("npm install");
+    const downloadIdx = analyze.command.indexOf("artifact download");
+    const analyzerIdx = analyze.command.indexOf("entrypoints/analyze.ts");
+    expect(installIdx).toBeLessThan(downloadIdx);
+    expect(downloadIdx).toBeLessThan(analyzerIdx);
   });
 });

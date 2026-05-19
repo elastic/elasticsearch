@@ -6,8 +6,10 @@
 #                       to run with flakiness detection.
 #
 # Optional build env vars:
-#   FLAKINESS_ITERS   — positive integer overriding -Dtests.iters for unit tests
-#                       and internalClusterTest batches.
+#   FLAKINESS_ITERS   — positive integer overriding the iteration count for
+#                       unit tests (-Dtests.iters), internalClusterTest
+#                       (-Dtests.iters), and REST batches (repeat-rest-test.sh
+#                       loop). Applied uniformly across all kinds.
 #
 # See .buildkite/scripts/flakiness-detection/entrypoints/manual.ts for behavior.
 steps:

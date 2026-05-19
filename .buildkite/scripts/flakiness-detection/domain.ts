@@ -111,12 +111,18 @@ export interface RunnableCommand {
 export interface BatchingConfig {
   capByKind: Record<TestKind, number>;
   itersByKind: Record<"test" | "internalClusterTest", number>;
+  // Loop count passed to .ci/scripts/repeat-rest-test.sh for all REST test kinds.
+  // Shared across javaRestTest / yamlRestTestRunner / yamlRestTestSuite / yamlRestTestCase
+  // because the bash wrapper has one knob and there's no operator scenario justifying
+  // per-kind values.
+  restIters: number;
   suiteTimeoutMs: number;
 }
 
 export const DEFAULT_BATCHING_CONFIG: BatchingConfig = {
   capByKind: BATCH_CAPS,
   itersByKind: { test: 100, internalClusterTest: 20 },
+  restIters: 10,
   suiteTimeoutMs: 3_600_000,
 };
 

@@ -312,6 +312,15 @@ describe("generateBatchCommand", () => {
     );
   });
 
+  test("threads restIters override into the rest-test gradle command", () => {
+    const batch: ClassifiedTest[] = [
+      { gradleProject: ":m:a", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "Foo" },
+    ];
+    expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, restIters: 3 })).toContain(
+      "repeat-rest-test.sh 3 "
+    );
+  });
+
   test("YAML REST test cases from the same project dedupe the task list", () => {
     const batch: ClassifiedTest[] = [
       {
@@ -512,6 +521,14 @@ describe("buildCommands", () => {
     expect(cmds[0].command).toContain("ml/foo");
     expect(cmds[0].command).not.toContain("ml/foo/a");
     expect(cmds[0].command).not.toContain("ml/foo/b");
+  });
+
+  test("threads restIters override into rest-test RunnableCommands", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":x:p:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+    ];
+    const cmds = buildCommands(tests, { ...DEFAULT_BATCHING_CONFIG, restIters: 2 });
+    expect(cmds[0].command).toContain("repeat-rest-test.sh 2 ");
   });
 
   test("dedupes yaml runners per project", () => {

@@ -122,10 +122,10 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
     }
     case "javaRestTest": {
       const tasks = tasksWithFilters(batch, "javaRestTest", (t) => `--tests ${t.fqcn}`, "--rerun");
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks}`;
+      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} .ci/scripts/run-gradle.sh ${tasks}`;
     }
     case "yamlRestTestRunner": {
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${batch[0].gradleProject}:yamlRestTest --rerun`;
+      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} .ci/scripts/run-gradle.sh ${batch[0].gradleProject}:yamlRestTest --rerun`;
     }
     case "yamlRestTestSuite": {
       // `tests.rest.suite` is a JVM system property, not a Gradle task option,
@@ -147,14 +147,14 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
       const suiteProps = [...byTask.entries()]
         .map(([task, paths]) => `-Dtests.rest.suite.${task}=${paths.join(",")}`)
         .join(" ");
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks} ${suiteProps}`;
+      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} .ci/scripts/run-gradle.sh ${tasks} ${suiteProps}`;
     }
     case "yamlRestTestCase": {
       // Each parameterized case is addressed by the full `<FQCN>.test {yaml=...}`
       // form, so multiple cases can be batched into one gradle invocation and
       // share agent and cluster setup.
       const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => `--tests "${t.fqcn}.${t.yamlTest}"`, "--rerun");
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks}`;
+      return `.ci/scripts/repeat-rest-test.sh ${cfg.restIters} .ci/scripts/run-gradle.sh ${tasks}`;
     }
   }
 }

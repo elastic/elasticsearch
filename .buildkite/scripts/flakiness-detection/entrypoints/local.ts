@@ -49,6 +49,7 @@ export async function run(): Promise<void> {
           test: itersOverride,
           internalClusterTest: itersOverride,
         },
+        restIters: itersOverride,
       }
     : DEFAULT_BATCHING_CONFIG;
 

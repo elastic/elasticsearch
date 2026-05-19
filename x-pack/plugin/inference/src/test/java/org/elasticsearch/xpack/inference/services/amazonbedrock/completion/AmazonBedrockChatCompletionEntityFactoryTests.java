@@ -123,14 +123,14 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
             assertThat(entity.temperature(), equalTo((float) expectedTemp));
             assertThat(entity.toolChoice(), equalTo(expectedToolChoice));
             assertThat(entity.topP(), equalTo((float) expectedTopP));
-            // top_k can never be set on the request, so it must always come from task settings (#148792).
+            // top_k can never be set on the request, so it must always come from task settings.
             assertThat(entity.topK(), equalTo(expectedTopK));
         });
     }
 
     public void testEntitiesForChatCompletionFallBackToTaskSettingsWhenRequestValuesAreNull() {
-        // Regression test for #148792: task_settings on the endpoint must be honoured when the
-        // per-request values are null instead of being silently ignored.
+        // task_settings on the endpoint must be honoured when the per-request values are null
+        // instead of being silently ignored.
         List.of(ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL).forEach(provider -> {
             var taskTemp = randomDoubleBetween(1, 10, true);
             var taskTopP = randomDoubleBetween(1, 10, true);

@@ -64,7 +64,7 @@ public final class AmazonBedrockChatCompletionEntityFactory {
             case ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL -> {
                 // Task settings configured at endpoint creation must be used when the per-request value
                 // is null, otherwise endpoint-level configuration is silently ignored. top_k cannot be
-                // set on the request at all, so it always comes from task settings. See #148792.
+                // set on the request at all, so it always comes from task settings.
                 return new AmazonBedrockChatCompletionRequestEntity(
                     messages,
                     request.model(),

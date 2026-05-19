@@ -363,8 +363,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testSerialization_FallsBackToTaskSettingsMaxTokensWhenRequestValueIsNull() throws IOException {
-        // Regression test for #148792: the max_tokens task setting must be honoured when the
-        // per-request maxCompletionTokens is null.
+        // The max_tokens task setting must be honoured when the per-request maxCompletionTokens is null.
         Message message = new Message(new ContentString("Use my task setting."), USER_ROLE, null, null);
         var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);

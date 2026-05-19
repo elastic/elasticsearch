@@ -344,9 +344,9 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         var request = unifiedChatInput.getRequest();
 
         // Fall back to the configured task-settings maxTokens when the per-request value is null,
-        // so endpoint-level configuration isn't silently ignored. See #148792. Use explicit if/else
-        // (not a ternary) to avoid Java unboxing both Long and Integer to a primitive, which would
-        // NPE on the unused branch when one side is null.
+        // so endpoint-level configuration isn't silently ignored. Use an explicit if/else (not a
+        // ternary) to avoid Java unboxing both Long and Integer to a primitive, which would NPE on
+        // the unused branch when one side is null.
         final Number maxOutputTokens;
         if (request.maxCompletionTokens() != null) {
             maxOutputTokens = request.maxCompletionTokens();

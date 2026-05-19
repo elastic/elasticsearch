@@ -1,6 +1,0 @@
-pr: 148792
-summary: Honor task settings for Amazon Bedrock and Google Vertex chat completion requests
-area: Inference
-type: bug
-issues:
- - 148792

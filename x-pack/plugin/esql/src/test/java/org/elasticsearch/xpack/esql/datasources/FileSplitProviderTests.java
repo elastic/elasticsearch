@@ -410,6 +410,15 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("lang", 3)));
     }
 
+    public void testEvaluateFilterInOnNullPartitionIsUnknown() {
+        // lang IN (1, 2) where the partition value is null: under three-valued logic the comparison
+        // is unknown, so the file must be kept (null result, not false).
+        Map<String, Object> values = new HashMap<>();
+        values.put("lang", null);
+        Expression filter = new In(SRC, fieldAttr("lang"), List.of(intLiteral(1), intLiteral(2)));
+        assertNull(FileSplitProvider.evaluateFilter(filter, values));
+    }
+
     public void testEvaluateFilterOrPruneOnlyWhenAllBranchesFalse() {
         Expression left = new Equals(SRC, fieldAttr("lang"), intLiteral(1));
         Expression right = new Equals(SRC, fieldAttr("lang"), intLiteral(2));

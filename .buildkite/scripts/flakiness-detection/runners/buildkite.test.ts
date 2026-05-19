@@ -164,6 +164,9 @@ describe("toBuildkitePipeline", () => {
     // Analyze step installs bun, downloads from earlier steps, then runs the analyzer.
     expect(analyze.key).toBe("flakiness-detection:analyze");
     expect(analyze.artifact_paths).toBeUndefined();
+    // No agents override — analyze inherits the parent pipeline's default
+    // (which has npm). The gradle-tuned cfg.agents image does not.
+    expect(analyze.agents).toBeUndefined();
     expect(analyze.command).toContain("npm install -g bun@");
     expect(analyze.command).toContain(
       'buildkite-agent artifact download "**/build/test-results/**/TEST-*.xml" .'

@@ -11,7 +11,9 @@ interface PipelineStep {
   key: string;
   command: string;
   timeout_in_minutes: number;
-  agents: AgentConfig["agents"];
+  // Optional so the analyze step can inherit the parent PR pipeline's default
+  // agent (which has npm). Batch steps still set this to the gradle-tuned image.
+  agents?: AgentConfig["agents"];
   soft_fail: boolean;
   parallelism?: number;
   env?: Record<string, string>;
@@ -80,18 +82,20 @@ export function toBuildkitePipeline(
     steps.push({
       label: "flakiness report",
       key: "flakiness-detection:analyze",
-      // Install bun (the BK base agent image doesn't ship it), download
-      // JUnit XML from every preceding batch step, then run the analyzer.
-      // The download preserves the upload paths so the analyzer finds files
-      // at the same `*/build/test-results/...` locations a local run would
-      // see.
+      // Install bun, download JUnit XML from every preceding batch step,
+      // then run the analyzer. The download preserves the upload paths so
+      // the analyzer finds files at the same `*/build/test-results/...`
+      // locations a local run would see.
       command: [
         "npm install -g bun@1.0.4",
         `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
         "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
       ].join("\n"),
       timeout_in_minutes: 10,
-      agents: { ...cfg.agents },
+      // Intentionally no `agents:` — the analyze step is lightweight markdown
+      // rendering and should not pin to the gradle-tuned `cfg.agents` image
+      // (that image lacks npm). Letting BK pick the parent pipeline default
+      // gives us an agent with the standard Node toolchain available.
       soft_fail: true,
       depends_on: deps,
     });

@@ -16,7 +16,6 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -55,6 +54,15 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
+
+    static {
+        // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
+        // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
+        LogConfigurator.configureESLogging();
+    }
+
+    private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
@@ -166,6 +174,9 @@ public class CsvTestsDataLoader {
         "k8s-downsampled-mappings.json",
         "k8s-downsampled.csv"
     ).withSetting("k8s-downsampled-settings.json");
+    private static final TestDataset STORED_SOURCE_K8S = new TestDataset("stored_source_k8s", "k8s-mappings.json", "k8s.csv").withSetting(
+        "k8s-stored-source-settings.json"
+    );
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
@@ -247,6 +258,7 @@ public class CsvTestsDataLoader {
         Map.entry(K8S.indexName, K8S),
         Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
         Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
+        Map.entry(STORED_SOURCE_K8S.indexName, STORED_SOURCE_K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
@@ -322,7 +334,6 @@ public class CsvTestsDataLoader {
      */
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
 
         String protocol = "http";

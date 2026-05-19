@@ -1,0 +1,47 @@
+---
+"Logging section is present in xpack usage with default settings":
+  - requires:
+      reason: "Logging usage tracking requires 'logging_usage' capability"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_xpack/usage
+          capabilities: [ 'logging_usage' ]
+
+  - do:
+      xpack.usage: {}
+  - match: { logging.esql.enabled: false }
+  - match: { logging.esql.user: false }
+  - is_false: logging.esql.thresholds
+  - is_false: logging.querylog
+
+---
+"Logging usage reflects persisted querylog and ES|QL querylog settings":
+  - requires:
+      reason: "Logging usage tracking requires 'logging_usage' capability"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_xpack/usage
+          capabilities: [ 'logging_usage' ]
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.querylog.threshold.info: 0ms
+            esql.querylog.include.user: true
+
+  - do:
+      xpack.usage: {}
+  - match: { logging.esql.enabled: true }
+  - match: { logging.esql.user: true }
+  - match: { logging.esql.thresholds.info: 0ms }
+  - is_false: logging.querylog
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.querylog.threshold.info: null
+            esql.querylog.include.user: null

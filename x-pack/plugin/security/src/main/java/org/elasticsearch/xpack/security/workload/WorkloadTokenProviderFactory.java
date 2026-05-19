@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.security.workload;
 
-import org.elasticsearch.common.settings.Settings;
-
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import com.azure.core.credential.TokenCredential;
 import com.google.auth.oauth2.GoogleCredentials;
+
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
 

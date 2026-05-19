@@ -76,6 +76,7 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -959,17 +960,15 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            String responseJson = """
+            // Wire-shape parity with production Azure OpenAI: base64-encoded float32 embedding.
+            String responseJson = Strings.format("""
                 {
                     "object": "list",
                     "data": [
                         {
                             "object": "embedding",
                             "index": 0,
-                            "embedding": [
-                                0.0123,
-                                -0.0123
-                            ]
+                            "embedding": "%s"
                         }
                     ],
                     "model": "text-embedding-ada-002-v2",
@@ -978,7 +977,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                         "total_tokens": 8
                     }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel(
@@ -1004,10 +1003,11 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo(API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.size(), Matchers.is(4));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get(ROLE_VALUE), Matchers.is(ROLE_VALUE));
             assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
+            assertThat(requestMap.get("encoding_format"), Matchers.is("base64"));
         }
     }
 
@@ -1114,25 +1114,20 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            String responseJson = """
+            // Wire-shape parity with production Azure OpenAI: base64-encoded float32 embeddings.
+            String responseJson = Strings.format("""
                 {
                 "object": "list",
                 "data": [
                 {
                 "object": "embedding",
                 "index": 0,
-                "embedding": [
-                0.123,
-                -0.123
-                ]
+                "embedding": "%s"
                 },
                 {
                 "object": "embedding",
                 "index": 1,
-                "embedding": [
-                1.123,
-                -1.123
-                ]
+                "embedding": "%s"
                 }
                 ],
                 "model": "text-embedding-ada-002-v2",
@@ -1141,7 +1136,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 "total_tokens": 8
                 }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.123F, -0.123F), encodeFloatsAsOpenAiBase64(1.123F, -1.123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             model.setUri(new URI(getUrl(webServer)));
@@ -1189,10 +1184,11 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo(API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.size(), Matchers.is(4));
             assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get(ROLE_VALUE), Matchers.is(ROLE_VALUE));
             assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
+            assertThat(requestMap.get("encoding_format"), Matchers.is("base64"));
         }
     }
 

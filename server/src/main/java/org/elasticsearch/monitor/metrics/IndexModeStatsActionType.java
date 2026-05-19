@@ -76,7 +76,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         public Map<IndexMode, IndexStats> stats() {
             final Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-            for (IndexMode mode : IndexMode.values()) {
+            for (IndexMode mode : IndexMode.availableModes()) {
                 stats.put(mode, new IndexStats());
             }
             for (NodeResponse node : getNodes()) {

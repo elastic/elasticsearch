@@ -148,13 +148,13 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // Stage 3: assert that the list API works
             assertListViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 4: wait for the coordinator to be fully removed from cluster state.
-            waitForCoordinatorRemovedFromCluster(dataNodeAddress, coordNodeId);
-
-            // Stage 6: unthrottle via the data node
+            // Stage 4: rethrottle to unlimited via a non-coordinator*node, since the coordinator's HTTP transport is being torn down.
             unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 7: wait for the relocated task to complete successfully.
+            // Stage 5: wait for the coordinator to be fully removed from cluster state.
+            waitForCoordinatorRemovedFromCluster(dataNodeAddress, coordNodeId);
+
+            // Stage 6: wait for the relocated task to complete successfully.
             assertReindexCompletesOnDataNode(dataNodeAddress, taskId, numDocs);
         } finally {
             stopThread.join(TimeUnit.SECONDS.toMillis(60));
@@ -358,7 +358,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
 
                     assertThat("original reindex task should complete (after relocation)", completed, equalTo(true));
                     // No security_exception should be surfaced anywhere in the chain.
-                    assertThat("relocation hand-off should not have produced an exception", error, nullValue());
+                    assertThat("relocation hand-off should not have produced a exception", error, nullValue());
                     final Object created = body.evaluate("response.created");
                     assertThat("relocated reindex should have created destination docs", ((Number) created).intValue(), greaterThan(0));
                     final Object total = body.evaluate("response.total");

@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -617,7 +616,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
 
         MapperBuilderContext root = MapperBuilderContext.root(false, false);
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Mapping mapping = new Mapping(
             builder.build(MapperBuilderContext.root(false, false)),
             new MetadataFieldMapper[0],

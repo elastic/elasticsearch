@@ -24,7 +24,6 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
         verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10");
         verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10");
-        verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
     }
 
     public void testVerify_inlineStats() {
@@ -123,10 +122,6 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         );
         assertThat(
             verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
-            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
-        );
-        assertThat(
-            verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"),
             equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
         );
     }
@@ -283,10 +278,10 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_incompatibleProcessingCommand() {
-        assertError(
-            "FROM test METADATA _id, _index, _score | FORK (WHERE true) (WHERE true) | LIMIT 100 | FUSE",
-            equalTo("line 1:87: approximation not supported: query with [FUSE] cannot be approximated")
-        );
+        String expectedMessage = EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()
+            ? "line 1:87: approximation not supported: query with [FUSE] cannot be approximated"
+            : "line 1:42: approximation not supported: query with [FORK (WHERE true) (WHERE true)] cannot be approximated";
+        assertError("FROM test METADATA _id, _index, _score | FORK (WHERE true) (WHERE true) | LIMIT 100 | FUSE", equalTo(expectedMessage));
     }
 
     public void testVerify_incompatibleProcessingCommandBeforeStats() {

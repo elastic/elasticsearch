@@ -118,7 +118,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     @Override
     public DenseEmbeddingFloatResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
         try (var p = jsonXContent.createParser(XContentParserConfiguration.EMPTY, response.body().asInputStream())) {
-            return OpenAiEmbeddingsResponseEntity.EmbeddingFloatResult.PARSER.apply(p, null).toDenseEmbeddingFloatResults();
+            return OpenAiEmbeddingsResponseEntity.parse(p).toDenseEmbeddingFloatResults();
         }
     }
 

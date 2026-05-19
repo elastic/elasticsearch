@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.compute.data.UninitializedArrays;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -88,8 +90,8 @@ final class WordMaskRowRangesConverter {
         if (runs.isEmpty()) {
             return RowRanges.of(0, 0, totalRows);
         }
-        long[] starts = new long[runs.size()];
-        long[] ends = new long[runs.size()];
+        long[] starts = UninitializedArrays.newLongArray(runs.size());
+        long[] ends = UninitializedArrays.newLongArray(runs.size());
         for (int i = 0; i < runs.size(); i++) {
             starts[i] = runs.get(i)[0];
             ends[i] = runs.get(i)[1];

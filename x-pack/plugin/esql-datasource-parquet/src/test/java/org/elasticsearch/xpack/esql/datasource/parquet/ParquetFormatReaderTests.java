@@ -39,6 +39,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -79,6 +81,13 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFormatReaderTests extends ESTestCase {
+
+    @BeforeClass
+    public static void assertUninitializedArraysFastPath() {
+        // The parquet read path relies on UninitializedArrays' Unsafe-backed allocation;
+        // fail loudly rather than silently exercising the zero-initialized fallback.
+        UninitializedArrays.ensureUnsafeEnabled();
+    }
 
     private BlockFactory blockFactory;
 
@@ -359,7 +368,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         {
-            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(1000)), this.blockFactory.bigArrays());
+            // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the limit
+            // must be large enough to accommodate the window plus leave headroom to trip on page allocation.
+            var limitedFactory = new BlockFactory(
+                new LimitedBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1000)),
+                this.blockFactory.bigArrays()
+            );
             var reader = new ParquetFormatReader(limitedFactory);
 
             // Read the schema is now ok
@@ -441,7 +455,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // 2. Breaker fits the footer but cannot accommodate the prefetcher reservation →
         // iterator falls back to sync I/O, still produces all rows, releases all bytes on close.
         {
-            var smallBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(32));
+            // The window buffer is now tracked by the circuit breaker; add DEFAULT_WINDOW_SIZE so the
+            // window fits and the remaining 32 KB budget still cannot accommodate the prefetcher reservation.
+            var smallBreaker = new LimitedBreaker(
+                "test",
+                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 32 * 1024)
+            );
             var smallFactory = new BlockFactory(smallBreaker, this.blockFactory.bigArrays());
             var pageCount = new AtomicInteger();
             int totalRows = 0;

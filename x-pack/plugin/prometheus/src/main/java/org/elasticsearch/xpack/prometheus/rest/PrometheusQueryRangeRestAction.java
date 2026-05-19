@@ -60,7 +60,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step);
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step, limit);
         var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
 
         return channel -> client.execute(

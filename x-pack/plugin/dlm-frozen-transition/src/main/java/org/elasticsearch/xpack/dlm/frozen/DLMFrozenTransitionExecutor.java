@@ -172,26 +172,19 @@ class DLMFrozenTransitionExecutor {
                 );
                 unmarkIndexForDlmFrozenConversionQueue.submitTask(
                     "dlm-unmark-frozen-" + indexName,
-                    new UnmarkIndexForFrozenTask(
-                        task.getProjectId(),
-                        task.getIndexName(),
-                        ActionListener.wrap(
-                            resp -> {
-                                logger.debug("DLM successfully unmarked index [{}] for frozen conversion", indexName);
-                                transitionsMap.remove(indexName);
-                            },
-                            exception -> {
-                                errorStore.recordAndLogError(
-                                    task.getProjectId(),
-                                    indexName,
-                                    exception,
-                                    Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
-                                    frozenTransitionSettings.getErrorRetryInterval()
-                                );
-                                transitionsMap.remove(indexName);
-                            }
-                        )
-                    ),
+                    new UnmarkIndexForFrozenTask(task.getProjectId(), task.getIndexName(), ActionListener.wrap(resp -> {
+                        logger.debug("DLM successfully unmarked index [{}] for frozen conversion", indexName);
+                        transitionsMap.remove(indexName);
+                    }, exception -> {
+                        errorStore.recordAndLogError(
+                            task.getProjectId(),
+                            indexName,
+                            exception,
+                            Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
+                            frozenTransitionSettings.getErrorRetryInterval()
+                        );
+                        transitionsMap.remove(indexName);
+                    })),
                     null
                 );
             } catch (Exception ex) {

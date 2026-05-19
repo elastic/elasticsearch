@@ -126,10 +126,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
     public void testConsumeTermsMatchingThrowsOnOverflow() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(1);
         visitor.consumeTermsMatching(ALL_DOCS_INSTANCE, "f", () -> null);
-        expectThrows(
-            IndexSearcher.TooManyNestedClauses.class,
-            () -> visitor.consumeTermsMatching(ALL_DOCS_INSTANCE, "f", () -> null)
-        );
+        expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> visitor.consumeTermsMatching(ALL_DOCS_INSTANCE, "f", () -> null));
     }
 
     public void testIndexOrDocValuesQueryThrowsOnOverflow() {

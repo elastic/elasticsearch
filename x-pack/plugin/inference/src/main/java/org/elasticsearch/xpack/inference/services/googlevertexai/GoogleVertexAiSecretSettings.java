@@ -28,6 +28,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 public class GoogleVertexAiSecretSettings implements SecretSettings {
@@ -108,7 +110,19 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return GoogleVertexAiSecretSettings.fromMap(newSecrets);
+        var validationException = new ValidationException();
+        var extractedServiceAccountJson = extractOptionalSecureString(
+            newSecrets,
+            SERVICE_ACCOUNT_JSON,
+            SERVICE_SETTINGS,
+            validationException
+        );
+        validationException.throwIfValidationErrorsExist();
+
+        if (extractedServiceAccountJson == null) {
+            return this;
+        }
+        return new GoogleVertexAiSecretSettings(extractedServiceAccountJson);
     }
 
     public static class Configuration {

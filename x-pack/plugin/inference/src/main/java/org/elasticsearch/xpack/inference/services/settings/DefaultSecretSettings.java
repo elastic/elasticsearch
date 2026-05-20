@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 /**
@@ -112,6 +113,13 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(newSecrets, ConfigurationParseContext.REQUEST);
+        var validationException = new ValidationException();
+        var extractedApiKey = extractOptionalSecureString(newSecrets, API_KEY, SERVICE_SETTINGS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        if (extractedApiKey == null) {
+            return this;
+        }
+        return new DefaultSecretSettings(extractedApiKey);
     }
 }

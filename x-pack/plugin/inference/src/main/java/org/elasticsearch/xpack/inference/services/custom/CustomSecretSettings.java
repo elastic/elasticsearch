@@ -17,6 +17,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,7 +49,20 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(newSecrets);
+        var validationException = new ValidationException();
+        Map<String, Object> requestSecretParamsMap = extractOptionalMapRemoveNulls(newSecrets, SECRET_PARAMETERS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        if (requestSecretParamsMap == null) {
+            return this;
+        }
+
+        var updatedSecretParameters = convertMapStringsToSecureString(requestSecretParamsMap, SECRET_PARAMETERS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        var mergedSecretParameters = new HashMap<>(secretParameters);
+        mergedSecretParameters.putAll(updatedSecretParameters);
+        return new CustomSecretSettings(mergedSecretParameters);
     }
 
     public CustomSecretSettings(@Nullable Map<String, SecureString> secretParameters) {

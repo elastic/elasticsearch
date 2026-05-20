@@ -28,6 +28,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
@@ -114,7 +116,18 @@ public class AwsSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(newSecrets);
+        var validationException = new ValidationException();
+        var extractedAccessKey = extractOptionalSecureString(newSecrets, ACCESS_KEY_FIELD, SERVICE_SETTINGS, validationException);
+        var extractedSecretKey = extractOptionalSecureString(newSecrets, SECRET_KEY_FIELD, SERVICE_SETTINGS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        if (extractedAccessKey == null && extractedSecretKey == null) {
+            return this;
+        }
+        return new AwsSecretSettings(
+            extractedAccessKey != null ? extractedAccessKey : accessKey,
+            extractedSecretKey != null ? extractedSecretKey : secretKey
+        );
     }
 
     public SecureString accessKey() {

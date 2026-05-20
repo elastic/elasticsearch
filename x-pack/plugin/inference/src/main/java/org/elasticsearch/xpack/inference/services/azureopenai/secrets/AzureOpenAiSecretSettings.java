@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
@@ -113,6 +114,25 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return AzureOpenAiSecretSettings.fromMap(newSecrets);
+        var validationException = new ValidationException();
+        var secureApiToken = extractOptionalSecureString(newSecrets, API_KEY, SERVICE_SETTINGS, validationException);
+        var secureEntraId = extractOptionalSecureString(newSecrets, ENTRA_ID, SERVICE_SETTINGS, validationException);
+        var clientSecret = extractOptionalSecureString(newSecrets, CLIENT_SECRET_FIELD, SERVICE_SETTINGS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        if (secureApiToken == null && secureEntraId == null && clientSecret == null) {
+            return this;
+        }
+
+        return switch (this) {
+            case AzureOpenAiEntraIdApiKeySecrets existing -> existing.updated(
+                secureApiToken,
+                secureEntraId,
+                clientSecret,
+                validationException
+            );
+            case AzureOpenAiOAuth2Secrets existing -> existing.updated(secureApiToken, secureEntraId, clientSecret, validationException);
+            default -> throw new IllegalStateException("Unknown Azure OpenAI secret settings type: " + getClass().getName());
+        };
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
@@ -89,5 +90,24 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
     @Override
     public int hashCode() {
         return Objects.hash(entraId, apiKey);
+    }
+
+    AzureOpenAiEntraIdApiKeySecrets updated(
+        @Nullable SecureString updatedApiKey,
+        @Nullable SecureString updatedEntraId,
+        @Nullable SecureString updatedClientSecret,
+        ValidationException validationException
+    ) {
+        if (updatedClientSecret != null) {
+            validationException.addValidationError(AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR);
+        }
+        if (updatedApiKey != null && updatedEntraId != null) {
+            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: [" + API_KEY + ", " + ENTRA_ID + "]");
+        }
+        validationException.throwIfValidationErrorsExist();
+
+        var mergedApiKey = updatedApiKey != null ? updatedApiKey : apiKey;
+        var mergedEntraId = updatedEntraId != null ? updatedEntraId : entraId;
+        return new AzureOpenAiEntraIdApiKeySecrets(mergedApiKey, mergedEntraId);
     }
 }

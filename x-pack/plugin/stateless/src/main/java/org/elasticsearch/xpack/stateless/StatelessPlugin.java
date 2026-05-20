@@ -297,6 +297,11 @@ public class StatelessPlugin extends Plugin
         TimeValue.timeValueSeconds(30),
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> PARTITIONED_MEMORY_ENABLED = Setting.boolSetting(
+        "stateless.partitioned_memory.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
@@ -1116,7 +1121,11 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public IndexingMemoryLimits getIndexingMemoryLimits(Settings settings) {
-        return PartitionBasedIndexingMemoryLimits.fromSettings(settings);
+        if (PARTITIONED_MEMORY_ENABLED.get(settings)) {
+            return PartitionBasedIndexingMemoryLimits.fromSettings(settings);
+        } else {
+            return IndexingMemoryLimits.fromSettings(settings);
+        }
     }
 
     public IndicesService getIndicesService() {

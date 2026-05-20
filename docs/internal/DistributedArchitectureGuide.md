@@ -2698,7 +2698,7 @@ sequenceDiagram
     Reindexer->>Target: ResumeReindexAction(ResumeInfo)
     Target->>Target: AbstractAsyncBulkByScrollAction.start() resumes from PIT/scroll
     Target->>Tasks: storeRelocationSourceTaskResult "(upsert with TaskRelocatedException)"
-    Worker->>Tasks: storeResultIfAbsent "(CREATE; loses race vs destination)"
+    Worker->>Tasks: storeResultIfAbsent "(CREATE, loses race vs destination)"
 ```
 
 Step by step:
@@ -2742,7 +2742,7 @@ Reindex's pagination has two implementations, abstracted by `PaginatedHitSource`
 - Scroll-based: [ClientScrollablePaginatedHitSource] (local) and [RemoteScrollablePaginatedHitSource] (remote).
 - Point-in-time: [PitPaginatedHitSource] / [ClientPitPaginatedHitSource] / [RemotePitPaginatedHitSource], gated by `REINDEX_PIT_SEARCH_FEATURE`. Remote PIT requires the remote cluster to be at least 7.10; older remotes still fall back to scroll.
 
-PIT is what makes relocation reliable: scroll contexts are bound to the search shard nodes that opened them, so on stateful clusters losing a search-shard node can invalidate the cursor mid-relocation. PIT survives shard relocations and, in stateless, is backed by the object store. The TTL on whichever cursor is in use must outlive the handoff window: `AbstractAsyncBulkByScrollAction#cleanupWithoutClosingPagination` keeps the context alive during the hop, and `ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING` controls the per-cluster PIT keep-alive used by reindex.
+PIT is what makes relocation reliable: scroll contexts are bound to the search shard nodes that opened them, so on stateful clusters losing a search-shard node can invalidate the cursor mid-relocation. In stateless, PIT survives shard relocations and is backed by the object store. The TTL on whichever cursor is in use must outlive the handoff window: `AbstractAsyncBulkByScrollAction#cleanupWithoutClosingPagination` keeps the context alive during the hop, and `ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING` controls the per-cluster PIT keep-alive used by reindex.
 
 #### Enabling relocation for another action
 

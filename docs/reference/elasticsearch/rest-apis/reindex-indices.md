@@ -122,13 +122,13 @@ done
 
 Set `requests_per_second` to any positive decimal number (for example, `1.4`, `6`, or `1000`) to throttle the rate at which the reindex API issues batches of index operations.
 Requests are throttled by padding each batch with a wait time.
-To disable throttling, set `requests_per_second` to `-1`.
+To turn off throttling, set `requests_per_second` to `-1`.
 
 The throttling is done by waiting between batches.
 Set the underlying search keep-alive long enough that a slower batch does not expire the context before the next read (see the following note).
 
 ::::{note}
-**`scroll` query parameter vs PIT keep-alive**
+**`scroll` query parameter versus PIT keep-alive**
 
 {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` - **Point-in-time:** In the versioned {{stack}} from 9.5 and on {{serverless-short}}, reindex reads the source with **point-in-time** pagination for typical local reindexes, and for reindex from remote when the remote cluster is **{{es}} 7.10 or newer** (so a PIT can be opened there). The top-level **`scroll` parameter on the reindex request has no effect** on that path. Reindex from a remote cluster **older than {{es}} 7.10** cannot use the PIT path and **falls back to scroll**; the **`scroll`** parameter then sets scroll keep-alive (not `cluster.reindex.pit.keep_alive`).
 {applies_to}`stack: ga 9.5+` Use [`cluster.reindex.pit.keep_alive`](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings) for how long those contexts stay open.
@@ -156,14 +156,14 @@ POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 
 The task ID can be found using the [task management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks).
 
-Just like when setting it on the Reindex API, `requests_per_second` can be either `-1` to disable throttling or any decimal number like `1.7` or `12` to throttle to that level.
+Similarly to setting `requests_per_second` in the `_reindex` request,  `requests_per_second` can be either `-1` to turn off throttling, or any decimal number like `1.7` or `12` to throttle to that level.
 Rethrottling that speeds up the query takes effect immediately, but rethrottling that slows down the query will take effect after completing the current batch.
 This prevents the underlying search context used between batches from timing out.
-The same `scroll` versus point-in-time keep-alive rules apply; see the note under [Reindex with throttling](#docs-reindex-throttle).
+The same `scroll` versus point-in-time keep-alive rules apply, see the note under [Reindex with throttling](#docs-reindex-throttle).
 
 ## Reindex with slicing [docs-reindex-slice]
 
-Reindex supports [sliced scroll](paginate-search-results.md#slice-scroll) to parallelize the reindexing process.
+Reindex supports [sliced search](paginate-search-results.md#slice-scroll) to parallelize the reindexing process.
 This parallelization can improve efficiency and provide a convenient way to break the request down into smaller parts.
 
 ::::{note}
@@ -911,7 +911,7 @@ GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
  - If the `completed` field is `true` and the `response` field is present then the reindex at least partially succeeded. Check the `failures` field in the `response` object to see if there were partial failures.
  - If this call returns a 404 (`NOT FOUND`), then {{es}} could not resolve a running or stored completed task for that task ID.
 
-When a reindex fails, completes with failures in the response, or returns 404 and cannot be tracked further, partial data may have been written to the destination index.
+When a reindex fails, completes with failures in the response, or returns 404 and cannot be tracked further, partial data might have been written to the destination index.
 ::::
 
 To view all currently running reindex tasks (where this API is available):

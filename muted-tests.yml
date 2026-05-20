@@ -594,5 +594,8 @@ tests:
     - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149481
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
-  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
+  method: test {csv-spec:csv-union-by-name.* [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149482
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
+  method: test {csv-spec:external-hive-partitioned.* [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149495

@@ -105,6 +105,8 @@ endpoint.
 
 ## Description
 
+Use `RERANK` to re-score search results using a machine learning model for improved relevance.
+
 Typically, you first use a `WHERE` clause with a function like `MATCH` to
 retrieve an initial set of documents. This set is often sorted by `_score` and
 reduced to the top results (for example, 100) using `LIMIT`. The `RERANK`

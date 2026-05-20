@@ -99,4 +99,14 @@ public class ApproximationGoldenTests extends GoldenTestCase {
               | STATS AVG(length)
             """, STAGES);
     }
+
+    public void testFork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        runGoldenTest("""
+            SET approximation=true;
+            FROM many_numbers
+              | FORK (WHERE sv <= 100 | STATS count = COUNT())
+                     (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv))
+            """, STAGES);
+    }
 }

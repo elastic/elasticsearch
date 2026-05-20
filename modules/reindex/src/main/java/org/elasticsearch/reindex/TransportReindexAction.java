@@ -23,10 +23,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -70,7 +71,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexRelocationNodePicker relocationNodePicker,
         ReindexSettings reindexSettings,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this(
             ReindexAction.NAME,
@@ -90,7 +92,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             relocationNodePicker,
             reindexSettings,
             featureService,
-            taskResultsService
+            taskResultsService,
+            circuitBreakerService
         );
     }
 
@@ -112,7 +115,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexRelocationNodePicker relocationNodePicker,
         ReindexSettings reindexSettings,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -136,7 +140,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             transportService,
             relocationNodePicker,
             featureService,
-            taskResultsService
+            taskResultsService,
+            circuitBreakerService
         );
     }
 
@@ -144,11 +149,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
         normalize(request);
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         reindexer.initTask(
-            bulkByScrollTask,
+            bulkByPaginatedSearchTask,
             request,
-            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
+            listener.delegateFailure((l, v) -> reindexer.execute(bulkByPaginatedSearchTask, request, getBulkClient(), l))
         );
     }
 

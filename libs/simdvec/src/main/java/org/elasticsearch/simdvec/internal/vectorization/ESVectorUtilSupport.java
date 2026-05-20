@@ -14,7 +14,7 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-import java.nio.ShortBuffer;
+import java.nio.ByteOrder;
 
 public interface ESVectorUtilSupport {
 
@@ -24,10 +24,10 @@ public interface ESVectorUtilSupport {
     short B_QUERY = 4;
 
     /** Converts bfloat16s to floats */
-    void bFloat16ToFloat(ShortBuffer bFloats, float[] floats);
+    void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder);
 
     /** Converts floats to bfloat16s */
-    void floatToBFloat16(float[] floats, ShortBuffer bFloats);
+    void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder);
 
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);

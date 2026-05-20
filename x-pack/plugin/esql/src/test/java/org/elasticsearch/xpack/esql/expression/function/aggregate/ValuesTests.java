@@ -55,6 +55,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             // Lower values for strings, as they take more space and may trigger the circuit breaker
             MultiRowTestCaseSupplier.stringCases(1, 20, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 20, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 20),
             // For spatial types, we can have many rows for points, but reduce rows for shapes to avoid circuit breaker
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),

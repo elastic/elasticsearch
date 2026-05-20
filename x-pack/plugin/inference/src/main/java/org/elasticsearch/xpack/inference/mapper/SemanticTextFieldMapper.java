@@ -551,6 +551,15 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         String fieldName,
         SemanticTextField.Chunk chunk
     ) throws IOException {
+        XContentLocation xContentLocation = context.parser().getTokenLocation();
+        if (chunk.inputIndex() != null) {
+            // Non-null input index means a non-text value, which in turn means an object value
+            throw new DocumentParsingException(
+                xContentLocation,
+                "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support multimodal values"
+            );
+        }
+
         SemanticTextFieldType semanticTextFieldType = (SemanticTextFieldType) fieldType;
         if (semanticTextFieldType.useLegacyFormat() == false) {
             super.parseChunkValueReference(context, fieldType, fieldName, chunk);

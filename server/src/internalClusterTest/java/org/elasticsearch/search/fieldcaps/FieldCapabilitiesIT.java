@@ -928,7 +928,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 indexModes.put("test_columnar_" + i, IndexMode.COLUMNAR);
             }
         }
-        // columnar_logsdb
+        // logsdb_columnar
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             final String columnarLogsdbMapping = """
                  {
@@ -941,17 +941,17 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                  }
                 """;
             // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
-            // — incompatible with the disable_sequence_numbers default that columnar_logsdb mode enables.
+            // — incompatible with the disable_sequence_numbers default that logsdb_columnar mode enables.
             Settings settings = Settings.builder()
-                .put("mode", "columnar_logsdb")
+                .put("mode", "logsdb_columnar")
                 .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
                 .build();
             int numIndices = between(1, 5);
             for (int i = 0; i < numIndices; i++) {
                 assertAcked(
-                    indicesAdmin().prepareCreate("test_columnar_logsdb_" + i).setSettings(settings).setMapping(columnarLogsdbMapping)
+                    indicesAdmin().prepareCreate("test_logsdb_columnar_" + i).setSettings(settings).setMapping(columnarLogsdbMapping)
                 );
-                indexModes.put("test_columnar_logsdb_" + i, IndexMode.COLUMNAR_LOGSDB);
+                indexModes.put("test_logsdb_columnar_" + i, IndexMode.LOGSDB_COLUMNAR);
             }
         }
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();

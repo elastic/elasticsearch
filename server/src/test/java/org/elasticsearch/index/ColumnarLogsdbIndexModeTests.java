@@ -30,19 +30,19 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        assumeTrue("columnar_logsdb index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("logsdb_columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
     }
 
     public void testColumnarLogsdbFromString() {
-        assertThat(IndexMode.fromString("columnar_logsdb"), equalTo(IndexMode.COLUMNAR_LOGSDB));
-        assertThat(IndexMode.fromString("COLUMNAR_LOGSDB"), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(IndexMode.fromString("logsdb_columnar"), equalTo(IndexMode.LOGSDB_COLUMNAR));
+        assertThat(IndexMode.fromString("LOGSDB_COLUMNAR"), equalTo(IndexMode.LOGSDB_COLUMNAR));
     }
 
     public void testColumnarLogsdbSerialization() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            IndexMode.writeTo(IndexMode.COLUMNAR_LOGSDB, out);
+            IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out);
             try (var in = out.bytes().streamInput()) {
-                assertThat(IndexMode.readFrom(in), equalTo(IndexMode.COLUMNAR_LOGSDB));
+                assertThat(IndexMode.readFrom(in), equalTo(IndexMode.LOGSDB_COLUMNAR));
             }
         }
     }
@@ -50,40 +50,40 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     public void testColumnarLogsdbSerializationFailsOnOlderTransportVersion() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED));
-            IOException e = expectThrows(IOException.class, () -> IndexMode.writeTo(IndexMode.COLUMNAR_LOGSDB, out));
-            assertThat(e.getMessage(), containsString("cannot serialize index mode [columnar_logsdb]"));
+            IOException e = expectThrows(IOException.class, () -> IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out));
+            assertThat(e.getMessage(), containsString("cannot serialize index mode [logsdb_columnar]"));
         }
     }
 
     public void testColumnarLogsdbIndexModeSetting() {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
-        assertThat(IndexSettings.MODE.get(settings), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
+        assertThat(IndexSettings.MODE.get(settings), equalTo(IndexMode.LOGSDB_COLUMNAR));
     }
 
     public void testColumnarLogsdbDefaultSourceMode() {
-        assertThat(IndexMode.COLUMNAR_LOGSDB.defaultSourceMode(), equalTo(SourceFieldMapper.Mode.SYNTHETIC));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.defaultSourceMode(), equalTo(SourceFieldMapper.Mode.SYNTHETIC));
     }
 
     public void testColumnarLogsdbGetName() {
-        assertThat(IndexMode.COLUMNAR_LOGSDB.getName(), equalTo("columnar_logsdb"));
-        assertThat(IndexMode.COLUMNAR_LOGSDB.toString(), equalTo("columnar_logsdb"));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.getName(), equalTo("logsdb_columnar"));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.toString(), equalTo("logsdb_columnar"));
     }
 
     public void testColumnarLogsdbShouldValidateTimestamp() {
-        assertThat(IndexMode.COLUMNAR_LOGSDB.shouldValidateTimestamp(), equalTo(false));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.shouldValidateTimestamp(), equalTo(false));
     }
 
     public void testColumnarLogsdbTimestampBound() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta(
             "test",
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build()
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build()
         );
-        assertThat(IndexMode.COLUMNAR_LOGSDB.getTimestampBound(metadata), equalTo(null));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.getTimestampBound(metadata), equalTo(null));
     }
 
     public void testDefaultHostNameSortField() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         boolean sortOnHostName = randomBoolean();
         final IndexSettings settings = new IndexSettings(
             metadata,
@@ -94,7 +94,7 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
 
     public void testDefaultHostNameSortFieldAndMapping() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         final IndexSettings settings = new IndexSettings(
             metadata,
             Settings.builder()
@@ -103,7 +103,7 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
                 .build()
         );
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
-        assertThat(IndexMode.COLUMNAR_LOGSDB.getDefaultMapping(settings).string(), containsString("host.name"));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.getDefaultMapping(settings).string(), containsString("host.name"));
     }
 
     public void testDefaultHostNameSortFieldBwc() {
@@ -114,14 +114,14 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
                 )
             )
             .build();
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
     }
 
     public void testDefaultHostNameSortWithOrder() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(
@@ -137,7 +137,7 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
 
     public void testDefaultHostNameSortWithMode() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(
@@ -153,7 +153,7 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
 
     public void testDefaultHostNameSortWithMissing() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> new IndexSettings(
@@ -173,12 +173,12 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "agent_id")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(settings.getMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         assertThat(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()), equalTo("agent_id"));
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(false));
-        assertThat(IndexMode.COLUMNAR_LOGSDB.getDefaultMapping(settings).string(), not(containsString("host")));
+        assertThat(IndexMode.LOGSDB_COLUMNAR.getDefaultMapping(settings).string(), not(containsString("host")));
     }
 
     public void testSortMode() {
@@ -188,9 +188,9 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
             .put(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "max")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(settings.getMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
         assertThat("max", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey())));
     }
@@ -202,9 +202,9 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
             .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(settings.getMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
         assertThat("desc", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey())));
     }
@@ -216,9 +216,9 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
             .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(settings.getMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
         assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
         assertThat("_last", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey())));
     }
@@ -246,7 +246,7 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     }
 
     private Settings buildSettings() {
-        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
     }
 
     private String getIndexSetting(final IndexSettings settings, final String name) {

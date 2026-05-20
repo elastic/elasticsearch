@@ -70,6 +70,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
         matrix:
           setup:

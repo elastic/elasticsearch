@@ -30,7 +30,7 @@ public class CreateIndexCapabilities {
     private static final String LOOKUP_INDEX_MODE_CAPABILITY = "lookup_index_mode";
 
     /**
-     * Support for columnar and columnar_logsdb index modes.
+     * Support for columnar and logsdb_columnar index modes.
      */
     private static final String COLUMNAR_INDEX_MODES_CAPABILITY = "columnar_index_modes";
 

@@ -91,9 +91,18 @@ public final class DeltaCodecStage implements NumericCodecStage {
         int increases = 0;
         int decreases = 0;
         for (int i = 1; i < valueCount; i++) {
-            increases += (values[i] > values[i - 1]) ? 1 : 0;
-            decreases += (values[i] < values[i - 1]) ? 1 : 0;
+            if (values[i] > values[i - 1]) {
+                if (decreases > 0) {
+                    return false;
+                }
+                increases++;
+            } else if (values[i] < values[i - 1]) {
+                if (increases > 0) {
+                    return false;
+                }
+                decreases++;
+            }
         }
-        return (increases >= 2 && decreases == 0) || (decreases >= 2 && increases == 0);
+        return increases >= 2 || decreases >= 2;
     }
 }

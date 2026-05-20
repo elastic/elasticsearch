@@ -11,14 +11,18 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FIX_SUM_AGG_LONG_OVERFLOW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CERTIFIED_COLUMN_PREFIX;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,7 +53,41 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         testCase.allowAllWarnings();
 
         // Sample a huge number of rows, so that exact results are computed.
-        doTest("SET approximation={\"rows\":2000000000}; " + testCase.query);
+        executeQuery("""
+            SET approximation={"rows":2000000000};
+            {QUERY}
+            """.replace("{QUERY}", testCase.query));
+
+        try {
+            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            executeQuery("""
+                SET approximation={"rows":2000000000};
+                {QUERY}
+                | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == "fork1" | DROP _fork
+                """.replace("{QUERY}", testCase.query));
+        } catch (AssumptionViolatedException e) {
+            // do nothing
+        }
+
+        try {
+            // Subqueries use FORK under the hood, hence have the same restrictions as FORK tests.
+            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            assumeTrue("Subqueries in approximation require inline stats capability", APPROXIMATION_INLINE_STATS_V2.isEnabled());
+            assumeTrue("Subquery must start with FROM", testCase.query.toUpperCase(Locale.ROOT).startsWith("FROM "));
+            executeQuery("""
+                SET approximation={"rows":2000000000};
+                FROM ({QUERY} | EVAL _subquery=1), ({QUERY} | EVAL _subquery=2)
+                | WHERE _subquery == 1
+                | DROP _subquery
+                """.replace("{QUERY}", testCase.query));
+        } catch (AssumptionViolatedException e) {
+            // do nothing
+        }
+    }
+
+    private void executeQuery(String query) throws Throwable {
+        logger.info("executing query:\n=========={}\n==========", query);
+        doTest(query);
     }
 
     @Override
@@ -105,6 +143,11 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Approximation casts integer SUM to double, preventing long overflow",
             testCase.requiredCapabilities.contains(FIX_SUM_AGG_LONG_OVERFLOW.capabilityName())
+        );
+        assumeFalse(
+            "Subqueries in approximation require inline stats capability",
+            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+                && APPROXIMATION_INLINE_STATS_V2.isEnabled() == false
         );
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
     }

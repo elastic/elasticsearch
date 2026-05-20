@@ -93,7 +93,7 @@ public class IntegralDocValuesFieldTests extends ESTestCase {
     }
 
     protected SortedNumericLongValues wrap(long[][] values) {
-        return new SortedNumericLongValues() {
+        return new SortedNumericLongValues(null) {
             long[] current;
             int i;
 

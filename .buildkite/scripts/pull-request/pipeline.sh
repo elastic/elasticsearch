@@ -2,8 +2,10 @@
 
 set -euo pipefail
 
-echo --- Installing bun
-npm install -g bun@1.0.4
+echo --- Installing node
+nvm install 24
+npm install -g pnpm
+pnpm install
 
 echo --- Generating pipeline
-bun .buildkite/scripts/pull-request/pipeline.generate.ts
+node .buildkite/scripts/pull-request/pipeline.generate.ts

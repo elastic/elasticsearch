@@ -1,12 +1,14 @@
 {
   "name": "buildkite-pipelines",
   "type": "module",
-  "devDependencies": {
-    "@types/node": "^20.6.0",
-    "bun-types": "latest",
-    "yaml": "^2.3.2"
+  "scripts": {
+    "test": "vitest run"
   },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "vitest": "^3.2.1"
+  },
+  "dependencies": {
+    "yaml": "^2.3.2"
   }
 }

@@ -449,8 +449,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     attribute = new UnsupportedAttribute(source, name, uef);
                 } else if (t instanceof InvalidMappedTsField imtf) {
                     // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
-                    // We create a synthetic UnsupportedEsField carrier so the attribute is serializable and carries the role names.
-                    var carrier = new UnsupportedEsField(imtf.getName(), imtf.getRoles(), null, imtf.getProperties());
+                    var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
                     attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
                 } else {
                     attribute = new FieldAttribute(source, parentName, null, name, t);

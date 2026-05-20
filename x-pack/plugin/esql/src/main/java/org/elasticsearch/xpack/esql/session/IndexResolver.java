@@ -499,12 +499,7 @@ public class IndexResolver {
                         // Surface time series metadata conflicts (dimension vs metric) as an InvalidMappedTsField.
                         // Don't use UnsupportedEsField as subfields would also be marked as unsupported; also don't use InvalidMappedField
                         // as this is for type conflicts that can be resolved by casting.
-                        return new InvalidMappedTsField(
-                            name,
-                            timeSeriesFieldType.name().toLowerCase(Locale.ROOT),
-                            next.name().toLowerCase(Locale.ROOT),
-                            new HashMap<>()
-                        );
+                        return new InvalidMappedTsField(name, e.getMessage());
                     }
                 }
             }

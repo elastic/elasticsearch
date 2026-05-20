@@ -9,38 +9,39 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /**
  * Represents a field that has the same ES data type across all indices but conflicting time-series
- * roles (e.g., {@code DIMENSION} in one index and {@code METRIC} in another). Unlike
- * {@link InvalidMappedField}, which carries a {@code typesToIndices} map and can participate in
+ * roles (e.g., {@code DIMENSION} in one index and {@code METRIC} in another).
+ * <p>
+ * Exists only during analysis and verification - it is not sent to data nodes.
+ * The analyzer converts this to an {@link UnsupportedEsField}-backed
+ * {@link org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute} via {@code mappingAsAttributes}.
+ * <p>
+ * Unlike {@link InvalidMappedField}, which carries a {@code typesToIndices} map and can participate in
  * union-type casts (e.g., {@code field::double}), a role conflict cannot be resolved by any cast,
  * so this class is intentionally <em>not</em> a subclass of {@link InvalidMappedField}.
  * <p>
  * Crucially, this class is also not an {@link UnsupportedEsField}. The field-hierarchy walk in
- * {@code IndexResolver.mergedMappings} only propagates unsupported status to child fields when it
+ * {@code IndexResolver.mergedMappings} propagates unsupported status to child fields when it
  * encounters an {@link UnsupportedEsField} parent. By using a distinct type here, subfields with
  * non-conflicting, supported types remain accessible.
- * <p>
- * Used during mapping discovery only. The analyzer converts this to an
- * {@link UnsupportedEsField}-backed {@link org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute}
- * via {@code mappingAsAttributes}.
- * <p>
- * {@link #writeContent(StreamOutput)} deliberately throws {@link UnsupportedOperationException}: serializing an
- * {@link InvalidMappedTsField} is a programming error because these objects must never be sent to data nodes.
  */
 public class InvalidMappedTsField extends EsField {
 
-    private final String role1;
-    private final String role2;
+    private final String errorMessage;
 
-    public InvalidMappedTsField(String name, String role1, String role2, Map<String, EsField> properties) {
+    public InvalidMappedTsField(String name, String errorMessage) {
+        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
+        this.errorMessage = errorMessage;
+    }
+
+    public InvalidMappedTsField(String name, String errorMessage, Map<String, EsField> properties) {
         super(name, DataType.UNSUPPORTED, properties, false, TimeSeriesFieldType.UNKNOWN);
-        this.role1 = role1;
-        this.role2 = role2;
+        this.errorMessage = errorMessage;
     }
 
     @Override
@@ -49,35 +50,22 @@ public class InvalidMappedTsField extends EsField {
     }
 
     /**
-     * Returns the two conflicting time-series roles, e.g. {@code ["dimension", "metric"]}.
-     */
-    public List<String> getRoles() {
-        return List.of(role1, role2);
-    }
-
-    /**
      * Returns the human-readable error message describing the time-series role conflict.
      */
     public String errorMessage() {
-        return "Cannot use field ["
-            + getName()
-            + "] with conflicting time-series type mapping: mapped as ["
-            + role1
-            + "] in some indices and ["
-            + role2
-            + "] in others";
+        return errorMessage;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), role1, role2);
+        return Objects.hash(super.hashCode(), errorMessage);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             InvalidMappedTsField other = (InvalidMappedTsField) obj;
-            return Objects.equals(role1, other.role1) && Objects.equals(role2, other.role2);
+            return Objects.equals(errorMessage, other.errorMessage);
         }
         return false;
     }

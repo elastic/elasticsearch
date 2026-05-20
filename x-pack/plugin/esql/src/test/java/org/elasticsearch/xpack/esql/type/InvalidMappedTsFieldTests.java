@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -20,9 +19,9 @@ public class InvalidMappedTsFieldTests extends AbstractEsFieldTypeTests<InvalidM
 
     static InvalidMappedTsField randomInvalidMappedTsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
-        List<String> roles = randomSubsetOf(2, "dimension", "metric");
+        String errorMessage = randomAlphaOfLength(20);
         Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        return new InvalidMappedTsField(name, roles.get(0), roles.get(1), new TreeMap<>(properties));
+        return new InvalidMappedTsField(name, errorMessage, new TreeMap<>(properties));
     }
 
     @Override
@@ -33,28 +32,20 @@ public class InvalidMappedTsFieldTests extends AbstractEsFieldTypeTests<InvalidM
     @Override
     protected InvalidMappedTsField copyInstance(InvalidMappedTsField instance, TransportVersion version) {
         // writeContent throws UnsupportedOperationException; copy directly without going through the wire.
-        List<String> roles = instance.getRoles();
-        return new InvalidMappedTsField(instance.getName(), roles.get(0), roles.get(1), new TreeMap<>(instance.getProperties()));
+        return new InvalidMappedTsField(instance.getName(), instance.errorMessage(), new TreeMap<>(instance.getProperties()));
     }
 
     @Override
     protected InvalidMappedTsField mutateInstance(InvalidMappedTsField instance) {
         String name = instance.getName();
-        List<String> roles = instance.getRoles();
-        String role1 = roles.get(0);
-        String role2 = roles.get(1);
+        String errorMessage = instance.errorMessage();
         Map<String, EsField> properties = instance.getProperties();
         switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> {
-                // swap roles (produces a different instance)
-                String tmp = role1;
-                role1 = role2;
-                role2 = tmp;
-            }
+            case 1 -> errorMessage = randomValueOtherThan(errorMessage, () -> randomAlphaOfLength(20));
             case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             default -> throw new IllegalArgumentException();
         }
-        return new InvalidMappedTsField(name, role1, role2, new HashMap<>(properties));
+        return new InvalidMappedTsField(name, errorMessage, new HashMap<>(properties));
     }
 }

@@ -252,17 +252,12 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     public void testAggTookTooMuch() throws Exception {
         assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
         assertAcked(
-            prepareCreate(
-                "cb-test",
-                1,
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-            ).setMapping("test", "type=long")
+            prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
+                .setMapping("test", "type=long")
         );
         Client client = client();
 
-        updateClusterSettings(
-            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2kb")
-        );
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2kb"));
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(100, 1000);

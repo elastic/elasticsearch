@@ -302,7 +302,7 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
             .addTimeseries(
                 RemoteWrite.TimeSeries.newBuilder()
                     .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("metric_bad_ds_label").build())
-                    .addLabels(RemoteWrite.Label.newBuilder().setName("data_stream.dataset").setValue("bad:name").build())
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("data_stream_dataset").setValue("bad:name").build())
                     .addSamples(RemoteWrite.Sample.newBuilder().setValue(1.0).setTimestamp(now).build())
                     .build()
             )

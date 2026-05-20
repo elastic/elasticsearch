@@ -72,8 +72,8 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     private static final String METRIC_NAME_LABEL = "__name__";
     private static final String METRICS_DATA_STREAM_PREFIX = "metrics-";
-    private static final String DATA_STREAM_DATASET_LABEL = "data_stream.dataset";
-    private static final String DATA_STREAM_NAMESPACE_LABEL = "data_stream.namespace";
+    private static final String DATA_STREAM_DATASET_LABEL = "data_stream_dataset";
+    private static final String DATA_STREAM_NAMESPACE_LABEL = "data_stream_namespace";
     private static final String PROMETHEUS_DATASET_SUFFIX = ".prometheus";
 
     private final Client client;

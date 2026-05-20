@@ -204,7 +204,7 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
             .addTimeseries(
                 timeSeries(
                     metricName,
-                    Map.of("data_stream.dataset", "fromlabels", "data_stream.namespace", "labelns", "job", "prometheus"),
+                    Map.of("data_stream_dataset", "fromlabels", "data_stream_namespace", "labelns", "job", "prometheus"),
                     sample(1.0, timestamp)
                 )
             )
@@ -224,7 +224,7 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         String metricName = "partial_label_route_metric";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
             .addTimeseries(
-                timeSeries(metricName, Map.of("data_stream.namespace", "only_ns_from_label", "job", "j"), sample(1.0, timestamp))
+                timeSeries(metricName, Map.of("data_stream_namespace", "only_ns_from_label", "job", "j"), sample(1.0, timestamp))
             )
             .build();
 
@@ -239,7 +239,7 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         long timestamp = System.currentTimeMillis();
         String metricName = "bad_label_dataset";
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
-            .addTimeseries(timeSeries(metricName, Map.of("data_stream.dataset", "bad:dataset", "job", "x"), sample(1.0, timestamp)))
+            .addTimeseries(timeSeries(metricName, Map.of("data_stream_dataset", "bad:dataset", "job", "x"), sample(1.0, timestamp)))
             .build();
 
         sendAndAssertSuccess(writeRequest);
@@ -256,7 +256,7 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
             .addTimeseries(
                 timeSeries(
                     metricName,
-                    Map.of("data_stream.dataset", "nodup", "data_stream.namespace", "ns", "job", "x"),
+                    Map.of("data_stream_dataset", "nodup", "data_stream_namespace", "ns", "job", "x"),
                     sample(1.0, timestamp)
                 )
             )
@@ -264,8 +264,8 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         sendAndAssertSuccess(writeRequest);
 
         ObjectPath source = searchSingleDoc("metrics-nodup.prometheus-ns", metricName);
-        assertThat(source.evaluate("labels.data_stream.dataset"), nullValue());
-        assertThat(source.evaluate("labels.data_stream.namespace"), nullValue());
+        assertThat(source.evaluate("labels.data_stream_dataset"), nullValue());
+        assertThat(source.evaluate("labels.data_stream_namespace"), nullValue());
     }
 
     // --- helpers ---

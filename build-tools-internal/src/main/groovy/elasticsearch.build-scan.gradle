@@ -42,7 +42,7 @@ develocity {
 
     def fips = buildParams.inFipsJvm
     def gitRevision = buildParams.gitRevision
-    def testSeed = buildParams.testSeed
+    def testSeed = buildParams.testSeedProvider
 
     background {
       tag OS.current().name()
@@ -83,8 +83,6 @@ develocity {
 
         value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
         tag System.getenv('BUILDKITE_PIPELINE_SLUG')
-
-        value 'tests.seed', testSeed
 
         value 'Job Name', jobName
         tag jobName
@@ -133,19 +131,22 @@ develocity {
           link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
         }
 
-        // Store test seed in Buildkite metadata so it can be retrieved by retries or other steps in the pipeline
-        // strictly speaking this is not build scan specific, but it's a convenient place and the one place
-        // where we deal with build metadata within the gradle build.
         def jobId = System.getenv('BUILDKITE_JOB_ID')
-        if (jobId) {
-          // Explicitly convert to String to avoid Groovy/Java array type mismatch
-          runBuildkiteAgent(
-            ['meta-data', 'set', "tests-seed-${jobId}".toString(), testSeed.toString()],
-            "storing test seed in Buildkite metadata"
-          )
-        }
 
         buildFinished { result ->
+          def resolvedTestSeed = testSeed.get()
+          value 'tests.seed', resolvedTestSeed
+
+          // Store test seed in Buildkite metadata so it can be retrieved by retries or other steps in the pipeline
+          // strictly speaking this is not build scan specific, but it's a convenient place and the one place
+          // where we deal with build metadata within the gradle build.
+          if (jobId) {
+            // Explicitly convert to String to avoid Groovy/Java array type mismatch
+            runBuildkiteAgent(
+              ['meta-data', 'set', "tests-seed-${jobId}".toString(), resolvedTestSeed.toString()],
+              "storing test seed in Buildkite metadata"
+            )
+          }
 
           buildScanPublished { scan ->
             // Attach build scan link as build metadata

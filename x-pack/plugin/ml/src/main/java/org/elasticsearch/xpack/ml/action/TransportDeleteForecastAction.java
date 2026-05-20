@@ -28,7 +28,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -231,7 +231,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         // We want *all* of the docs to be deleted. Hence, we rely on the default value of max_docs.
         return new DeleteByQueryRequest().setAbortOnVersionConflict(false) // since these documents are not updated, a conflict just means
                                                                            // it was deleted previously
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
             .setQuery(query)
             .setRefresh(true);

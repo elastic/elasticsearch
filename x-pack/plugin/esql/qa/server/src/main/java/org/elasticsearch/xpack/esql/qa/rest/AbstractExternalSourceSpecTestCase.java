@@ -60,7 +60,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Pattern to match template placeholders like {{employees}} */
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
-    /** Base path for fixtures within the resource directory */
+    /** Default base path for fixtures within the resource directory */
     private static final String FIXTURES_BASE = "standalone";
 
     /**
@@ -163,8 +163,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static Path localFixturesPath;
 
     /**
-     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 and GCS fixtures.
-     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson files are generated
+     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3, GCS, and Azure fixtures.
+     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv files are generated
      * on the fly rather than checked in.
      */
     @BeforeClass
@@ -177,7 +177,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson fixtures
+     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv fixtures
      * on the fly and add them to the S3, GCS, and Azure fixtures. This avoids checking in binary
      * compressed files.
      */
@@ -188,7 +188,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 AbstractExternalSourceSpecTestCase.class.getClassLoader(),
                 (relativePath, content) -> {
                     String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
+                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false && fileName.endsWith(".tsv") == false) {
                         return;
                     }
                     String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
@@ -293,12 +293,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
-        if (query.contains(MULTIFILE_SUFFIX)) {
-            // HTTP does not support directory listing, so skip multi-file glob tests
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+            // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
-            // CSV format does not yet support multi-file glob patterns
-            assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
-
         }
 
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
@@ -315,10 +312,92 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 case StorageBackend.AZURE -> azureFixture.injectParams(query);
                 default -> query;
             };
+            query = injectReaderParam(query);
         }
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
         doTest(query);
+    }
+
+    /**
+     * Override to change the base directory within the resource tree where single-file fixtures live.
+     * Defaults to {@code "standalone"}. Subclasses testing compressed Parquet fixtures can override
+     * this to point at codec-specific directories (e.g. {@code "standalone-snappy"}).
+     */
+    protected String fixturesBase() {
+        return FIXTURES_BASE;
+    }
+
+    /**
+     * Override to specify a reader implementation for the EXTERNAL query.
+     * When non-null, a {@code "reader": "<name>"} parameter is injected into the WITH clause.
+     *
+     * @return the reader name (e.g. "java", "parquet-rs"), or null for the default reader
+     */
+    protected String readerName() {
+        return null;
+    }
+
+    /**
+     * Inject the reader parameter into the query's WITH clause.
+     * If a WITH clause already exists, the reader param is appended; otherwise a new WITH clause is added.
+     */
+    private String injectReaderParam(String query) {
+        String reader = readerName();
+        if (reader == null) {
+            return query;
+        }
+        String readerEntry = "\"reader\": \"" + reader + "\"";
+        int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(query);
+        // Only look for WITH { in the EXTERNAL part (before the first pipe),
+        // so we don't accidentally match a RERANK/COMPLETION WITH clause.
+        String externalPart = pipeIndex == -1 ? query : query.substring(0, pipeIndex);
+        int withIndex = externalPart.indexOf("WITH {");
+        if (withIndex >= 0) {
+            int closingBrace = findClosingBrace(query, query.indexOf('{', withIndex));
+            assert closingBrace >= 0 : "Malformed WITH clause in query: " + query;
+            return query.substring(0, closingBrace) + ", " + readerEntry + query.substring(closingBrace);
+        }
+        if (pipeIndex == -1) {
+            return query + " WITH { " + readerEntry + " }";
+        }
+        return query.substring(0, pipeIndex).trim() + " WITH { " + readerEntry + " } " + query.substring(pipeIndex);
+    }
+
+    /**
+     * Finds the closing brace matching the opening brace at {@code openIndex},
+     * skipping over quoted strings so braces inside string values are ignored.
+     * <p>
+     * Assumes ES|QL string-literal syntax: only {@code "..."} (with backslash escapes) is recognised.
+     * Single-quoted strings are not part of the ES|QL grammar so they are not handled here. Triple-quoted
+     * strings ({@code """..."""}) are not specifically parsed either; they happen to work in the current
+     * state machine because consecutive quotes toggle the {@code inQuotes} flag, but adding
+     * {@code """}-aware handling would be required if a spec ever embeds {@code }} inside a triple-quoted
+     * value. No EXTERNAL csv-spec uses that form today.
+     */
+    private static int findClosingBrace(String query, int openIndex) {
+        int depth = 0;
+        boolean inQuotes = false;
+        for (int i = openIndex; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (inQuotes) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    inQuotes = false;
+                }
+            } else if (c == '"') {
+                inQuotes = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     /**
@@ -351,22 +430,43 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /** Suffix that triggers multi-file glob resolution */
     private static final String MULTIFILE_SUFFIX = "_multifile";
+    /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
+    private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
+    /**
+     * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
+     * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
+     * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
+     * warning; under STRICT it still throws.
+     */
+    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
+    private static final String HIVE_SUFFIX = "_hive";
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
-     * @param templateName the template name (e.g., "employees" or "employees_multifile")
+     * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_SUFFIX)) {
+        if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
+            relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
+            // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
+            relativePath = "multifile_ubn/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SUFFIX)) {
+            // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
+            // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
+            // parses the directory names independently)
+            relativePath = "hive-partitioned/**/*." + format;
         } else {
             // Single-file template: employees -> standalone/employees.parquet
             String filename = templateName + "." + format;
-            relativePath = FIXTURES_BASE + "/" + filename;
+            relativePath = fixturesBase() + "/" + filename;
         }
 
         switch (storageBackend) {
@@ -381,8 +481,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             case LOCAL:
                 // Local path: file:///absolute/path/to/iceberg-fixtures/standalone/employees.parquet
                 if (localFixturesPath != null) {
-                    Path localFile = localFixturesPath.resolve(relativePath);
-                    return localFile.toUri().toString();
+                    return resolveLocalUri(localFixturesPath, relativePath);
                 } else {
                     // Fallback to S3 if local path not available
                     logger.warn("Local fixtures path not available, falling back to S3");
@@ -405,6 +504,51 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             default:
                 throw new IllegalArgumentException("Unknown storage backend: " + storageBackend);
         }
+    }
+
+    /**
+     * Build a {@code file://} URI for a relative path under {@code base}, tolerating glob
+     * characters like {@code *} that are illegal in filesystem path components on Windows.
+     * <p>
+     * {@link Path#resolve(String)} delegates to the filesystem provider, which on Windows
+     * (NTFS) rejects {@code *} because it is a reserved filename character. The downstream
+     * local file loader expands the glob itself, so the URI we produce here only needs to
+     * be a syntactically valid {@code file://} URI - we don't have to round-trip through
+     * {@link Path}. We split the relative path on the first glob meta-character, resolve
+     * the literal prefix via {@link Path#resolve(String)} (which is portable), and append
+     * the glob suffix to the resulting URI as-is. {@code *} is a valid URI sub-delim
+     * character per RFC 3986 and does not require percent-encoding.
+     */
+    static String resolveLocalUri(Path base, String relativePath) {
+        int globIdx = indexOfGlobMeta(relativePath);
+        if (globIdx < 0) {
+            return base.resolve(relativePath).toUri().toString();
+        }
+        // Find the last path separator before the glob meta-character so the literal portion
+        // we feed to Path.resolve() contains no glob characters.
+        int splitIdx = relativePath.lastIndexOf('/', globIdx);
+        if (splitIdx < 0) {
+            // Glob meta-character in the first path segment - resolve the base itself.
+            return appendGlobSuffix(base.toUri().toString(), relativePath);
+        }
+        String literalPrefix = relativePath.substring(0, splitIdx);
+        String globSuffix = relativePath.substring(splitIdx + 1);
+        Path literalParent = base.resolve(literalPrefix);
+        return appendGlobSuffix(literalParent.toUri().toString(), globSuffix);
+    }
+
+    private static int indexOfGlobMeta(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '*' || c == '?') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String appendGlobSuffix(String baseUri, String suffix) {
+        return baseUri.endsWith("/") ? baseUri + suffix : baseUri + "/" + suffix;
     }
 
     @Override

@@ -67,6 +67,19 @@ public final class SearchFeatures implements FeatureSpecification {
      * is not supported on mixed BWC clusters that still contain pre-9.5 nodes.
      */
     public static final NodeFeature PROFILE_COORDINATOR_REQUEST_METADATA = new NodeFeature("search.profile.coordinator_request_metadata");
+    /**
+     * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
+     * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
+     */
+    public static final NodeFeature SCROLL_EMPTY_CONTEXT_RETURNS_200 = new NodeFeature("search.scroll.empty_context_returns_200");
+    /**
+     * A non-top-level {@code date_histogram} with {@code hard_bounds} that excludes every fixed rounding point
+     * produced from the data no longer throws {@code ArrayIndexOutOfBoundsException}; it returns an empty histogram.
+     */
+    public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
+        "search.aggs.date_histogram.hard_bounds_outside_data_fix"
+    );
+    public static final NodeFeature COUNT_STATS_PARAMETER = new NodeFeature("search.count.stats_parameter");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -96,7 +109,10 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
             DEFAULT_DISK_BBQ,
-            PROFILE_COORDINATOR_REQUEST_METADATA
+            PROFILE_COORDINATOR_REQUEST_METADATA,
+            SCROLL_EMPTY_CONTEXT_RETURNS_200,
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
+            COUNT_STATS_PARAMETER
         );
     }
 }

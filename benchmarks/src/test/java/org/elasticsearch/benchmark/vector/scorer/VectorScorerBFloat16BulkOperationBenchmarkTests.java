@@ -11,16 +11,10 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryType;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
-import java.util.Arrays;
-
-public class VectorScorerBFloat16BulkOperationBenchmarkTests extends ESTestCase {
+public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final BFloat16QueryType queryType;
@@ -32,62 +26,51 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends ESTestCase 
         this.dims = dims;
     }
 
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    private VectorScorerBFloat16BulkOperationBenchmark newBench() {
+        var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+        var bench = new VectorScorerBFloat16BulkOperationBenchmark();
+        bench.function = function;
+        bench.queryType = queryType;
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.bulkSize = 200;
+        bench.setup(vectorData);
+        return bench;
     }
 
-    public void testSequential() {
-        for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
-            var bench = new VectorScorerBFloat16BulkOperationBenchmark();
-            bench.function = function;
-            bench.queryType = queryType;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
-            try {
-                float[] single = bench.scoreMultipleSequential();
-                float[] bulk = bench.scoreMultipleSequentialBulk();
-                assertArrayEquals(function + "/" + queryType, single, bulk, 1e-3f);
-            } finally {
-                bench.teardown();
-            }
+    public void testBulk() {
+        var bench = newBench();
+        try {
+            assertArrayEquals(function + "/" + queryType, bench.scoreSequential(), bench.scoreBulk(), 1e-3f);
+        } finally {
+            bench.teardown();
         }
     }
 
-    public void testRandom() {
-        for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
-            var bench = new VectorScorerBFloat16BulkOperationBenchmark();
-            bench.function = function;
-            bench.queryType = queryType;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
-            try {
-                float[] single = bench.scoreMultipleRandom();
-                float[] bulk = bench.scoreMultipleRandomBulk();
-                assertArrayEquals(function + "/" + queryType, single, bulk, 1e-3f);
-            } finally {
-                bench.teardown();
-            }
+    public void testBulkOffsets() {
+        var bench = newBench();
+        try {
+            assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-3f);
+        } finally {
+            bench.teardown();
+        }
+    }
+
+    public void testBulkSparse() {
+        var bench = newBench();
+        try {
+            assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkSparse(), 1e-3f);
+        } finally {
+            bench.teardown();
         }
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        var dims = Utils.possibleValues(VectorScorerBFloat16BulkOperationBenchmark.class, "dims");
-        var functions = Utils.possibleValues(VectorScorerBFloat16BulkOperationBenchmark.class, "function");
-        return () -> dims.stream()
-            .map(Integer::parseInt)
-            .flatMap(
-                d -> functions.stream()
-                    .map(VectorSimilarityType::valueOf)
-                    .flatMap(f -> Arrays.stream(BFloat16QueryType.values()).map(qt -> new Object[] { f, qt, d }))
-            )
-            .iterator();
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerBFloat16BulkOperationBenchmark.class.getField("function"),
+            VectorScorerBFloat16BulkOperationBenchmark.class.getField("queryType"),
+            VectorScorerBFloat16BulkOperationBenchmark.class.getField("dims")
+        );
     }
 }

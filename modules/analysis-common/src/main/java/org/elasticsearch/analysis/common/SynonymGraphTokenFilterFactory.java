@@ -59,12 +59,7 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resource());
     }
 
-    static TokenFilterFactory buildChainedFactory(
-        String name,
-        SynonymMap synonyms,
-        AnalysisMode analysisMode,
-        String resourceName
-    ) {
+    static TokenFilterFactory buildChainedFactory(String name, SynonymMap synonyms, AnalysisMode analysisMode, String resourceName) {
         return new TokenFilterFactory() {
             @Override
             public String name() {

@@ -201,12 +201,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
      * Static so the returned factory does not hold a reference to the outer instance,
      * allowing the outer factory's raw synonym rule strings to be GC'd after {@link SynonymMap} construction.
      */
-    static TokenFilterFactory buildChainedFactory(
-        String name,
-        SynonymMap synonyms,
-        AnalysisMode analysisMode,
-        String resourceName
-    ) {
+    static TokenFilterFactory buildChainedFactory(String name, SynonymMap synonyms, AnalysisMode analysisMode, String resourceName) {
         return new TokenFilterFactory() {
             @Override
             public String name() {

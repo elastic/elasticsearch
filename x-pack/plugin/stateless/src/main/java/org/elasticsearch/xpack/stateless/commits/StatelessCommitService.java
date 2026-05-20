@@ -199,6 +199,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
+    public static final String COMMIT_NUMBER_OF_REFERENCED_BCCS = "es.stateless.shard.referenced_bccs_per_commit.histogram";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -231,6 +232,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
+    private final LongHistogram commitNumberOfReferencedBccsHistogram;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -327,6 +329,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC,
                 "Histogram for elapsed time in milliseconds of batched compound commits before freezing",
                 "ms"
+            );
+        this.commitNumberOfReferencedBccsHistogram = telemetryProvider.getMeterRegistry()
+            .registerLongHistogram(
+                COMMIT_NUMBER_OF_REFERENCED_BCCS,
+                "Histogram of distinct batched compound commit blobs referenced per commit",
+                "unit"
             );
     }
 
@@ -1682,7 +1690,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Set<PrimaryTermAndGeneration> referencedBCCs = new HashSet<>(
                 BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
             );
-
             // For generational files used by local readers we must reference the original blob that contained them as Lucene might
             // delete the file and rely on the fact that in POSIX deleted files are kept around until the last process releases the
             // file handle, hence the generational files deletion tracking is not enough.
@@ -1695,6 +1702,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                 }
             }
+
+            commitNumberOfReferencedBccsHistogram.record(referencedBCCs.size());
+
             var previousCommitReferencesInfo = commitReferencesInfos.put(
                 commitPrimaryTermAndGeneration,
                 new CommitReferencesInfo(currentVirtualBcc.getPrimaryTermAndGeneration(), Collections.unmodifiableSet(referencedBCCs))

@@ -104,6 +104,7 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.COMMIT_NUMBER_OF_REFERENCED_BCCS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
@@ -1298,10 +1299,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
         final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
-        metricsPlugin.resetMeter();
 
         final int numberCommits = between(5, 8);
         for (int i = 0; i < numberCommits; i++) {
+            metricsPlugin.resetMeter();
             indexDocsAndRefresh(indexName);
             if (randomBoolean() || i == numberCommits - 1) {
                 final VirtualBatchedCompoundCommit virtualBcc = statelessCommitService.getCurrentVirtualBcc(shardId);
@@ -1311,23 +1312,30 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
                 final List<Measurement> sizeMeasurements = metricsPlugin.getLongHistogramMeasurement(BCC_TOTAL_SIZE_HISTOGRAM_METRIC);
                 assertThat(sizeMeasurements, hasSize(1));
-                assertMeasurement(sizeMeasurements.get(0), ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
+                assertMeasurement(sizeMeasurements.getFirst(), ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
 
                 final List<Measurement> nCommitsMeasurements = metricsPlugin.getLongHistogramMeasurement(
                     BCC_NUMBER_COMMITS_HISTOGRAM_METRIC
                 );
                 assertThat(nCommitsMeasurements, hasSize(1));
-                assertMeasurement(nCommitsMeasurements.get(0), virtualBcc.size());
+                assertMeasurement(nCommitsMeasurements.getFirst(), virtualBcc.size());
 
                 final List<Measurement> ageMeasurements = metricsPlugin.getLongHistogramMeasurement(
                     BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC
                 );
                 assertThat(ageMeasurements, hasSize(1));
-                assertThat(ageMeasurements.get(0).attributes(), equalTo(Map.of()));
+                assertThat(ageMeasurements.getFirst().attributes(), equalTo(Map.of()));
                 // The exact value of age is not important as long as it is greater or equal than the minimum age
                 // that is measured before creating the upload task
-                assertThat(ageMeasurements.get(0).getLong(), greaterThanOrEqualTo(minAge));
-                metricsPlugin.resetMeter();
+                assertThat(ageMeasurements.getFirst().getLong(), greaterThanOrEqualTo(minAge));
+
+                final List<Measurement> referencedBccsMeasurements = metricsPlugin.getLongHistogramMeasurement(
+                    COMMIT_NUMBER_OF_REFERENCED_BCCS
+                );
+                assertThat(referencedBccsMeasurements, hasSize(1));
+                for (Measurement referencedBccsMeasurement : referencedBccsMeasurements) {
+                    assertThat(referencedBccsMeasurement.attributes(), equalTo(Map.of()));
+                }
             }
         }
     }

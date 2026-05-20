@@ -304,10 +304,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
          * Decompresses the serialized bytes into a null sink to count the raw uncompressed byte count.
          */
         private long computeUncompressedSize() {
+            if (serializedAtVersion.supports(COMPRESS_DELAYABLE_WRITEABLE) == false) {
+                return serialized.length();
+            }
             try (
-                InputStream in = serializedAtVersion.supports(COMPRESS_DELAYABLE_WRITEABLE)
-                    ? CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())
-                    : serialized.streamInput()
+                InputStream in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())
             ) {
                 return in.transferTo(OutputStream.nullOutputStream());
             } catch (IOException e) {

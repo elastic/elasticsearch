@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -22,11 +23,14 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.API_KEY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_API_KEY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_ENTRA_ID;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiEntraIdApiKeySecrets> {
 
@@ -61,6 +65,11 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         assertThat(exception.getMessage(), is("Only one of apiKey or entraId can be set, but both were provided"));
     }
 
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandomEntraIdApiKeySecrets();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
+    }
+
     public void testNewSecretSettingsApiKey() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var apiKey = randomSecureStringOfLength(15);
@@ -81,6 +90,28 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         );
 
         assertThat(newSettings, is(expectedSettings));
+    }
+
+    public void testNewSecretSettings_BothApiKeyAndEntraId_ThrowsError() {
+        var initialSettings = createRandomEntraIdApiKeySecrets();
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(
+                new HashMap<>(Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)))
+            )
+        );
+
+        assertThat(thrownException.getMessage(), containsString(AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR));
+    }
+
+    public void testNewSecretSettings_ClientSecret_ThrowsError() {
+        var initialSettings = createRandomEntraIdApiKeySecrets();
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10))))
+        );
+
+        assertThat(thrownException.getMessage(), containsString(AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR));
     }
 
     public void testToXContext_WritesApiKeyOnlyWhenApiKeySet() throws IOException {

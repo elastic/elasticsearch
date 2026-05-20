@@ -26,10 +26,11 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AwsSecretSettings> {
 
-    public void testNewSecretSettings() {
+    public void testNewSecretSettings_UpdatesAllFields() {
         AwsSecretSettings initialSettings = createRandom();
         AwsSecretSettings newSettings = createRandom();
 
@@ -40,6 +41,33 @@ public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase
         );
 
         assertEquals(newSettings, finalSettings);
+    }
+
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_OnlyAccessKey_UpdatesAccessKey() {
+        var initialSettings = createRandom();
+        var updatedAccessKey = randomAlphaOfLength(10);
+
+        var finalSettings = (AwsSecretSettings) initialSettings.newSecretSettings(
+            new HashMap<>(Map.of(ACCESS_KEY_FIELD, updatedAccessKey))
+        );
+
+        assertThat(finalSettings, is(new AwsSecretSettings(new SecureString(updatedAccessKey.toCharArray()), initialSettings.secretKey())));
+    }
+
+    public void testNewSecretSettings_OnlySecretKey_UpdatesSecretKey() {
+        var initialSettings = createRandom();
+        var updatedSecretKey = randomAlphaOfLength(10);
+
+        var finalSettings = (AwsSecretSettings) initialSettings.newSecretSettings(
+            new HashMap<>(Map.of(SECRET_KEY_FIELD, updatedSecretKey))
+        );
+
+        assertThat(finalSettings, is(new AwsSecretSettings(initialSettings.accessKey(), new SecureString(updatedSecretKey.toCharArray()))));
     }
 
     public void testIt_CreatesSettings_ReturnsNullFromMap_null() {

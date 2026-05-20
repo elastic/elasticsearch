@@ -24,14 +24,22 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.TEST_CLIENT_SECRET;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Secrets> {
 
     public static AzureOpenAiOAuth2Secrets createRandom() {
         var clientSecret = randomSecureStringOfLength(15);
         return new AzureOpenAiOAuth2Secrets(clientSecret);
+    }
+
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
     }
 
     public void testNewSecretSettings_ClientSecret() {
@@ -43,6 +51,26 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         );
 
         assertThat(newSettings, is(expectedSettings));
+    }
+
+    public void testNewSecretSettings_ApiKey_ThrowsError() {
+        var initialSettings = createRandom();
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(API_KEY, randomAlphaOfLength(10))))
+        );
+
+        assertThat(thrownException.getMessage(), containsString(AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR));
+    }
+
+    public void testNewSecretSettings_EntraId_ThrowsError() {
+        var initialSettings = createRandom();
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(ENTRA_ID, randomAlphaOfLength(10))))
+        );
+
+        assertThat(thrownException.getMessage(), containsString(AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR));
     }
 
     public void testToXContent_WritesClientSecretWhenSet() throws IOException {

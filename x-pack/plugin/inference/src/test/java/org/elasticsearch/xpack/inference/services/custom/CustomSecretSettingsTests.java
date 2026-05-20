@@ -25,6 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestCase<CustomSecretSettings> {
     public static CustomSecretSettings createRandom() {
@@ -33,6 +34,32 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
 
     private static Map<String, SecureString> createRandomSecretParameters() {
         return randomMap(0, 5, () -> tuple(randomAlphaOfLength(5), new SecureString(randomAlphaOfLength(5).toCharArray())));
+    }
+
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_MergesSecretParameters() {
+        var initialSettings = new CustomSecretSettings(Map.of("existing_key", new SecureString("existing_value".toCharArray())));
+        var updatedSettings = (CustomSecretSettings) initialSettings.newSecretSettings(
+            new HashMap<>(Map.of(CustomSecretSettings.SECRET_PARAMETERS, new HashMap<>(Map.of("new_key", "new_value"))))
+        );
+
+        assertThat(
+            updatedSettings,
+            is(
+                new CustomSecretSettings(
+                    Map.of(
+                        "existing_key",
+                        new SecureString("existing_value".toCharArray()),
+                        "new_key",
+                        new SecureString("new_value".toCharArray())
+                    )
+                )
+            )
+        );
     }
 
     public void testFromMap() {

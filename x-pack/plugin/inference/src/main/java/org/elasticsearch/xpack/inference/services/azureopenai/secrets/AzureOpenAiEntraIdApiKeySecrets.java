@@ -108,6 +108,11 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
 
         var mergedApiKey = updatedApiKey != null ? updatedApiKey : apiKey;
         var mergedEntraId = updatedEntraId != null ? updatedEntraId : entraId;
+        if (updatedApiKey != null) {
+            mergedEntraId = null;
+        } else if (updatedEntraId != null) {
+            mergedApiKey = null;
+        }
         return new AzureOpenAiEntraIdApiKeySecrets(mergedApiKey, mergedEntraId);
     }
 }

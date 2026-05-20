@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiSecretSettings> {
 
@@ -29,13 +30,26 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
         return new GoogleVertexAiSecretSettings(randomSecureStringOfLength(30));
     }
 
-    public void testNewSecretSettings() {
+    public void testNewSecretSettings_UpdatesServiceAccountJson() {
         GoogleVertexAiSecretSettings initialSettings = createRandom();
         GoogleVertexAiSecretSettings newSettings = createRandom();
         GoogleVertexAiSecretSettings newGoogleVertexAiSecretSettings = (GoogleVertexAiSecretSettings) initialSettings.newSecretSettings(
             new HashMap<>(Map.of(GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON, newSettings.serviceAccountJson.toString()))
         );
         assertEquals(newSettings, newGoogleVertexAiSecretSettings);
+    }
+
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_EmptyServiceAccountJson_ThrowsError() {
+        var initialSettings = createRandom();
+        expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON, "")))
+        );
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNUll() {

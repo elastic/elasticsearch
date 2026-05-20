@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<DefaultSecretSettings> {
 
@@ -27,13 +28,36 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         return new DefaultSecretSettings(new SecureString(randomAlphaOfLength(15).toCharArray()));
     }
 
-    public void testNewSecretSettings() {
+    public void testNewSecretSettings_UpdatesApiKey() {
         DefaultSecretSettings initialSettings = createRandom();
         DefaultSecretSettings newSettings = createRandom();
         DefaultSecretSettings finalSettings = (DefaultSecretSettings) initialSettings.newSecretSettings(
             new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString()))
         );
         assertEquals(newSettings, finalSettings);
+    }
+
+    public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_EmptyApiKey_ThrowsError() {
+        var initialSettings = createRandom();
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "")))
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "[service_settings] Invalid value empty string. [%s] must be a non-empty string",
+                    DefaultSecretSettings.API_KEY
+                )
+            )
+        );
     }
 
     public void testFromMap() {

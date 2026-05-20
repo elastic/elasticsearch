@@ -626,7 +626,7 @@ public class Reindexer {
                 // task cancellation exception is expected from user operation, should not count as a failure
                 return;
             }
-            logger.warn("reindex task [{}] relocation failed on source node", task.getId(), e);
+            logger.warn(() -> Strings.format("reindex task [%s] relocation failed on source node", task.getId()), e);
         }));
     }
 

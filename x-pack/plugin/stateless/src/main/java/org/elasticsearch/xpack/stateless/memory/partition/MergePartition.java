@@ -28,14 +28,13 @@ public class MergePartition implements MemoryPartition {
         DEFAULT_FRACTION,
         0.001,
         1.0,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    private volatile double fraction;
+    private final double fraction;
 
     public MergePartition(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(FRACTION_SETTING, v -> this.fraction = v);
+        this.fraction = clusterSettings.get(FRACTION_SETTING);
     }
 
     @Override

@@ -26,6 +26,10 @@ public final class PartitionedMemoryModel {
 
     public PartitionedMemoryModel(List<MemoryPartition> partitions) {
         this.partitions = List.copyOf(partitions);
+        double sum = this.partitions.stream().mapToDouble(MemoryPartition::fraction).sum();
+        if (Math.abs(sum - 1.0) > 1e-9) {
+            throw new IllegalArgumentException("Memory partition fractions must sum to 1.0 but sum to " + sum);
+        }
     }
 
     public List<MemoryPartition> partitions() {

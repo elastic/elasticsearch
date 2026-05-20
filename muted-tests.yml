@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.search.KnnSearchIT
-  method: testKnnSearchWithScroll
-  issue: https://github.com/elastic/elasticsearch/issues/148590
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/149234

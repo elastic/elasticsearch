@@ -304,6 +304,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 );
                 searcher.setThreadBytesRead(() -> threadCumulativeBytes.get().get());
 
+                AtomicLong drainedFromWorkers = new AtomicLong();
+                searcher.setBytesReadSink(bytes -> {
+                    drainedFromWorkers.addAndGet(bytes);
+                    threadCumulativeBytes.get().addAndGet(bytes);
+                });
+
                 CollectorManager<Collector, Void> countingCollectorManager = new CollectorManager<>() {
                     @Override
                     public Collector newCollector() {
@@ -341,15 +347,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
                 int numLeaves = directoryReader.getContext().leaves().size();
                 long totalSimulatedBytes = (long) numLeaves * bytesPerLeaf;
-                long workerBytes = searcher.getWorkerDirectoryBytesRead();
-                long callerBytes = threadCumulativeBytes.get().get();
 
-                // The Executor wrapper meters only forked tasks: one slice runs inline on the calling thread
-                // (its bytes stay on the caller's accumulator), the rest run on the executor and land in workerBytes.
-                // Together they must account for every leaf exactly once - no double counting.
-                assertEquals(totalSimulatedBytes, callerBytes + workerBytes);
-                assertThat("at least one slice should be forked to the executor", workerBytes, greaterThan(0L));
-                assertThat("at least one slice should run inline on the calling thread", callerBytes, greaterThan(0L));
+                // After search returns, the worker accumulator must have been drained to zero.
+                assertEquals("worker accumulator must be drained at the end of search", 0L, searcher.getWorkerDirectoryBytesRead());
+                assertThat("at least one slice should be forked to the executor", drainedFromWorkers.get(), greaterThan(0L));
+                assertEquals(totalSimulatedBytes, threadCumulativeBytes.get().get());
                 assertSame("test must run on the calling thread", callingThread, Thread.currentThread());
             }
         } finally {

@@ -52,6 +52,7 @@ import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -181,11 +182,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Holder used to publish the current thread bytes-read supplier to the {@link Executor} wrapper installed
-     * at construction time, since we cannot reference instance fields from the {@code super(...)} call.
+     * Holder used to publish the current thread bytes-read supplier (read by the {@link Executor} wrapper
+     * installed at construction time) Required because it's impossible to reference instance fields
+     * in the ctor, when calling super
      */
     private static final class BytesReadHolder {
         private volatile LongSupplier threadBytesRead;
+        private volatile LongConsumer bytesReadSink;
     }
 
     private static Executor wrapExecutor(Executor executor, AtomicLong workerDirectoryBytesRead, BytesReadHolder bytesReadHolder) {
@@ -225,13 +228,41 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Returns the total bytes read by worker threads during parallel collection.
+     * Sets the sink that receives the accumulated worker-thread bytes at the end of every concurrent
+     * search call. The sink is expected to add the bytes to the caller-thread's store metrics so that
+     * the surrounding directory metrics delta in {@code SearchService} observes worker contributions
+     * without further bookkeeping at each callsite.
      */
-    public long getWorkerDirectoryBytesRead() {
+    public void setBytesReadSink(LongConsumer bytesReadSink) {
+        this.bytesReadHolder.bytesReadSink = bytesReadSink;
+    }
+
+    // visible for testing
+    long getWorkerDirectoryBytesRead() {
         if (workerDirectoryBytesRead != null) {
             return workerDirectoryBytesRead.get();
         }
         return 0;
+    }
+
+    /**
+     * Flushes the accumulated worker-thread bytes-read counter into the configured caller-thread sink
+     * and resets the counter. Called by {@link #search(Query, CollectorManager)} so that each search
+     * call is self-contained: by the time it returns, worker contributions are already folded into the
+     * calling thread's store metrics.
+     */
+    private void drainWorkerBytesToCallerSink() {
+        if (workerDirectoryBytesRead == null) {
+            return;
+        }
+        final LongConsumer sink = bytesReadHolder.bytesReadSink;
+        if (sink == null) {
+            return;
+        }
+        final long bytes = workerDirectoryBytesRead.getAndSet(0L);
+        if (bytes != 0L) {
+            sink.accept(bytes);
+        }
     }
 
     @Override
@@ -455,7 +486,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             assert leafContexts.isEmpty();
             doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
-        } else {
+        }
+        try {
             final List<C> collectors = new ArrayList<>(leafSlices.length);
             collectors.add(firstCollector);
             final ScoreMode scoreMode = firstCollector.scoreMode();
@@ -477,6 +509,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
             List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
             return collectorManager.reduce(collectedCollectors);
+        } finally {
+            // fold worker-thread bytes into the caller-thread's store metrics before returning,
+            // so SearchService's directory metrics delta picks them up
+            drainWorkerBytesToCallerSink();
         }
     }
 

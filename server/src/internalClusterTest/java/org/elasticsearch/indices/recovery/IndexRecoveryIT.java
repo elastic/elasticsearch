@@ -1679,6 +1679,53 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         });
     }
 
+    public void testCancelRecoveryUpdatesRecoveryStats() throws Exception {
+        final String node = internalCluster().startNode();
+        createIndex(INDEX_NAME, SHARD_COUNT_1, REPLICA_COUNT_0);
+        ensureGreen(INDEX_NAME);
+
+        final int numOfDocs = scaledRandomIntBetween(10, 100);
+        try (var indexer = new BackgroundIndexer(INDEX_NAME, client(), numOfDocs)) {
+            waitForDocs(numOfDocs, indexer);
+        }
+
+        refresh(INDEX_NAME);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
+
+        final var recoveryStartedLatch = new CountDownLatch(1);
+        final var allowRecoveryToCompleteLatch = new CountDownLatch(1);
+
+        final var transportService = MockTransportService.getInstance(node);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG.equals(action)) {
+                recoveryStartedLatch.countDown();
+                safeAwait(allowRecoveryToCompleteLatch);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        internalCluster().startNode();
+        setReplicaCount(1, INDEX_NAME);
+
+        safeAwait(recoveryStartedLatch);
+
+        final Index index = resolveIndex(INDEX_NAME);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, node);
+        final IndexShard primaryShard = indicesService.indexServiceSafe(index).getShard(0);
+
+        assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(1));
+        indicesAdmin().prepareDelete(INDEX_NAME).get();
+
+        allowRecoveryToCompleteLatch.countDown();
+        assertBusy(() -> {
+            for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
+                assertThat(recoveryService.numberOfOngoingRecoveries(), equalTo(0));
+            }
+        });
+        assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(0));
+        transportService.clearAllRules();
+    }
+
     public void testReservesBytesDuringPeerRecoveryPhaseOne() throws Exception {
         internalCluster().startNode();
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);

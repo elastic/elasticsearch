@@ -19,7 +19,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-public abstract class AbstractAsyncBulkByScrollActionTestCase<
+public abstract class AbstractAsyncBulkByPaginatedSearchActionTestCase<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Response extends BulkByScrollResponse> extends ESTestCase {
     protected ThreadPool threadPool;

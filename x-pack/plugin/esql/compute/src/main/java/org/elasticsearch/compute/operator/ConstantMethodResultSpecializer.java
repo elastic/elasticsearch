@@ -435,81 +435,179 @@ public final class ConstantMethodResultSpecializer {
 
     // ----- bytecode generation -----
 
-    private Class<?> emitSpecializedPrimitiveClass(Class<?> base, String methodName, Class<?> primitive, Object boxed) {
-        String fieldName = "CONST_" + sanitize(methodName);
-        String typeDescriptor = Type.getDescriptor(primitive);
-        String baseInternal = Type.getInternalName(base);
-        String specializedInternal = baseInternal + "$Specialized";
-        String accessorDescriptor = "()" + typeDescriptor;
+    // ===================================================================
+    // Bytecode emission. Each emitX method emits exactly one artifact and
+    // carries Javadoc showing the equivalent Java code being produced. The
+    // two top-level orchestrators (primitive vs reference) compose the same
+    // helpers in different orders / with different field-access decisions.
+    // ===================================================================
 
-        SpecializedClassShapeValidator.SpecializedClassSpec spec = new SpecializedClassShapeValidator.SpecializedClassSpec(
-            base,
-            specializedInternal,
-            methodName,
-            accessorDescriptor,
-            fieldName,
-            typeDescriptor,
-            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
-            /* expectsClinit */ false,
-            SpecializedClassShapeValidator.countPublicCtors(base)
-        );
+    /**
+     * Emit a specialized subclass whose accessor returns a primitive constant.
+     *
+     * <p>Equivalent Java for {@code base = ModLongsByConstantEvaluator}, {@code methodName = "rhs"}, {@code value = 60L}:
+     * <pre>{@code
+     *   public final class ModLongsByConstantEvaluator$Specialized extends ModLongsByConstantEvaluator {
+     *       public static final long CONST_RHS = 60L;
+     *
+     *       public ModLongsByConstantEvaluator$Specialized(Source source, ExpressionEvaluator lhs, DriverContext ctx) {
+     *           super(source, lhs, ctx);
+     *       }
+     *       // ...one ctor per public ctor on the base class...
+     *
+     *       protected final long rhs() {
+     *           return CONST_RHS;
+     *       }
+     *   }
+     * }</pre>
+     *
+     * <p>The field is {@code public} because that's the access flag the JIT trusts most readily for
+     * primitive {@code static final}s (a value-bearing {@code ConstantValue} attribute initialises it
+     * at class-load with no {@code <clinit>}).
+     */
+    private Class<?> emitSpecializedPrimitiveClass(Class<?> base, String methodName, Class<?> primitive, Object boxed) {
+        String typeDescriptor = Type.getDescriptor(primitive);
+        SpecializedClassShapeValidator.SpecializedClassSpec spec = primitiveSpec(base, methodName, typeDescriptor);
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         ClassVisitor cv = SpecializedClassShapeValidator.guarding(cw, spec);
 
-        cv.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, specializedInternal, null, baseInternal, null);
-        // public static final <T> CONST_<NAME> = value;
-        cv.visitField(spec.expectedFieldAccess(), fieldName, typeDescriptor, null, boxed).visitEnd();
-
-        emitCtors(cv, base, baseInternal);
-
-        // protected final <T> <methodName>() { return CONST_<NAME>; }
-        int returnOp = primitive == long.class ? Opcodes.LRETURN
-            : primitive == double.class ? Opcodes.DRETURN
-            : primitive == float.class ? Opcodes.FRETURN
-            : Opcodes.IRETURN;
-        MethodVisitor m = cv.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, accessorDescriptor, null, null);
-        m.visitCode();
-        m.visitFieldInsn(Opcodes.GETSTATIC, specializedInternal, fieldName, typeDescriptor);
-        m.visitInsn(returnOp);
-        m.visitMaxs(0, 0);
-        m.visitEnd();
+        emitClassHeader(cv, spec);
+        emitConstantField(cv, spec, /* initialValue */ boxed);
+        emitForwardingConstructors(cv, base);
+        emitPrimitiveAccessor(cv, spec, primitive);
 
         cv.visitEnd();
         return defineHidden(base, cw.toByteArray(), /* classData */ null);
     }
 
+    /**
+     * Emit a specialized subclass whose accessor returns a reference constant.
+     *
+     * <p>Equivalent Java for {@code base = StartsWithConstantEvaluator}, {@code methodName = "prefix"}, {@code valueType = BytesRef.class}:
+     * <pre>{@code
+     *   public final class StartsWithConstantEvaluator$Specialized extends StartsWithConstantEvaluator {
+     *       private static final BytesRef CONST_PREFIX;
+     *
+     *       static {
+     *           // Loaded from class-data slot via condy bootstrapped against MethodHandles.classData.
+     *           CONST_PREFIX = (BytesRef) MethodHandles.classData(LOOKUP, "_", BytesRef.class);
+     *       }
+     *
+     *       public StartsWithConstantEvaluator$Specialized(Source source, ExpressionEvaluator str, DriverContext ctx) {
+     *           super(source, str, ctx);
+     *       }
+     *
+     *       protected final BytesRef prefix() {
+     *           return CONST_PREFIX;
+     *       }
+     *   }
+     * }</pre>
+     *
+     * <p>The field is {@code private} because C2 only treats reference {@code static final}s as JIT-time
+     * constants when access is restricted (otherwise the field is mutable via reflection in principle and
+     * the optimization is unsound). Initialisation goes through {@code <clinit>} because reference
+     * literals can't ride a {@code ConstantValue} attribute — we use condy (LDC of a {@code ConstantDynamic})
+     * to fetch the value from the class-data slot that {@link MethodHandles.Lookup#defineHiddenClassWithClassData}
+     * populated.
+     */
     private Class<?> emitSpecializedReferenceClass(Class<?> base, String methodName, Class<?> valueType, Object value) {
         String typeDescriptor = Type.getDescriptor(valueType);
-        String baseInternal = Type.getInternalName(base);
-        String specializedInternal = baseInternal + "$Specialized";
-        String fieldName = "CONST_" + sanitize(methodName);
-        String accessorDescriptor = "()" + typeDescriptor;
+        SpecializedClassShapeValidator.SpecializedClassSpec spec = referenceSpec(base, methodName, typeDescriptor);
 
-        SpecializedClassShapeValidator.SpecializedClassSpec spec = new SpecializedClassShapeValidator.SpecializedClassSpec(
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        ClassVisitor cv = SpecializedClassShapeValidator.guarding(cw, spec);
+
+        emitClassHeader(cv, spec);
+        emitConstantField(cv, spec, /* initialValue */ null);   // populated by <clinit>
+        emitClassDataClinit(cv, spec);
+        emitForwardingConstructors(cv, base);
+        emitReferenceAccessor(cv, spec);
+
+        cv.visitEnd();
+        return defineHidden(base, cw.toByteArray(), value);
+    }
+
+    private SpecializedClassShapeValidator.SpecializedClassSpec primitiveSpec(Class<?> base, String methodName, String typeDescriptor) {
+        String baseInternal = Type.getInternalName(base);
+        return new SpecializedClassShapeValidator.SpecializedClassSpec(
             base,
-            specializedInternal,
+            baseInternal + "$Specialized",
             methodName,
-            accessorDescriptor,
-            fieldName,
+            "()" + typeDescriptor,
+            "CONST_" + sanitize(methodName),
+            typeDescriptor,
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+            /* expectsClinit */ false,
+            SpecializedClassShapeValidator.countPublicCtors(base)
+        );
+    }
+
+    private SpecializedClassShapeValidator.SpecializedClassSpec referenceSpec(Class<?> base, String methodName, String typeDescriptor) {
+        String baseInternal = Type.getInternalName(base);
+        return new SpecializedClassShapeValidator.SpecializedClassSpec(
+            base,
+            baseInternal + "$Specialized",
+            methodName,
+            "()" + typeDescriptor,
+            "CONST_" + sanitize(methodName),
             typeDescriptor,
             Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
             /* expectsClinit */ true,
             SpecializedClassShapeValidator.countPublicCtors(base)
         );
+    }
 
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        ClassVisitor cv = SpecializedClassShapeValidator.guarding(cw, spec);
+    /**
+     * Class header.
+     *
+     * <p>Equivalent Java:
+     * <pre>{@code
+     *   public final class <Base>$Specialized extends <Base> { ... }
+     * }</pre>
+     */
+    private static void emitClassHeader(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec) {
+        cv.visit(
+            Opcodes.V21,
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
+            spec.specializedInternalName(),
+            null,
+            spec.expectedSuperInternalName(),
+            null
+        );
+    }
 
-        cv.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, specializedInternal, null, baseInternal, null);
+    /**
+     * The single constant-holding field.
+     *
+     * <p>Equivalent Java (primitive case — {@code initialValue} non-null, baked as {@code ConstantValue} attribute):
+     * <pre>{@code
+     *   public static final long CONST_RHS = 60L;
+     * }</pre>
+     *
+     * <p>Equivalent Java (reference case — {@code initialValue} null, populated by {@code <clinit>}):
+     * <pre>{@code
+     *   private static final BytesRef CONST_PREFIX;
+     * }</pre>
+     */
+    private static void emitConstantField(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec, Object initialValue) {
+        cv.visitField(spec.expectedFieldAccess(), spec.fieldName(), spec.fieldDescriptor(), null, initialValue).visitEnd();
+    }
 
-        // private static final <T> CONST_<NAME>; — populated by <clinit> from class data.
-        // C2 trusts static final reference fields as JIT-time constants when the field is
-        // read through getstatic, much more aggressively than it inlines an LDC ldc-condy.
-        cv.visitField(spec.expectedFieldAccess(), fieldName, typeDescriptor, null, null).visitEnd();
-
-        // static { CONST_<NAME> = (T) MethodHandles.classData(LOOKUP, "_", T.class); }
-        // Implemented via: ldc Dynamic[name="_", type=T, bootstrap=MethodHandles::classData] ; putstatic
+    /**
+     * Class initializer that fetches a reference constant from the class-data slot.
+     *
+     * <p>Equivalent Java:
+     * <pre>{@code
+     *   static {
+     *       CONST_PREFIX = (BytesRef) MethodHandles.classData(LOOKUP, "_", BytesRef.class);
+     *   }
+     * }</pre>
+     *
+     * <p>Implemented at the bytecode level as a single LDC of a {@link ConstantDynamic} (condy) whose
+     * bootstrap is {@code MethodHandles.classData}, followed by a {@code putstatic}.
+     */
+    private static void emitClassDataClinit(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec) {
         Handle classDataBoot = new Handle(
             Opcodes.H_INVOKESTATIC,
             "java/lang/invoke/MethodHandles",
@@ -517,35 +615,35 @@ public final class ConstantMethodResultSpecializer {
             "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/Class;)Ljava/lang/Object;",
             false
         );
-        ConstantDynamic condy = new ConstantDynamic("_", typeDescriptor, classDataBoot);
+        ConstantDynamic condy = new ConstantDynamic("_", spec.fieldDescriptor(), classDataBoot);
 
         MethodVisitor clinit = cv.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         clinit.visitCode();
         clinit.visitLdcInsn(condy);
-        clinit.visitFieldInsn(Opcodes.PUTSTATIC, specializedInternal, fieldName, typeDescriptor);
+        clinit.visitFieldInsn(Opcodes.PUTSTATIC, spec.specializedInternalName(), spec.fieldName(), spec.fieldDescriptor());
         clinit.visitInsn(Opcodes.RETURN);
         clinit.visitMaxs(0, 0);
         clinit.visitEnd();
-
-        emitCtors(cv, base, baseInternal);
-
-        MethodVisitor m = cv.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, accessorDescriptor, null, null);
-        m.visitCode();
-        m.visitFieldInsn(Opcodes.GETSTATIC, specializedInternal, fieldName, typeDescriptor);
-        m.visitInsn(Opcodes.ARETURN);
-        m.visitMaxs(0, 0);
-        m.visitEnd();
-
-        cv.visitEnd();
-        return defineHidden(base, cw.toByteArray(), value);
     }
 
-    private void emitCtors(ClassVisitor cv, Class<?> base, String baseInternal) {
-        // Reproduce every public base ctor with a chained super call. The base classes
-        // we spin against are always codegen-emitted abstract evaluators with public ctors.
+    /**
+     * Mirror every public ctor of {@code base} as a forwarding ctor on the specialized subclass.
+     *
+     * <p>Equivalent Java (one such method per public ctor on the base):
+     * <pre>{@code
+     *   public <Base>$Specialized(P1 p1, P2 p2, ..., Pn pn) {
+     *       super(p1, p2, ..., pn);
+     *   }
+     * }</pre>
+     *
+     * <p>The specialized subclass holds no additional state — every parent ctor is mirrored verbatim
+     * with a chained {@code super(...)} call. Skips private ctors (defensive — codegen-emitted
+     * evaluators never have them, but the loop should be local-safe).
+     */
+    private void emitForwardingConstructors(ClassVisitor cv, Class<?> base) {
+        String baseInternal = Type.getInternalName(base);
         for (var ctor : base.getConstructors()) {
-            int mods = ctor.getModifiers();
-            if (java.lang.reflect.Modifier.isPrivate(mods)) continue;
+            if (java.lang.reflect.Modifier.isPrivate(ctor.getModifiers())) continue;
             Class<?>[] paramTypes = ctor.getParameterTypes();
             String descriptor = methodDescriptor(paramTypes, void.class);
             MethodVisitor mv = cv.visitMethod(Opcodes.ACC_PUBLIC, "<init>", descriptor, null, null);
@@ -575,6 +673,61 @@ public final class ConstantMethodResultSpecializer {
             mv.visitMaxs(0, 0);
             mv.visitEnd();
         }
+    }
+
+    /**
+     * Accessor override that returns the primitive constant.
+     *
+     * <p>Equivalent Java:
+     * <pre>{@code
+     *   protected final long rhs() {
+     *       return CONST_RHS;
+     *   }
+     * }</pre>
+     *
+     * <p>At the bytecode level: {@code getstatic} the field, then the type-appropriate return opcode
+     * ({@code lreturn} for long/long-backed types, {@code dreturn} for double, {@code freturn} for
+     * float, {@code ireturn} otherwise).
+     */
+    private static void emitPrimitiveAccessor(
+        ClassVisitor cv,
+        SpecializedClassShapeValidator.SpecializedClassSpec spec,
+        Class<?> primitive
+    ) {
+        int returnOp = primitive == long.class ? Opcodes.LRETURN
+            : primitive == double.class ? Opcodes.DRETURN
+            : primitive == float.class ? Opcodes.FRETURN
+            : Opcodes.IRETURN;
+        emitAccessorBody(cv, spec, returnOp);
+    }
+
+    /**
+     * Accessor override that returns the reference constant.
+     *
+     * <p>Equivalent Java:
+     * <pre>{@code
+     *   protected final BytesRef prefix() {
+     *       return CONST_PREFIX;
+     *   }
+     * }</pre>
+     */
+    private static void emitReferenceAccessor(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec) {
+        emitAccessorBody(cv, spec, Opcodes.ARETURN);
+    }
+
+    private static void emitAccessorBody(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec, int returnOp) {
+        MethodVisitor m = cv.visitMethod(
+            Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL,
+            spec.accessorName(),
+            spec.accessorDescriptor(),
+            null,
+            null
+        );
+        m.visitCode();
+        m.visitFieldInsn(Opcodes.GETSTATIC, spec.specializedInternalName(), spec.fieldName(), spec.fieldDescriptor());
+        m.visitInsn(returnOp);
+        m.visitMaxs(0, 0);
+        m.visitEnd();
     }
 
     private Class<?> defineHidden(Class<?> base, byte[] bytecode, Object classData) {

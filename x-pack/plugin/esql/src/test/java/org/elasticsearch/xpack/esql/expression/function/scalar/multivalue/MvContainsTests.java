@@ -254,20 +254,22 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
-            List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
-            List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
-            boolean result = field1.containsAll(field2);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
-                ),
-                "MvContainsBytesRefEvaluator[superset=Attribute[channel=0], subset=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(result)
-            );
-        }));
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                boolean result = field1.containsAll(field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvContainsBytesRefEvaluator[superset=Attribute[channel=0], subset=Attribute[channel=1]]",
+                    DataType.BOOLEAN,
+                    equalTo(result)
+                );
+            }));
+        }
     }
 
     // Adjusted from static method anyNullIsNull in {@code AbstractFunctionTestCase#}

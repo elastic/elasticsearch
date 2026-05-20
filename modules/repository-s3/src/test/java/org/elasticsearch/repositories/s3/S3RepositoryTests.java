@@ -366,17 +366,16 @@ public class S3RepositoryTests extends ESTestCase {
             StorageClass.STANDARD_IA,
             StorageClass.ONEZONE_IA
         );
+    }
 
-        // Case 5: invalid data_storage_class → fails at repository construction with RepositoryException (cause: BlobStoreException).
-        {
-            RepositoryException ex = expectThrows(
-                RepositoryException.class,
-                () -> createS3Repo(getRepositoryMetadata(storageClassSettings(null, "whatever", null)))
-            );
-            assertThat(ex.getMessage(), containsString(S3Repository.DATA_STORAGE_CLASS_SETTING.getKey()));
-            assertThat(ex.getCause(), Matchers.instanceOf(BlobStoreException.class));
-            assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
-        }
+    public void testInvalidDataStorageClassFailsAtConstruction() {
+        RepositoryException ex = expectThrows(
+            RepositoryException.class,
+            () -> createS3Repo(getRepositoryMetadata(storageClassSettings(null, "whatever", null)))
+        );
+        assertThat(ex.getMessage(), containsString(S3Repository.DATA_STORAGE_CLASS_SETTING.getKey()));
+        assertThat(ex.getCause(), Matchers.instanceOf(BlobStoreException.class));
+        assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
     }
 
     public void testInvalidMetadataStorageClassFailsAtConstruction() {
@@ -387,6 +386,22 @@ public class S3RepositoryTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString(S3Repository.METADATA_STORAGE_CLASS_SETTING.getKey()));
         assertThat(ex.getCause(), Matchers.instanceOf(BlobStoreException.class));
         assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
+    }
+
+    public void testInvalidDataStorageClassProducesInvalidRepository() {
+        final String repoName = randomAlphaOfLength(10);
+        repositoriesService.applyClusterState(
+            new ClusterChangedEvent("test", clusterStateWithS3Repo(repoName, storageClassSettings(null, "whatever", null)), emptyState())
+        );
+        assertThat(repositoriesService.repository(projectId, repoName), instanceOf(InvalidRepository.class));
+    }
+
+    public void testInvalidMetadataStorageClassProducesInvalidRepository() {
+        final String repoName = randomAlphaOfLength(10);
+        repositoriesService.applyClusterState(
+            new ClusterChangedEvent("test", clusterStateWithS3Repo(repoName, storageClassSettings(null, null, "whatever")), emptyState())
+        );
+        assertThat(repositoriesService.repository(projectId, repoName), instanceOf(InvalidRepository.class));
     }
 
     public void testResolveStorageClassRouting() {
@@ -432,22 +447,6 @@ public class S3RepositoryTests extends ESTestCase {
             builder.put(S3Repository.METADATA_STORAGE_CLASS_SETTING.getKey(), metadata);
         }
         return builder.build();
-    }
-
-    public void testInvalidDataStorageClassProducesInvalidRepository() {
-        final String repoName = randomAlphaOfLength(10);
-        repositoriesService.applyClusterState(
-            new ClusterChangedEvent("test", clusterStateWithS3Repo(repoName, storageClassSettings(null, "whatever", null)), emptyState())
-        );
-        assertThat(repositoriesService.repository(projectId, repoName), instanceOf(InvalidRepository.class));
-    }
-
-    public void testInvalidMetadataStorageClassProducesInvalidRepository() {
-        final String repoName = randomAlphaOfLength(10);
-        repositoriesService.applyClusterState(
-            new ClusterChangedEvent("test", clusterStateWithS3Repo(repoName, storageClassSettings(null, null, "whatever")), emptyState())
-        );
-        assertThat(repositoriesService.repository(projectId, repoName), instanceOf(InvalidRepository.class));
     }
 
     private ClusterState clusterStateWithS3Repo(String repoName, Settings repoSettings) {

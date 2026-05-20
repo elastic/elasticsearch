@@ -1,29 +1,11 @@
-columnar source requires subobjects false:
-  - do:
-      catch: "/columnar source requires \\[subobjects: false\\] on root mapping/"
-      indices.create:
-        index: test
-        body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
-              mapping.source.columnar: true
-          mappings:
-            properties:
-              kwd:
-                type: keyword
-
----
-
 keyword synthetic source:
   - do:
       indices.create:
         index: test
         body:
           settings:
-            index:
-              mapping.source.mode: synthetic
-              mapping.source.columnar: true
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
           mappings:
             subobjects: false
             properties:
@@ -65,9 +47,8 @@ keyword stored source:
         index: test
         body:
           settings:
-            index:
-              mapping.source.mode: stored
-              mapping.source.columnar: true
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
           mappings:
             subobjects: false
             properties:

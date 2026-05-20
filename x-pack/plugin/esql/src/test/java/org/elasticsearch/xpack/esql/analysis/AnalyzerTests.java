@@ -3519,9 +3519,7 @@ public class AnalyzerTests extends ESTestCase {
         analyzer().addIndex(resolution)
             .error(
                 "TS test | STATS avg(rate(bytes_in)) BY status",
-                containsString(
-                    "Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION]."
-                )
+                containsString("Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION].")
             );
     }
 

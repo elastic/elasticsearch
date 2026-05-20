@@ -162,29 +162,33 @@ public class HierarchicalKMeans {
         KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), m);
         kMeansLocal.cluster(vectors, kMeansIntermediate);
 
-        // TODO: consider adding cluster size counts to the kmeans algo
-        // handle assignment here so we can track distance and cluster size
-        int[] centroidVectorCount = new int[centroids.length];
-        int effectiveCluster = -1;
-        int effectiveK = 0;
-        for (int assigment : assignments) {
-            centroidVectorCount[assigment]++;
-            // this cluster has received an assignment, its now effective, but only count it once
-            if (centroidVectorCount[assigment] == 1) {
-                effectiveK++;
-                effectiveCluster = assigment;
-            }
-        }
+        centroids = kMeansIntermediate.centroids();
+        int[] centroidVectorCount = kMeansIntermediate.clusterCounts();
 
-        if (effectiveK == 1) {
-            final float[][] singleClusterCentroid = new float[1][];
-            singleClusterCentroid[0] = centroids[effectiveCluster];
-            kMeansIntermediate.setCentroids(singleClusterCentroid);
-            Arrays.fill(kMeansIntermediate.assignments(), 0);
+        if (centroids.length == 1) {
             return kMeansIntermediate;
         }
 
+//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
         resolveOversizedAndEmptyClusters(kMeansIntermediate, vectors, centroidVectorCount, targetSize);
+//=======
+        int centroidIndexOffset = 0; // tracks the cumulative change in centroid indices due to splits and removals
+        for (int c = 0; c < centroidVectorCount.length; c++) {
+            // Recurse for each cluster which is larger than targetSize
+            final int count = centroidVectorCount[c];
+            final int adjustedCentroid = c + centroidIndexOffset;
+            if (count > targetSize) {
+                final ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+
+                // TODO: consider iterative here instead of recursive
+                // recursive call to build out the sub partitions around this centroid c
+                // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
+                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
+                // Update offset: split replaces 1 centroid with subPartitions.centroids().length centroids
+                centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
+            }
+        }
+//>>>>>>> main
 
         return kMeansIntermediate;
     }
@@ -253,6 +257,7 @@ public class HierarchicalKMeans {
      * Reduce a large set of centroids to targetCount using lightweight K-means.
      * Operates only on centroids (not full vectors), so it's very fast.
      */
+//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
     private float[][] reduceCentroids(float[][] centroids, int targetCount) throws IOException {
         ClusteringFloatVectorValues centroidValues = KMeansFloatVectorValues.build(java.util.Arrays.asList(centroids), null, dimension);
         float[][] reduced = KMeansLocal.pickInitialCentroids(centroidValues, targetCount);
@@ -439,6 +444,43 @@ public class HierarchicalKMeans {
         // maxIterations=0 means only the final full-pass assignment (no sampled iterations)
         KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), vectors.size(), 0);
         kMeansLocal.cluster(vectors, kMeansIntermediate);
+//=======
+    int updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
+        if (subPartitions.centroids().length == 0) {
+            return 0; // nothing to do, sub-partitions is empty
+        }
+        int orgCentroidsSize = current.centroids().length;
+        int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
+
+        // update based on the outcomes from the split clusters recursion
+        float[][] newCentroids = new float[newCentroidsSize][];
+        int[] newClusterCounts = new int[newCentroidsSize];
+
+        // copy centroids prior to the split
+        System.arraycopy(current.centroids(), 0, newCentroids, 0, cluster);
+        System.arraycopy(current.clusterCounts(), 0, newClusterCounts, 0, cluster);
+        // insert the split partitions replacing the original cluster
+        System.arraycopy(subPartitions.centroids(), 0, newCentroids, cluster, subPartitions.centroids().length);
+        System.arraycopy(subPartitions.clusterCounts(), 0, newClusterCounts, cluster, subPartitions.centroids().length);
+        // append the remainder
+        System.arraycopy(
+            current.centroids(),
+            cluster + 1,
+            newCentroids,
+            cluster + subPartitions.centroids().length,
+            orgCentroidsSize - cluster - 1
+        );
+        System.arraycopy(
+            current.clusterCounts(),
+            cluster + 1,
+            newClusterCounts,
+            cluster + subPartitions.centroids().length,
+            orgCentroidsSize - cluster - 1
+        );
+
+        assert Arrays.stream(newCentroids).allMatch(Objects::nonNull);
+        current.setCentroids(newCentroids, newClusterCounts);
+//>>>>>>> main
 
         // Handle oversized clusters
         int[] centroidVectorCount = new int[seedCentroids.length];

@@ -95,13 +95,13 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
             <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
             <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
@@ -114,7 +114,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertListObjectsResponse(handler, "path/", "/", """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult>\
             <Prefix>path/</Prefix><Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
             <StorageClass>STANDARD</StorageClass></Contents>\
             <CommonPrefixes><Prefix>path/subpath1/</Prefix></CommonPrefixes>\
             <CommonPrefixes><Prefix>path/subpath2/</Prefix></CommonPrefixes>\
@@ -125,9 +125,9 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/subpath1/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <Contents><Key>path/subpath1/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
             <StorageClass>STANDARD</StorageClass></Contents>\
-            <Contents><Key>path/subpath2/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <Contents><Key>path/subpath2/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
             <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
@@ -254,9 +254,9 @@ public class S3HttpHandlerTests extends ESTestCase {
         // LIST: both objects appear with their correct StorageClass elements
         assertListObjectsResponse(handler, "path/", null, Strings.format("""
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/standard-blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
+            <Contents><Key>path/standard-blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
             <StorageClass>STANDARD</StorageClass></Contents>\
-            <Contents><Key>path/tiered-blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
+            <Contents><Key>path/tiered-blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
             <StorageClass>%s</StorageClass></Contents>\
             </ListBucketResult>""", storageClass));
 
@@ -339,7 +339,7 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>100</Size>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>100</Size>\
             <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 

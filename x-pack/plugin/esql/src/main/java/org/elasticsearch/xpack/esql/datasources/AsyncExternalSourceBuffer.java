@@ -64,6 +64,8 @@ public final class AsyncExternalSourceBuffer {
      */
     public void addPage(Page page) {
         if (failure != null) {
+            // Reject the page without touching buffer state, so the trailing invariantsHold()
+            // call is intentionally bypassed: nothing was mutated for it to check.
             page.releaseBlocks();
             return;
         }

@@ -105,6 +105,9 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
 
         int rowCount = 50_000;
         int bucketCount = 8;
+        // Per-bucket assertion relies on exact integer division; otherwise truncation would
+        // silently change the expected count and surface as a confusing assertion failure.
+        assertEquals("rowCount must be evenly divisible by bucketCount for this test", 0, rowCount % bucketCount);
         // 50_000 rows of 512-byte payload at rowGroupSize=64 KiB forces many row groups even
         // uncompressed — that's the property this test relies on. The fixture is regenerated
         // every run, so a writer regression collapsing everything into one row group would

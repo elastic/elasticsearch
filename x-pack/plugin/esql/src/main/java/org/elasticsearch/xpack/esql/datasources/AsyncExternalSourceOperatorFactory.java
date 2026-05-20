@@ -1018,9 +1018,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * return synchronously. {@link DrainResult#BLOCKED} is returned immediately after listener
      * registration; the producer resumes asynchronously when {@code signal} completes.
      * <p>
-     * Both branches of the listener (success and failure) route resume errors through
-     * {@code completionListener.onFailure} after calling {@link #clearCurrentIterator}, matching
-     * the cleanup performed by the surrounding {@link #runProducerLoop} {@code catch} block.
+     * Cleanup semantics by branch:
+     * <ul>
+     * <li>Success branch (happy path): re-submits {@link #runProducerLoop} on {@code executor};
+     *     the current iterator stays open across the park. Only if {@code executor.execute()}
+     *     itself throws (e.g. shutting-down pool) is the iterator cleared and the failure
+     *     routed through {@code completionListener.onFailure}.</li>
+     * <li>Failure branch: clears the current iterator and routes the signal's failure through
+     *     {@code completionListener.onFailure}.</li>
+     * </ul>
+     * Both cleanup paths match what the surrounding {@link #runProducerLoop} {@code catch} block
+     * does on a synchronous throw.
      * <p>
      * Collapses three structurally identical {@code addListener} blocks (page-ready, page-ready
      * recheck, buffer-space) into one site, removing copy-paste drift risk between branches.

@@ -52,12 +52,12 @@ import static org.mockito.Mockito.when;
 
 /**
  * End-to-end tests for the deferred-extraction path through
- * {@link ExternalSourceOperatorFactory}: opening N files registers N
+ * {@link AsyncExternalSourceOperatorFactory}: opening N files registers N
  * {@link ColumnExtractor}s on the per-driver {@link SourceExtractors} registry, and the encoded
  * {@code _rowPosition} values emitted to downstream operators decode to the right
  * {@code (extractorId, file-local position)} pair.
  */
-public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTestCase {
+public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
@@ -90,7 +90,7 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             reader,
             path,
@@ -177,7 +177,7 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             reader,
             path,
@@ -240,7 +240,7 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             reader,
             path,
@@ -331,17 +331,17 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
         Attribute value = field("value", DataType.INTEGER);
         Attribute rowPos = field(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG);
 
-        List<Attribute> stripped = ExternalSourceOperatorFactory.stripRowPosition(List.of(value, rowPos));
+        List<Attribute> stripped = AsyncExternalSourceOperatorFactory.stripRowPosition(List.of(value, rowPos));
         assertEquals(1, stripped.size());
         assertEquals("value", stripped.get(0).name());
 
         // Marker absent: identity-return so non-deferred-extraction callers pay nothing.
         List<Attribute> noMarker = List.of(value);
-        assertSame(noMarker, ExternalSourceOperatorFactory.stripRowPosition(noMarker));
+        assertSame(noMarker, AsyncExternalSourceOperatorFactory.stripRowPosition(noMarker));
 
         // Empty / null inputs are passed through unchanged.
-        assertSame(List.<Attribute>of(), ExternalSourceOperatorFactory.stripRowPosition(List.of()));
-        assertNull(ExternalSourceOperatorFactory.stripRowPosition(null));
+        assertSame(List.<Attribute>of(), AsyncExternalSourceOperatorFactory.stripRowPosition(List.of()));
+        assertNull(AsyncExternalSourceOperatorFactory.stripRowPosition(null));
     }
 
     public void testDeferredExtractionDefersOnCloseUntilRegistryCloses() throws Exception {
@@ -370,7 +370,7 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
 
         AtomicInteger onCloseCalls = new AtomicInteger();
         java.io.Closeable onCloseProbe = () -> onCloseCalls.incrementAndGet();
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             reader,
             path,
@@ -429,7 +429,7 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
 
         AtomicInteger onCloseCalls = new AtomicInteger();
         java.io.Closeable onCloseProbe = () -> onCloseCalls.incrementAndGet();
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             reader,
             path,
@@ -464,7 +464,7 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> ExternalSourceOperatorFactory.builder(storageProvider, plain, path, attributes, 100, 10, (Runnable r) -> r.run())
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, plain, path, attributes, 100, 10, (Runnable r) -> r.run())
                 .deferredExtraction(true)
                 .build()
         );
@@ -524,7 +524,7 @@ public class ExternalSourceOperatorFactoryDeferredExtractionTests extends ESTest
 
     /**
      * Wraps a page iterator and exposes the {@link ColumnExtractorProducer} handshake that
-     * {@link ExternalSourceOperatorFactory#wrapWithEncoderIfNeeded} requires when deferred
+     * {@link AsyncExternalSourceOperatorFactory#wrapWithEncoderIfNeeded} requires when deferred
      * extraction is enabled. Returns a fresh in-memory extractor on each call.
      */
     private static final class ProducerIterator implements CloseableIterator<Page>, ColumnExtractorProducer {

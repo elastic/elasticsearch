@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Integration test verifying COUNT(*) pushdown for local Parquet files.
  * When pushdown fires, the data driver uses a LocalSourceExec (no Async operators)
- * instead of scanning all row groups through ExternalSourceOperatorFactory.
+ * instead of scanning all row groups through AsyncExternalSourceOperatorFactory.
  */
 public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
 
@@ -212,7 +212,7 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
     /**
      * Asserts that no Async* operator appears in any driver profile.
      * When pushdown fires, the plan is a LocalSourceExec — there is no
-     * ExternalSourceOperatorFactory executing file reads.
+     * AsyncExternalSourceOperatorFactory executing file reads.
      */
     private static void assertNoPushdownBypass(EsqlQueryResponse response) {
         var profile = response.profile();

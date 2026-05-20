@@ -27,11 +27,11 @@ import java.util.NoSuchElementException;
  * continues to work after schema reconciliation.
  *
  * <h2>{@link BlockFactory} threading contract</h2>
- * This iterator runs on the producer side of {@link ExternalSourceBuffer} (the generic /
+ * This iterator runs on the producer side of {@link AsyncExternalSourceBuffer} (the generic /
  * external-source pool thread that drains pages from the format reader), <em>not</em> on the
  * driver thread that later consumes them. Callers must therefore pass a {@link BlockFactory}
  * that is safe to use off-driver — typically the node-level (root) factory wired via
- * {@link ExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} — so the
+ * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} — so the
  * null-fill and cast allocations are charged to the global request circuit breaker. Passing a
  * driver-local factory backed by {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
  * trips its single-thread assertion in debug builds and races with the driver loop's
@@ -45,7 +45,7 @@ import java.util.NoSuchElementException;
  * {@code instanceof ColumnExtractorProducer} a necessary-but-not-sufficient guard at consumer
  * sites — the dispatch into the delegate fails loud (see {@link #innerProducer()}). The only
  * consumer is the deferred-extraction wiring in
- * {@code ExternalSourceOperatorFactory#wrapWithEncoderIfNeeded}, which only reaches this
+ * {@code AsyncExternalSourceOperatorFactory#wrapWithEncoderIfNeeded}, which only reaches this
  * iterator when the factory has already arranged for {@code _rowPosition} (and therefore a
  * producer-capable delegate) on the read path.
  */

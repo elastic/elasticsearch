@@ -26,7 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end coverage that the profile-observability fields added to {@code ExternalSourceOperator.Status}
+ * End-to-end coverage that the profile-observability fields added to {@code AsyncExternalSourceOperator.Status}
  * and {@code EsqlQueryProfile.dataset_resolution} are populated when EXTERNAL and FROM &lt;dataset&gt;
  * queries execute against a local Parquet fixture.
  */
@@ -125,7 +125,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
         return plugins;
     }
 
-    /** Pin the planner to deterministic shapes so the ExternalSourceOperator is reliably present. */
+    /** Pin the planner to deterministic shapes so the AsyncExternalSourceOperator is reliably present. */
     @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
@@ -165,7 +165,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
 
             try (var response = run(request, TIMEOUT)) {
                 assertNotNull("profile must be present (request had profile=true)", response.profile());
-                ExternalSourceOperator.Status status = findExternalSourceStatus(response);
+                AsyncExternalSourceOperator.Status status = findAsyncExternalSourceStatus(response);
                 // splitsTotal/currentSplit/processNanos are set synchronously by the operator and producer
                 // before the consumer can observe EOF, so they are reliable across single-file paths.
                 assertThat("process_nanos should be populated by the read loop", status.processNanos(), greaterThan(0L));
@@ -217,7 +217,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
                 assertThat("dataset_resolution marker must exist", datasetMarker, notNullValue());
                 assertThat("dataset_resolution span must be recorded", datasetMarker.timeSpan(), notNullValue());
 
-                ExternalSourceOperator.Status status = findExternalSourceStatus(response);
+                AsyncExternalSourceOperator.Status status = findAsyncExternalSourceStatus(response);
                 assertThat(status.processNanos(), greaterThan(0L));
                 assertThat(status.splitsTotal(), greaterThanOrEqualTo(1));
                 assertThat(status.currentSplit(), greaterThanOrEqualTo(1));
@@ -231,7 +231,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
 
     /**
      * End-to-end coverage for the {@code format_reader} sub-object on
-     * {@link ExternalSourceOperator.Status}. The query intentionally drains every row (no
+     * {@link AsyncExternalSourceOperator.Status}. The query intentionally drains every row (no
      * {@code LIMIT}) so the producer reaches its terminal {@code DONE} / EOF callback before the
      * consumer reads the operator status — that callback is where the producer commits the latest
      * format-reader snapshot to the buffer. With a {@code LIMIT} short enough to short-circuit
@@ -250,7 +250,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
 
             try (var response = run(request, TIMEOUT)) {
                 assertNotNull("profile must be present (request had profile=true)", response.profile());
-                ExternalSourceOperator.Status status = findExternalSourceStatus(response);
+                AsyncExternalSourceOperator.Status status = findAsyncExternalSourceStatus(response);
                 Map<String, Object> formatReader = status.formatReader();
                 assertThat(
                     "format_reader snapshot must be populated after the producer drains the file",
@@ -272,17 +272,17 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private static ExternalSourceOperator.Status findExternalSourceStatus(EsqlQueryResponse response) {
-        ExternalSourceOperator.Status found = null;
+    private static AsyncExternalSourceOperator.Status findAsyncExternalSourceStatus(EsqlQueryResponse response) {
+        AsyncExternalSourceOperator.Status found = null;
         assertThat(response.profile(), notNullValue());
         for (var driver : response.profile().drivers()) {
             for (var op : driver.operators()) {
-                if (op.status() instanceof ExternalSourceOperator.Status s) {
+                if (op.status() instanceof AsyncExternalSourceOperator.Status s) {
                     found = s;
                 }
             }
         }
-        assertThat("expected at least one ExternalSourceOperator.Status in the driver profiles", found, notNullValue());
+        assertThat("expected at least one AsyncExternalSourceOperator.Status in the driver profiles", found, notNullValue());
         return found;
     }
 

@@ -120,7 +120,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()}
-    // and folded into ExternalSourceOperator.Status.formatReader by the carrier. Per-reader
+    // and folded into AsyncExternalSourceOperator.Status.formatReader by the carrier. Per-reader
     // (one ParquetFormatReader instance owns one counter struct), incremented by each read /
     // readRange invocation that flows through this reader.
     private final ParquetReaderCounters counters = new ParquetReaderCounters();
@@ -275,7 +275,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Returns an immutable snapshot of this reader's instrumentation counters. The carrier
-     * ({@code ExternalSourceOperator.Status}) folds this map into the {@code formatReader}
+     * ({@code AsyncExternalSourceOperator.Status}) folds this map into the {@code formatReader}
      * sub-object on the operator profile.
      */
     @Override
@@ -918,7 +918,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      *                           the file schema. {@link #read} always passes {@code null};
      *                           {@link #readRange} threads through the planner-resolved value
      *                           to skip redundant schema conversion across the splits of one
-     *                           file (see {@code ExternalSourceOperatorFactory}).
+     *                           file (see {@code AsyncExternalSourceOperatorFactory}).
      * @param fullFooter         the unranged file footer used to scope deferred extraction.
      *                           {@link #read} passes {@code reader.getFooter()};
      *                           {@link #readRange} threads the cached unranged footer so the
@@ -963,7 +963,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 fileMetaData = reader.getFileMetaData();
                 parquetSchema = fileMetaData.getSchema();
             }
-            // The framework passes planning-time resolved attributes for this query (ExternalSourceOperatorFactory).
+            // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
             // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
             List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
                 ? resolvedAttributes

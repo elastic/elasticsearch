@@ -27,7 +27,7 @@ import java.util.concurrent.Executor;
 
 /**
  * Source-operator factory that executes a connector query on a background thread and feeds pages
- * into an {@link ExternalSourceBuffer} for the driver to consume.
+ * into an {@link AsyncExternalSourceBuffer} for the driver to consume.
  * <p>
  * Two execution modes, selected based on whether a {@link ExternalSliceQueue} is supplied:
  * <ul>
@@ -42,8 +42,8 @@ import java.util.concurrent.Executor;
  * non-blocking: it runs synchronously while the buffer has space and yields the producer thread
  * when full, resuming via the executor when space is freed.
  *
- * @see ExternalSourceBuffer
- * @see ExternalSourceOperator
+ * @see AsyncExternalSourceBuffer
+ * @see AsyncExternalSourceOperator
  */
 public class AsyncConnectorSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
@@ -89,7 +89,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     public SourceOperator get(DriverContext driverContext) {
         QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
 
         // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
@@ -107,7 +107,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
-        return new ExternalSourceOperator(buffer);
+        return new AsyncExternalSourceOperator(buffer);
     }
 
     /**
@@ -120,7 +120,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         final QueryRequest request;
         @Nullable
         final ExternalSliceQueue queue;
-        final ExternalSourceBuffer buffer;
+        final AsyncExternalSourceBuffer buffer;
 
         /** True iff single-shot mode has already opened its one cursor (subsequent advances return EOF). */
         boolean singleShotStarted;
@@ -130,7 +130,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         @Nullable
         ResultCursor cursor;
 
-        ProducerState(QueryRequest request, @Nullable ExternalSliceQueue queue, ExternalSourceBuffer buffer, int rowsRemaining) {
+        ProducerState(QueryRequest request, @Nullable ExternalSliceQueue queue, AsyncExternalSourceBuffer buffer, int rowsRemaining) {
             if (request == null) {
                 throw new IllegalArgumentException("ProducerState requires a non-null request");
             }
@@ -199,7 +199,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
      */
     private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
         ResultCursor cursor = state.cursor;
-        ExternalSourceBuffer buffer = state.buffer;
+        AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;

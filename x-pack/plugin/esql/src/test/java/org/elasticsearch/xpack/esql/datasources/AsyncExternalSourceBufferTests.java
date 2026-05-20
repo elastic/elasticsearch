@@ -24,9 +24,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Unit tests for {@link ExternalSourceBuffer} backpressure via {@link ExternalSourceBuffer#waitForSpace()}.
+ * Unit tests for {@link AsyncExternalSourceBuffer} backpressure via {@link AsyncExternalSourceBuffer#waitForSpace()}.
  */
-public class ExternalSourceBufferTests extends ESTestCase {
+public class AsyncExternalSourceBufferTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
@@ -48,7 +48,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
     }
 
     public void testWaitForSpaceReturnsCompletedWhenBufferHasRoom() {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         SubscribableListener<Void> space = buffer.waitForSpace();
         assertTrue("waitForSpace should be immediately done when buffer is empty", space.isDone());
         buffer.finish(true);
@@ -56,7 +56,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
 
     public void testWaitForSpaceReturnsPendingWhenBufferFull() {
         long maxBufferBytes = 1500;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         while (buffer.bytesInBuffer() < maxBufferBytes) {
             buffer.addPage(createTestPage(2, 50));
@@ -74,7 +74,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
 
     public void testWaitForSpaceCompletesOnFinish() {
         long maxBufferBytes = 1500;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         while (buffer.bytesInBuffer() < maxBufferBytes) {
             buffer.addPage(createTestPage(2, 50));
@@ -89,7 +89,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
 
     public void testBufferConsistentAfterFullAndDrain() {
         long maxBufferBytes = 1500;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         long expectedBytes = 0;
         while (buffer.bytesInBuffer() < maxBufferBytes) {
@@ -115,8 +115,8 @@ public class ExternalSourceBufferTests extends ESTestCase {
     }
 
     /**
-     * Regression test for a lost-wakeup race between {@link ExternalSourceBuffer#addPage(Page)}
-     * and {@link ExternalSourceBuffer#pollPage()}.
+     * Regression test for a lost-wakeup race between {@link AsyncExternalSourceBuffer#addPage(Page)}
+     * and {@link AsyncExternalSourceBuffer#pollPage()}.
      * <p>
      * The prior implementation guarded {@code notifyNotEmpty()} on a snapshot of {@code bytesInBuffer}
      * taken BEFORE the page was inserted into the queue, and guarded {@code notifyNotFull()} on a
@@ -137,7 +137,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
         final long deadlineNanos = TimeUnit.SECONDS.toNanos(30);
 
         for (int iter = 0; iter < iterations; iter++) {
-            ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+            AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
             AtomicInteger pagesAdded = new AtomicInteger();
             AtomicInteger pagesConsumed = new AtomicInteger();
             AtomicReference<Throwable> producerError = new AtomicReference<>();
@@ -219,7 +219,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
     }
 
     public void testFormatReaderStatusGetterMatchesLastRecorded() {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertEquals(Map.of(), buffer.formatReaderStatus());
 
         buffer.recordFormatReaderStatus(Map.of("row_groups_read", 3L));
@@ -235,7 +235,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
     }
 
     public void testBytesReadAccumulatesPositiveDeltas() {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertEquals(0L, buffer.bytesRead());
 
         buffer.addBytesRead(100);
@@ -249,7 +249,7 @@ public class ExternalSourceBufferTests extends ESTestCase {
     }
 
     public void testSplitTrackingTriplet() {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertEquals(0, buffer.splitsTotal());
         assertEquals(0, buffer.splitsProcessed());
         assertEquals(0, buffer.currentSplit());

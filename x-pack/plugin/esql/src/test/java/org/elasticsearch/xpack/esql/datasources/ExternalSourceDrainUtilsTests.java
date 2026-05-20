@@ -122,7 +122,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     public void testDrainPagesAsyncSimple() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -141,7 +141,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     public void testDrainAsyncRespectsPagesBackpressure() throws Exception {
         int totalPages = 20;
         long maxBufferBytes = 1500;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         List<Page> sourcePages = new ArrayList<>();
         for (int i = 0; i < totalPages; i++) {
@@ -178,7 +178,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     public void testBackpressureWithSameNamedPoolThreads() throws Exception {
         int totalPages = 20;
         long maxBufferBytes = 1500;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         List<Page> sourcePages = new ArrayList<>();
         for (int i = 0; i < totalPages; i++) {
@@ -232,7 +232,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     public void testDrainPagesAsyncIteratorThrowsOnNext() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
         int succeedCount = between(1, 3);
         List<Page> pages = new ArrayList<>();
@@ -257,7 +257,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     public void testDrainPagesAsyncIteratorThrowsOnHasNext() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
         int succeedCount = between(1, 3);
         List<Page> pages = new ArrayList<>();
@@ -284,7 +284,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     public void testDrainPagesAsyncBufferCancelledMidDrain() throws Exception {
         int totalPages = 20;
         long maxBufferBytes = 1000;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         CountDownLatch drainStarted = new CountDownLatch(1);
 
@@ -333,7 +333,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     public void testDrainAsyncEmptyIterator() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
         CountDownLatch latch = new CountDownLatch(1);
         ExternalSourceDrainUtils.drainPagesAsync(iteratorOf(List.of()), buffer, exec, ActionListener.wrap(v -> latch.countDown(), e -> {
@@ -347,7 +347,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
 
     public void testDrainAsyncExecutorRejection() throws Exception {
         long maxBufferBytes = 100;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         List<Page> pages = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             pages.add(createTestPage(2, 50));
@@ -388,7 +388,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     public void testIteratorOwnershipNotClosedByDrain() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
         AtomicBoolean closeCalled = new AtomicBoolean(false);
 
@@ -432,7 +432,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
      * when using ActionListener.runAfter, as recommended by INV-7 / INV-2.
      */
     public void testIteratorClosedExactlyOnceOnSuccess() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10));
 
         AtomicInteger closeCount = new AtomicInteger(0);
@@ -462,7 +462,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
      * when using ActionListener.runAfter, as recommended by INV-7 / INV-2.
      */
     public void testIteratorClosedExactlyOnceOnFailure() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             pages.add(createTestPage(1, 10));
@@ -495,7 +495,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
      * as part of the standard lifecycle pattern (INV-2).
      */
     public void testRemoveAsyncActionFiresExactlyOnce() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10));
 
         AtomicInteger removeCount = new AtomicInteger(0);
@@ -522,7 +522,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
      * Verifies that removeAsyncAction fires exactly once on the failure path.
      */
     public void testRemoveAsyncActionFiresExactlyOnceOnFailure() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             pages.add(createTestPage(1, 10));
@@ -557,7 +557,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
      * on the success path, only finish(false) is called; on the failure path, only onFailure is called.
      */
     public void testBufferFinishAndOnFailureMutuallyExclusive() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = List.of(createTestPage(1, 10));
 
         AtomicInteger finishCount = new AtomicInteger(0);
@@ -584,7 +584,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
      * Verifies that on the failure path, onFailure is called and finish(false) is not.
      */
     public void testBufferOnFailureCalledNotFinishOnError() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         List<Page> pages = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             pages.add(createTestPage(1, 10));
@@ -620,7 +620,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     public void testSlowConsumerExceedingOldTimeoutCompletes() throws Exception {
         int totalPages = 10;
         long maxBufferBytes = 500;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         List<Page> sourcePages = new ArrayList<>();
         for (int i = 0; i < totalPages; i++) {
@@ -665,7 +665,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     public void testThreadReleaseDuringBackpressure() throws Exception {
         int totalPages = 10;
         long maxBufferBytes = 200;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         List<Page> sourcePages = new ArrayList<>();
         for (int i = 0; i < totalPages; i++) {
@@ -728,7 +728,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     public void testCancellationWhileWaitingOnWaitForSpace() throws Exception {
         int totalPages = 50;
         long maxBufferBytes = 200;
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(maxBufferBytes);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         List<Page> sourcePages = new ArrayList<>();
         for (int i = 0; i < totalPages; i++) {
@@ -772,7 +772,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
      * Verifies that the drain handles an iterator that fails on the very first hasNext() call.
      */
     public void testIteratorFailsOnFirstHasNext() throws Exception {
-        ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
         CloseableIterator<Page> failImmediately = new CloseableIterator<>() {
             @Override

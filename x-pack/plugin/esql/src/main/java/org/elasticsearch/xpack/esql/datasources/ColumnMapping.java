@@ -33,7 +33,7 @@ import java.util.Set;
  * output column, the source position in the file's natural-order page (or {@code -1} when the
  * file lacks that column), and the cast (if any) the coordinator chose during reconciliation.
  * Built by {@link SchemaReconciliation}; consumed by {@link SchemaAdaptingIterator} (page
- * mapping) and {@code ExternalSourceOperatorFactory} (pushed-filter mapping).
+ * mapping) and {@code AsyncExternalSourceOperatorFactory} (pushed-filter mapping).
  * <p>
  * For the four-schema model (File / Unified / Query / Per-file query) this bridges, see the
  * class Javadoc on {@link SchemaReconciliation}.

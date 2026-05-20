@@ -1899,7 +1899,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * Verifies that cross-split footer caching via {@link RangeReadContext#fileContext()} produces
-     * correct results. Simulates the {@code ExternalSourceOperatorFactory} pattern: the first
+     * correct results. Simulates the {@code AsyncExternalSourceOperatorFactory} pattern: the first
      * split parses the footer and caches it; subsequent splits reuse the cached footer. Row counts
      * and values must match a non-cached full read.
      */
@@ -1950,7 +1950,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * Regression test for #147691: concurrent {@code readRange} calls on a single shared
      * {@link ParquetFormatReader} must not corrupt the codec factory it caches internally.
      * <p>
-     * In production {@code ExternalSourceOperatorFactory} hands a single {@code ParquetFormatReader}
+     * In production {@code AsyncExternalSourceOperatorFactory} hands a single {@code ParquetFormatReader}
      * to multiple driver threads, each reading a distinct row-group split. Every split decodes
      * column chunks via the reader's shared {@link PlainCompressionCodecFactory}, so
      * {@link PlainCompressionCodecFactory#getDecompressor} runs concurrently for the same codec.
@@ -2342,7 +2342,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * consumer boundary deterministically in a single thread by maintaining a queue lookahead
      * larger than the {@link DecodeBuffers} slot count, so every {@link Page} the consumer reads
      * has been alive across several subsequent decodes by the producer - the same shape
-     * {@code ExternalSourceBuffer} produces in production. See the {@code Block construction
+     * {@code AsyncExternalSourceBuffer} produces in production. See the {@code Block construction
      * helpers} block in {@link PageColumnReader} for the bug mechanism.
      *
      * <p>All four affected primitive types are covered: longs and doubles (two-slot rotation in
@@ -2367,7 +2367,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         int totalRows = batchSize * 20;
         // Lookahead must exceed the DecodeBuffers slot count (2 for long/double, 1 for
         // int/boolean) so the producer is guaranteed to reuse a buffer the consumer still
-        // references. 6 mirrors the typical ExternalSourceBuffer queue depth.
+        // references. 6 mirrors the typical AsyncExternalSourceBuffer queue depth.
         int lookahead = 6;
 
         byte[] parquetData = createParquetFile(schema, factory -> {

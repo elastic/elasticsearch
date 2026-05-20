@@ -85,7 +85,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
         // With rowLimit=50, should stop after 1 file (100 rows >= 50)
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -139,7 +139,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
         // NO_LIMIT should read all files
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -185,7 +185,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
         // Single file with rowLimit=10 — the LimitingIterator should stop early
-        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,

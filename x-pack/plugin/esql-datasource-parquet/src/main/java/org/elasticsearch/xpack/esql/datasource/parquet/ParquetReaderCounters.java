@@ -157,7 +157,7 @@ public final class ParquetReaderCounters {
     /**
      * Returns an immutable snapshot of the current counter values. Per-column entries are captured
      * under the {@code "columns"} key as {@code Map<String, Map<String, Object>>}: the outer
-     * envelope ({@code ExternalSourceOperator.Status.formatReader}) ships through
+     * envelope ({@code AsyncExternalSourceOperator.Status.formatReader}) ships through
      * {@code StreamOutput.writeGenericMap}, which only supports leaf types in the {@code WRITERS}
      * registry, so each {@link PerColumnStatus} is flattened via {@link PerColumnStatus#toMap()}
      * before it crosses the carrier boundary.

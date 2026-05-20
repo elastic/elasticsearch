@@ -375,7 +375,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
 
     /**
      * Regression test for a latent thread-affinity bug. {@link SchemaAdaptingIterator} runs on
-     * the producer side of {@link ExternalSourceBuffer} (a generic-pool thread draining
+     * the producer side of {@link AsyncExternalSourceBuffer} (a generic-pool thread draining
      * pages from the format reader); the driver pins its own thread on the driver-local
      * {@link LocalCircuitBreaker} via {@link LocalCircuitBreaker#assertBeginRunLoop()}. If the
      * iterator were given the driver-local {@link BlockFactory}, its null-fill allocations
@@ -388,7 +388,7 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
      *   <li>Passing the driver-local factory must trip {@code assertSingleThread} — proving the
      *   pattern is dangerous and the test catches accidental regressions.</li>
      *   <li>Passing the root factory must succeed — proving the production wiring in
-     *   {@link ExternalSourceOperatorFactory#adaptSchema} is exactly what's needed.</li>
+     *   {@link AsyncExternalSourceOperatorFactory#adaptSchema} is exactly what's needed.</li>
      * </ul>
      */
     public void testNullFillFromProducerThreadRequiresRootBlockFactory() throws Exception {

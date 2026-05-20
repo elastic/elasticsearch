@@ -105,7 +105,7 @@ final class PreloadedRowGroupMetadata {
      *
      * <p><b>Threading model:</b> This method is called from {@code ParquetFormatReader.read()}
      * and {@code readRange()}, which in production are always dispatched on the
-     * {@code esql_worker} thread pool by {@code ExternalSourceOperatorFactory}
+     * {@code esql_worker} thread pool by {@code AsyncExternalSourceOperatorFactory}
      * ({@code executor.execute(() -> formatReader.read(...))}). The coalesced reads use
      * {@code Runnable::run} as the async executor, which means:
      * <ul>

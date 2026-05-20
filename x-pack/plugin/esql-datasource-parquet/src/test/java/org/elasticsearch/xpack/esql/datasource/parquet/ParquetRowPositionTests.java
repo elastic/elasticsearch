@@ -269,7 +269,7 @@ public class ParquetRowPositionTests extends ESTestCase {
     }
 
     /**
-     * Regression test for the original v1 production bug: {@code ExternalSourceOperatorFactory}
+     * Regression test for the original v1 production bug: {@code AsyncExternalSourceOperatorFactory}
      * passes its full unified query attributes — which under deferred extraction <em>include</em>
      * a synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} attribute — as
      * {@link RangeReadContext#resolvedAttributes()}. A short-lived collision guard in {@code

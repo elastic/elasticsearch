@@ -653,7 +653,7 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Blocks until a page is available or EOF, preserving the standard {@link java.util.Iterator} contract
          * for synchronous consumers (test code, generic CloseableIterator users). Async consumers
-         * (the producer-loop in {@code ExternalSourceOperatorFactory}) bypass this block by
+         * (the producer-loop in {@code AsyncExternalSourceOperatorFactory}) bypass this block by
          * calling {@link #waitForReady()} first, then either drain via this method (now non-spinning
          * because the page is already there) or yield their executor thread when the listener isn't
          * yet done. Internally implemented via the same {@link #waitForReady()} signal so the wait

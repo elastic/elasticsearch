@@ -253,7 +253,7 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
      * partway through, to verify the active cursor gets closed and no further splits are opened.
      * <p>
      * BLOCKED-path coverage (buffer-full backpressure and wakeup correctness) is not exercised here;
-     * it lives in {@code ExternalSourceBufferTests#testNoLostWakeupUnderConcurrentAddAndPoll}.
+     * it lives in {@code AsyncExternalSourceBufferTests#testNoLostWakeupUnderConcurrentAddAndPoll}.
      */
     public void testProducerLoopStateMachine() throws Exception {
         // --- scenario 1: run to completion across 4 splits ---

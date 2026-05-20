@@ -191,7 +191,7 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
     /**
      * Producer-thread keeps decoding pages while a separate consumer-thread closes already-emitted
      * pages after a randomized small delay (and a {@code page.allowPassingToDifferentDriver()} hop
-     * to mirror {@code ExternalSourceOperatorFactory}). Repeated for many iterations and
+     * to mirror {@code AsyncExternalSourceOperatorFactory}). Repeated for many iterations and
      * iterator instances; the breaker must still return to zero. With a non-thread-safe shared
      * refcount, this would race and either leak or trigger an assertion in {@code decRef}.
      */

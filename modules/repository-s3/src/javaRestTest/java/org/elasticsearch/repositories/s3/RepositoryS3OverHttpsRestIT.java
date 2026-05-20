@@ -9,57 +9,69 @@
 
 package org.elasticsearch.repositories.s3;
 
-import fixture.aws.DynamicAwsCredentials;
 import fixture.aws.DynamicRegionSupplier;
-import fixture.aws.imds.Ec2ImdsHttpFixture;
-import fixture.aws.imds.Ec2ImdsServiceBuilder;
-import fixture.aws.imds.Ec2ImdsVersion;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
+import org.elasticsearch.test.tls.TestTlsCertificate;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.function.Supplier;
 
-@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3RestTestCase {
+import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3ImdsV2CredentialsRestIT");
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
+public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCase {
+
+    private static final String PREFIX = getIdentifierPrefix("RepositoryS3OverHttpsRestIT");
     private static final String BUCKET = PREFIX + "bucket";
     private static final String BASE_PATH = PREFIX + "base_path";
-    private static final String CLIENT = "imdsv2_credentials_client";
+    private static final String ACCESS_KEY = PREFIX + "access-key";
+    private static final String SECRET_KEY = PREFIX + "secret-key";
+    private static final String CLIENT = "https_s3_client";
+
+    protected static final TestTlsCertificate testTlsCertificate = TestTlsCertificate.generate("localhost");
+
+    protected static final TestTrustStore trustStore = new TestTrustStore(testTlsCertificate::getPemCertificateStream);
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
-
-    private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
-        new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
-            .instanceIdentityDocument((b, p) -> b.field("region", regionSupplier.get()))
-    );
-
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
-        null,
+        testTlsCertificate,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
-        dynamicCredentials::isAuthorized
+        fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
+        .systemProperty("aws.region", regionSupplier)
+        .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
+        .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, ec2ImdsHttpFixture::getAddress)
+        .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
+        .setting("s3.client." + CLIENT + ".path_style_access", "true")
+        .apply(builder -> {
+            if (inFipsJvm()) {
+                builder.configFile("cacerts.bcfks", Resource.fromFile(trustStore::getTrustStorePath));
+            } else {
+                builder.systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
+                    .systemProperty("javax.net.ssl.trustStoreType", trustStore::getTrustStoreType);
+            }
+        })
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(ec2ImdsHttpFixture).around(s3Fixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(trustStore).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

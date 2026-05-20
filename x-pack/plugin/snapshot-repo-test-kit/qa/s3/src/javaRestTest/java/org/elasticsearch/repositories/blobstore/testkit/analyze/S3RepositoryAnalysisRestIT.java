@@ -27,7 +27,7 @@ public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRest
     public static final ElasticsearchCluster cluster = buildCluster(s3Fixture);
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(TEST_TRUST_STORE).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

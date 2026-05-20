@@ -10,13 +10,14 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.util.List;
@@ -63,12 +64,23 @@ public class TestTrustStore extends ExternalResource {
                 .stream()
                 .map(i -> (Certificate) i)
                 .toList();
-            final var trustStore = KeyStoreUtil.buildTrustStore(certificates, TRUST_STORE_TYPE);
+            final var trustStore = buildTrustStore(certificates);
             trustStore.store(outStream, TRUST_STORE_PASSWORD);
             trustStorePath = tmpTrustStorePath;
         } catch (Exception e) {
             throw new AssertionError("unexpected", e);
         }
+    }
+
+    private static KeyStore buildTrustStore(List<Certificate> certificates) throws GeneralSecurityException, IOException {
+        final KeyStore trustStore = FIPS ? KeyStore.getInstance(TRUST_STORE_TYPE, "BCFIPS") : KeyStore.getInstance(TRUST_STORE_TYPE);
+        trustStore.load(null, null);
+        int counter = 0;
+        for (Certificate certificate : certificates) {
+            trustStore.setCertificateEntry("cert-" + counter, certificate);
+            counter++;
+        }
+        return trustStore;
     }
 
     @Override

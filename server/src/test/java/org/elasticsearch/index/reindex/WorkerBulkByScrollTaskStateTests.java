@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -256,8 +257,8 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         assertThat(captured, equalTo(rps));
 
         final float anotherRps = randomFloatBetween(0.1f, 1000f, true);
-        final TaskRelocatingException e = expectThrows(
-            TaskRelocatingException.class,
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
             () -> workerState.rethrottleWithRelocationGuard(anotherRps)
         );
         assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -299,13 +300,13 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
                 safeAwait(go);
                 return workerState.captureRequestsPerSecondForRelocation();
             });
-            final Future<TaskRelocatingException> rethrottleFuture = executor.submit(() -> {
+            final Future<ElasticsearchStatusException> rethrottleFuture = executor.submit(() -> {
                 ready.countDown();
                 safeAwait(go);
                 try {
                     workerState.rethrottleWithRelocationGuard(rethrottledRps);
                     return null;
-                } catch (TaskRelocatingException e) {
+                } catch (ElasticsearchStatusException e) {
                     return e;
                 }
             });
@@ -314,7 +315,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             go.countDown();
 
             final float captured = safeGet(captureFuture);
-            final TaskRelocatingException rethrottleError = safeGet(rethrottleFuture);
+            final ElasticsearchStatusException rethrottleError = safeGet(rethrottleFuture);
 
             // check mutual exclusion of race, we either:
             // 1. fail to rethrottle, RPS doesn't change, and we get an exception

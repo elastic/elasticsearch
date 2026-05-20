@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -445,8 +446,8 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
     public void testSetRequestsPerSecondWithRelocationGuardThrows503AfterCapture() {
         taskState.captureRequestsPerSecondForRelocation();
         final float rps = randomFloatBetween(0.1f, 1000f, true);
-        final TaskRelocatingException e = expectThrows(
-            TaskRelocatingException.class,
+        final ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
             () -> taskState.setRequestsPerSecondWithRelocationGuard(rps)
         );
         assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -467,13 +468,13 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
                 safeAwait(go);
                 return taskState.captureRequestsPerSecondForRelocation();
             });
-            final Future<TaskRelocatingException> rethrottleFuture = executor.submit(() -> {
+            final Future<ElasticsearchStatusException> rethrottleFuture = executor.submit(() -> {
                 ready.countDown();
                 safeAwait(go);
                 try {
                     taskState.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
                     return null;
-                } catch (TaskRelocatingException e) {
+                } catch (ElasticsearchStatusException e) {
                     return e;
                 }
             });
@@ -482,7 +483,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
             go.countDown();
 
             final float captured = safeGet(captureFuture);
-            final TaskRelocatingException rethrottleError = safeGet(rethrottleFuture);
+            final ElasticsearchStatusException rethrottleError = safeGet(rethrottleFuture);
 
             // check mutual exclusion of race, we either:
             // 1. fail to rethrottle, RPS doesn't change, and we get an exception

@@ -10,10 +10,12 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -153,7 +155,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
             throw new IllegalArgumentException("requests per second must be more than 0 but was [" + rps + "]");
         }
         if (capturedRpsForRelocation) {
-            throw new TaskRelocatingException();
+            throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
         }
         relocationRequestsPerSecond = rps;
     }

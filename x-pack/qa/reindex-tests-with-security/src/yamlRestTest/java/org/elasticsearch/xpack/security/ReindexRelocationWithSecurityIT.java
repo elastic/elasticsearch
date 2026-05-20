@@ -277,7 +277,14 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                 // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
                 rethrottle.addParameter("requests_per_second", String.valueOf(Float.POSITIVE_INFINITY));
                 try {
-                    dataClient.performRequest(rethrottle);
+                    final Response response = dataClient.performRequest(rethrottle);
+                    final ObjectPath body = ObjectPath.createFromResponse(response);
+                    // The rethrottle API returns 200 OK even when it encounters task failures (by design).
+                    // We need to check for task_failures in the response and retry if the task is relocating.
+                    final List<?> taskFailures = body.evaluate("task_failures");
+                    if (taskFailures != null && !taskFailures.isEmpty()) {
+                        throw new AssertionError("rethrottle encountered task failures (task may be relocating): " + taskFailures);
+                    }
                 } catch (Exception e) {
                     // Translate transient server errors to AssertionError so assertBusy will retry
                     throw new AssertionError("rethrottle failed", e);

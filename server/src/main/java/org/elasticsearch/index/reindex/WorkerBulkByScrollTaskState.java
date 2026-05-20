@@ -12,10 +12,12 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -289,7 +291,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     public void rethrottleWithRelocationGuard(float newRequestsPerSecond) {
         synchronized (delayedPrepareBulkRequestReference) {
             if (sliceId == null && capturedRpsForRelocation) {
-                throw new TaskRelocatingException();
+                throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
             }
             rethrottle(newRequestsPerSecond);
         }

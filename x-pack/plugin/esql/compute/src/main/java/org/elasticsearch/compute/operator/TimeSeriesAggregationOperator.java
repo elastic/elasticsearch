@@ -54,8 +54,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int aggregationBatchSize,
-        Rounding.Prepared outputTimeBucket,
-        boolean collapsed
+        Rounding.Prepared outputTimeBucket
     ) implements OperatorFactory {
 
         public Factory(
@@ -66,7 +65,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             List<GroupingAggregator.Factory> aggregators,
             int aggregationBatchSize
         ) {
-            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null, false);
+            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null);
         }
 
         @Override
@@ -92,7 +91,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
                 outputTimeBucket,
-                collapsed,
                 driverContext
             );
         }
@@ -110,7 +108,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     private final Rounding.Prepared timeBucket;
     private final DateFieldMapper.Resolution timeResolution;
     private final Rounding.Prepared outputTimeBucket;
-    private final boolean collapsed;
     private ExpandingGroups expandingGroups = null;
     private int numGroupsBeforeExpanding = -1;
 
@@ -121,14 +118,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         Rounding.Prepared outputTimeBucket,
-        boolean collapsed,
         DriverContext driverContext
     ) {
         super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, Integer.MAX_VALUE, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;
-        this.collapsed = collapsed;
     }
 
     @Override

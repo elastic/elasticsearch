@@ -256,7 +256,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, slices, shards);
 
         // Assert nodeA recorded success metrics for the relocated reindex
-        assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices, true);
+        assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices);
 
         // assert all documents have been reindexed
         assertExpectedNumberOfDocumentsInDestinationIndex();
@@ -917,12 +917,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         );
     }
 
-    private void assertReindexSuccessMetricsOnNode(
-        final String nodeName,
-        final boolean isRemote,
-        final int slices,
-        final boolean relocated
-    ) {
+    private void assertReindexSuccessMetricsOnNode(final String nodeName, final boolean isRemote, final int slices) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         final List<Measurement> completions = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
@@ -935,7 +930,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
-        assertThat(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(relocated));
+        assertThat(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
         final List<Measurement> durations = plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
         assertThat(durations.size(), equalTo(1));
         final Measurement duration = durations.getFirst();
@@ -945,23 +940,17 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
-        assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(relocated));
-        // Relocation counter is destination-only; expected when relocated=true (this node is the destination), absent otherwise.
+        assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
         final List<Measurement> relocations = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
-        if (relocated) {
-            assertThat(relocations.size(), equalTo(1));
-            assertThat(relocations.getFirst().getLong(), equalTo(1L));
-            assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE), is(nullValue()));
-            assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
-            assertThat(
-                relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
-                equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
-            );
-            // schema uniformity: every reindex metric carries the relocated attribute, always true on this counter
-            assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
-        } else {
-            assertThat(relocations, is(empty()));
-        }
+        assertThat(relocations.size(), equalTo(1));
+        assertThat(relocations.getFirst().getLong(), equalTo(1L));
+        assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE), is(nullValue()));
+        assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+        assertThat(
+            relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
+            equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
+        );
+        assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
     }
 
     private static SlicingMode slicingModeFromSliceCount(final int slices) {

@@ -147,6 +147,76 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         }
     }
 
+    def "resolveByLatest falls back to origin remote when configured remote ref is absent (CI scenario)"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def fullHash = execute("git rev-parse HEAD", file("cloned")).trim()
+        def shortHash = fullHash.substring(0, 8)
+        def buildId = "${bwcVersion}-${shortHash}"
+
+        // Write the ref under 'origin' only — simulates a CI checkout where the
+        // configured BWC remote ('elastic') is absent but 'origin' IS elastic/elasticsearch.
+        def originRefFile = file("cloned/.git/refs/remotes/origin/${bwcBranch}")
+        originRefFile.text = fullHash + "\n"
+        // Ensure there is no 'elastic' remote ref so the fallback path is exercised.
+        def elasticRefFile = new File(file("cloned/.git/refs/remotes").parentFile, "remotes/elastic/${bwcBranch}")
+        elasticRefFile.delete()
+
+        def latestPath = "/elasticsearch/latest/${bwcBranch}.json"
+        def manifestPath = "/elasticsearch/${buildId}/manifest-${bwcVersion}-SNAPSHOT.json"
+        def artifactPath = "/elasticsearch/${buildId}/downloads/elasticsearch/" +
+            "elasticsearch-${bwcVersion}-SNAPSHOT-darwin-x86_64.tar.gz"
+
+        def wireMock = new WireMockServer(0)
+        wireMock.start()
+        try {
+            wireMock.stubFor(get(urlEqualTo(latestPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody("""{"build_id": "${buildId}"}""")))
+            wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(manifestPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody("""{"projects": {"elasticsearch": {"commit": "${fullHash}"}}}""")))
+            wireMock.stubFor(head(urlEqualTo(artifactPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(artifactPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody(minimalElasticsearchTarGz("${bwcVersion}-SNAPSHOT"))))
+
+            buildFile << """
+                allprojects { p ->
+                    p.repositories.all { repo ->
+                        if (repo.name.startsWith("dra-bwc-elasticsearch-")) {
+                            repo.setUrl('${wireMock.baseUrl()}')
+                            allowInsecureProtocol = true
+                        }
+                    }
+                }
+            """
+
+            when:
+            // bwc.remote=elastic (the default) — no elastic remote ref exists, only origin
+            def result = gradleRunner(
+                ":distribution:bwc:major1:buildBwcDarwinTar",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=elastic",
+                "-Dtests.bwc.dra.enabled=true",
+                "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+            ).build()
+
+            then: "DRA Copy task succeeds via origin fallback"
+            result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+            and: "no nested Gradle build was triggered"
+            result.output.contains("extractedAssemble") == false
+
+            and: "the DRA log message names the snapshot build ID"
+            result.output.contains("DRA snapshot ${buildId}")
+        } finally {
+            wireMock.stop()
+        }
+    }
+
     def "falls back to local gradle build when DRA is disabled"() {
         when:
         def result = gradleRunner(":distribution:bwc:major1:buildBwcDarwinTar",
@@ -190,6 +260,123 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
             and: "local nested build was used, not DRA"
             assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+        } finally {
+            wireMock.stop()
+        }
+    }
+
+    def "downloads distribution via resolveByLatest when remote tracking ref matches DRA manifest commit"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def fullHash = execute("git rev-parse HEAD", file("cloned")).trim()
+        def shortHash = fullHash.substring(0, 8)
+        def buildId = "${bwcVersion}-${shortHash}"
+
+        // Write a remote tracking ref so remoteRefRevision() can resolve it without network access.
+        def remoteRefFile = file("cloned/.git/refs/remotes/origin/${bwcBranch}")
+        remoteRefFile.text = fullHash + "\n"
+
+        def latestPath = "/elasticsearch/latest/${bwcBranch}.json"
+        def manifestPath = "/elasticsearch/${buildId}/manifest-${bwcVersion}-SNAPSHOT.json"
+        def artifactPath = "/elasticsearch/${buildId}/downloads/elasticsearch/" +
+            "elasticsearch-${bwcVersion}-SNAPSHOT-darwin-x86_64.tar.gz"
+
+        def wireMock = new WireMockServer(0)
+        wireMock.start()
+        try {
+            wireMock.stubFor(get(urlEqualTo(latestPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody("""{"build_id": "${buildId}"}""")))
+            wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(manifestPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody("""{"projects": {"elasticsearch": {"commit": "${fullHash}"}}}""")))
+            wireMock.stubFor(head(urlEqualTo(artifactPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(artifactPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody(minimalElasticsearchTarGz("${bwcVersion}-SNAPSHOT"))))
+
+            buildFile << """
+                allprojects { p ->
+                    p.repositories.all { repo ->
+                        if (repo.name.startsWith("dra-bwc-elasticsearch-")) {
+                            repo.setUrl('${wireMock.baseUrl()}')
+                            allowInsecureProtocol = true
+                        }
+                    }
+                }
+            """
+
+            when:
+            def result = gradleRunner(
+                ":distribution:bwc:major1:buildBwcDarwinTar",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin",
+                "-Dtests.bwc.dra.enabled=true",
+                "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+            ).build()
+
+            then: "DRA Copy task succeeds"
+            result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+            and: "no nested Gradle build was triggered"
+            result.output.contains("extractedAssemble") == false
+
+            and: "the DRA log message names the snapshot build ID"
+            result.output.contains("DRA snapshot ${buildId}")
+        } finally {
+            wireMock.stop()
+        }
+    }
+
+    def "falls back to local build when DRA manifest commit does not match remote tracking ref"() {
+        given:
+        def bwcBranch = "8.x"
+        def fullHash = execute("git rev-parse HEAD", file("cloned")).trim()
+
+        // Write a remote tracking ref pointing to the real local commit.
+        def remoteRefFile = file("cloned/.git/refs/remotes/origin/${bwcBranch}")
+        remoteRefFile.text = fullHash + "\n"
+
+        def bwcVersion = "8.4.0"
+        def shortHash = "deadbeef"
+        def buildId = "${bwcVersion}-${shortHash}"
+        // DRA manifest reports a different commit — mismatch triggers local build fallback.
+        def differentCommit = "0" * 40
+
+        def latestPath = "/elasticsearch/latest/${bwcBranch}.json"
+        def manifestPath = "/elasticsearch/${buildId}/manifest-${bwcVersion}-SNAPSHOT.json"
+
+        def wireMock = new WireMockServer(0)
+        wireMock.start()
+        try {
+            wireMock.stubFor(get(urlEqualTo(latestPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody("""{"build_id": "${buildId}"}""")))
+            wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(manifestPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody("""{"projects": {"elasticsearch": {"commit": "${differentCommit}"}}}""")))
+
+            when:
+            def result = gradleRunner(
+                ":distribution:bwc:major1:buildBwcDarwinTar",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin",
+                "-Dbwc.dist.version=8.4.0-SNAPSHOT",
+                "-Dtests.bwc.dra.enabled=true",
+                "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+            ).build()
+
+            then: "task succeeds via local build fallback"
+            result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+            and: "local nested build was used, not DRA"
+            assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+
+            and: "log explains why DRA was not used"
+            result.output.contains("DRA snapshot commit did not match")
         } finally {
             wireMock.stop()
         }

@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ValueSource;
 import org.gradle.api.provider.ValueSourceParameters;
@@ -36,6 +38,8 @@ import java.time.Duration;
  * keeping local development builds unaffected.
  */
 public abstract class DraSnapshotBuildIdValueSource implements ValueSource<String, DraSnapshotBuildIdValueSource.Params> {
+
+    private static final Logger logger = Logging.getLogger(DraSnapshotBuildIdValueSource.class);
 
     public interface Params extends ValueSourceParameters {
         /** BWC version string, e.g. {@code "9.4.2"}. */
@@ -98,6 +102,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
                 getParameters().getRemote().get()
             );
         } catch (Exception e) {
+            logger.debug("DRA snapshot resolution failed for version [{}]: {}", getParameters().getVersion().get(), e.getMessage());
             return "";
         }
     }
@@ -106,7 +111,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         String buildId = version + "-" + hash;
         String manifestUrl = baseUrl + "/elasticsearch/" + buildId + "/manifest-" + version + "-SNAPSHOT.json";
         HttpResponse<String> response = client.send(
-            HttpRequest.newBuilder().uri(URI.create(manifestUrl)).timeout(Duration.ofSeconds(30)).GET().build(),
+            HttpRequest.newBuilder().uri(URI.create(manifestUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
             HttpResponse.BodyHandlers.ofString()
         );
         return response.statusCode() == 200 ? buildId : "";
@@ -121,14 +126,20 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         File rootProjectDir,
         String remote
     ) throws Exception {
-        String branchTipHash = GitInfo.remoteRefRevision(rootProjectDir, remote, branch);
+        // CI checkouts always clone from elastic/elasticsearch as 'origin'; developer
+        // setups may have the branch under a different remote name. Check 'origin' first
+        // since it is authoritative in both environments.
+        String branchTipHash = GitInfo.remoteRefRevision(rootProjectDir, "origin", branch);
+        if (branchTipHash == null) {
+            branchTipHash = GitInfo.remoteRefRevision(rootProjectDir, remote, branch);
+        }
         if (branchTipHash == null) {
             return "";
         }
 
         String latestUrl = baseUrl + "/elasticsearch/latest/" + branch + ".json";
         HttpResponse<String> latestResponse = client.send(
-            HttpRequest.newBuilder().uri(URI.create(latestUrl)).timeout(Duration.ofSeconds(30)).GET().build(),
+            HttpRequest.newBuilder().uri(URI.create(latestUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
             HttpResponse.BodyHandlers.ofString()
         );
         if (latestResponse.statusCode() != 200) {
@@ -148,7 +159,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
 
         String manifestUrl = baseUrl + "/elasticsearch/" + buildId + "/manifest-" + version + "-SNAPSHOT.json";
         HttpResponse<String> manifestResponse = client.send(
-            HttpRequest.newBuilder().uri(URI.create(manifestUrl)).timeout(Duration.ofSeconds(30)).GET().build(),
+            HttpRequest.newBuilder().uri(URI.create(manifestUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
             HttpResponse.BodyHandlers.ofString()
         );
         if (manifestResponse.statusCode() != 200) {

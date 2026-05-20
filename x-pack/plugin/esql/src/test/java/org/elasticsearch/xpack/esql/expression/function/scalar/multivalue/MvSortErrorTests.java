@@ -60,10 +60,37 @@ public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
-            case 1 -> "string";
-            default -> "any type except counter types, dense_vector, "
-                + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range";
-        }));
+        // MvSort checks position 0 (representable) then position 1 (string), in that order.
+        // Not all valid types appear in test cases, so validPerPosition[0] is incomplete — we check
+        // representability directly instead of relying on validPerPosition.
+        if (isUnrepresentable(signature.get(0))) {
+            return equalTo(
+                "first argument of ["
+                    + sourceForSignature(signature)
+                    + "] must be [any type except counter types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+                    + "], found value [] type ["
+                    + signature.get(0).typeName()
+                    + "]"
+            );
+        }
+        // Position 0 is representable (or NULL, which isType always accepts); error is at position 1.
+        return equalTo(
+            "second argument of ["
+                + sourceForSignature(signature)
+                + "] must be [string], found value [] type ["
+                + signature.get(1).typeName()
+                + "]"
+        );
+    }
+
+    private static boolean isUnrepresentable(DataType type) {
+        return type.isCounter()
+            || type == DataType.DENSE_VECTOR
+            || type == DataType.AGGREGATE_METRIC_DOUBLE
+            || type == DataType.TDIGEST
+            || type == DataType.HISTOGRAM
+            || type == DataType.EXPONENTIAL_HISTOGRAM
+            || type == DataType.DATE_RANGE;
     }
 }

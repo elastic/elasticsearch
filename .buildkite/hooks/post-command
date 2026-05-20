@@ -1,6 +1,15 @@
 #!/bin/bash
 
 if [[ -f build/task-status.json ]]; then
+  # Merge the current run with any previous runs (saved by smart-retry pre-command).
+  # On the first attempt, build/previous-task-status.json won't exist — the merge
+  # script handles that by wrapping the current run as the sole entry.
+  bun .buildkite/scripts/smart-retry/merge-task-status.ts \
+    build/task-status.json \
+    build/previous-task-status.json \
+    build/task-status-merged.json \
+    && mv build/task-status-merged.json build/task-status.json
+
   cd build
   gzip task-status.json
   buildkite-agent artifact upload task-status.json.gz

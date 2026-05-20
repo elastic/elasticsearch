@@ -1,5 +1,6 @@
 import type {
   TaskStatusReport,
+  MultiRunTaskStatus,
   FailedTestsReport,
   WorkUnit,
   TestClassEntry,
@@ -8,11 +9,126 @@ import type {
   SmartRetryResult,
   SmartRetryDeps,
   BuildkiteBuildJson,
+  TaskEntry,
+  TestEntry,
 } from "./types";
 
+// ---------------------------------------------------------------------------
+// Multi-run helpers
+// ---------------------------------------------------------------------------
+
 /**
- * Transforms a TaskStatusReport (from task-status.json) into a FailedTestsReport
- * (.failed-test-history.json) for consumption by InternalTestRerunPlugin.
+ * Normalizes a raw artifact into the multi-run format. Handles both the legacy
+ * single-run shape ({tasks, tests, cancelled}) and the new multi-run shape ({runs}).
+ */
+export function normalizeTaskStatus(raw: unknown): MultiRunTaskStatus {
+  if (raw != null && typeof raw === "object" && "runs" in raw && Array.isArray((raw as MultiRunTaskStatus).runs)) {
+    return raw as MultiRunTaskStatus;
+  }
+  return { runs: [raw as TaskStatusReport] };
+}
+
+/**
+ * Wraps a single TaskStatusReport (from the current Gradle build) into the
+ * multi-run format, prepending any previous runs from an earlier artifact.
+ */
+export function wrapTaskStatus(current: TaskStatusReport, previous: MultiRunTaskStatus | null): MultiRunTaskStatus {
+  const previousRuns = previous?.runs ?? [];
+  return { runs: [...previousRuns, current] };
+}
+
+/**
+ * Merges all runs into a single TaskStatusReport for smart-retry processing.
+ *
+ * The merge is "last non-skippable wins" — a task/test that completed
+ * successfully in any run is treated as successful. Specifically:
+ *
+ * Tasks: a task that was SUCCESS/UP_TO_DATE/FROM_CACHE in any run keeps
+ * that outcome. FAILED/INTERRUPTED outcomes from later runs override earlier
+ * successes only if the task actually re-ran (was not skipped by smart-retry).
+ * SKIPPED/NOT_RUN outcomes never override a prior definitive result.
+ *
+ * Tests: all test entries across runs are collected. If the same
+ * (taskPath, className, methodName) appears in multiple runs, SUCCESS in
+ * any run makes it SUCCESS (the test passed at least once).
+ */
+export function mergeRuns(multi: MultiRunTaskStatus): TaskStatusReport {
+  if (multi.runs.length === 0) {
+    return { tasks: [], tests: [], cancelled: false };
+  }
+  if (multi.runs.length === 1) {
+    return multi.runs[0];
+  }
+
+  const taskMap = new Map<string, TaskEntry>();
+  for (const run of multi.runs) {
+    for (const task of run.tasks) {
+      const existing = taskMap.get(task.path);
+      if (!existing) {
+        taskMap.set(task.path, task);
+      } else {
+        taskMap.set(task.path, { path: task.path, outcome: pickTaskOutcome(existing.outcome, task.outcome) });
+      }
+    }
+  }
+
+  const testMap = new Map<string, TestEntry>();
+  for (const run of multi.runs) {
+    for (const test of run.tests) {
+      const key = `${test.taskPath}\0${test.className}\0${test.methodName}`;
+      const existing = testMap.get(key);
+      if (!existing) {
+        testMap.set(key, test);
+      } else {
+        testMap.set(key, {
+          ...test,
+          result: pickTestResult(existing.result, test.result),
+        });
+      }
+    }
+  }
+
+  const cancelled = multi.runs[multi.runs.length - 1].cancelled;
+
+  return {
+    tasks: [...taskMap.values()].sort((a, b) => a.path.localeCompare(b.path)),
+    tests: [...testMap.values()].sort(
+      (a, b) => a.taskPath.localeCompare(b.taskPath) || a.className.localeCompare(b.className) || a.methodName.localeCompare(b.methodName)
+    ),
+    cancelled,
+  };
+}
+
+const TASK_OUTCOME_RANK: Record<string, number> = {
+  SUCCESS: 3,
+  UP_TO_DATE: 3,
+  FROM_CACHE: 3,
+  FAILED: 2,
+  INTERRUPTED: 1,
+  NOT_RUN: 0,
+  SKIPPED: 0,
+};
+
+function pickTaskOutcome(a: TaskEntry["outcome"], b: TaskEntry["outcome"]): TaskEntry["outcome"] {
+  const rankA = TASK_OUTCOME_RANK[a] ?? 0;
+  const rankB = TASK_OUTCOME_RANK[b] ?? 0;
+  return rankA >= rankB ? a : b;
+}
+
+function pickTestResult(a: TestEntry["result"], b: TestEntry["result"]): TestEntry["result"] {
+  if (a === "SUCCESS" || b === "SUCCESS") return "SUCCESS";
+  if (a === "FAILURE" || b === "FAILURE") return "FAILURE";
+  return "SKIPPED";
+}
+
+// ---------------------------------------------------------------------------
+// Transform
+// ---------------------------------------------------------------------------
+
+/**
+ * Transforms a TaskStatusReport (from task-status.json, possibly merged from
+ * multiple runs) into a FailedTestsReport (.failed-test-history.json) for
+ * consumption by InternalTestRerunPlugin.
  */
 export function transformTaskStatus(report: TaskStatusReport, testseed: string): FailedTestsReport {
   const executedTestTasks = uniqueSorted(report.tests.map((t) => t.taskPath));
@@ -36,9 +152,13 @@ export function transformTaskStatus(report: TaskStatusReport, testseed: string):
   };
 }
 
+// ---------------------------------------------------------------------------
+// Orchestrator
+// ---------------------------------------------------------------------------
+
 /**
  * Orchestrates the full smart-retry flow: resolve origin job, download the
- * task-status artifact, transform it, and decide what to report.
+ * task-status artifact, merge all runs, transform, and decide what to report.
  *
  * Pure decision logic — all I/O is injected via `deps` so tests can stub it.
  */
@@ -61,13 +181,14 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
     return fail("No origin job ID found");
   }
 
-  const taskStatus = await deps.downloadArtifact(originJobId);
-  if (!taskStatus) {
+  const multiRun = await deps.downloadArtifact(originJobId);
+  if (!multiRun) {
     return fail("Failed to download task-status artifact");
   }
 
+  const merged = mergeRuns(multiRun);
   const testseed = env.testsSeed ?? "";
-  const report = transformTaskStatus(taskStatus, testseed);
+  const report = transformTaskStatus(merged, testseed);
   const workUnitCount = report.workUnits.length;
   const failedTaskCount = report.failedTestTasks.length;
   const executedCount = report.executedTestTasks.length;
@@ -87,16 +208,18 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
   }
 
   const originJobName = resolveOriginJobName(buildJson, originJobId);
-  const details = `Filtering to ${workUnitCount} work units with test failures, ${failedTaskCount} tasks with non-test failures`;
+  const runCount = multiRun.runs.length;
+  const details = `Filtering to ${workUnitCount} work units with test failures, ${failedTaskCount} tasks with non-test failures (across ${runCount} previous run${runCount !== 1 ? "s" : ""})`;
 
   const annotation = [
     `Rerunning failed build job [${originJobName}]`,
     "",
     `**Gradle Tasks with Test Failures:** ${workUnitCount}`,
     `**Gradle Tasks with Non-Test Failures:** ${failedTaskCount}`,
-    `**Executed Test Tasks in Previous Run:** ${executedCount}`,
+    `**Executed Test Tasks in Previous Runs:** ${executedCount}`,
+    `**Previous Runs Analyzed:** ${runCount}`,
     "",
-    "This retry will rerun failed tests, rerun all tests for tasks that failed at the Gradle level (e.g. resource leaks), skip confirmed-passed tasks, and run all tests for tasks not executed in the previous run.",
+    "This retry will rerun failed tests, rerun all tests for tasks that failed at the Gradle level (e.g. resource leaks), skip confirmed-passed tasks, and run all tests for tasks not executed in previous runs.",
   ].join("\n");
 
   const metadata: Record<string, string> = {
@@ -104,6 +227,7 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
     "smart-retry-details": details,
     "smart-retry-work-units": String(workUnitCount),
     "smart-retry-executed-tasks": String(executedCount),
+    "smart-retry-previous-runs": String(runCount),
   };
   if (failedTaskCount > 0) {
     metadata["smart-retry-failed-tasks"] = String(failedTaskCount);

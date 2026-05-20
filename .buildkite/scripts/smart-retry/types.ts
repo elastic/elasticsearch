@@ -1,4 +1,4 @@
-/** Shape of task-status.json produced by TaskStatusTrackerPlugin. */
+/** Shape of a single run within task-status.json, produced by TaskStatusTrackerPlugin. */
 export interface TaskStatusReport {
   tasks: TaskEntry[];
   tests: TestEntry[];
@@ -15,6 +15,15 @@ export interface TestEntry {
   className: string;
   methodName: string;
   result: "SUCCESS" | "FAILURE" | "SKIPPED";
+}
+
+/**
+ * Multi-run wrapper for task-status.json. Each retry appends its run.
+ * The first run (no previous artifact) produces a single-element array.
+ * Runs are ordered oldest-first: runs[0] is the original attempt.
+ */
+export interface MultiRunTaskStatus {
+  runs: TaskStatusReport[];
 }
 
 /**
@@ -79,7 +88,7 @@ export interface SmartRetryDeps {
     pipelineSlug: string,
     buildNumber: string
   ) => Promise<BuildkiteBuildJson | null>;
-  downloadArtifact: (originJobId: string) => Promise<TaskStatusReport | null>;
+  downloadArtifact: (originJobId: string) => Promise<MultiRunTaskStatus | null>;
 }
 
 /** Minimal subset of the Buildkite build JSON we actually use. */

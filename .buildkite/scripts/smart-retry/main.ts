@@ -1,5 +1,5 @@
-import { runSmartRetry } from "./smart-retry";
-import type { SmartRetryEnv, SmartRetryDeps, BuildkiteBuildJson, TaskStatusReport } from "./types";
+import { runSmartRetry, normalizeTaskStatus } from "./smart-retry";
+import type { SmartRetryEnv, SmartRetryDeps, BuildkiteBuildJson, MultiRunTaskStatus } from "./types";
 
 const env: SmartRetryEnv = {
   buildkiteApiToken: process.env.BUILDKITE_API_TOKEN ?? "",
@@ -9,6 +9,8 @@ const env: SmartRetryEnv = {
   originJobId: process.env.ORIGIN_JOB_ID || undefined,
   testsSeed: process.env.TESTS_SEED || undefined,
 };
+
+const PREVIOUS_TASK_STATUS_PATH = "build/previous-task-status.json";
 
 const deps: SmartRetryDeps = {
   fetchBuildJson: async (apiToken, pipelineSlug, buildNumber) => {
@@ -34,7 +36,15 @@ const deps: SmartRetryDeps = {
       if (gz.exitCode !== 0) return null;
 
       const text = await Bun.file("task-status.json").text();
-      return JSON.parse(text) as TaskStatusReport;
+      const raw = JSON.parse(text);
+      const multi = normalizeTaskStatus(raw);
+
+      // Persist the raw artifact so post-command can merge the current run into it
+      const { mkdirSync } = await import("node:fs");
+      mkdirSync("build", { recursive: true });
+      await Bun.write(PREVIOUS_TASK_STATUS_PATH, JSON.stringify(multi, null, 2));
+
+      return multi;
     } catch {
       return null;
     } finally {

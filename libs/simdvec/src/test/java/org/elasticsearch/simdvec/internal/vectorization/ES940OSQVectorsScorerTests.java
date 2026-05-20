@@ -781,7 +781,6 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         var bitCombinations = List.of(
-            List.of((byte) 1, (byte) 1, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),
             List.of((byte) 1, (byte) 4, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),
             List.of((byte) 2, (byte) 4, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),
             List.of((byte) 4, (byte) 4, ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED),

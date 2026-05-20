@@ -198,11 +198,7 @@ public class VectorScorerTestUtils {
         byte indexBits
     ) {
         final float[] residualScratch = new float[dimensions];
-        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits(
-            indexBits,
-            queryBits
-        );
-        final int[] scratch = new int[encoding.discretizedDimensions(dimensions)];
+        final int[] scratch = new int[ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
 
         OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
             query,
@@ -212,7 +208,7 @@ public class VectorScorerTestUtils {
             centroid
         );
         final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
-        encoding.packQuery(scratch, quantizeQuery);
+        ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);
 
         return new OSQVectorData(
             quantizeQuery,
@@ -234,11 +230,7 @@ public class VectorScorerTestUtils {
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) {
         final float[] residualScratch = new float[dimensions];
-        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits(
-            indexBits,
-            queryBits
-        );
-        final int[] scratch = new int[encoding.discretizedDimensions(dimensions)];
+        final int[] scratch = new int[ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
 
         OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
             query,
@@ -251,7 +243,7 @@ public class VectorScorerTestUtils {
         if (indexBits == 4 && int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
             ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
         } else {
-            encoding.packQuery(scratch, quantizeQuery);
+            ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);
         }
 
         return new OSQVectorData(

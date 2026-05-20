@@ -50,6 +50,12 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
         return b;
     }
 
+    @Override
+    protected boolean randomColumnarModePluginEnabled() {
+        // tests assert that _id field uses stored fields
+        return false;
+    }
+
     public void testGeoShape() throws Exception {
         doTestSpatialField(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE);
     }
@@ -129,19 +135,11 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
         value = extractValue("test-index.fields._id.inverted_index.total_in_bytes", objects);
         assertThat(value, greaterThan(0));
         value = extractValue("test-index.fields._id.stored_fields_in_bytes", objects);
-        if (useColumnarId) {
-            assertThat(value, equalTo(0));
-        } else {
-            assertThat(value, greaterThan(0));
-        }
+        assertThat(value, greaterThan(0));
         value = extractValue("test-index.fields._id.points_in_bytes", objects);
         assertThat(value, equalTo(0));
         value = extractValue("test-index.fields._id.doc_values_in_bytes", objects);
-        if (useColumnarId) {
-            assertThat(value, greaterThan(0));
-        } else {
-            assertThat(value, equalTo(0));
-        }
+        assertThat(value, equalTo(0));
 
         value = extractValue("test-index.fields._seq_no.inverted_index.total_in_bytes", objects);
         assertThat(value, equalTo(0));

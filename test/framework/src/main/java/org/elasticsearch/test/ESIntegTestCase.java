@@ -17,6 +17,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Sort;
@@ -138,6 +140,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -154,7 +157,6 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -403,7 +405,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @Rule
     public final TestRule templateDecoratorRule = TemplateDecoratorRule.reset();
-    protected boolean useColumnarId;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -485,29 +486,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .setPatterns(Collections.singletonList("*"))
                 .setOrder(0)
                 .setSettings(randomSettingsBuilder);
-            useColumnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled()
-                && isSuiteScopedTest(getTestClass()) == false // requires more logic to handle suite scoped tests
-                && randomlyUseColumnarId()
-                && randomBoolean();
-            if (useColumnarId) {
-                putTemplate.setMapping("""
-                     {
-                        "_id": {
-                           "mode": "columnar"
-                        },
-                        "properties": {}
-                    }
-                    """, XContentType.JSON);
-            }
             assertAcked(putTemplate.get());
         }
-    }
-
-    /**
-     * @return allows concrete test suites to control whether to randomly use columnar id.
-     */
-    protected boolean randomlyUseColumnarId() {
-        return true;
     }
 
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
@@ -2848,7 +2828,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
+        if (randomColumnarModePluginEnabled()) {
+            mocks.add(RandomColumnarModePlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
+    }
+
+    protected boolean randomColumnarModePluginEnabled() {
+        return true;
     }
 
     public static final class TestSeedPlugin extends Plugin {
@@ -2880,6 +2867,62 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     return actualHandler;
                 }
             });
+        }
+    }
+
+    public static final class RandomColumnarModePlugin extends Plugin {
+
+        private static final Logger LOGGER = LogManager.getLogger(RandomColumnarModePlugin.class);
+
+        public static final Setting<Boolean> SKIP_RANDOM_COLUMNAR_MODE_SETTING = Setting.boolSetting(
+            "index.skip.random_columnar_mode",
+            false,
+            Property.IndexScope
+        );
+
+        @Override
+        public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+            return List.of(
+                (
+                    indexName,
+                    dataStreamName,
+                    templateIndexMode,
+                    projectMetadata,
+                    resolvedAt,
+                    indexTemplateAndCreateRequestSettings,
+                    combinedTemplateMappings,
+                    indexVersion,
+                    additionalSettings) -> {
+                    if (templateIndexMode == IndexMode.TIME_SERIES) {
+                        return;
+                    }
+
+                    String indexModeStr = indexTemplateAndCreateRequestSettings.get("index.mode");
+                    if (indexModeStr != null) {
+                        return;
+                    }
+
+                    String seqNoIndexOptionsStr = indexTemplateAndCreateRequestSettings.get("index.seq_no.index_options");
+                    if (seqNoIndexOptionsStr != null) {
+                        return;
+                    }
+
+                    boolean skip = indexTemplateAndCreateRequestSettings.getAsBoolean(SKIP_RANDOM_COLUMNAR_MODE_SETTING.getKey(), false);
+                    if (skip) {
+                        return;
+                    }
+
+                    if (randomBoolean()) {
+                        LOGGER.info("randomly setting index.mode to columnar");
+                        additionalSettings.put("index.mode", "columnar");
+                    }
+                }
+            );
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(SKIP_RANDOM_COLUMNAR_MODE_SETTING);
         }
     }
 

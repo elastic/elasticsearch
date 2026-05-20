@@ -105,8 +105,8 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean randomlyUseColumnarId() {
-        // .storedFields("_none_") has no effect with columnar mode
+    protected boolean randomColumnarModePluginEnabled() {
+        // nested field type isn't supported
         return false;
     }
 

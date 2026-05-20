@@ -110,15 +110,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
-        String expectedMapping;
-        if (useColumnarId) {
-            expectedMapping = """
-                {"_doc":{"_id":{"mode":"columnar"},"properties":{"body":{"type":"text"},"date":{"type":"integer"}}}}""";
-        } else {
-            expectedMapping = """
-                {"_doc":{"properties":{"body":{"type":"text"},"date":{"type":"integer"}}}}""";
-        }
-        assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo(expectedMapping));
+        assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo("""
+            {"_doc":{"properties":{"body":{"type":"text"},"date":{"type":"integer"}}}}"""));
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
@@ -131,15 +124,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
-        String expectedMapping;
-        if (useColumnarId) {
-            expectedMapping = """
-                {"_doc":{"_id":{"mode":"columnar"},"properties":{"date":{"type":"integer"}}}}""";
-        } else {
-            expectedMapping = """
-                {"_doc":{"properties":{"date":{"type":"integer"}}}}""";
-        }
-        assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo(expectedMapping));
+        assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo("""
+            {"_doc":{"properties":{"date":{"type":"integer"}}}}"""));
     }
 
     public void testUpdateMappingWithConflicts() {

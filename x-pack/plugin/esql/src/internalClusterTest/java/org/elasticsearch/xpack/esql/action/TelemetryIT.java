@@ -424,8 +424,4 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
     }
 
-    @Override
-    protected boolean randomlyUseColumnarId() {
-        return false;
-    }
 }

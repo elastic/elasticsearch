@@ -42,6 +42,11 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .build();
     }
 
+    @Override
+    protected boolean randomColumnarModePluginEnabled() {
+        return false;
+    }
+
     private FieldUsageStats aggregated(List<FieldUsageShardResponse> stats) {
         assertFalse(stats.isEmpty());
         return stats.stream().map(FieldUsageShardResponse::getStats).reduce(FieldUsageStats::add).get();
@@ -90,8 +95,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         logger.info("Stats after first query: {}", stats);
 
         assertTrue(stats.hasField("_id"));
-        var expected = useColumnarId ? Set.of(UsageContext.DOC_VALUES) : Set.of(UsageContext.STORED_FIELDS);
-        assertEquals(expected, stats.get("_id").keySet());
+        assertEquals(Set.of(UsageContext.STORED_FIELDS), stats.get("_id").keySet());
         assertTrue(stats.hasField("_source"));
         assertEquals(Set.of(UsageContext.STORED_FIELDS), stats.get("_source").keySet());
 

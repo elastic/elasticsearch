@@ -82,12 +82,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
-    @Override
-    protected boolean randomlyUseColumnarId() {
-        // becasue of testIdBasedScriptFields(...) which assumes stored field id via mockscript
-        return false;
-    }
-
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override

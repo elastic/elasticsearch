@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class MetadataFetchingIT extends ESIntegTestCase {
 
     @Override
-    protected boolean randomlyUseColumnarId() {
+    protected boolean randomColumnarModePluginEnabled() {
         // .storedFields("_none_") has no effect with columnar mode
         return false;
     }

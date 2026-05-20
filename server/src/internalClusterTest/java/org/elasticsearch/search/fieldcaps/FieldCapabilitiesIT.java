@@ -119,8 +119,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean randomlyUseColumnarId() {
-        // because a time series index in test setup
+    protected boolean randomColumnarModePluginEnabled() {
         return false;
     }
 

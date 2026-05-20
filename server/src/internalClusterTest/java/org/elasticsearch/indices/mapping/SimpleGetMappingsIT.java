@@ -46,16 +46,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         createIndex("index");
         GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
-        MappingMetadata expected;
-        if (useColumnarId) {
-            expected = new MappingMetadata(
-                MapperService.SINGLE_MAPPING_NAME,
-                Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_id", Map.of("mode", "columnar")))
-            );
-        } else {
-            expected = MappingMetadata.EMPTY_MAPPINGS;
-        }
-        assertEquals(expected, response.mappings().get("index"));
+        assertEquals(MappingMetadata.EMPTY_MAPPINGS, response.mappings().get("index"));
     }
 
     private XContentBuilder getMappingForType() throws IOException {

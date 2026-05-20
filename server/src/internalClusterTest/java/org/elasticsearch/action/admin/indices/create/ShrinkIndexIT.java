@@ -76,12 +76,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         return false;
     }
 
-    @Override
-    protected boolean randomlyUseColumnarId() {
-        // testShrinkTimeSeriesIndexWithNonDefaultTimestamp(...) is tsdb and can't handle columnar id
-        return false;
-    }
-
     public void testCreateShrinkIndexToN() {
 
         assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);

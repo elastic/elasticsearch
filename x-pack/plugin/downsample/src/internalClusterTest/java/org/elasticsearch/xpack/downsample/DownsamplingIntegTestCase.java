@@ -95,11 +95,6 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
         );
     }
 
-    @Override
-    protected boolean randomlyUseColumnarId() {
-        return false;
-    }
-
     /**
      * Sets up a TSDB data stream and ingests the specified number of documents
      * @return the count of indexed documents

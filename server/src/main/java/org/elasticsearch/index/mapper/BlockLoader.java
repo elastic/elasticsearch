@@ -256,6 +256,23 @@ public interface BlockLoader {
     }
 
     /**
+     * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
+     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
+     * when a skipper is available for the field.
+     * <p>
+     * The returned iterator shares internal block-decoding state with the reader that produced it.
+     * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
+     * exclusive ownership of that shared state.
+     * <p>
+     * The default implementation returns {@code null}, indicating no optimized iterator is available.
+     */
+    interface OptionalNumericRangeReader {
+        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
+            return null;
+        }
+    }
+
+    /**
      * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
      * <p>
      * Implementations may return {@code null} if they are unable to load the requested values,
@@ -714,6 +731,13 @@ public interface BlockLoader {
          * Build a reader for reading {@link SortedSetDocValues}
          */
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
+
+        /**
+         * Build a reader that emits an ord-encoded BytesRef block that preserves append order (duplicates retained, no sort/dedupe). Use
+         * this when the caller drives ord ordering from a companion offsets doc value, rather than reading the natural sorted-deduped
+         * stream from {@link SortedSetDocValues}.
+         */
+        SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 

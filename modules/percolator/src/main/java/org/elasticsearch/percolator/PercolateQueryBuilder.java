@@ -678,6 +678,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                         source.getIndexSettings(),
                         source::lookup,
                         this::sourcePath,
+                        () -> false,
                         fielddataOperation
                     )
                 );
@@ -703,6 +704,11 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
             @Override
             public void addCircuitBreakerMemory(long bytes, String label) {
                 source.addCircuitBreakerMemory(bytes, label);
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+                source.addCircuitBreakerMemory(bytes, heldBreakerBytes, label);
             }
 
             @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
@@ -38,6 +39,9 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
 
     @Nullable
     private final String routing;
+    @Nullable
+    private final String searchSlice;
+    private final boolean routingFromSlice;
     @Nullable
     private final String preference;
 
@@ -65,10 +69,26 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
         boolean allowPartialSearchResults,
         String clusterAlias
     ) {
+        this(indices, indicesOptions, query, routing, null, false, preference, allowPartialSearchResults, clusterAlias);
+    }
+
+    public SearchShardsRequest(
+        String[] indices,
+        IndicesOptions indicesOptions,
+        QueryBuilder query,
+        String routing,
+        String searchSlice,
+        boolean routingFromSlice,
+        String preference,
+        boolean allowPartialSearchResults,
+        String clusterAlias
+    ) {
         this.indices = indices;
         this.indicesOptions = indicesOptions;
         this.query = query;
         this.routing = routing;
+        this.searchSlice = searchSlice;
+        this.routingFromSlice = routingFromSlice;
         this.preference = preference;
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.clusterAlias = clusterAlias;
@@ -80,6 +100,13 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.routing = in.readOptionalString();
+        if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            this.searchSlice = in.readOptionalString();
+            this.routingFromSlice = in.readBoolean();
+        } else {
+            this.searchSlice = null;
+            this.routingFromSlice = false;
+        }
         this.preference = in.readOptionalString();
         this.allowPartialSearchResults = in.readBoolean();
         this.clusterAlias = in.readOptionalString();
@@ -92,6 +119,10 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalString(routing);
+        if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeOptionalString(searchSlice);
+            out.writeBoolean(routingFromSlice);
+        }
         out.writeOptionalString(preference);
         out.writeBoolean(allowPartialSearchResults);
         out.writeOptionalString(clusterAlias);
@@ -151,6 +182,15 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
         return routing;
     }
 
+    @Nullable
+    public String searchSlice() {
+        return searchSlice;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
     public String preference() {
         return preference;
     }
@@ -169,6 +209,11 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
             + ", routing='"
             + routing
             + '\''
+            + ", searchSlice='"
+            + searchSlice
+            + '\''
+            + ", routingFromSlice="
+            + routingFromSlice
             + ", preference='"
             + preference
             + '\''
@@ -192,6 +237,8 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
             && Objects.equals(indicesOptions, request.indicesOptions)
             && Objects.equals(query, request.query)
             && Objects.equals(routing, request.routing)
+            && Objects.equals(searchSlice, request.searchSlice)
+            && routingFromSlice == request.routingFromSlice
             && Objects.equals(preference, request.preference)
             && allowPartialSearchResults == request.allowPartialSearchResults
             && Objects.equals(clusterAlias, request.clusterAlias);
@@ -199,7 +246,16 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, query, routing, preference, allowPartialSearchResults, clusterAlias);
+        int result = Objects.hash(
+            indicesOptions,
+            query,
+            routing,
+            searchSlice,
+            routingFromSlice,
+            preference,
+            allowPartialSearchResults,
+            clusterAlias
+        );
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

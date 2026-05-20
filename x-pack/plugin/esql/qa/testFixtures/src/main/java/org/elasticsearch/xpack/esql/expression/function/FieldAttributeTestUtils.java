@@ -18,7 +18,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
-import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomAnyEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 
 /**
  * Utility class providing factory methods for {@link FieldAttribute} test instances.
@@ -40,13 +40,13 @@ public class FieldAttributeTestUtils {
         String parentName = maxDepth == 0 || randomBoolean() ? null : randomAlphaOfLength(3);
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
-        EsField field = onlyRepresentable ? randomRepresentableEsField(maxDepth) : randomAnyEsField(maxDepth);
+        EsField field = onlyRepresentable ? randomRepresentableEsField(maxDepth) : randomSerializableEsField(maxDepth);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, new NameId(), synthetic);
     }
 
     private static EsField randomRepresentableEsField(int maxDepth) {
-        return randomValueOtherThanMany(f -> false == DataType.isRepresentable(f.getDataType()), () -> randomAnyEsField(maxDepth));
+        return randomValueOtherThanMany(f -> false == DataType.isRepresentable(f.getDataType()), () -> randomSerializableEsField(maxDepth));
     }
 }

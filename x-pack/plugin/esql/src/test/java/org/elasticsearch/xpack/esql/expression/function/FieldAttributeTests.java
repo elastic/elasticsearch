@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
-import static org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests.randomSerializableEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 
 public class FieldAttributeTests extends AbstractNamedExpressionSerializationTests<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {

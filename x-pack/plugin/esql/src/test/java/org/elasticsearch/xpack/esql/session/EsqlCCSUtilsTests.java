@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createE
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfoCluster;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
-import static org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests.randomSerializableEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

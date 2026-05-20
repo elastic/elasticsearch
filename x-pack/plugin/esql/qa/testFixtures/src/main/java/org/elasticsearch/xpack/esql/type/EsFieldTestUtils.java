@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -20,7 +19,6 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomList;
@@ -36,16 +34,15 @@ public class EsFieldTestUtils {
     private EsFieldTestUtils() {}
 
     /**
-     * Returns a random instance of any concrete {@link EsField} subtype up to the given depth.
+     * Returns a random instance of any concrete serializable {@link EsField} subtype up to the given depth.
      */
-    public static EsField randomAnyEsField(int maxDepth) {
-        return switch (between(0, 5)) {
+    public static EsField randomSerializableEsField(int maxDepth) {
+        return switch (between(0, 4)) {
             case 0 -> randomEsField(maxDepth);
             case 1 -> randomDateEsField(maxDepth);
-            case 2 -> randomInvalidMappedField(maxDepth);
-            case 3 -> randomKeywordEsField(maxDepth);
-            case 4 -> randomTextEsField(maxDepth);
-            case 5 -> randomUnsupportedEsField(maxDepth);
+            case 2 -> randomKeywordEsField(maxDepth);
+            case 3 -> randomTextEsField(maxDepth);
+            case 4 -> randomUnsupportedEsField(maxDepth);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -76,16 +73,6 @@ public class EsFieldTestUtils {
             randomBoolean(),
             randomFrom(EsField.TimeSeriesFieldType.values())
         );
-    }
-
-    /**
-     * Returns a random {@link InvalidMappedField} instance with properties nested up to {@code maxPropertiesDepth}.
-     */
-    public static InvalidMappedField randomInvalidMappedField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        String errorMessage = randomAlphaOfLengthBetween(1, 100);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        return new InvalidMappedField(name, errorMessage, properties);
     }
 
     /**
@@ -147,7 +134,7 @@ public class EsFieldTestUtils {
         int targetSize = between(1, 5);
         Map<String, EsField> properties = new TreeMap<>();
         while (properties.size() < targetSize) {
-            properties.put(randomAlphaOfLength(properties.size() + 1), randomAnyEsField(maxDepth - 1));
+            properties.put(randomAlphaOfLength(properties.size() + 1), randomSerializableEsField(maxDepth - 1));
         }
         return properties;
     }

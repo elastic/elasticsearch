@@ -22,18 +22,12 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 
 public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractWireTestCase<T> {
-    public static EsField randomSerializableEsField(int maxDepth) {
-        return switch (between(0, 4)) {
-            case 0 -> EsFieldTests.randomEsField(maxDepth);
-            case 1 -> DateEsFieldTests.randomDateEsField(maxDepth);
-            case 2 -> KeywordEsFieldTests.randomKeywordEsField(maxDepth);
-            case 3 -> TextEsFieldTests.randomTextEsField(maxDepth);
-            case 4 -> UnsupportedEsFieldTests.randomUnsupportedEsField(maxDepth);
-            default -> throw new IllegalArgumentException();
-        };
-    }
 
     @Override
     protected abstract T createTestInstance();

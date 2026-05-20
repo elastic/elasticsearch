@@ -20,7 +20,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomMap;
-import static org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests.randomSerializableEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
 
 public class EsIndexGenerator {
 

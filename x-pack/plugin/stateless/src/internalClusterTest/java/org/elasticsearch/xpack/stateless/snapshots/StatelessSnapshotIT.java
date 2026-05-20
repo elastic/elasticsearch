@@ -161,7 +161,9 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
         // 2. Enable stateless snapshot and take another snapshot. The object store should see reads with SNAPSHOT_DATA operation purpose
         indexAndMaybeFlush(indexName);
-        updateClusterSettings(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store"));
+        updateClusterSettings(
+            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), randomFrom("read_from_object_store", "enabled"))
+        );
         createSnapshot(repoName, "snap-2", List.of(indexName), List.of());
         assertTrue(snapshotReadSeen.get());
 

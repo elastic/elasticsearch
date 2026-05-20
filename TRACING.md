@@ -9,7 +9,7 @@ The Elasticsearch server code contains a [tracing][tracing] package, which is
 an abstraction over the OpenTelemetry API. All locations in the code that
 perform instrumentation and tracing must use these abstractions.
 
-Separately, there is the [apm](./modules/apm) module, which works with the
+Separately there is the [apm](./modules/apm) module, which works with the
 OpenTelemetry API directly to record trace data.  Underneath the OTel API, we
 use Elastic's [APM agent for Java][agent], which attaches at runtime to the
 Elasticsearch JVM and removes the need for Elasticsearch to hard-code the use of

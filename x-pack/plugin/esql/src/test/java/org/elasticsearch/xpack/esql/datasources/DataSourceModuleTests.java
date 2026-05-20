@@ -16,7 +16,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -552,6 +557,80 @@ public class DataSourceModuleTests extends ESTestCase {
         assertTrue("Should handle file:///tmp/data.csv.gz", fileFactory.canHandle("file:///tmp/data.csv.gz"));
         assertTrue("Should handle file:///tmp/data.tsv.gz", fileFactory.canHandle("file:///tmp/data.tsv.gz"));
         assertFalse("Should not handle file:///tmp/data.parquet.gz", fileFactory.canHandle("file:///tmp/data.parquet.gz"));
+    }
+
+    /**
+     * A format reader that does not support whole-file compression (mimics Parquet/ORC).
+     */
+    private static class MockNoWholeFileCompressionReader extends MockCsvFormatReader {
+        MockNoWholeFileCompressionReader() {
+            super("parq", List.of(".parq"));
+        }
+
+        @Override
+        public boolean supportsWholeFileCompression() {
+            return false;
+        }
+    }
+
+    /**
+     * A plugin that registers a format whose reader rejects whole-file compression.
+     */
+    private static class NoWholeFileCompressionPlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("parq", ".parq"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("parq", (s, bf) -> new MockNoWholeFileCompressionReader());
+        }
+    }
+
+    /**
+     * Tests that the registry throws a precise error when attempting to resolve a compound
+     * extension whose inner format does not support whole-file compression (e.g. Parquet/ORC).
+     */
+    public void testFormatRegistryRejectsWholeFileCompressionForIncompatibleFormats() {
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new NoWholeFileCompressionPlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        List<String> compressedExtensions = List.of("gz", "zst", "bz2", "snappy", "lz4", "br");
+        for (String comp : compressedExtensions) {
+            String objectName = "data.parq." + comp;
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            assertThat(
+                "Expected rejection for " + objectName,
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString("does not support whole-file compression")
+            );
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+        }
+
+        // Sequential formats must still be wrappable
+        assertNotNull(registry.byExtension("data.csv.gz"));
+        assertNotNull(registry.byExtension("data.tsv.gz"));
     }
 
     public void testFileSourceSplitProviderUsesRegistriesForNdjsonMacroSplits() {

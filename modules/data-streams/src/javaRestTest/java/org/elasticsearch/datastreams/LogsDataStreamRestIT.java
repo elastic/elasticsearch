@@ -49,6 +49,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
@@ -211,7 +212,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
           }
         }""";
 
-    static final String LOGS_COLUMNAR_LOGSDB_TEMPLATE = """
+    static final String LOGS_LOGSDB_COLUMNAR_TEMPLATE = """
         {
           "index_patterns": [ "logs-*-*" ],
           "data_stream": {},
@@ -220,7 +221,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
           "template": {
             "settings": {
               "index": {
-                "mode": "columnar_logsdb"
+                "mode": "logsdb_columnar"
               }
             },
             "mappings": {
@@ -509,7 +510,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
     }
 
     public void testColumnarLogsDBIndexing() throws IOException {
-        putTemplate(client, "custom-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        putTemplate(client, "custom-template", LOGS_LOGSDB_COLUMNAR_TEMPLATE);
         createDataStream(client, DATA_STREAM_NAME);
         indexDocument(
             client,
@@ -524,7 +525,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("columnar_logsdb", 0, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode("logsdb_columnar", 0, DATA_STREAM_NAME);
         rolloverDataStream(client, DATA_STREAM_NAME);
         indexDocument(
             client,
@@ -539,7 +540,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("columnar_logsdb", 1, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode("logsdb_columnar", 1, DATA_STREAM_NAME);
     }
 
     public void testColumnarIndexModeSwitch() throws IOException {
@@ -560,7 +561,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         );
         assertDataStreamBackingIndexMode("logsdb", 0, DATA_STREAM_NAME);
 
-        putTemplate(client, "custom-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        putTemplate(client, "custom-template", LOGS_LOGSDB_COLUMNAR_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);
         indexDocument(
             client,
@@ -575,7 +576,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
                 randomLongBetween(1_000_000L, 2_000_000L)
             )
         );
-        assertDataStreamBackingIndexMode("columnar_logsdb", 1, DATA_STREAM_NAME);
+        assertDataStreamBackingIndexMode("logsdb_columnar", 1, DATA_STREAM_NAME);
 
         putTemplate(client, "custom-template", LOGS_COLUMNAR_TEMPLATE);
         rolloverDataStream(client, DATA_STREAM_NAME);
@@ -710,7 +711,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         createDataStream(client, "standard-apache-kafka");
 
         // ColumnarLogsDB data stream
-        putTemplate(client, "logs-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        putTemplate(client, "logs-template", LOGS_LOGSDB_COLUMNAR_TEMPLATE);
         createDataStream(client, "logs-apache-kafka");
 
         // Index some documents in the standard data stream
@@ -732,7 +733,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("standard", 0, "standard-apache-kafka");
         assertDocCount(client, "standard-apache-kafka", 10);
 
-        // Reindex the standard data stream into a columnar_logsdb data stream
+        // Reindex the standard data stream into a logsdb_columnar data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity("""
             {
@@ -746,7 +747,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             }
             """);
         assertOK(client.performRequest(reindexRequest));
-        assertDataStreamBackingIndexMode("columnar_logsdb", 0, "logs-apache-kafka");
+        assertDataStreamBackingIndexMode("logsdb_columnar", 0, "logs-apache-kafka");
         assertDocCount(client, "logs-apache-kafka", 10);
     }
 
@@ -774,11 +775,11 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("logsdb", 0, "logs-apache-kafka");
         assertDocCount(client, "logs-apache-kafka", 10);
 
-        // Switch template to columnar_logsdb and create destination data stream
-        putTemplate(client, "logs-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        // Switch template to logsdb_columnar and create destination data stream
+        putTemplate(client, "logs-template", LOGS_LOGSDB_COLUMNAR_TEMPLATE);
         createDataStream(client, "logs-apache-nginx");
 
-        // Reindex the logsdb data stream into a columnar_logsdb data stream
+        // Reindex the logsdb data stream into a logsdb_columnar data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity("""
             {
@@ -792,7 +793,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             }
             """);
         assertOK(client.performRequest(reindexRequest));
-        assertDataStreamBackingIndexMode("columnar_logsdb", 0, "logs-apache-nginx");
+        assertDataStreamBackingIndexMode("logsdb_columnar", 0, "logs-apache-nginx");
         assertDocCount(client, "logs-apache-nginx", 10);
     }
 
@@ -820,11 +821,11 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         assertDataStreamBackingIndexMode("columnar", 0, "logs-apache-kafka");
         assertDocCount(client, "logs-apache-kafka", 10);
 
-        // Switch template to columnar_logsdb and create destination data stream
-        putTemplate(client, "logs-template", LOGS_COLUMNAR_LOGSDB_TEMPLATE);
+        // Switch template to logsdb_columnar and create destination data stream
+        putTemplate(client, "logs-template", LOGS_LOGSDB_COLUMNAR_TEMPLATE);
         createDataStream(client, "logs-apache-nginx");
 
-        // Reindex the columnar data stream into a columnar_logsdb data stream
+        // Reindex the columnar data stream into a logsdb_columnar data stream
         final Request reindexRequest = new Request("POST", "/_reindex?refresh=true");
         reindexRequest.setJsonEntity("""
             {
@@ -838,7 +839,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
             }
             """);
         assertOK(client.performRequest(reindexRequest));
-        assertDataStreamBackingIndexMode("columnar_logsdb", 0, "logs-apache-nginx");
+        assertDataStreamBackingIndexMode("logsdb_columnar", 0, "logs-apache-nginx");
         assertDocCount(client, "logs-apache-nginx", 10);
     }
 
@@ -927,7 +928,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         registerRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomAlphaOfLength(6)));
 
         final String index = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
-        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.COLUMNAR_LOGSDB.getName()).build());
+        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.LOGSDB_COLUMNAR.getName()).build());
 
         for (int i = 0; i < 10; i++) {
             indexDocument(
@@ -959,7 +960,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
 
         assertOK(client.performRequest(mountRequest));
         assertDocCount(client, restoreIndex, 10);
-        assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.COLUMNAR_LOGSDB.getName()));
+        assertThat(getSettings(client, restoreIndex).get("index.mode"), Matchers.equalTo(IndexMode.LOGSDB_COLUMNAR.getName()));
     }
 
     // NOTE: this test will fail on snapshot creation after fixing
@@ -1066,7 +1067,7 @@ public class LogsDataStreamRestIT extends ESRestTestCase {
         );
 
         final String index = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
-        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.COLUMNAR_LOGSDB.getName()).build());
+        createIndex(client, index, Settings.builder().put("index.mode", IndexMode.LOGSDB_COLUMNAR.getName()).build());
 
         for (int i = 0; i < 10; i++) {
             indexDocument(

@@ -813,7 +813,7 @@ public class PluginsServiceTests extends ESTestCase {
 
         var pluginService = newPluginsService(settings);
         try {
-            assertCriticalWarnings("""
+            assertWarnings("""
                 Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method getShardsAllocators from \
                 plugin interface ClusterPlugin. This method will be removed in a future release.""");
         } finally {

@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -59,9 +60,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) dimensions * numVectors);
                 final IndexInput slice2 = in.slice("test2", 0, (long) dimensions * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                // TODO: test native separately to panama as well
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
                 assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
                 assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 for (int i = 0; i < numVectors; i++) {
                     in.readBytes(vector, 0, dimensions);
@@ -132,9 +136,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions, bulkSize);
+                // TODO: test native separately to panama as well
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(in, dimensions, bulkSize);
                 assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
                 assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 for (int i = 0; i < numVectors; i++) {
                     float scoreDefault = defaultScorer.score(
@@ -215,9 +222,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions, bulkSize);
+                // TODO: test native separately to panama as well
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(in, dimensions, bulkSize);
                 assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
                 assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
                 float[] scoresDefault = new float[bulkSize];
                 float[] scoresPanama = new float[bulkSize];

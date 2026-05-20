@@ -67,7 +67,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -254,44 +253,38 @@ public class FollowingEngineTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE
         );
         final MapperService mapperService = EngineTestCase.createMapperService(indexSettings.getSettings(), "{}");
-        return new EngineConfig(
-            shardIdValue,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            newMergePolicy(),
-            indexWriterConfig.getAnalyzer(),
-            indexWriterConfig.getSimilarity(),
-            new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null),
-            new Engine.EventListener() {
+        return EngineConfig.builder()
+            .shardId(shardIdValue)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(newMergePolicy())
+            .analyzer(indexWriterConfig.getAnalyzer())
+            .similarity(indexWriterConfig.getSimilarity())
+            .codecProvider(new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null))
+            .eventListener(new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
 
                 }
-            },
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            Collections.emptyList(),
-            Collections.emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            globalCheckpoint::longValue,
-            () -> RetentionLeases.EMPTY,
-            () -> primaryTerm.get(),
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            System::nanoTime,
-            null,
-            true,
-            mapperService,
-            new EngineResetLock(),
-            MergeMetrics.NOOP,
-            Function.identity()
-        );
+            })
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .circuitBreakerService(new NoneCircuitBreakerService())
+            .globalCheckpointSupplier(globalCheckpoint::longValue)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(() -> primaryTerm.get())
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(System::nanoTime)
+            .promotableToPrimary(true)
+            .mapperService(mapperService)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
     }
 
     private static Store createStore(final ShardId shardId, final IndexSettings indexSettings, final Directory directory) {
@@ -792,7 +785,7 @@ public class FollowingEngineTests extends ESTestCase {
                 break;
             case LOGSDB:
             case COLUMNAR:
-            case COLUMNAR_LOGSDB:
+            case LOGSDB_COLUMNAR:
                 settingsBuilder.put("index.mode", indexMode.getName());
                 settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");

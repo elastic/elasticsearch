@@ -158,12 +158,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             nodeRequest,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
-                ActionListener.addTimeout(
-                    request.getTimeout(),
-                    threadPool,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    getTaskListener
-                ),
+                ActionListener.addTimeout(request.getTimeout(), threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE, getTaskListener),
                 GetTaskResponse::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )

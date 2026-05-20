@@ -37,9 +37,9 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 /**
  * Task behavior for {@link BulkByPaginatedSearchTask} that does the actual work of querying and indexing
  */
-public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
+public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcessed {
 
-    private static final Logger logger = LogManager.getLogger(WorkerBulkByScrollTaskState.class);
+    private static final Logger logger = LogManager.getLogger(WorkerBulkByPaginatedSearchTaskState.class);
 
     /**
      * Maximum wait time allowed for throttling.
@@ -85,7 +85,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /// Otherwise, rethrottle would succeed and relocated task would proceed with old RPS value.
     private boolean capturedRpsForRelocation = false;
 
-    public WorkerBulkByScrollTaskState(BulkByPaginatedSearchTask task, Integer sliceId, float requestsPerSecond) {
+    public WorkerBulkByPaginatedSearchTaskState(BulkByPaginatedSearchTask task, Integer sliceId, float requestsPerSecond) {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);

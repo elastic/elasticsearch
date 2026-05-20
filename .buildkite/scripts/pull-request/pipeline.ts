@@ -1,7 +1,7 @@
 import { parse } from "yaml";
 import { readFileSync, readdirSync } from "fs";
 import { basename, resolve } from "path";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 
 import { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
 import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
@@ -173,7 +173,7 @@ export const generatePipelines = (
 
     console.log(`Merge base: ${mergeBase}`);
 
-    const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
+    const changedFilesOutput = execFileSync("git", ["diff", "--name-only", mergeBase], { cwd: PROJECT_ROOT }).toString().trim();
 
     changedFiles = changedFilesOutput
       .split("\n")

@@ -42,7 +42,7 @@ public abstract class AbstractIrateTests extends AbstractAggregationTestCase {
 
     @Override
     public void testGroupingAggregate() {
-        if (testCase.extra() instanceof Class<?> c && UnsupportedTemporalityException.class.isAssignableFrom(c)) {
+        if (testCase.extra() == UnsupportedTemporalityException.class) {
             Exception e = expectThrows(UnsupportedTemporalityException.class, super::testGroupingAggregate);
             assertThat(e.getMessage(), org.hamcrest.Matchers.notNullValue());
             return;

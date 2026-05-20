@@ -294,7 +294,7 @@ x:integer
 
 Test earliest aggregation on extended scalar types
 required_capability: earliest_latest_aggs
-required_capability: earliest_agg_extended_types
+required_capability: first_agg_extended_types
 
 ROW rows = [
 "2025-01-01T00:00:01.000Z | 1.0.0 | 100",
@@ -317,7 +317,7 @@ first_v:version | first_ul:unsigned_long
 
 Test earliest aggregation on spatial types
 required_capability: earliest_latest_aggs
-required_capability: earliest_agg_extended_types
+required_capability: first_agg_extended_types
 
 FROM k8s
 | STATS
@@ -334,7 +334,7 @@ POINT(-4.0333 5.3167)  | POINT (8455502.60394535 3613330.7325705294) | MULTIPOLY
 
 Test earliest aggregation on geo_shape type
 required_capability: earliest_latest_aggs
-required_capability: earliest_agg_extended_types
+required_capability: first_agg_extended_types
 
 ROW rows = [
 "2025-01-01T00:00:01.000Z | POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39.6334))",
@@ -354,7 +354,7 @@ POLYGON((2.6674 39.6334, 2.687 39.5836, 2.7976 39.614, 2.7504 39.6587, 2.6674 39
 
 Test earliest aggregation on spatial grid types
 required_capability: earliest_latest_aggs
-required_capability: earliest_agg_extended_types
+required_capability: first_agg_extended_types
 required_capability: spatial_grid_types
 
 ROW rows = [

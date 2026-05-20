@@ -496,9 +496,9 @@ public class IndexResolver {
                     try {
                         timeSeriesFieldType = timeSeriesFieldType.merge(next);
                     } catch (IllegalArgumentException e) {
-                        // Surface time series metadata conflicts (dimension vs metric) as an InvalidMappedTsField. Unlike
-                        // UnsupportedEsField, this type is not propagated to subfields by the mergedMappings hierarchy walk, so
-                        // subfields with non-conflicting, supported types remain accessible.
+                        // Surface time series metadata conflicts (dimension vs metric) as an InvalidMappedTsField.
+                        // Don't use UnsupportedEsField as subfields would also be marked as unsupported; also don't use InvalidMappedField
+                        // as this is for type conflicts that can be resolved by casting.
                         return new InvalidMappedTsField(
                             name,
                             timeSeriesFieldType.name().toLowerCase(Locale.ROOT),

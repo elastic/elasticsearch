@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -48,8 +49,13 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
             RestUtils.getMasterNodeTimeout(request),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
-        clusterSearchShardsRequest.routing(request.param("routing"));
+        clusterSearchShardsRequest.routing(parsedRouting.routing())
+            .searchSlice(
+                parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+            )
+            .setRoutingFromSlice(parsedRouting.fromSlice());
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
         return channel -> client.execute(

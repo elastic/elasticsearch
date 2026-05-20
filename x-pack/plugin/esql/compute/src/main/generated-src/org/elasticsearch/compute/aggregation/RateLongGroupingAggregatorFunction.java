@@ -789,10 +789,12 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             timestamps.ensureCapacity(newSlots);
             values.ensureCapacity(newSlots);
 
-            timestamps.set(2 * count, lastTs);
-            values.set(2 * count, lastValue);
-            timestamps.set(2 * count + 1, firstTs);
-            values.set(2 * count + 1, firstValue);
+            int lo = 2 * count;
+            int hi = lo + 1;
+            timestamps.set(lo, lastTs);
+            values.set(lo, lastValue);
+            timestamps.set(hi, firstTs);
+            values.set(hi, firstValue);
 
             return count++;
         }
@@ -811,10 +813,12 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
             int firstId = count;
             for (int i = 0; i < valueCount; i += 2) {
-                timestamps.set(2 * count, ts.getLong(tsFirst + i));
-                values.set(2 * count, vs.getLong(vsFirst + i));
-                timestamps.set(2 * count + 1, ts.getLong(tsFirst + i + 1));
-                values.set(2 * count + 1, vs.getLong(vsFirst + i + 1));
+                int lo = 2 * count;
+                int hi = lo + 1;
+                timestamps.set(lo, ts.getLong(tsFirst + i));
+                values.set(lo, vs.getLong(vsFirst + i));
+                timestamps.set(hi, ts.getLong(tsFirst + i + 1));
+                values.set(hi, vs.getLong(vsFirst + i + 1));
                 count++;
             }
             return firstId;

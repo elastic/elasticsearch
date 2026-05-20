@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
@@ -478,6 +479,18 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (span != null) {
             logger.trace("Finishing trace [{}]", spanId);
             span.end();
+        }
+    }
+
+    /**
+     * Sets all attributes from an OTel {@link Attributes} bag on the active span for the given traceable.
+     * Used by {@code APMHttpServerInstrumentation} to apply OTel semconv attributes computed by
+     * {@code HttpServerAttributesExtractor} without going through the legacy {@link Map} path.
+     */
+    public void setAttributes(Traceable traceable, Attributes attributes) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAllAttributes(attributes);
         }
     }
 

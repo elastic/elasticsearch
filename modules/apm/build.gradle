@@ -15,6 +15,7 @@ esplugin {
 
 def otelVersion = '1.60.1'
 def otelInstrumentationVersion = '2.26.1-alpha'
+def otelInstrumentationStableVersion = '2.26.1'
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
@@ -25,6 +26,7 @@ dependencies {
     exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-sender-okhttp'
   }
   implementation "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry:${otelInstrumentationVersion}"
+  implementation "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:${otelInstrumentationStableVersion}"
 
   implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"

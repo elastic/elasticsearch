@@ -16,7 +16,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
- * A time-series aggregation function that collects the first occurrence exponential histogram of a time series in a specified interval.
+ * Picks the exponential histogram with the minimum integer sort key.
  */
 @Aggregator(
     processNulls = true,
@@ -78,12 +78,12 @@ public class AllFirstExponentialHistogramByIntAggregator {
     public static void combineIntermediate(
         ExponentialHistogramStates.WithLongGroupingState current,
         int groupId,
-        long timestamp,
+        long sortKey,
         ExponentialHistogram value,
         boolean seen
     ) {
         if (seen) {
-            combine(current, groupId, value, (int) timestamp);
+            combine(current, groupId, value, (int) sortKey);
         }
     }
 

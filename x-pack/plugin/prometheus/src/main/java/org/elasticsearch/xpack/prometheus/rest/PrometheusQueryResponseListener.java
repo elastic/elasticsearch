@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +37,15 @@ import java.util.Map;
  *   <li>{@link QueryMode#INSTANT} — {@code resultType: "vector"}, each series has a single {@code value} pair
  *       (the last sample, since rows arrive ascending by timestamp).</li>
  * </ul>
+ *
+ * <p>The ES|QL PROMQL command runs with {@code collapsed=true}, so each row in the response
+ * represents one complete time series with multi-valued {@code value} and {@code step} columns.
+ * Example collapsed response shape:
+ * <pre>{@code
+ * value       | _timeseries                                      | step
+ * [1.0, 2.0]  | {"__name__":"http_requests_total","job":"api"}   | [1710000000000, 1710000060000]
+ * [3.0, 4.0]  | {"__name__":"http_requests_total","job":"web"}   | [1710000000000, 1710000060000]
+ * }</pre>
  *
  * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/">Prometheus HTTP API</a>
  */
@@ -97,13 +104,13 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     /**
      * Converts an ES|QL response into a Prometheus-compatible JSON response.
      *
-     * <p>The ES|QL PROMQL command, combined with {@code | EVAL step = TO_LONG(step)}, produces
-     * rows with the following column order (EVAL appends the converted step at the end):
+     * <p>Each row is one collapsed time series produced by {@code TimeSeriesCollapseOperator}.
+     * Column layout (EVAL appends the converted step at the end):
      * <ol>
-     *   <li>Column 0: value ({@code double})</li>
+     *   <li>Column 0: {@code value} ({@code double} or {@code List<Double>}) — one value per step</li>
      *   <li>Columns 1..N-2: either a single {@code _timeseries} keyword column (JSON labels)
-     *       or individual dimension/label columns</li>
-     *   <li>Column N-1 (last): step ({@code long}, epoch milliseconds)</li>
+     *       or individual dimension/label columns (single-valued)</li>
+     *   <li>Column N-1 (last): {@code step} ({@code long} or {@code List<Long>}, epoch milliseconds)</li>
      * </ol>
      */
     static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode) throws IOException {
@@ -122,44 +129,123 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
-        Map<String, SeriesData> seriesMap = new LinkedHashMap<>();
-        boolean truncated = false;
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field("status", "success");
+        builder.startObject("data");
+        builder.field("resultType", mode == QueryMode.RANGE ? "matrix" : "vector");
+        builder.startArray("result");
+        boolean truncated = writeResultArray(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
+        builder.endArray(); // result
+        builder.endObject(); // data
+        if (truncated) {
+            builder.startArray("warnings");
+            builder.value("results truncated due to limit");
+            builder.endArray();
+        }
+        builder.endObject(); // root
+        return builder;
+    }
+
+    private static boolean writeResultArray(
+        XContentBuilder builder,
+        EsqlResponse response,
+        QueryMode mode,
+        int limit,
+        List<? extends ColumnInfo> columns,
+        int stepColIdx,
+        boolean useSeriesCol
+    ) throws IOException {
+        int seriesCount = 0;
 
         for (Iterable<Object> row : response.rows()) {
+            if (seriesCount++ == limit) {
+                return true;
+            }
+
             Object[] values = toArray(row, columns.size());
 
-            String seriesKey;
-            Map<String, String> metric;
+            // Both value and step are multi-valued (one entry per step) due to TimeSeriesCollapse.
+            // A single-step series produces a plain scalar instead of a List.
+            List<Object> valueList = toList(values[VALUE_COL_IDX]);
+            List<Object> stepList = toList(values[stepColIdx]);
 
-            if (useSeriesCol) {
-                seriesKey = values[DIMENSION_COL_START_IDX] != null ? values[DIMENSION_COL_START_IDX].toString() : "{}";
-                metric = null;
-            } else {
-                StringBuilder keyBuilder = new StringBuilder();
-                metric = new LinkedHashMap<>();
-                for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-                    String label = columns.get(i).name();
-                    String value = values[i] != null ? values[i].toString() : "";
-                    metric.put(label, value);
-                    keyBuilder.append(label).append('\0').append(value).append('\0');
-                }
-                seriesKey = keyBuilder.toString();
+            if (valueList == null || stepList == null || valueList.isEmpty()) {
+                continue; // series with no data in range
+            }
+            if (valueList.size() != stepList.size()) {
+                throw new IllegalStateException(
+                    "PROMQL response has misaligned collapsed step/value columns: step count ["
+                        + stepList.size()
+                        + "], value count ["
+                        + valueList.size()
+                        + "]"
+                );
             }
 
-            SeriesData series = seriesMap.get(seriesKey);
-            if (series == null) {
-                if (seriesMap.size() >= limit) {
-                    truncated = true;
-                    continue;
-                }
-                series = new SeriesData(useSeriesCol ? seriesKey : null, metric);
-                seriesMap.put(seriesKey, series);
-            }
-            series.values.add(new double[] { parseTimestamp(values[stepColIdx]) });
-            series.stringValues.add(formatSampleValue(values[VALUE_COL_IDX]));
+            builder.startObject();
+            buildMetricLabels(builder, useSeriesCol, values, stepColIdx, columns);
+            buildMetricValues(mode, builder, valueList, stepList);
+            builder.endObject(); // result entry
         }
+        return false;
+    }
 
-        return buildSuccessJson(seriesMap, mode, truncated);
+    private static void buildMetricLabels(
+        XContentBuilder builder,
+        boolean useSeriesCol,
+        Object[] values,
+        int stepColIdx,
+        List<? extends ColumnInfo> columns
+    ) throws IOException {
+        // metric labels
+        builder.startObject("metric");
+        if (useSeriesCol) {
+            String seriesJson = values[DIMENSION_COL_START_IDX] != null ? values[DIMENSION_COL_START_IDX].toString() : "{}";
+            writeMetricFromSeriesJson(builder, seriesJson);
+        } else {
+            for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
+                builder.field(columns.get(i).name(), values[i] != null ? values[i].toString() : "");
+            }
+        }
+        builder.endObject(); // metric
+    }
+
+    private static void buildMetricValues(QueryMode mode, XContentBuilder builder, List<Object> valueList, List<Object> stepList)
+        throws IOException {
+        assert timestampsAreAscending(stepList) : "PROMQL response step timestamps must be ascending";
+        if (mode == QueryMode.RANGE) {
+            // values — parallel arrays of (timestamp_seconds, value_string)
+            builder.startArray("values");
+            for (int i = 0; i < valueList.size(); i++) {
+                builder.startArray();
+                builder.value(parseTimestamp(stepList.get(i)));
+                builder.value(formatSampleValue(valueList.get(i)));
+                builder.endArray();
+            }
+            builder.endArray(); // values
+        } else {
+            // Instant query: emit the last sample (rows arrive in ascending timestamp order)
+            // This is a temporary approximation for a range query and there may be multiple samples.
+            // The proper implementation will guarantee that there will be just one sample.
+            int last = valueList.size() - 1;
+            builder.startArray("value");
+            builder.value(parseTimestamp(stepList.get(last)));
+            builder.value(formatSampleValue(valueList.get(last)));
+            builder.endArray(); // value
+        }
+    }
+
+    private static boolean timestampsAreAscending(List<Object> stepList) {
+        double previousTimestamp = Double.NEGATIVE_INFINITY;
+        for (Object step : stepList) {
+            double timestamp = parseTimestamp(step);
+            if (timestamp < previousTimestamp) {
+                return false;
+            }
+            previousTimestamp = timestamp;
+        }
+        return true;
     }
 
     private static Object[] toArray(Iterable<Object> row, int size) {
@@ -174,6 +260,21 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     /**
+     * Converts a single value or {@code List} to a {@code List<Object>}.
+     * Returns {@code null} if {@code value} is {@code null}.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Object> toList(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof List<?> list) {
+            return (List<Object>) list;
+        }
+        return List.of(value);
+    }
+
+    /**
      * Converts a timestamp from the ES|QL response into Unix epoch seconds.
      * The step column is cast to {@code LONG} (epoch milliseconds) via {@code TO_LONG(step)} in the ES|QL query.
      */
@@ -181,7 +282,9 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         if (value instanceof Number n) {
             return n.doubleValue() / 1000.0;
         }
-        return 0;
+        throw new IllegalStateException(
+            "PROMQL response step column must be Number (epoch millis); got [" + (value == null ? "null" : value.getClass().getName()) + "]"
+        );
     }
 
     /**
@@ -201,60 +304,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             return d.toString();
         }
         return value.toString();
-    }
-
-    private static XContentBuilder buildSuccessJson(Map<String, SeriesData> seriesMap, QueryMode mode, boolean truncated)
-        throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.field("status", "success");
-        builder.startObject("data");
-        builder.field("resultType", mode == QueryMode.RANGE ? "matrix" : "vector");
-        builder.startArray("result");
-
-        for (SeriesData series : seriesMap.values()) {
-            builder.startObject();
-
-            builder.startObject("metric");
-            if (series.rawSeriesJson != null) {
-                writeMetricFromSeriesJson(builder, series.rawSeriesJson);
-            } else if (series.labels != null) {
-                for (Map.Entry<String, String> entry : series.labels.entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue());
-                }
-            }
-            builder.endObject(); // metric
-
-            if (mode == QueryMode.RANGE) {
-                builder.startArray("values");
-                for (int i = 0; i < series.values.size(); i++) {
-                    builder.startArray();
-                    builder.value(series.values.get(i)[0]);
-                    builder.value(series.stringValues.get(i));
-                    builder.endArray();
-                }
-                builder.endArray(); // values
-            } else {
-                // Instant query: emit the last sample (rows arrive ascending by timestamp)
-                int last = series.values.size() - 1;
-                builder.startArray("value");
-                builder.value(series.values.get(last)[0]);
-                builder.value(series.stringValues.get(last));
-                builder.endArray(); // value
-            }
-
-            builder.endObject(); // result entry
-        }
-
-        builder.endArray(); // result
-        builder.endObject(); // data
-        if (truncated) {
-            builder.startArray("warnings");
-            builder.value("results truncated due to limit");
-            builder.endArray();
-        }
-        builder.endObject(); // root
-        return builder;
     }
 
     /**
@@ -285,18 +334,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             } else if (entry.getValue() != null) {
                 builder.field(key, entry.getValue().toString());
             }
-        }
-    }
-
-    static class SeriesData {
-        final String rawSeriesJson;
-        final Map<String, String> labels;
-        final List<double[]> values = new ArrayList<>();
-        final List<String> stringValues = new ArrayList<>();
-
-        SeriesData(String rawSeriesJson, Map<String, String> labels) {
-            this.rawSeriesJson = rawSeriesJson;
-            this.labels = labels;
         }
     }
 }

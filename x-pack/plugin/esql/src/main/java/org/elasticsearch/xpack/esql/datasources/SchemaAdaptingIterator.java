@@ -26,6 +26,18 @@ import java.util.NoSuchElementException;
  * appends a synthetic {@code _rowPosition} block in the trailing slot so deferred extraction
  * continues to work after schema reconciliation.
  *
+ * <h2>{@link BlockFactory} threading contract</h2>
+ * This iterator runs on the producer side of {@link AsyncExternalSourceBuffer} (the generic /
+ * external-source pool thread that drains pages from the format reader), <em>not</em> on the
+ * driver thread that later consumes them. Callers must therefore pass a {@link BlockFactory}
+ * that is safe to use off-driver — typically the node-level (root) factory wired via
+ * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} — so the
+ * null-fill and cast allocations are charged to the global request circuit breaker. Passing a
+ * driver-local factory backed by {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
+ * trips its single-thread assertion in debug builds and races with the driver loop's
+ * reserved-bytes accounting in production (assertions stripped); see
+ * {@link VirtualColumnIterator} for the same contract on the {@code _file.*} path.
+ *
  * <h2>{@link ColumnExtractorProducer} forwarding</h2>
  * The adapter unconditionally declares the {@link ColumnExtractorProducer} capability and forwards
  * {@link #createColumnExtractor()} / {@link #setExtractorId(int)} to its delegate. Whether those

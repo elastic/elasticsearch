@@ -40,15 +40,22 @@ import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHA
 import static org.hamcrest.Matchers.equalTo;
 
 public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCase {
+    public void testSliceConsistencyWithPit() throws Exception {
+        doTestSliceConsistency(true);
+    }
+
+    public void testSliceConsistencyWithScroll() throws Exception {
+        doTestSliceConsistency(false);
+    }
+
     // test that a search of an index produces exactly the documents in the index,
     // when the search is composed of a full set of sliced scrolls and resharding
     // occurs between slice queries.
-    public void testSliceConsistency() throws Exception {
+    private void doTestSliceConsistency(boolean usePit) throws Exception {
         final int numShards = randomIntBetween(1, 5);
         final int numDocs = randomIntBetween(10, 100);
         final int numSlices = randomIntBetween(2, numShards * 2);
         final String indexName = randomIndexName();
-        final boolean usePit = randomBoolean();
         BytesReference pointInTimeId = null;
 
         final String indexNode = startMasterAndIndexNode();

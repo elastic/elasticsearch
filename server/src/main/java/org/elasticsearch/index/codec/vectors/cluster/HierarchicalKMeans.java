@@ -290,7 +290,7 @@ public class HierarchicalKMeans {
      * Reduces N prior centroids to targetCount seed centroids for the concatenation merge path,
      * ensuring each meta-cluster represents roughly equal total vector mass.
      * <p>
-     * Uses size-weighted k-means++ seeding (proportional to size × distance²) followed by a
+     * Uses mass-weighted seed selection (proportional to mass × distance²) followed by a
      * single capacity-constrained greedy assignment pass — no iterative solver is run, keeping
      * the merge path fast.
      *
@@ -304,10 +304,10 @@ public class HierarchicalKMeans {
         int k = Math.min(targetCount, n);
         logger.debug("reduceVarianceAware: reducing [{}] centroids to [{}]", n, k);
 
-        // Step 1: Size-weighted k-means++ seeds — each seed is sampled proportional to
-        // size × distance², placing seeds in high-density regions so meta-clusters start
+        // Step 1: Mass-weighted seed selection — each seed is sampled proportional to
+        // mass × distance², placing seeds in high-mass regions so meta-clusters start
         // with roughly equal vector mass.
-        float[][] seeds = sizeWeightedKMeansPlusPlusSeeds(centroids, clusterSizes, k);
+        float[][] seeds = massWeightedSeedSelection(centroids, clusterSizes, k);
 
         // Step 2: Capacity-constrained greedy assignment — single pass, no iteration.
         // Assigns centroids to their nearest seed while capping each meta-cluster at
@@ -339,12 +339,12 @@ public class HierarchicalKMeans {
     }
 
     /**
-     * k-means++ seeding weighted by cluster size. The first seed is sampled proportional to
-     * cluster size; each subsequent seed is sampled proportional to size × distance² to the
-     * nearest already-selected seed. This places seeds in high-density regions so that each
+     * Sequential seed selection weighted by centroid mass (vector count). The first seed is
+     * sampled proportional to mass; each subsequent seed is sampled proportional to mass × distance²
+     * to the nearest already-selected seed. This places seeds in high-mass regions so that each
      * resulting meta-cluster starts with roughly equal total vector mass.
      */
-    private float[][] sizeWeightedKMeansPlusPlusSeeds(float[][] centroids, int[] clusterSizes, int k) {
+    private float[][] massWeightedSeedSelection(float[][] centroids, int[] clusterSizes, int k) {
         int n = centroids.length;
         k = Math.min(k, n);
         float[][] selected = new float[k][];
@@ -509,7 +509,7 @@ public class HierarchicalKMeans {
      * sizes are known, otherwise just distance². The size weighting biases new centroids toward
      * vectors whose nearest existing centroid has a large prior cluster — splitting big clusters
      * to improve the final size balance. Once a vector's nearest centroid becomes a newly-added
-     * one, its weight reduces to distance² only (pure k-means++ for already-addressed regions).
+     * one, its weight reduces to distance² only (distance-proportional for already-addressed regions).
      */
     private static float[][] supplementCentroids(
         float[][] existing,
@@ -699,7 +699,7 @@ public class HierarchicalKMeans {
      * assignment pass + SOAR. This eliminates iterative convergence entirely — the prior
      * centroids are already good approximations of the data distribution.
      * <p>
-     * Reduction uses size-weighted k-means++ seeding plus a capacity-constrained greedy
+     * Reduction uses mass-weighted seed selection plus a capacity-constrained greedy
      * assignment (see {@link #reduceVarianceAware}), bounding meta-cluster size variance
      * without running a full balancing solver.
      *

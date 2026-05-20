@@ -814,9 +814,8 @@ AVG(length):double | _approximation_confidence_interval(AVG(length)):double | _a
 
 
 Lookup join before stats - old data node
-required_capability_coordinator: approximation_v7
+required_capability: approximation_v7
 required_capability_coordinator: approximation_lookup_join_v2
-required_capability_data_node: approximation_v6
 missing_capability_data_node: approximation_lookup_join_v2
 request_stored: skip
 

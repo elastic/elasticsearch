@@ -53,17 +53,7 @@ public class JsonExtract extends EsqlScalarFunction {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
     private static final BytesRef FALSE_BYTES = new BytesRef("false");
 
-    /**
-     * Warning text surfaced when {@code _source} bytes are observed as null at evaluation
-     * time. The only known upstream cause today is an index whose mapping disables
-     * {@code _source} — {@code _source.includes} / {@code _source.excludes} produce
-     * filtered-but-present bytes (handled by the regular path-not-found warning), not null
-     * bytes. We lead with what the function actually saw and hedge the inferred cause
-     * with "typically" so the message remains accurate if a future code path also produces
-     * null source bytes. {@link IllegalStateException} rather than
-     * {@link IllegalArgumentException} at the throw site — the user's invocation is fine;
-     * the runtime state is what's unexpected. HTTP warning-header dedup collapses repeats.
-     */
+    /** Emitted when {@code _source} bytes arrive null at evaluation time — typically a disabled-source mapping. */
     private static final String NULL_SOURCE_MESSAGE = "_source is null; this typically means the index has _source disabled in its mapping";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -376,17 +366,9 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     /**
-     * SOURCE-typed evaluator entry points — selected by {@link #toEvaluator} when the first
-     * argument is the {@code _source} metadata field. They opt out of the {@code @Evaluator}
-     * null short-circuit via {@code allNullsIsNull = false} so a null source surfaces a
-     * warning instead of returning a silent null, then delegate to {@link #doExtract} for the
-     * actual extraction.
-     * <p>
-     * The source-side multi-value case is impossible by construction ({@code _source} is one
-     * stored blob per doc) and is asserted, not warned. The path-side multi-value case in the
-     * non-constant overload IS reachable — paths come from regular keyword/text expressions
-     * — so it is handled with the canonical single-value warning, mirroring what the
-     * {@code @Evaluator} generator inserts for the scalar path overload.
+     * SOURCE-typed entry points. Opt out of the @Evaluator null short-circuit so a null
+     * source surfaces a warning instead of a silent null. Source is single-value per doc
+     * (asserted); path can be multi-value (canonical single-value warning, like the scalar path).
      */
     @Evaluator(
         extraName = "Source",

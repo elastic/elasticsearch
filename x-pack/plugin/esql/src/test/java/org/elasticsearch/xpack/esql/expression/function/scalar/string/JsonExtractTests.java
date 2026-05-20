@@ -68,39 +68,27 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        // --- SOURCE type support (for _source metadata field) ---
-        // Coverage strategy: the parameterized suite carries only the null-source case (which
-        // demonstrates the new diagnostic warning and satisfies the @Param.type=_source
-        // coverage check). Happy-path SOURCE extraction is covered by testSourceExtraction
-        // below and end-to-end by JsonExtractSourceIT / JsonExtractSourceModeIT. We skip the
-        // framework's auto-anyNullIsNull pass for these because the SOURCE branch warns on
-        // null source (not silent-null tolerant), which the auto-null variants don't expect.
+        // SOURCE: only the null-source case in the parameterized suite. Happy path covered by
+        // testSourceTypedExtractionHappyPath and the ITs. Auto-null pass below is skipped for these.
         List<TestCaseSupplier> sourceSuppliers = new ArrayList<>();
         for (DataType pathType : DataType.stringTypes()) {
             sourceSuppliers.add(
                 new TestCaseSupplier(
                     "null source " + TestCaseSupplier.nameFromTypes(types(DataType.SOURCE, pathType)),
                     types(DataType.SOURCE, pathType),
-                    () -> {
-                        TestCaseSupplier.TestCase tc = new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(null, DataType.SOURCE, "str"),
-                                new TestCaseSupplier.TypedData(new BytesRef("name"), pathType, "path")
-                            ),
-                            expectedSourceToString(),
-                            DataType.KEYWORD,
-                            nullValue()
-                        );
-                        // TestCase's default Source is (line=1, col=1, sourceText="source").
-                        tc = tc.withWarning(
-                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                        );
-                        tc = tc.withWarning(
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(null, DataType.SOURCE, "str"),
+                            new TestCaseSupplier.TypedData(new BytesRef("name"), pathType, "path")
+                        ),
+                        expectedSourceToString(),
+                        DataType.KEYWORD,
+                        nullValue()
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning(
                             "Line 1:1: java.lang.IllegalStateException: "
                                 + "_source is null; this typically means the index has _source disabled in its mapping"
-                        );
-                        return tc;
-                    }
+                        )
                 )
             );
         }
@@ -301,9 +289,8 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        // Apply auto-null-case generation to everything except SOURCE-typed suppliers, then
-        // append the explicitly-constructed SOURCE suppliers (whose null variants carry the
-        // disabled-source warning that the default null pass cannot express).
+        // Auto-null pass over the non-SOURCE suppliers, then append the SOURCE ones (their null
+        // variants carry the disabled-source warning, which the auto pass can't express).
         List<TestCaseSupplier> withNullCases = anyNullIsNull(true, suppliers);
         withNullCases.addAll(sourceSuppliers);
         return parameterSuppliersFromTypedData(withNullCases);
@@ -314,15 +301,10 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         return new JsonExtract(source, args.get(0), args.get(1));
     }
 
-    /**
-     * The null-source SOURCE-typed cases declare warnings that fire only at evaluator runtime —
-     * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull} replaces the whole
-     * expression with a null literal before fold runs, so no warning actually fires during the
-     * fold path. Skip testFold for that supplier; runtime coverage is provided by testEvaluate
-     * (which goes through the evaluator and observes the warning).
-     */
     @Override
     public void testFold() {
+        // FoldNull short-circuits the null-source case to a null literal before fold runs, so
+        // the runtime warning never fires here. testEvaluate covers it via the evaluator path.
         if (isNullSourceCase(testCase)) {
             return;
         }
@@ -363,12 +345,6 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         assertThat(evaluatorFactory, instanceOf(JsonExtractSourceConstantEvaluator.Factory.class));
     }
 
-    /**
-     * Null {@code _source} bytes produce a recognizable warning, not a silent null. The most
-     * common upstream cause is an index whose mapping disables {@code _source}; the integration
-     * test {@code JsonExtractSourceModeIT} covers that end-to-end. Here we exercise just the
-     * function-level contract: null in, null out, plus the diagnostic warning.
-     */
     public void testNullSourceConstantPathProducesWarning() {
         Source source = Source.synthetic("json_extract");
         var factory = evaluator(

@@ -32,14 +32,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Hardening matrix for {@code JSON_EXTRACT} against the {@code _source} metadata field
- * across every {@link SourceMode}: default, explicitly stored, synthetic, disabled, and
- * include/exclude filtered.
- * <p>
- * Each cell indexes the same two JSON documents under a different source-mode mapping,
- * then runs the same battery of {@code JSON_EXTRACT} probes. Per-mode expectations are
- * encoded inline — the matrix exposes both the cases that work uniformly and the cases
- * where source-mode choice changes observable behavior.
+ * {@code JSON_EXTRACT} against every {@code _source} mode: default, stored, synthetic,
+ * disabled, includes, excludes. Same two documents under each mapping, same probe battery.
+ * Per-mode expectations inline.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class JsonExtractSourceModeIT extends RestEsqlTestCase {
@@ -129,9 +124,8 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
             return;
         }
         if (sourceMode == SourceMode.SYNTHETIC) {
-            // Synthetic source reconstructs multi-value keyword arrays in sorted+deduped doc-value order,
-            // not original index order. Bob indexed ["user","guest"] → reconstructed as ["guest","user"]
-            // → tags[0]="guest". Tracked separately under https://github.com/elastic/elasticsearch/issues/149514.
+            // Synthetic reconstructs keyword arrays sorted + deduped, so Bob's ["user","guest"]
+            // comes back as ["guest","user"]. Tracked at #149514.
             assertResult(result, "t", List.of(List.of("admin"), List.of("guest")));
         } else {
             assertResult(result, "t", List.of(List.of("admin"), List.of("user")));
@@ -161,23 +155,13 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
     }
 
     private void verifyMissingPath(String index) throws IOException {
-        // A path that does not exist should produce null + warning EXCEPT for DISABLED,
-        // where the input itself is null and the evaluator short-circuits (no warning).
         var result = runProbe(index, "JSON_EXTRACT(_source, \"definitely.not.here\")", "x", warningsForMissing(false));
         assertResult(result, "x", List.of(nullList(), nullList()));
     }
 
     /**
-     * Three warning regimes:
-     * - Path present, source readable: no warning.
-     * - DISABLED source: the {@code _source} block loader resolves to constant-null, so
-     *   {@code JSON_EXTRACT}'s SOURCE-typed evaluator sees a null input and throws an
-     *   {@link IllegalArgumentException} carrying {@code _source is null; typically indicates
-     *   _source has been disabled...}. The evaluator's warn-exception machinery wraps this in
-     *   the standard {@code Line L:C: evaluation of [...] failed} envelope, so two warning
-     *   headers are observed; HTTP dedup collapses repeats across docs.
-     * - Path absent under any other mode (filtered / synthetic / etc.): per-doc
-     *   {@code IllegalArgumentException: path does not exist} warning emitted from the evaluator.
+     * DISABLED → null-source IllegalStateException; path-missing → path-not-found
+     * IllegalArgumentException; path present → no warning.
      */
     private AssertWarnings warningsForMissing(boolean pathPresent) {
         if (sourceMode == SourceMode.DISABLED) {
@@ -219,9 +203,6 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
 
     private static final Pattern EVAL_WARNING = Pattern.compile(".*Line \\d+:\\d+: evaluation of \\[.*\\] failed.*");
     private static final Pattern EVAL_WARNING_DETAIL = Pattern.compile(".*java\\.lang\\.IllegalArgumentException.*");
-    // JSON_EXTRACT emits this when the _source input bytes are null (most commonly when
-    // _source is disabled or fully filtered out at mapping time). The full warning header is:
-    // "Line 1:21: java.lang.IllegalStateException: _source is null; commonly indicates..."
     private static final Pattern NULL_SOURCE_WARNING = Pattern.compile(".*IllegalStateException.*_source is null.*");
 
     private static void indexFixtureDocs(String index) throws IOException {
@@ -248,20 +229,14 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
         createIndex(index, settings.build(), mapping);
     }
 
-    /**
-     * Test matrix dimension covering every way {@code _source} can be configured.
-     * The mapping for each mode is identical apart from the source clause itself
-     * — string fields are explicit {@code keyword} so synthetic-source reconstruction works.
-     */
+    /** Every supported {@code _source} configuration. Mappings differ only in the source clause. */
     enum SourceMode {
-        /** No source configuration — default behavior. */
         DEFAULT {
             @Override
             String mapping() {
                 return STANDARD_MAPPING;
             }
         },
-        /** Explicit {@code index.mapping.source.mode=stored} via index setting. */
         STORED {
             @Override
             void applySettings(Settings.Builder builder) {
@@ -273,7 +248,6 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
                 return STANDARD_MAPPING;
             }
         },
-        /** {@code index.mapping.source.mode=synthetic} — source reconstructed from doc values. */
         SYNTHETIC {
             @Override
             void applySettings(Settings.Builder builder) {
@@ -285,7 +259,6 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
                 return STANDARD_MAPPING;
             }
         },
-        /** {@code _source.enabled=false} — block loader returns {@code ConstantNull}. */
         DISABLED {
             @Override
             String mapping() {
@@ -300,7 +273,6 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
                     """;
             }
         },
-        /** {@code _source.includes=["address","tags"]} — only those fields survive. */
         INCLUDES_ADDRESS {
             @Override
             String mapping() {
@@ -315,7 +287,6 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
                     """;
             }
         },
-        /** {@code _source.excludes=["name"]} — name is dropped, everything else kept. */
         EXCLUDES_NAME {
             @Override
             String mapping() {

@@ -104,8 +104,8 @@ public final class ConfigurableClusterPrivileges {
             if (category == Category.DATASOURCE) {
                 builder.startArray(category.field.getPreferredName());
                 for (ConfigurableClusterPrivilege privilege : privileges) {
-                    if (category == privilege.getCategory()) {
-                        ((ManageDatasourcePrivileges) privilege).toXContentArrayElements(builder, params);
+                    if (privilege instanceof ManageDatasourcePrivileges mds) {
+                        mds.toXContentArrayElements(builder, params);
                     }
                 }
                 builder.endArray();

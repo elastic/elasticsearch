@@ -724,7 +724,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         int size = between(0, 10);
         Map<String, EsField> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.put(randomAlphaOfLength(5), EsFieldTests.randomAnyEsField(1));
+            result.put(randomAlphaOfLength(5), EsFieldTests.randomSerializableEsField(1));
         }
         return result;
     }

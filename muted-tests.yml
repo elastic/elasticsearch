@@ -599,3 +599,14 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupCsv
   issue: https://github.com/elastic/elasticsearch/issues/149444
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  methods:
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zst/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zstd/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149481
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149482

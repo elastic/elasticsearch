@@ -66,6 +66,11 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }

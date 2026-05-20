@@ -74,6 +74,7 @@ public class PromqlCommand extends UnaryPlan
     public static final String SCRAPE_INTERVAL = "scrape_interval";
     public static final String RANGE = "range";
     public static final String INDEX = "index";
+    public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
     public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
@@ -91,69 +92,7 @@ public class PromqlCommand extends UnaryPlan
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
-    private final boolean collapsed;
     private List<Attribute> output;
-
-    // Range query constructor (collapsed=false)
-    public PromqlCommand(
-        Source source,
-        LogicalPlan child,
-        LogicalPlan promqlPlan,
-        Literal start,
-        Literal end,
-        Literal step,
-        Literal buckets,
-        Literal scrapeInterval,
-        String valueColumnName,
-        Expression timestamp
-    ) {
-        this(
-            source,
-            child,
-            promqlPlan,
-            start,
-            end,
-            step,
-            buckets,
-            scrapeInterval,
-            valueColumnName,
-            new NameId(),
-            new NameId(),
-            timestamp,
-            false
-        );
-    }
-
-    // Range query constructor with collapsed flag
-    public PromqlCommand(
-        Source source,
-        LogicalPlan child,
-        LogicalPlan promqlPlan,
-        Literal start,
-        Literal end,
-        Literal step,
-        Literal buckets,
-        Literal scrapeInterval,
-        String valueColumnName,
-        Expression timestamp,
-        boolean collapsed
-    ) {
-        this(
-            source,
-            child,
-            promqlPlan,
-            start,
-            end,
-            step,
-            buckets,
-            scrapeInterval,
-            valueColumnName,
-            new NameId(),
-            new NameId(),
-            timestamp,
-            collapsed
-        );
-    }
 
     // Range query constructor
     public PromqlCommand(
@@ -166,14 +105,12 @@ public class PromqlCommand extends UnaryPlan
         Literal buckets,
         Literal scrapeInterval,
         String valueColumnName,
-        NameId valueId,
-        NameId stepId,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp, false);
+        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
     }
 
-    // Full constructor with collapsed flag
+    // Full constructor
     public PromqlCommand(
         Source source,
         LogicalPlan child,
@@ -186,8 +123,7 @@ public class PromqlCommand extends UnaryPlan
         String valueColumnName,
         NameId valueId,
         NameId stepId,
-        Expression timestamp,
-        boolean collapsed
+        Expression timestamp
     ) {
         super(source, child);
         this.promqlPlan = promqlPlan;
@@ -200,7 +136,6 @@ public class PromqlCommand extends UnaryPlan
         this.valueId = valueId;
         this.stepId = stepId;
         this.timestamp = timestamp;
-        this.collapsed = collapsed;
     }
 
     @Override
@@ -218,8 +153,7 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp(),
-            isCollapsed()
+            timestamp()
         );
     }
 
@@ -237,8 +171,7 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp(),
-            collapsed
+            timestamp()
         );
     }
 
@@ -258,8 +191,7 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp(),
-            collapsed
+            timestamp()
         );
     }
 
@@ -287,31 +219,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp(),
-            collapsed
+            timestamp()
         );
-    }
-
-    public PromqlCommand withCollapsed(boolean collapsed) {
-        return new PromqlCommand(
-            source(),
-            child(),
-            promqlPlan(),
-            start(),
-            end(),
-            step(),
-            buckets(),
-            scrapeInterval(),
-            valueColumnName(),
-            valueId(),
-            stepId(),
-            timestamp(),
-            collapsed
-        );
-    }
-
-    public boolean isCollapsed() {
-        return collapsed;
     }
 
     @Override
@@ -419,20 +328,7 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            child(),
-            promqlPlan,
-            start,
-            end,
-            step,
-            buckets,
-            scrapeInterval,
-            valueColumnName,
-            valueId,
-            stepId,
-            timestamp,
-            collapsed
-        );
+        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
     }
 
     @Override
@@ -450,8 +346,7 @@ public class PromqlCommand extends UnaryPlan
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
-                && Objects.equals(timestamp, other.timestamp)
-                && collapsed == other.collapsed;
+                && Objects.equals(timestamp, other.timestamp);
         }
 
         return false;

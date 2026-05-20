@@ -48,6 +48,9 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -59,9 +62,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -74,6 +77,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -106,6 +110,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -120,7 +125,7 @@ import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.BackoffPolicy.constantBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
-import static org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.computeRelocationCooldownNanos;
+import static org.elasticsearch.reindex.AbstractAsyncBulkByPaginatedSearchAction.computeRelocationCooldownNanos;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -138,13 +143,13 @@ import static org.mockito.Mockito.when;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
-    private DummyAbstractBulkByScrollRequest testRequest;
+    private DummyAbstractBulkByPaginatedSearchRequest testRequest;
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
     private ThreadPool clientThreadPool;
     private TaskManager taskManager;
-    private BulkByScrollTask testTask;
+    private BulkByPaginatedSearchTask testTask;
     private WorkerBulkByScrollTaskState worker;
     private Map<String, String> expectedHeaders = new HashMap<>();
     private DiscoveryNode localNode;
@@ -158,12 +163,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
-        testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
+        testRequest = new DummyAbstractBulkByPaginatedSearchRequest(new SearchRequest());
         testRequest.setEligibleForRelocationOnShutdown(true); // for relocation tests
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask = (BulkByPaginatedSearchTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
 
@@ -199,7 +204,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     private static final BytesArray TEST_PIT_ID = new BytesArray("test-pit-id".getBytes(StandardCharsets.UTF_8));
 
-    /** No-op batch release for tests that call {@link AbstractAsyncBulkByScrollAction#sendBulkRequest} with no hit refs. */
+    /** No-op batch release for tests that call {@link AbstractAsyncBulkByPaginatedSearchAction#sendBulkRequest} with no hit refs. */
     private static final Releasable NO_OP_RELEASE_BATCH_HITS = () -> {};
 
     /**
@@ -267,7 +272,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.onScrollResponse(
             lastBatchTime,
             lastBatchSize,
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return response;
@@ -655,9 +660,125 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
+     * Verifies that when the REQUEST circuit breaker trips during {@code buildBulk} the reindex operation
+     * fails the listener with the exception, releases the batch hits, and never sends a bulk request.
+     */
+    public void testCircuitBreakerTripFailsBatchGracefully() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        AtomicLong netBreakerBytes = new AtomicLong(0);
+
+        CircuitBreaker trippingBreaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                throw new CircuitBreakingException("simulated breaker trip", bytes, 1L, CircuitBreaker.Durability.TRANSIENT);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                netBreakerBytes.addAndGet(bytes);
+            }
+        };
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(
+            testTask,
+            TimeValue.ZERO,
+            trippingBreaker,
+            "test_bulk_batch"
+        ) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+        };
+
+        List<PaginatedHitSource.BasicHit> hits = List.of(
+            new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON),
+            new PaginatedHitSource.BasicHit("idx", "2", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON)
+        );
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        simulatePaginatedResponse(action, System.nanoTime(), 0, response, usePit);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+        assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+        assertThat(e.getCause().getMessage(), containsString("simulated breaker trip"));
+        assertEquals(0, client.bulksAttempts.get());
+        // No bytes were net-added to the breaker: the trip happened before any reservation landed.
+        assertEquals(0L, netBreakerBytes.get());
+    }
+
+    /**
+     * Verifies the per-batch reservation lifecycle: the circuit breaker accumulates bytes equal to
+     * {@code BulkRequest.estimatedSizeInBytes()} during {@code buildBulk}, and the reservation is fully
+     * released when the bulk listener completes.
+     */
+    public void testCircuitBreakerReservationMatchesBulkRequestSizeAndIsReleasedOnBulkComplete() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        AtomicLong totalReserved = new AtomicLong(0);
+        AtomicLong totalReleased = new AtomicLong(0);
+
+        CircuitBreaker trackingBreaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (bytes > 0) totalReserved.addAndGet(bytes);
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+                if (bytes < 0) totalReleased.addAndGet(-bytes);
+            }
+        };
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(
+            testTask,
+            TimeValue.ZERO,
+            trackingBreaker,
+            "test_bulk_batch"
+        ) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+        };
+
+        // Two docs × 100 bytes of source + 50 per-doc overhead = 300-byte BulkRequest.estimatedSizeInBytes().
+        List<PaginatedHitSource.BasicHit> hits = List.of(
+            new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON),
+            new PaginatedHitSource.BasicHit("idx", "2", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON)
+        );
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        // Inline the scroll response so done() is a no-op (rather than calling fail()) — the bulk completes
+        // but we don't want the action to try to fetch the next batch in this test.
+        if (usePit) {
+            action.setSearchAfterValues(new Object[] { "search_after_value" });
+        } else {
+            action.setScroll(scrollId());
+        }
+        action.onScrollResponse(
+            System.nanoTime(),
+            0,
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return response;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    // no-op: bulk has completed; we don't care about next-batch fetch in this test.
+                }
+            })
+        );
+
+        // Total reserved equals the full BulkRequest estimate (300 bytes); everything is released after the bulk.
+        assertBusy(() -> assertEquals(300L, totalReserved.get()));
+        assertBusy(() -> assertEquals(1, client.bulksAttempts.get()));
+        assertBusy(() -> assertEquals(totalReserved.get(), totalReleased.get()));
+    }
+
+    /**
      * Verifies that concurrent calls to {@code releaseRemainingHits()} release each unconsumed hit exactly once.
-     * This covers the race where {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} (via the
-     * {@code requestFinishing} path) and {@link AbstractAsyncBulkByScrollAction#finishHim} both hold a reference
+     * This covers the race where {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} (via the
+     * {@code requestFinishing} path) and {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} both hold a reference
      * to the same response and call {@code releaseRemainingHits()} concurrently. Without the {@code releaseOnce}
      * guard the two threads would both iterate the same unconsumed range and double-release every remaining hit.
      */
@@ -677,8 +798,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             scrollId(),
             null
         );
-        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse response =
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -745,7 +866,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         boolean usePit = configurePitOrScroll();
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            protected AbstractAsyncBulkByScrollAction.RequestWrapper<?> buildRequest(Hit doc) {
+            protected AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> buildRequest(Hit doc) {
                 throw new RuntimeException("surprise");
             }
         };
@@ -927,14 +1048,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1f);
         action.start();
 
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
-        hit.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
-        SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            0
-        );
+        SearchHit[] hitArray = IntStream.range(0, 100).mapToObj(i -> {
+            SearchHit h = new SearchHit(i, "id").sourceRef(new BytesArray("{}"));
+            h.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+            return h;
+        }).toArray(SearchHit[]::new);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
         SearchResponse searchResponse = SearchResponseUtils.response(hits).pointInTimeId(TEST_PIT_ID).shards(5, 4, 0).build();
+        hits.decRef(); // transfer ownership to searchResponse
         try {
             client.lastSearch.get().listener.onResponse(searchResponse);
 
@@ -1168,8 +1289,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             usePit ? null : "scrollid",
             usePit ? new Object[] { "search_after" } : null
         );
-        final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse response =
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1205,8 +1326,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
-     * Exercises the window where {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} has CAS'd
-     * {@link AbstractAsyncBulkByScrollAction#currentScrollResponse} to {@code null} but has not yet restored the ref after
+     * Exercises the window where {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} has CAS'd
+     * {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse} to {@code null} but has not yet restored the ref after
      * {@code maxDocs} consumed a partial batch. A subclass blocks inside {@code consumeHits} until {@code finishHim} runs so
      * {@code finishHim}'s {@code getAndSet} sees {@code null} and does not release unconsumed hits; the {@code requestFinishing}
      * checks in {@code prepareBulkRequest} / {@code sendBulkRequest} must release the batch slice and remaining hits when prepare
@@ -1233,7 +1354,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         CountDownLatch firstConsumeReturnedFromSuper = new CountDownLatch(1);
         CountDownLatch resumePrepareAfterFinishHim = new CountDownLatch(1);
         AtomicInteger sendBulkInvocations = new AtomicInteger();
-        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse consumable = new ScrollConsumableHitsResponseGate(
+        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse consumable = new ScrollConsumableHitsResponseGate(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -1249,8 +1370,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            protected AbstractAsyncBulkByScrollAction.RequestWrapper<?> buildRequest(Hit doc) {
-                return AbstractAsyncBulkByScrollAction.wrap(new IndexRequest().index("test").id(doc.getId()));
+            protected AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> buildRequest(Hit doc) {
+                return AbstractAsyncBulkByPaginatedSearchAction.wrap(new IndexRequest().index("test").id(doc.getId()));
             }
 
             @Override
@@ -1282,10 +1403,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
-     * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByScrollAction#finishHim} runs first and
-     * wins {@link AbstractAsyncBulkByScrollAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
-     * A later {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} for the same
-     * {@link AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse} must lose
+     * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
+     * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
+     * A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
+     * {@link AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse} must lose
      * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
      */
     public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedScrollResponse() {
@@ -1305,8 +1426,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             scrollId(),
             null
         );
-        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse consumable =
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse consumable =
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1346,8 +1467,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             usePit ? null : "scrollid",
             usePit ? new Object[] { "search_after" } : null
         );
-        final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse response =
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1376,7 +1497,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollByDefault() {
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
@@ -1384,7 +1505,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(101, 1000));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -1393,7 +1514,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(1, 100));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), nullValue());
     }
@@ -1408,7 +1529,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().size(100);
         testRequest.getSearchRequest().source().slice(new SliceBuilder(IdFieldMapper.NAME, 0, 5));
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -1418,7 +1539,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().size(100);
         testRequest.setAbortOnVersionConflict(false);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -1428,7 +1549,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testPrepareSearchRequestWithPITDisablesScrollAndSetsFromZero() {
         configurePitOrScroll(true);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.scroll(), nullValue());
         assertEquals(0, preparedSearchRequest.source().from());
     }
@@ -1439,7 +1560,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testPrepareSearchRequestWithPITUsesShardDocSort() {
         configurePitOrScroll(true);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
         assertThat(preparedSearchRequest.source().sorts().getFirst(), instanceOf(FieldSortBuilder.class));
         assertEquals(
@@ -1453,7 +1574,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testPrepareSearchRequestWithPITUsesDocSortWhenRemoteBefore712() {
         configurePitOrScroll(true);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(
             testRequest,
             false,
             false,
@@ -1474,7 +1595,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testPrepareSearchRequestWithScrollUsesDocSort() {
         configurePitOrScroll(false);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
         assertThat(preparedSearchRequest.source().sorts().getFirst(), instanceOf(FieldSortBuilder.class));
         assertEquals("_doc", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
@@ -1487,9 +1608,111 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testPrepareSearchRequestPreservesUserSort() {
         configurePitOrScroll(true);
         testRequest.getSearchRequest().source().sort("timestamp");
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
         assertEquals("timestamp", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
+    }
+
+    public void testPrepareSearchRequestEnablesAccurateTrackTotalHitsForPit() {
+        configurePitOrScroll(true);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertEquals(Integer.valueOf(Integer.MAX_VALUE), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    public void testPrepareSearchRequestDoesNotSetTrackTotalHitsForScroll() {
+        configurePitOrScroll(false);
+        assertNull(testRequest.getSearchRequest().source().trackTotalHitsUpTo());
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertNull(preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    public void testPrepareSearchRequestPreservesExplicitTrackTotalHits() {
+        configurePitOrScroll(randomBoolean());
+        int userTrackTotalHitsUpTo = randomIntBetween(1, 1000);
+        testRequest.getSearchRequest().source().trackTotalHitsUpTo(userTrackTotalHitsUpTo);
+        var preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertEquals(Integer.valueOf(userTrackTotalHitsUpTo), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    /// PIT pagination tracks accurately on the first batch only, then disables tracking on follow-ups while still
+    /// reporting the cached total in the response.
+    public void testPitPaginatedHitSourceCachesTotalAndDisablesTrackOnSubsequentBatches() {
+        configurePitOrScroll(true);
+        SearchRequest preparedSearchRequest = AbstractAsyncBulkByPaginatedSearchAction.prepareSearchRequest(
+            testRequest,
+            false,
+            false,
+            false,
+            null
+        );
+        AtomicReference<PaginatedHitSource.AsyncResponse> capturedAsyncResponse = new AtomicReference<>();
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            buildTestBackoffPolicy(),
+            threadPool,
+            () -> {},
+            capturedAsyncResponse::set,
+            capturedFailure::set,
+            new ParentTaskAssigningClient(client, localNode, testTask),
+            preparedSearchRequest,
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+        );
+        paginatedHitSource.start();
+        assertNull("paginatedHitSource start should not fail", capturedFailure.get());
+
+        // First batch inherits accurate tracking from prepareSearchRequest.
+        SearchRequest firstRequest = client.lastSearch.get().request;
+        assertEquals(Integer.valueOf(Integer.MAX_VALUE), firstRequest.source().trackTotalHitsUpTo());
+
+        long totalHits = randomLongBetween(100L, 1_000_000L);
+        SearchHit[] firstBatchHits = new SearchHit[] { new SearchHit(0, "id").sourceRef(new BytesArray("{}")) };
+        firstBatchHits[0].sortValues(new Object[] { 0L }, new DocValueFormat[] { DocValueFormat.RAW });
+        SearchHits firstSearchHits = new SearchHits(firstBatchHits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse firstResponse = SearchResponseUtils.response(firstSearchHits).pointInTimeId(TEST_PIT_ID).shards(1, 1, 0).build();
+        firstSearchHits.decRef();
+        try {
+            client.lastSearch.get().listener.onResponse(firstResponse);
+            assertNotNull("first batch must be delivered", capturedAsyncResponse.get());
+            assertEquals("first batch reports the accurate total", totalHits, capturedAsyncResponse.get().response().getTotalHits());
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+            capturedAsyncResponse.set(null);
+        } finally {
+            firstResponse.decRef();
+        }
+
+        // After the first batch the cache is seeded, so the next request must drop track_total_hits.
+        paginatedHitSource.requestNextBatch(TimeValue.ZERO);
+        assertNull("next-batch request should not fail", capturedFailure.get());
+        SearchRequest nextRequest = client.lastSearch.get().request;
+        assertEquals(
+            "subsequent PIT searches should disable track_total_hits to keep Max WAND active",
+            Integer.valueOf(SearchContext.TRACK_TOTAL_HITS_DISABLED),
+            nextRequest.source().trackTotalHitsUpTo()
+        );
+        assertNotSame("next request must not mutate the first-batch source", firstRequest.source(), nextRequest.source());
+        assertEquals(
+            "first-batch source remains accurate-tracking",
+            Integer.valueOf(Integer.MAX_VALUE),
+            firstRequest.source().trackTotalHitsUpTo()
+        );
+
+        // Server returns a null total when track_total_hits is disabled; the hit source must substitute the cache.
+        SearchHits secondSearchHits = new SearchHits(new SearchHit[0], null, 0);
+        SearchResponse secondResponse = SearchResponseUtils.response(secondSearchHits).pointInTimeId(TEST_PIT_ID).shards(1, 1, 0).build();
+        secondSearchHits.decRef();
+        try {
+            client.lastSearch.get().listener.onResponse(secondResponse);
+            assertNotNull("second batch must be delivered", capturedAsyncResponse.get());
+            assertEquals(
+                "subsequent batches must report the cached total instead of the placeholder",
+                totalHits,
+                capturedAsyncResponse.get().response().getTotalHits()
+            );
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+        } finally {
+            secondResponse.decRef();
+        }
     }
 
     /**
@@ -1561,17 +1784,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         };
         action.setScroll(expectedScrollId);
 
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), expectedScrollId, null);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), expectedScrollId, null);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                fail("done() should not be called because it fetches more data");
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    fail("done() should not be called because it fetches more data");
+                }
             }
-        });
+        );
 
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
@@ -1623,17 +1848,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         };
         action.setSearchAfterValues(expectedSearchAfter);
 
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, expectedSearchAfter);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, expectedSearchAfter);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                fail("done() should not be called because it fetches more data");
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    fail("done() should not be called because it fetches more data");
+                }
             }
-        });
+        );
 
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
@@ -1664,17 +1891,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setScroll(expectedScrollId);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), expectedScrollId, null);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), expectedScrollId, null);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                doneCalled.set(true);
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    doneCalled.set(true);
+                }
             }
-        });
+        );
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue("asyncResponse.done() should be called for normal flow", doneCalled.get());
@@ -1694,17 +1923,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setSearchAfterValues(expectedSearchAfter);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, expectedSearchAfter);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, expectedSearchAfter);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                doneCalled.set(true);
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    doneCalled.set(true);
+                }
             }
-        });
+        );
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue("asyncResponse.done() should be called for normal flow", doneCalled.get());
@@ -1723,17 +1954,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setScroll(expectedScrollId);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), expectedScrollId, null);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), expectedScrollId, null);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                doneCalled.set(true);
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    doneCalled.set(true);
+                }
             }
-        });
+        );
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue("asyncResponse.done() should be called when relocation is not requested", doneCalled.get());
@@ -1752,17 +1985,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setSearchAfterValues(expectedSearchAfter);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, expectedSearchAfter);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, expectedSearchAfter);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                doneCalled.set(true);
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    doneCalled.set(true);
+                }
             }
-        });
+        );
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue("asyncResponse.done() should be called when relocation is not requested", doneCalled.get());
@@ -1781,7 +2016,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            void onScrollResponse(final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse asyncResponse) {
+            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
                 onScrollResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
@@ -1792,17 +2027,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new PaginatedHitSource.BasicHit("index", "id-1", -1),
             new PaginatedHitSource.BasicHit("index", "id-2", -1)
         );
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(false, false, emptyList(), hits.size(), hits, expectedScrollId, null);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), hits.size(), hits, expectedScrollId, null);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                fail("done() should not be called when there are remaining hits to consume");
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    fail("done() should not be called when there are remaining hits to consume");
+                }
             }
-        });
+        );
 
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
@@ -1823,7 +2060,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            void onScrollResponse(final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse asyncResponse) {
+            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
                 onScrollResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
@@ -1834,17 +2071,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new PaginatedHitSource.BasicHit("index", "id-1", -1),
             new PaginatedHitSource.BasicHit("index", "id-2", -1)
         );
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(true, false, emptyList(), hits.size(), hits, null, expectedSearchAfter);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(true, false, emptyList(), hits.size(), hits, null, expectedSearchAfter);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                fail("done() should not be called when there are remaining hits to consume");
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    fail("done() should not be called when there are remaining hits to consume");
+                }
             }
-        });
+        );
 
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
@@ -1862,17 +2101,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
 
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, null);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, null);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                fail("done() should not be called");
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    fail("done() should not be called");
+                }
             }
-        });
+        );
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> action.notifyDone(System.nanoTime(), asyncResponse, 0));
         assertThat(e.getMessage(), containsString("PIT relocation requires search_after values from the last hit"));
@@ -1908,7 +2149,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 null
             )
         );
-        testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
+        testTask = (BulkByPaginatedSearchTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
         assertTrue(testTask.isRelocatedTask());
@@ -1919,17 +2160,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(TimeValue.timeValueHours(1));
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId());
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId());
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                doneCalled.set(true);
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    doneCalled.set(true);
+                }
             }
-        });
+        );
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue("asyncResponse.done() should be called because re-relocation was skipped", doneCalled.get());
@@ -1939,13 +2182,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         // unregister unused task for test, just for cleanliness
         taskManager.unregister(testTask);
 
-        final BulkByScrollTask.Status status = randomStatus();
+        final BulkByPaginatedSearchTask.Status status = randomStatus();
 
         final WorkerBulkByScrollTaskState workerState = mock(WorkerBulkByScrollTaskState.class);
         when(workerState.getNodeToRelocateTo()).thenReturn(Optional.of("target-node"));
         when(workerState.getStatus()).thenReturn(status);
 
-        final BulkByScrollTask task = mock(BulkByScrollTask.class);
+        final BulkByPaginatedSearchTask task = mock(BulkByPaginatedSearchTask.class);
         when(task.getStartTimeNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(randomIntBetween(5, 100)));
         when(task.getWorkerState()).thenReturn(workerState);
         when(task.isWorker()).thenReturn(true);
@@ -1960,17 +2203,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(task, TimeValue.ZERO);
         action.setScroll(expectedScrollId);
 
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                fail("done() should not be called because relocation should proceed");
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    fail("done() should not be called because relocation should proceed");
+                }
             }
-        });
+        );
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue(listener.isDone());
@@ -1988,17 +2233,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(TimeValue.timeValueHours(1));
         action.setScroll(expectedScrollId);
 
-        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
-            @Override
-            public PaginatedHitSource.Response response() {
-                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
-            }
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
+                }
 
-            @Override
-            public void done(final TimeValue extraKeepAlive) {
-                fail("done() should not be called because relocation should proceed");
+                @Override
+                public void done(final TimeValue extraKeepAlive) {
+                    fail("done() should not be called because relocation should proceed");
+                }
             }
-        });
+        );
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue(listener.isDone());
@@ -2006,8 +2253,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertTrue(response.getTaskResumeInfo().isPresent());
     }
 
-    private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<
-        DummyAbstractBulkByScrollRequest,
+    private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByPaginatedSearchAction<
+        DummyAbstractBulkByPaginatedSearchRequest,
         DummyTransportAsyncBulkByScrollAction> {
 
         DummyAsyncBulkByScrollAction() {
@@ -2018,7 +2265,16 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             this(testTask, timeout);
         }
 
-        DummyAsyncBulkByScrollAction(BulkByScrollTask task, TimeValue maxTaskShutdownGracePeriod) {
+        DummyAsyncBulkByScrollAction(BulkByPaginatedSearchTask task, TimeValue maxTaskShutdownGracePeriod) {
+            this(task, maxTaskShutdownGracePeriod, new NoopCircuitBreaker("test"), "test_bulk_batch");
+        }
+
+        DummyAsyncBulkByScrollAction(
+            BulkByPaginatedSearchTask task,
+            TimeValue maxTaskShutdownGracePeriod,
+            CircuitBreaker circuitBreaker,
+            String breakerLabel
+        ) {
             super(
                 task,
                 randomBoolean(),
@@ -2034,12 +2290,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 null,
                 randomFrom(BulkByScrollSearchContextMetrics.TaskKind.values()),
                 false,
-                maxTaskShutdownGracePeriod
+                maxTaskShutdownGracePeriod,
+                new ReindexSettings(),
+                circuitBreaker,
+                breakerLabel
             );
         }
 
         @Override
-        protected AbstractAsyncBulkByScrollAction.RequestWrapper<?> buildRequest(Hit doc) {
+        protected AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> buildRequest(Hit doc) {
             throw new UnsupportedOperationException("Use another override to test this.");
         }
     }
@@ -2060,7 +2319,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyTransportAsyncBulkByScrollAction extends TransportAction<
-        DummyAbstractBulkByScrollRequest,
+        DummyAbstractBulkByPaginatedSearchRequest,
         BulkByScrollResponse> {
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
@@ -2068,24 +2327,34 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        protected void doExecute(Task task, DummyAbstractBulkByScrollRequest request, ActionListener<BulkByScrollResponse> listener) {
+        protected void doExecute(
+            Task task,
+            DummyAbstractBulkByPaginatedSearchRequest request,
+            ActionListener<BulkByScrollResponse> listener
+        ) {
             // no-op
         }
     }
 
-    private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+    private static class DummyAbstractBulkByPaginatedSearchRequest extends AbstractBulkByPaginatedSearchRequest<
+        DummyAbstractBulkByPaginatedSearchRequest> {
 
-        DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
+        DummyAbstractBulkByPaginatedSearchRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
 
         @Override
-        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        public DummyAbstractBulkByPaginatedSearchRequest forSlice(
+            TaskId slicingTask,
+            SearchRequest slice,
+            int totalSlices,
+            int activeSlices
+        ) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        protected DummyAbstractBulkByScrollRequest self() {
+        protected DummyAbstractBulkByPaginatedSearchRequest self() {
             return this;
         }
     }
@@ -2268,7 +2537,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         return new ResumeInfo.ScrollWorkerResumeInfo(
             randomAlphaOfLength(10),
             randomLong(),
-            new BulkByScrollTask.Status(
+            new BulkByPaginatedSearchTask.Status(
                 randomNonNegativeInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -2290,10 +2559,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     /**
      * Blocks in {@code consumeHits} after {@code super} returns (first batch taken) until the test finishes {@code finishHim},
-     * so {@link AbstractAsyncBulkByScrollAction#currentScrollResponse} stays {@code null} across {@code finishHim}'s
+     * so {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse} stays {@code null} across {@code finishHim}'s
      * {@code getAndSet} when {@code maxDocs} leaves a partial scroll batch.
      */
-    private static final class ScrollConsumableHitsResponseGate extends AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse {
+    private static final class ScrollConsumableHitsResponseGate extends
+        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse {
         private final CountDownLatch firstConsumeReturnedFromSuper;
         private final CountDownLatch resumePrepareAfterFinishHim;
 
@@ -2334,8 +2604,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
-    private static BulkByScrollTask.Status randomStatus() {
-        return new BulkByScrollTask.Status(
+    private static BulkByPaginatedSearchTask.Status randomStatus() {
+        return new BulkByPaginatedSearchTask.Status(
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),

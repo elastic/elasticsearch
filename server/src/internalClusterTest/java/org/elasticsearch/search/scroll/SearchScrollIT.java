@@ -672,6 +672,50 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * The initial search resolves to zero shards (the index pattern matches no indices) yet still returns a scroll id.
+     * Issuing a scroll against that id used to fail with a 503 "no nodes to search on"; verify it now returns an empty
+     * 200 response. Reproduces issue #143532, Example 2.
+     */
+    public void testScrollOnNonMatchingIndexPattern() {
+        SearchResponse initial = prepareSearch("non_existent_index_pattern_*").setQuery(new MatchAllQueryBuilder())
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .get();
+        final String scrollId;
+        try {
+            assertNoFailures(initial);
+            assertThat(initial.getTotalShards(), equalTo(0));
+            assertThat(initial.getHits().getHits().length, equalTo(0));
+            scrollId = initial.getScrollId();
+            assertThat(scrollId, notNullValue());
+        } finally {
+            initial.decRef();
+        }
+
+        SearchResponse scrollResp = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+        try {
+            assertThat(scrollResp.status(), equalTo(RestStatus.OK));
+            assertThat(scrollResp.getTotalShards(), equalTo(0));
+            assertThat(scrollResp.getSuccessfulShards(), equalTo(0));
+            assertThat(scrollResp.getSkippedShards(), equalTo(0));
+            assertThat(scrollResp.getFailedShards(), equalTo(0));
+            assertThat(scrollResp.getHits().getHits().length, equalTo(0));
+            assertThat(scrollResp.getHits().getTotalHits().value(), equalTo(0L));
+            assertThat(scrollResp.getScrollId(), equalTo(scrollId));
+        } finally {
+            scrollResp.decRef();
+        }
+
+        // Idempotent: hitting the same empty cursor again still returns 200, not 503.
+        SearchResponse repeat = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+        try {
+            assertThat(repeat.status(), equalTo(RestStatus.OK));
+            assertThat(repeat.getHits().getHits().length, equalTo(0));
+        } finally {
+            repeat.decRef();
+        }
+    }
+
     public void testRestartDataNodesDuringScrollSearch() throws Exception {
         final String dataNode = internalCluster().startDataOnlyNode();
         createIndex("demo", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());

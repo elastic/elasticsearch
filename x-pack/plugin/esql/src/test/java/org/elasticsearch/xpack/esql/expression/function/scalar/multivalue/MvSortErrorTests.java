@@ -60,9 +60,10 @@ public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        // MvSort checks position 0 (representable, not unsigned_long) then position 1 (string).
-        // Not all valid types appear in test cases so validPerPosition[0] is incomplete; check directly.
-        if (failsRepresentableCheck(signature.get(0))) {
+        // MvSort checks position 0 (representable) then position 1 (string), in that order.
+        // Not all valid types appear in test cases, so validPerPosition[0] is incomplete — we check
+        // representability directly instead of relying on validPerPosition.
+        if (isUnrepresentable(signature.get(0))) {
             return equalTo(
                 "first argument of ["
                     + sourceForSignature(signature)
@@ -73,16 +74,7 @@ public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     + "]"
             );
         }
-        if (signature.get(0) == DataType.UNSIGNED_LONG) {
-            return equalTo(
-                "first argument of ["
-                    + sourceForSignature(signature)
-                    + "] must be [boolean, date, date_nanos, double, flattened, integer, ip, keyword, long, or version"
-                    + "], found value [] type [unsigned_long]"
-            );
-        }
-        // Position 0 is fine (representable, not unsigned_long, or NULL which isType always accepts);
-        // error is at position 1.
+        // Position 0 is representable (or NULL, which isType always accepts); error is at position 1.
         return equalTo(
             "second argument of ["
                 + sourceForSignature(signature)
@@ -92,7 +84,7 @@ public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         );
     }
 
-    private static boolean failsRepresentableCheck(DataType type) {
+    private static boolean isUnrepresentable(DataType type) {
         return type.isCounter()
             || type == DataType.DENSE_VECTOR
             || type == DataType.AGGREGATE_METRIC_DOUBLE

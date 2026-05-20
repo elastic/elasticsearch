@@ -21,6 +21,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -51,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
@@ -144,6 +147,23 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof CohereRerankModel cohereRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
+
+        var action = cohereRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
+    public boolean supportsNewRerankCodePath() {
+        return true;
     }
 
     @Override

@@ -798,7 +798,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } else {
             // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
             // the prior split.
-            readCsvRecord(reader, options.quoteChar(), options.delimiter(), false);
+            readCsvRecord(
+                reader,
+                options.quoteChar(),
+                options.delimiter(),
+                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
+            );
             effectiveSchema = resolvedSchema;
         }
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user

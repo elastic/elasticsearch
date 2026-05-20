@@ -3333,6 +3333,59 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Pins that both the fused bracket-aware path and the non-fused (Jackson) path report the
+     * same 1-based row index in error messages for a malformed row at a known position.
+     */
+    public void testTotalRowCountConsistentBetweenFusedAndNonFusedPaths() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            2,Bob
+            bad_id,Charlie
+            4,Dan
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        ErrorPolicy skipRow = new ErrorPolicy(100, true);
+
+        // Fused bracket-aware path (default: multi_value_syntax=BRACKETS, delimiter=',')
+        CsvFormatReader fusedReader = new CsvFormatReader(blockFactory);
+        try (
+            CloseableIterator<Page> iterator = fusedReader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(skipRow).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+        List<String> fusedWarnings = drainWarnings();
+
+        // Non-fused Jackson path (multi_value_syntax=NONE bypasses bracket-aware parsing)
+        CsvFormatReader nonFusedReader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "NONE")
+        );
+        try (
+            CloseableIterator<Page> iterator = nonFusedReader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(skipRow).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+        List<String> nonFusedWarnings = drainWarnings();
+
+        // Both paths should report "Row [3]" for the bad row (1-based: header excluded, 3rd data row)
+        String fusedDetail = fusedWarnings.stream().filter(w -> w.contains("Row [")).findFirst().orElse("");
+        String nonFusedDetail = nonFusedWarnings.stream().filter(w -> w.contains("Row [")).findFirst().orElse("");
+        assertTrue("Fused path should report Row [3], got: " + fusedDetail, fusedDetail.contains("Row [3]"));
+        assertTrue("Non-fused path should report Row [3], got: " + nonFusedDetail, nonFusedDetail.contains("Row [3]"));
+    }
+
+    /**
      * Reads the response-header warnings emitted on the test thread and clears them so the
      * {@link ESTestCase#after()} no-warnings post-check passes. Returns the unwrapped warning
      * messages (without the "299 Elasticsearch-... " prefix and surrounding quotes).
@@ -4377,6 +4430,44 @@ public class CsvFormatReaderTests extends ESTestCase {
             Page page = iterator.next();
             assertEquals("non-record-aligned non-first split must drop leading partial line", 2, page.getPositionCount());
             // Pin the rows we kept: the partial leading line is gone; 2,Bob and 3,Charlie remain.
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Charlie"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNonRecordAlignedBracketAwareDropsPartialRecordWithCrInBrackets() throws IOException {
+        // Byte-range macro-split where the leading partial record contains \r inside a bracket cell.
+        // Without bracket-aware discard, readCsvRecord would split on the embedded \r, leaving
+        // trailing bracket content as a phantom "record" that corrupts the next real row.
+        String csv = "[a\rb],partial\n2,Bob\n3,Charlie\n";
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD, Nullability.TRUE, null, false)
+        );
+        CsvFormatOptions opts = new CsvFormatOptions(
+            ',',
+            CsvFormatOptions.DEFAULT.quoteChar(),
+            CsvFormatOptions.DEFAULT.escapeChar(),
+            CsvFormatOptions.DEFAULT.commentPrefix(),
+            CsvFormatOptions.DEFAULT.nullValue(),
+            CsvFormatOptions.DEFAULT.encoding(),
+            CsvFormatOptions.DEFAULT.datetimeFormatter(),
+            CsvFormatOptions.DEFAULT.maxFieldSize(),
+            CsvFormatOptions.MultiValueSyntax.BRACKETS,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(opts).withSchema(schema);
+
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).build();
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals("bracket-aware discard must treat [a\\rb],partial as one record", 2, page.getPositionCount());
             assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(0));
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertEquals(3L, ((LongBlock) page.getBlock(0)).getLong(1));

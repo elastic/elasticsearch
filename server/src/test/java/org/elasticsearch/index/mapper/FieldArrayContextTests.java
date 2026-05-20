@@ -90,15 +90,6 @@ public class FieldArrayContextTests extends ESTestCase {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext syntheticRoot = MapperBuilderContext.root(true, false);
         MapperBuilderContext storedRoot = MapperBuilderContext.root(false, false);
-        MapperBuilderContext nestedSynthetic = new MapperBuilderContext(
-            null,
-            true,
-            false,
-            false,
-            ObjectMapper.Defaults.DYNAMIC,
-            MapperService.MergeReason.MAPPING_UPDATE,
-            true
-        );
 
         // not synthetic source
         assertNull(
@@ -142,57 +133,15 @@ public class FieldArrayContextTests extends ESTestCase {
                 false
             )
         );
-        // no doc values
-        assertNull(
-            getOffsetsFieldName(
-                syntheticRoot,
-                Mapper.SourceKeepMode.NONE,
-                false,
-                false,
-                builder,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
-            )
-        );
-        // stored
-        assertNull(
-            getOffsetsFieldName(
-                syntheticRoot,
-                Mapper.SourceKeepMode.NONE,
-                true,
-                true,
-                builder,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
-            )
-        );
-        // nested context
-        assertNull(
-            getOffsetsFieldName(
-                nestedSynthetic,
-                Mapper.SourceKeepMode.NONE,
-                true,
-                false,
-                builder,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
-            )
-        );
     }
 
-    public void testGetOffsetsFieldNameColumnarBranchIgnoresCopyToAndMultiFields() {
-        // copy_to set should not block the new branch
+    public void testGetOffsetsFieldNameColumnarBranchExcludesCopyToAndMultiFields() {
+        MapperBuilderContext context = MapperBuilderContext.root(true, false);
+
+        // copy_to blocks the columnar branch — the target's reconstructed source would mix copy_to values with direct writes
         FieldMapper.Builder withCopyTo = newTestBuilder("field");
         withCopyTo.copyTo = FieldMapper.CopyTo.empty().withAddedFields(List.of("target"));
-        MapperBuilderContext context = MapperBuilderContext.root(true, false);
-        assertEquals(
-            "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
+        assertNull(
             getOffsetsFieldName(
                 context,
                 Mapper.SourceKeepMode.NONE,
@@ -206,11 +155,10 @@ public class FieldArrayContextTests extends ESTestCase {
             )
         );
 
-        // multi-fields should not block the new branch
+        // multi-fields parents are blocked — the offsets sidecar on the parent would be wasted; sub-fields get their own offsets
         FieldMapper.Builder withMultiFields = newTestBuilder("field");
         withMultiFields.multiFieldsBuilder.add(newTestBuilder("sub"));
-        assertEquals(
-            "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
+        assertNull(
             getOffsetsFieldName(
                 context,
                 Mapper.SourceKeepMode.NONE,

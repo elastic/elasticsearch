@@ -871,7 +871,7 @@ public class ExternalSourceResolver {
         return withSchema(metadata, List.copyOf(enrichedSchema));
     }
 
-    static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
+    public static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
         List<Attribute> originalSchema = metadata.schema();
         Set<String> existingNames = new LinkedHashSet<>();
         for (Attribute attr : originalSchema) {

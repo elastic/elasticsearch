@@ -18,16 +18,24 @@ import java.util.concurrent.TimeUnit;
 public class CsvReaderCountersTests extends ESTestCase {
 
     public void testEmptySnapshotIsZeroes() {
-        CsvReaderCounters counters = new CsvReaderCounters();
+        CsvReaderCounters counters = new CsvReaderCounters("csv");
         Map<String, Object> snap = counters.snapshot();
+        assertEquals("csv", snap.get("format"));
         assertEquals(0L, snap.get("rows_emitted"));
         assertEquals(0L, snap.get("parse_errors"));
         assertEquals(false, snap.get("header_detected"));
         assertEquals(0L, snap.get("read_nanos"));
     }
 
+    public void testFormatNameReflectsOwningReader() {
+        // CsvReaderCounters carries the owning reader's formatName so a TSV instance
+        // reports "tsv" rather than the hardcoded "csv".
+        assertEquals("csv", new CsvReaderCounters("csv").snapshot().get("format"));
+        assertEquals("tsv", new CsvReaderCounters("tsv").snapshot().get("format"));
+    }
+
     public void testSnapshotReflectsIncrements() {
-        CsvReaderCounters counters = new CsvReaderCounters();
+        CsvReaderCounters counters = new CsvReaderCounters("csv");
         counters.addRowsEmitted(10);
         counters.addParseErrors(3);
         counters.markHeaderDetected();
@@ -40,7 +48,7 @@ public class CsvReaderCountersTests extends ESTestCase {
     }
 
     public void testNonPositiveDeltasIgnored() {
-        CsvReaderCounters counters = new CsvReaderCounters();
+        CsvReaderCounters counters = new CsvReaderCounters("csv");
         counters.addRowsEmitted(0);
         counters.addRowsEmitted(-5);
         counters.addParseErrors(0);
@@ -54,7 +62,7 @@ public class CsvReaderCountersTests extends ESTestCase {
     }
 
     public void testMarkHeaderDetectedIsMonotonic() {
-        CsvReaderCounters counters = new CsvReaderCounters();
+        CsvReaderCounters counters = new CsvReaderCounters("csv");
         counters.markHeaderDetected();
         counters.markHeaderDetected();
         counters.markHeaderDetected();
@@ -63,7 +71,7 @@ public class CsvReaderCountersTests extends ESTestCase {
     }
 
     public void testConcurrentIncrementsAccumulateWithoutLoss() throws Exception {
-        CsvReaderCounters counters = new CsvReaderCounters();
+        CsvReaderCounters counters = new CsvReaderCounters("csv");
         int threads = 8;
         int iterationsPerThread = 1_000;
         ExecutorService pool = Executors.newFixedThreadPool(threads);
@@ -105,7 +113,7 @@ public class CsvReaderCountersTests extends ESTestCase {
     }
 
     public void testSnapshotIsImmutable() {
-        CsvReaderCounters counters = new CsvReaderCounters();
+        CsvReaderCounters counters = new CsvReaderCounters("csv");
         counters.addRowsEmitted(5);
         Map<String, Object> snap = counters.snapshot();
         counters.addRowsEmitted(10);

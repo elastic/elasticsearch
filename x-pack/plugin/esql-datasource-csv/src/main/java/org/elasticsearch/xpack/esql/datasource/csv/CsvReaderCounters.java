@@ -13,14 +13,21 @@ import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe counter struct for {@link CsvFormatReader}; {@link #snapshot()} yields the immutable
- * {@code format_reader} map.
+ * {@code format_reader} map. The {@code format} key reflects the owning reader's
+ * {@link CsvFormatReader#formatName()} so that a CSV instance reports {@code "csv"} and a TSV
+ * instance reports {@code "tsv"}.
  */
 public final class CsvReaderCounters {
 
+    private final String format;
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder parseErrors = new LongAdder();
     private volatile boolean headerDetected = false;
     private final LongAdder totalReadNanos = new LongAdder();
+
+    public CsvReaderCounters(String format) {
+        this.format = format;
+    }
 
     public void addRowsEmitted(long delta) {
         if (delta > 0) {
@@ -46,7 +53,7 @@ public final class CsvReaderCounters {
 
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
-        snap.put("format", "csv");
+        snap.put("format", format);
         snap.put("rows_emitted", rowsEmitted.sum());
         snap.put("parse_errors", parseErrors.sum());
         snap.put("header_detected", headerDetected);

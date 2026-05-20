@@ -199,7 +199,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final int schemaSampleSize;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
-    private final CsvReaderCounters counters = new CsvReaderCounters();
+    private final CsvReaderCounters counters;
     /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
@@ -246,6 +246,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
+        this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
 

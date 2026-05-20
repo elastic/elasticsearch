@@ -44,13 +44,9 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private long rowsEmitted;
     private boolean endOfFile = false;
     private Page nextPage;
-    /**
-     * Non-null iff this iterator was opened on a whole-file read (first split, no parallel
-     * slicing). Used as the {@link ExternalRowCountCache} write target on natural EOF + zero
-     * errors close. Null disables the cache write entirely.
-     */
+    /** Non-null iff the iterator is eligible to populate {@link ExternalRowCountCache} on close (whole-file read). */
     private final StorageObject cacheableObject;
-    /** True only when the decoder returned a natural EOF (not when {@code rowLimit} truncated). */
+    /** True only when the decoder returned a natural EOF (not on {@code rowLimit} truncation). */
     private boolean naturallyExhausted = false;
 
     /**
@@ -190,16 +186,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     }
 
     @Override
-    public long errorsObserved() {
-        return pageDecoder.errorCount();
-    }
-
-    @Override
     public void close() throws IOException {
-        // Data-driven cache write: whole-file read, natural EOF, zero parse errors. Equivalent
-        // across FAIL_FAST and SKIP_ROW for clean files; suppressed under either policy on
-        // malformed files. Run before closing the decoder so {@link NdJsonPageDecoder#errorCount}
-        // is still readable.
+        // Cache only on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
         if (cacheableObject != null && naturallyExhausted && pageDecoder.errorCount() == 0) {
             ExternalRowCountCache.put(cacheableObject, rowsEmitted);
         }

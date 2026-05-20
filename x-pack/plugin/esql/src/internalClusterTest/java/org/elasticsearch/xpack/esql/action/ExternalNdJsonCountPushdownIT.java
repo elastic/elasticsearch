@@ -30,11 +30,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * NDJSON parallel of {@link ExternalCsvCountPushdownIT}. First execution populates
- * {@code ExternalRowCountCache} via the iterator's capture hook; second execution short-circuits
- * via {@code PushStatsToExternalSource} to a {@code LocalSourceExec}.
- */
+/** NDJSON counterpart of {@link ExternalCsvCountPushdownIT}: same cold-then-warm short-circuit assertion shape. */
 public class ExternalNdJsonCountPushdownIT extends AbstractEsqlIntegTestCase {
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
@@ -56,11 +52,7 @@ public class ExternalNdJsonCountPushdownIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism=1 keeps the file on the single-thread fallback path so the iterator
-        // receives the whole-file FormatReadContext (firstSplit=true, lastSplit=true,
-        // recordAligned=false) the capture hook gates on. The default parallel-parsing path runs
-        // per-chunk record-aligned reads that this PR's cache deliberately excludes — covering
-        // that case requires per-chunk aggregation, called out as out-of-scope follow-up.
+        // See parallel comment in ExternalCsvCountPushdownIT.getPragmas.
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
     }
 

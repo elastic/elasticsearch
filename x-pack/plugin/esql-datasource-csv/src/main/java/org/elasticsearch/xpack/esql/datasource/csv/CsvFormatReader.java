@@ -447,13 +447,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema = readSchema(object);
         String location = object.path().toString();
-        // Always publish sizeInBytes and mtime when the file's length is resolvable, even on a
-        // row-count cache miss. The SchemaCacheEntry serializer flattens published statistics
-        // into a sourceMetadata Map and caches it; warm queries on the same
-        // (path, mtime, format, config) short-circuit metadata() entirely, so without these
-        // baked in at cold-pass time the warm-path row-count augmentation in
-        // ExternalSourceResolver.buildMetadataFromCache would have no way to reconstruct the
-        // (path, length, mtimeMillis) cache key. rowCount is added on top when the cache has it.
+        // Publish sizeInBytes + mtime even on a row-count cache miss: the SchemaCacheEntry caches
+        // metadata, and warm queries need both fields to reconstruct the row-count cache key
+        // without a fresh storage call.
         long sizeInBytes;
         long mtimeMillis;
         try {
@@ -835,10 +831,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // upstream caller has built a FormatReadContext with an explicit policy. The planner
         // path always sets context.errorPolicy() explicitly.
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
-        // Whole-file read iff this is the first split (offset 0, header consumed) AND the file
-        // isn't being parallel-sliced into record-aligned chunks AND this split also covers the
-        // tail of the file. Only iterators that drain a whole file from offset 0 to natural EOF
-        // qualify to populate ExternalRowCountCache.
+        // Whole-file read: first + last split, no parallel slicing. Only iterators that drain a
+        // file from offset 0 to natural EOF qualify to populate ExternalRowCountCache.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         return new CsvBatchIterator(
             reader,
@@ -1424,14 +1418,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private long errorCount = 0;
         private long totalRowCount = 0;
         private String lastFieldError;
-        /**
-         * Non-null iff this iterator reads from offset 0 of a single non-parallel-sliced file. Used
-         * as the {@link ExternalRowCountCache} write target on natural EOF + zero-error close.
-         */
+        /** Non-null iff the iterator is eligible to populate {@link ExternalRowCountCache} on close (whole-file read). */
         private final StorageObject cacheableObject;
-        /** Cumulative emitted-row count, populated via {@link #next()} ramp. */
         private long rowsEmittedForCache = 0;
-        /** Set true when {@link #hasNext()} returns false from natural exhaustion (not via {@link #close()} or exception). */
+        /** True only when {@link #hasNext()} returned false from natural exhaustion (not from close or an exception). */
         private boolean naturallyExhausted = false;
 
         CsvBatchIterator(
@@ -1501,11 +1491,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         @Override
-        public long errorsObserved() {
-            return errorCount;
-        }
-
-        @Override
         public void close() throws IOException {
             if (closed == false) {
                 closed = true;
@@ -1522,11 +1507,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         errorPolicy.mode()
                     );
                 }
-                // Data-driven cache write: write only when this iterator was eligible (whole-file
-                // read from offset 0), drained naturally to EOF, and observed zero parse errors.
-                // Equivalent across FAIL_FAST and SKIP_ROW for clean files; for files with errors,
-                // the write is suppressed under either policy, never serving a stale or
-                // policy-tagged count.
+                // Cache only on clean whole-file drain. Same gate handles FAIL_FAST and SKIP_ROW:
+                // any observed errors suppress the write, so we never cache a policy-dependent count.
                 if (cacheableObject != null && naturallyExhausted && errorCount == 0) {
                     ExternalRowCountCache.put(cacheableObject, rowsEmittedForCache);
                 }

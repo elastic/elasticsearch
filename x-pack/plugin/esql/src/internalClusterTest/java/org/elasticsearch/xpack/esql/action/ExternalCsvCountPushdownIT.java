@@ -31,14 +31,11 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end test that {@code EXTERNAL "<csv>" | STATS COUNT(*)} short-circuits via
- * {@code PushStatsToExternalSource} on the second invocation. The first execution scans the file
- * and populates {@code ExternalRowCountCache} via the iterator's capture hook; the second sees
- * a cache hit at {@code metadata()} time, publishes {@code SourceStatistics.rowCount}, and the
- * optimizer rewrites the aggregate subtree to a {@code LocalSourceExec} — no {@code Async*}
- * operator appears in any driver profile.
- *
- * <p>Mirrors {@link ExternalParquetCountPushdownIT} for the text-format reader chain.
+ * End-to-end test that {@code EXTERNAL "<csv>" | STATS COUNT(*)} short-circuits to a
+ * {@code LocalSourceExec} on the second invocation: first execution populates
+ * {@code ExternalRowCountCache} via the iterator's capture hook; second sees the cache hit and
+ * the optimizer rewrites the aggregate subtree. Mirrors {@link ExternalParquetCountPushdownIT}
+ * for the text-format reader chain.
  */
 public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
 
@@ -61,11 +58,9 @@ public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism=1 keeps the file on the single-thread fallback path so the iterator
-        // receives the whole-file FormatReadContext (firstSplit=true, lastSplit=true,
-        // recordAligned=false) the capture hook gates on. The default parallel-parsing path runs
-        // per-chunk record-aligned reads that this PR's cache deliberately excludes — covering
-        // that case requires per-chunk aggregation, called out as out-of-scope follow-up.
+        // parsing_parallelism=1 keeps the file on the single-thread path so the iterator sees the
+        // whole-file FormatReadContext the capture hook gates on. Parallel-parsed (record-aligned)
+        // chunks are deliberately excluded — covering them needs per-chunk aggregation, out of scope.
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
     }
 
@@ -89,17 +84,12 @@ public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
         try {
             String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(*)";
 
-            // Cold execution: cache is empty, the iterator scans the file end-to-end and the
-            // capture hook writes (path, length) → totalRows on close. Async* operators are
-            // expected to appear in the profile and documentsFound reflects the scanned rows.
+            // Cold: scan, capture hook populates the cache.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
                 assertThat("cold execution must scan rows", response.documentsFound(), equalTo((long) totalRows));
             }
-
-            // Warm execution: metadata() lookup hits, SourceStatistics.rowCount publishes,
-            // PushStatsToExternalSource rewrites the aggregate subtree to a LocalSourceExec.
-            // No Async* operator should appear and documentsFound is zero (no data-node scan).
+            // Warm: cache hit → optimizer rewrites to LocalSourceExec → no data-node scan.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
                 assertNoPushdownBypass(response);

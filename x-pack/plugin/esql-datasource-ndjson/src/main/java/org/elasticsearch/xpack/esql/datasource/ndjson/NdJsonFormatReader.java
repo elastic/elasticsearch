@@ -276,10 +276,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
         }
         String location = object.path().toString();
-        // Always publish sizeInBytes and mtime when resolvable so the SchemaCacheEntry's
-        // serialized sourceMetadata Map carries both; ExternalSourceResolver.buildMetadataFromCache
-        // re-keys the (path, length, mtimeMillis) row-count cache lookup on warm queries without
-        // an extra storage round-trip. See the parallel comment in CsvFormatReader.metadata.
+        // Publish sizeInBytes + mtime even on row-count cache miss — see CsvFormatReader.metadata
+        // for the rationale.
         long sizeInBytes;
         long mtimeMillis;
         try {
@@ -346,9 +344,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
-        // Whole-file read iff this is the first split (no leading-line skip) AND the file isn't
-        // being parallel-sliced AND extends through the last split (no trailing trim). Only iterators
-        // that drain a whole file from offset 0 to natural EOF qualify to populate ExternalRowCountCache.
+        // Whole-file read: first + last split, no parallel slicing. See CsvFormatReader.read for the rationale.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         return new NdJsonPageIterator(
             object,

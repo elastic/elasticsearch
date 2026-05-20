@@ -439,12 +439,10 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
-        // Warm-path row-count augmentation: the SchemaCacheEntry is cached per
-        // (path, mtime, format, config) and short-circuits metadata() on subsequent queries. The
-        // row-count cache is populated by the iterator's close() hook AFTER the SchemaCacheEntry
-        // is written, so the cached safeMetadata Map carries sizeInBytes + mtime but no rowCount
-        // on the first query. Re-key the (path, length, mtime) row-count lookup at warm-query
-        // time and inject STATS_ROW_COUNT if the iterator has since populated the cache.
+        // Warm-path row-count augmentation. The schema cache short-circuits metadata() on every
+        // hit, so the cached safeMetadata only has rowCount once the iterator's capture hook has
+        // populated ExternalRowCountCache (which happens after the schema cache entry is written).
+        // Re-check the row-count cache here and inject STATS_ROW_COUNT if it has since landed.
         Map<String, Object> effectiveMetadata = entry.safeMetadata();
         if (effectiveMetadata.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
             && effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sizeBytes

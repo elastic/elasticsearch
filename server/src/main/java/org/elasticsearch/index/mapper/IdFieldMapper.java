@@ -39,7 +39,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         if (indexMode == IndexMode.TIME_SERIES) {
             return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else {
-            return new ProvidedIdFieldMapper.Builder();
+            return new ProvidedIdFieldMapper.Builder(indexMode.isStrictColumnar());
         }
     }) {
 

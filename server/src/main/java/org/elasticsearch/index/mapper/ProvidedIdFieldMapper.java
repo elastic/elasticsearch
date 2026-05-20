@@ -65,26 +65,31 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DEFAULT);
-    static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
+    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DEFAULT, false);
+    static final ProvidedIdFieldMapper DOCUMENT_ID_STRICT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DEFAULT, true);
+    static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR, false);
+    static final ProvidedIdFieldMapper COLUMNAR_ID_STRICT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
      */
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Mode> mode = new Parameter<>(
-            "mode",
-            false,
-            () -> Mode.DEFAULT,
-            (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
-            m -> ((ProvidedIdFieldMapper) m).mode,
-            (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
-            v -> v.toString().toLowerCase(Locale.ROOT)
-        ).setSerializerCheck((includeDefaults, isConfigured, value) -> isConfigured);
+        private final Parameter<Mode> mode;
+        private final boolean strictColumnar;
 
-        Builder() {
+        Builder(boolean strictColumnar) {
             super(NAME);
+            mode = new Parameter<>(
+                "mode",
+                false,
+                () -> strictColumnar ? Mode.COLUMNAR : Mode.DEFAULT,
+                (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
+                m -> ((ProvidedIdFieldMapper) m).mode,
+                (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
+                v -> v.toString().toLowerCase(Locale.ROOT)
+            ).setSerializerCheck((includeDefaults, isConfigured, value) -> isConfigured);
+            this.strictColumnar = strictColumnar;
         }
 
         @Override
@@ -101,9 +106,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             var mode = this.mode.getValue();
             switch (mode) {
                 case COLUMNAR:
-                    return COLUMNAR_ID;
+                    return strictColumnar ? COLUMNAR_ID_STRICT_COLUMNAR : COLUMNAR_ID;
                 case DEFAULT:
-                    return DOCUMENT_ID;
+                    return strictColumnar ? DOCUMENT_ID_STRICT_COLUMNAR : DOCUMENT_ID;
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
@@ -299,14 +304,12 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     private final Mode mode;
+    private final boolean strictColumnar;
 
-    public ProvidedIdFieldMapper() {
-        this(Mode.DEFAULT);
-    }
-
-    public ProvidedIdFieldMapper(Mode mode) {
+    public ProvidedIdFieldMapper(Mode mode, boolean strictColumnar) {
         super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
         this.mode = mode;
+        this.strictColumnar = strictColumnar;
     }
 
     @Override
@@ -316,7 +319,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder();
+        Builder builder = new Builder(strictColumnar);
         builder.init(this);
         return builder;
     }

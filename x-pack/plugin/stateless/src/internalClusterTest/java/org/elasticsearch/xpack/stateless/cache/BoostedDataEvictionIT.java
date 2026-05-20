@@ -66,8 +66,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     @Override
     protected Settings.Builder nodeSettings() {
         // Disable all background warmers so nothing populates the cache between test steps
-        return super.nodeSettings()
-            .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
+        return super.nodeSettings().put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
             .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
             .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
     }
@@ -174,9 +173,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
     private StatelessSharedBlobCacheService getCacheService() {
         final IndexShard boostedShard = findSearchShard(BOOSTED_IDX);
-        return BlobStoreCacheDirectoryTestUtils.getCacheService(
-            SearchDirectory.unwrapDirectory(boostedShard.store().directory())
-        );
+        return BlobStoreCacheDirectoryTestUtils.getCacheService(SearchDirectory.unwrapDirectory(boostedShard.store().directory()));
     }
 
 }

@@ -674,7 +674,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         if (method.equals("PUT")) {
             finalRequestHeaders = new Headers(requestHeaders);
             finalRequestHeaders.add(
-                "x-amz-content-sha256",
+                S3HttpHandler.CONTENT_SHA256_HEADER,
                 MessageDigests.toHexString(MessageDigests.digest(requestBody, MessageDigests.sha256()))
             );
         } else {

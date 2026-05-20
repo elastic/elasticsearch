@@ -73,6 +73,7 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
     public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
+    public static final String CONTENT_SHA256_HEADER = "X-amz-content-sha256";
 
     private final String bucket;
     private final String basePath;
@@ -332,7 +333,7 @@ public class S3HttpHandler implements HttpHandler {
 
                     if (updateResponseCode == RestStatus.OK) {
                         assertThat(
-                            exchange.getRequestHeaders().getFirst("x-amz-content-sha256"),
+                            exchange.getRequestHeaders().getFirst(CONTENT_SHA256_HEADER),
                             oneOf(
                                 "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
                                 MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))

@@ -186,7 +186,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
-                || (dt.isNumeric())
+                || dt.isNumeric()
                 || dt == DataType.VERSION
                 || dt == DataType.CARTESIAN_POINT
                 || dt == DataType.CARTESIAN_SHAPE

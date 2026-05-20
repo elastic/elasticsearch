@@ -29,10 +29,6 @@ import static org.hamcrest.Matchers.anyOf;
 public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestCase {
 
     public static Iterable<Object[]> parameters(boolean isFirst) {
-        return parameters(isFirst, isFirst);
-    }
-
-    public static Iterable<Object[]> parameters(boolean isFirst, boolean expandTypes) {
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
@@ -51,7 +47,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         );
 
         Set<DataType> taggedTypes = new HashSet<>();
-        if (expandTypes) {
+        if (isFirst) {
             List<DataType> extra = List.of(
                 DataType.VERSION,
                 DataType.CARTESIAN_POINT,

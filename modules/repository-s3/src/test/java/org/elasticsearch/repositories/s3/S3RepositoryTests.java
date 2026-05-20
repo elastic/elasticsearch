@@ -14,12 +14,23 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -31,26 +42,103 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.InvalidRepository;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class S3RepositoryTests extends ESTestCase {
+
+    private TestThreadPool threadPool;
+    private ClusterService clusterService;
+    private RepositoriesService repositoriesService;
+    private ProjectId projectId;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(getClass().getName());
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(), boundAddress.publishAddress()),
+            null,
+            Collections.emptySet()
+        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        projectId = randomProjectIdOrDefault();
+        if (ProjectId.DEFAULT.equals(projectId) == false) {
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state()).putProjectMetadata(ProjectMetadata.builder(projectId)).build()
+            );
+        }
+        DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
+        client.initialize(
+            Map.of(
+                VerifyNodeRepositoryCoordinationAction.TYPE,
+                new VerifyNodeRepositoryCoordinationAction.LocalAction(
+                    new ActionFilters(Set.of()),
+                    transportService,
+                    clusterService,
+                    client
+                )
+            ),
+            transportService.getTaskManager(),
+            localNode::getId,
+            transportService.getLocalNodeConnection(),
+            null
+        );
+        Map<String, Repository.Factory> s3Registry = Map.of(S3Repository.TYPE, (pid, metadata) -> createS3Repo(pid, metadata));
+        repositoriesService = new RepositoriesService(
+            Settings.EMPTY,
+            clusterService,
+            s3Registry,
+            s3Registry,
+            threadPool,
+            client,
+            List.of(),
+            SnapshotMetrics.NOOP
+        );
+        clusterService.start();
+        repositoriesService.start();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        repositoriesService.stop();
+        clusterService.stop();
+        threadPool.shutdownNow();
+    }
 
     private static class DummyS3Client implements S3Client {
 
@@ -170,8 +258,12 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
-        final S3Repository s3Repository = new S3Repository(
-            ProjectId.DEFAULT,
+        return createS3Repo(ProjectId.DEFAULT, metadata);
+    }
+
+    private S3Repository createS3Repo(ProjectId pid, RepositoryMetadata metadata) {
+        return new S3Repository(
+            pid,
             metadata,
             NamedXContentRegistry.EMPTY,
             new DummyS3Service(
@@ -186,8 +278,6 @@ public class S3RepositoryTests extends ESTestCase {
             S3RepositoriesMetrics.NOOP,
             SnapshotMetrics.NOOP
         );
-        assertThat(s3Repository.getProjectId(), equalTo(ProjectId.DEFAULT));
-        return s3Repository;
     }
 
     public void testAnalysisFailureDetail() {
@@ -277,13 +367,26 @@ public class S3RepositoryTests extends ESTestCase {
             StorageClass.ONEZONE_IA
         );
 
-        // Case 5: invalid data_storage_class → same BlobStoreException path as today's invalid storage_class.
-        try (var repo = createS3Repo(getRepositoryMetadata(storageClassSettings(null, "whatever", null)))) {
-            repo.start();
-            RepositoryException ex = expectThrows(RepositoryException.class, repo::blobStore);
+        // Case 5: invalid data_storage_class → fails at repository construction with RepositoryException (cause: BlobStoreException).
+        {
+            RepositoryException ex = expectThrows(
+                RepositoryException.class,
+                () -> createS3Repo(getRepositoryMetadata(storageClassSettings(null, "whatever", null)))
+            );
+            assertThat(ex.getMessage(), containsString(S3Repository.DATA_STORAGE_CLASS_SETTING.getKey()));
             assertThat(ex.getCause(), Matchers.instanceOf(BlobStoreException.class));
             assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
         }
+    }
+
+    public void testInvalidMetadataStorageClassFailsAtConstruction() {
+        RepositoryException ex = expectThrows(
+            RepositoryException.class,
+            () -> createS3Repo(getRepositoryMetadata(storageClassSettings(null, null, "whatever")))
+        );
+        assertThat(ex.getMessage(), containsString(S3Repository.METADATA_STORAGE_CLASS_SETTING.getKey()));
+        assertThat(ex.getCause(), Matchers.instanceOf(BlobStoreException.class));
+        assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
     }
 
     public void testResolveStorageClassRouting() {
@@ -329,5 +432,39 @@ public class S3RepositoryTests extends ESTestCase {
             builder.put(S3Repository.METADATA_STORAGE_CLASS_SETTING.getKey(), metadata);
         }
         return builder.build();
+    }
+
+    public void testInvalidDataStorageClassProducesInvalidRepository() {
+        final String repoName = randomAlphaOfLength(10);
+        repositoriesService.applyClusterState(
+            new ClusterChangedEvent("test", clusterStateWithS3Repo(repoName, storageClassSettings(null, "whatever", null)), emptyState())
+        );
+        assertThat(repositoriesService.repository(projectId, repoName), instanceOf(InvalidRepository.class));
+    }
+
+    public void testInvalidMetadataStorageClassProducesInvalidRepository() {
+        final String repoName = randomAlphaOfLength(10);
+        repositoriesService.applyClusterState(
+            new ClusterChangedEvent("test", clusterStateWithS3Repo(repoName, storageClassSettings(null, null, "whatever")), emptyState())
+        );
+        assertThat(repositoriesService.repository(projectId, repoName), instanceOf(InvalidRepository.class));
+    }
+
+    private ClusterState clusterStateWithS3Repo(String repoName, Settings repoSettings) {
+        return ClusterState.builder(new ClusterName("test"))
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        new RepositoriesMetadata(
+                            Collections.singletonList(new RepositoryMetadata(repoName, S3Repository.TYPE, repoSettings))
+                        )
+                    )
+            )
+            .build();
+    }
+
+    private static ClusterState emptyState() {
+        return ClusterState.builder(new ClusterName("test")).build();
     }
 }

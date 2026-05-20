@@ -22,6 +22,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -349,6 +350,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.dataStorageClass = DATA_STORAGE_CLASS_SETTING.get(metadata.settings());
         this.metadataStorageClass = METADATA_STORAGE_CLASS_SETTING.get(metadata.settings());
+        validatePerPurposeStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS_SETTING.getKey(), this.dataStorageClass);
+        validatePerPurposeStorageClassIfSpecified(metadata.name(), METADATA_STORAGE_CLASS_SETTING.getKey(), this.metadataStorageClass);
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
@@ -407,6 +410,21 @@ class S3Repository extends MeteredBlobStoreRepository {
     private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
         var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
         return ByteSizeValue.ofBytes(bytes);
+    }
+
+    /**
+     * Validates explicit {@link #DATA_STORAGE_CLASS_SETTING} / {@link #METADATA_STORAGE_CLASS_SETTING} values during repository construction
+     * so misconfiguration surfaces when the repository is registered rather than on first blob store access.
+     */
+    private static void validatePerPurposeStorageClassIfSpecified(String repositoryName, String settingKey, String value) {
+        if (Strings.hasText(value) == false) {
+            return;
+        }
+        try {
+            S3BlobStore.initStorageClass(value, true);
+        } catch (BlobStoreException e) {
+            throw new RepositoryException(repositoryName, settingKey + ": " + e.getMessage(), e);
+        }
     }
 
     /**

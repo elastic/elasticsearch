@@ -39,10 +39,20 @@ public class MvSortErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
         return super.testCandidates(cases, valid).filter(signature -> {
-            if (signature.size() > 1 && signature.get(1) == DataType.TEXT) {
-                List<DataType> withKeyword = new ArrayList<>(signature);
-                withKeyword.set(1, DataType.KEYWORD);
-                return valid.contains(withKeyword) == false;
+            if (signature.size() > 1) {
+                // isString accepts TEXT as well as KEYWORD; filter TEXT when the KEYWORD variant is valid
+                if (signature.get(1) == DataType.TEXT) {
+                    List<DataType> withKeyword = new ArrayList<>(signature);
+                    withKeyword.set(1, DataType.KEYWORD);
+                    if (valid.contains(withKeyword)) {
+                        return false;
+                    }
+                }
+                // isType special-cases DataType.NULL (always passes), so (T, null) always resolves;
+                // covered by (T, keyword) variants
+                if (signature.get(1) == DataType.NULL) {
+                    return false;
+                }
             }
             return true;
         });

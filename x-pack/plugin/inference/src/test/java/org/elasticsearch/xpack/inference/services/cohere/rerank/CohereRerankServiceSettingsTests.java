@@ -42,12 +42,12 @@ public class CohereRerankServiceSettingsTests extends AbstractCohereServiceSetti
     private static final RateLimitSettings DEFAULT_COHERE_RERANK_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereRerankServiceSettings createRandom() {
+        var apiVersion = randomFrom(CohereCommonServiceSettings.CohereApiVersion.values());
+        var modelId = apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2
+            ? randomAlphaOfLength(10)
+            : randomAlphaOfLengthOrNull(10);
         return new CohereRerankServiceSettings(
-            new CohereCommonServiceSettings(
-                randomAlphaOfLengthOrNull(10),
-                randomFrom(RateLimitSettingsTests.createRandom(), null),
-                randomFrom(CohereCommonServiceSettings.CohereApiVersion.values())
-            )
+            new CohereCommonServiceSettings(modelId, randomFrom(RateLimitSettingsTests.createRandom(), null), apiVersion)
         );
     }
 

@@ -42,12 +42,12 @@ public class CohereCompletionServiceSettingsTests extends AbstractCohereServiceS
     private static final RateLimitSettings DEFAULT_COHERE_COMPLETION_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereCompletionServiceSettings createRandom() {
+        var apiVersion = randomFrom(CohereCommonServiceSettings.CohereApiVersion.values());
+        var modelId = apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2
+            ? randomAlphaOfLength(8)
+            : randomAlphaOfLengthOrNull(8);
         return new CohereCompletionServiceSettings(
-            new CohereCommonServiceSettings(
-                randomAlphaOfLengthOrNull(8),
-                RateLimitSettingsTests.createRandom(),
-                randomFrom(CohereCommonServiceSettings.CohereApiVersion.values())
-            )
+            new CohereCommonServiceSettings(modelId, RateLimitSettingsTests.createRandom(), apiVersion)
         );
     }
 

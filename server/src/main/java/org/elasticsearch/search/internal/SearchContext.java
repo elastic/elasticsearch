@@ -125,6 +125,12 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract void preProcess();
 
+    /**
+     * Sums bytes read by forked search worker threads into the caller-thread's store metrics. Must be
+     * called on the same thread that drove the search
+     */
+    public void sumWorkerThreadsBytesRead() {}
+
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);

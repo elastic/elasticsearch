@@ -55,6 +55,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -96,7 +98,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -111,7 +115,12 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    @Nullable
+    private final StoreMetrics callerStoreMetrics;
+    @Nullable
+    private final LongAdder pendingWorkerBytesRead;
     private final long memoryAccountingBufferSize;
+    private final boolean requiresTrackingExecutorBytes;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
     private RankFeatureResult rankFeatureResult;
@@ -179,7 +188,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
         long memoryAccountingBufferSize,
-        @Nullable CircuitBreaker circuitBreaker
+        @Nullable CircuitBreaker circuitBreaker,
+        @Nullable Supplier<StoreMetrics> currentThreadStoreMetrics
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -200,6 +210,12 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
+            this.requiresTrackingExecutorBytes = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+                && executor != null
+                && maximumNumberOfSlices > 1
+                && currentThreadStoreMetrics != null;
+            this.callerStoreMetrics = requiresTrackingExecutorBytes ? currentThreadStoreMetrics.get() : null;
+            this.pendingWorkerBytesRead = requiresTrackingExecutorBytes ? new LongAdder() : null;
             if (executor == null || maximumNumberOfSlices <= 1) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
@@ -215,7 +231,12 @@ final class DefaultSearchContext extends SearchContext {
                     engineSearcher.getQueryCache(),
                     engineSearcher.getQueryCachingPolicy(),
                     lowLevelCancellation,
-                    executor,
+                    wrapExecutorForBytesTracking(
+                        executor,
+                        requiresTrackingExecutorBytes,
+                        currentThreadStoreMetrics,
+                        pendingWorkerBytesRead
+                    ),
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
@@ -245,6 +266,42 @@ final class DefaultSearchContext extends SearchContext {
             if (success == false) {
                 close();
             }
+        }
+    }
+
+    /**
+     * Wraps the search executor so that bytes read by parallel collection worker threads accumulate
+     * into the supplied LongAdder rather than into the caller-thread's {@link StoreMetrics}.
+     * <p>
+     * Slices that Lucene's TaskExecutor runs on the caller thread go through {@code invokeAll}
+     * but not through Executor#execute, so their bytes naturally stay on the caller and are
+     * picked up by the surrounding directory metrics delta in SearchService without any extra
+     * bookkeeping here.
+     */
+    static Executor wrapExecutorForBytesTracking(
+        Executor executor,
+        boolean requiresTrackingExecutorBytes,
+        @Nullable Supplier<StoreMetrics> currentThreadStoreMetrics,
+        @Nullable LongAdder pendingWorkerBytesRead
+    ) {
+        if (requiresTrackingExecutorBytes == false) {
+            return executor;
+        }
+        return r -> executor.execute(() -> {
+            final StoreMetrics workerStoreMetrics = currentThreadStoreMetrics.get();
+            final long before = workerStoreMetrics.getBytesRead();
+            try {
+                r.run();
+            } finally {
+                pendingWorkerBytesRead.add(workerStoreMetrics.getBytesRead() - before);
+            }
+        });
+    }
+
+    @Override
+    public void sumWorkerThreadsBytesRead() {
+        if (this.requiresTrackingExecutorBytes) {
+            callerStoreMetrics.addBytesRead(pendingWorkerBytesRead.sumThenReset());
         }
     }
 

@@ -51,12 +51,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.index.store.Store.DIRECTORY_METRICS_FEATURE_FLAG;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -84,9 +79,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final int minimumDocsPerSlice;
 
     private volatile boolean timeExceeded = false;
-
-    private final AtomicLong workerDirectoryBytesRead;
-    private final BytesReadHolder bytesReadHolder;
 
     /** constructor for non-concurrent search */
     @SuppressWarnings("this-escape")
@@ -137,39 +129,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
-        this(
-            reader,
-            similarity,
-            queryCache,
-            queryCachingPolicy,
-            cancellable,
-            wrapWithExitableDirectoryReader,
-            executor,
-            maximumNumberOfSlices,
-            minimumDocsPerSlice,
-            DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? new AtomicLong() : null,
-            DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? new BytesReadHolder() : BytesReadHolder.NOOP
-        );
-    }
-
-    @SuppressWarnings("this-escape")
-    private ContextIndexSearcher(
-        IndexReader reader,
-        Similarity similarity,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        MutableQueryTimeout cancellable,
-        boolean wrapWithExitableDirectoryReader,
-        Executor executor,
-        int maximumNumberOfSlices,
-        int minimumDocsPerSlice,
-        AtomicLong workerDirectoryBytesRead,
-        BytesReadHolder bytesReadHolder
-    ) throws IOException {
-        super(
-            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
-            wrapExecutor(executor, workerDirectoryBytesRead, bytesReadHolder)
-        );
+        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         this.hasExecutor = executor != null;
         setSimilarity(similarity);
         setQueryCache(queryCache);
@@ -177,38 +137,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable = cancellable;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.maximumNumberOfSlices = maximumNumberOfSlices;
-        this.workerDirectoryBytesRead = workerDirectoryBytesRead;
-        this.bytesReadHolder = bytesReadHolder;
-    }
-
-    /**
-     * Holder used to publish the current thread bytes-read supplier (read by the {@link Executor} wrapper
-     * installed at construction time) Required because it's impossible to reference instance fields
-     * in the ctor, when calling super
-     */
-    private static final class BytesReadHolder {
-        private static final BytesReadHolder NOOP = new BytesReadHolder();
-        private static final LongSupplier EMPTY_SUPPLIER = () -> 0L;
-        private static final LongConsumer EMPTY_CONSUMER = _ -> {};
-
-        private volatile LongSupplier threadBytesRead = EMPTY_SUPPLIER;
-        private volatile LongConsumer bytesReadSink = EMPTY_CONSUMER;
-    }
-
-    private static Executor wrapExecutor(Executor executor, AtomicLong workerDirectoryBytesRead, BytesReadHolder bytesReadHolder) {
-        boolean isDirectoryMetricsFeatureEnabled = DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
-        if (executor == null || isDirectoryMetricsFeatureEnabled == false) {
-            return executor;
-        }
-        return r -> executor.execute(() -> {
-            final LongSupplier threadBytesRead = bytesReadHolder.threadBytesRead;
-            final long before = threadBytesRead.getAsLong();
-            try {
-                r.run();
-            } finally {
-                workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
-            }
-        });
     }
 
     /**
@@ -218,34 +146,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     public boolean hasExecutor() {
         return hasExecutor;
-    }
-
-    /**
-     * Sets a supplier that returns the current thread's cumulative store-level bytes-read count.
-     * Used by the {@link Executor} wrapper installed at construction time to capture bytes read by
-     * parallel search worker threads whose reads would otherwise be invisible to the calling
-     * thread's directory metrics delta.
-     */
-    public void setThreadBytesRead(LongSupplier threadBytesRead) {
-        this.bytesReadHolder.threadBytesRead = threadBytesRead;
-    }
-
-    /**
-     * Sets the sink that receives the accumulated worker-thread bytes at the end of every concurrent
-     * search call. The sink is expected to add the bytes to the caller-thread's store metrics so that
-     * the surrounding directory metrics delta in {@code SearchService} observes worker contributions
-     * without further bookkeeping at each callsite.
-     */
-    public void setBytesReadSink(LongConsumer bytesReadSink) {
-        this.bytesReadHolder.bytesReadSink = bytesReadSink;
-    }
-
-    // visible for testing
-    long getWorkerDirectoryBytesRead() {
-        if (workerDirectoryBytesRead != null) {
-            return workerDirectoryBytesRead.get();
-        }
-        return 0;
     }
 
     @Override
@@ -470,33 +370,27 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         }
-        try {
-            final List<C> collectors = new ArrayList<>(leafSlices.length);
-            collectors.add(firstCollector);
-            final ScoreMode scoreMode = firstCollector.scoreMode();
-            for (int i = 1; i < leafSlices.length; ++i) {
-                final C collector = collectorManager.newCollector();
-                collectors.add(collector);
-                if (scoreMode != collector.scoreMode()) {
-                    throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
-                }
+        final List<C> collectors = new ArrayList<>(leafSlices.length);
+        collectors.add(firstCollector);
+        final ScoreMode scoreMode = firstCollector.scoreMode();
+        for (int i = 1; i < leafSlices.length; ++i) {
+            final C collector = collectorManager.newCollector();
+            collectors.add(collector);
+            if (scoreMode != collector.scoreMode()) {
+                throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
             }
-            final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
-            for (int i = 0; i < leafSlices.length; ++i) {
-                final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
-                final C collector = collectors.get(i);
-                listTasks.add(() -> {
-                    search(leaves, weight, collector);
-                    return collector;
-                });
-            }
-            List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
-            return collectorManager.reduce(collectedCollectors);
-        } finally {
-            // fold worker-thread bytes into the caller-thread's store metrics before returning,
-            // so SearchService's directory metrics delta picks them up
-            bytesReadHolder.bytesReadSink.accept(this.getWorkerDirectoryBytesRead());
         }
+        final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
+        for (int i = 0; i < leafSlices.length; ++i) {
+            final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
+            final C collector = collectors.get(i);
+            listTasks.add(() -> {
+                search(leaves, weight, collector);
+                return collector;
+            });
+        }
+        List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
+        return collectorManager.reduce(collectedCollectors);
     }
 
     private static final ThreadLocal<Boolean> timeoutOverwrites = ThreadLocal.withInitial(() -> false);

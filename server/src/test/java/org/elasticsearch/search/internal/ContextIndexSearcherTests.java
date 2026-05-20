@@ -78,7 +78,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -95,11 +94,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
@@ -109,7 +105,6 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -280,161 +275,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
             }
         } finally {
             terminate(executor);
-        }
-    }
-
-    public void testConcurrentCollectionTracksWorkerBytesViaExecutorWrapper() throws Exception {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-        final long bytesPerLeaf = 1000L;
-        ThreadLocal<AtomicLong> threadCumulativeBytes = ThreadLocal.withInitial(AtomicLong::new);
-        Thread callingThread = Thread.currentThread();
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
-
-        try (Directory directory = newDirectory()) {
-            indexDocs(directory);
-            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                ContextIndexSearcher searcher = new ContextIndexSearcher(
-                    directoryReader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    IndexSearcher.getDefaultQueryCachingPolicy(),
-                    randomBoolean(),
-                    executor,
-                    // create as many slices as possible so that at least one runs inline and others on the executor
-                    Integer.MAX_VALUE,
-                    1
-                );
-                searcher.setThreadBytesRead(() -> threadCumulativeBytes.get().get());
-
-                AtomicLong drainedFromWorkers = new AtomicLong();
-                searcher.setBytesReadSink(bytes -> {
-                    drainedFromWorkers.addAndGet(bytes);
-                    threadCumulativeBytes.get().addAndGet(bytes);
-                });
-
-                // Lucene's TaskExecutor submits count-1 tasks to the executor, then the calling thread
-                // races executor workers to pick up tasks. Without coordination, the calling thread can
-                // execute every slice inline before any worker runs, leaving the worker accumulator at
-                // zero and making the "at least one slice is forked" assertion flaky. We use a latch so
-                // the calling thread blocks inside its first getLeafCollector call until a worker has
-                // started processing a slice, guaranteeing at least one slice is observed on the executor.
-                CountDownLatch workerStarted = new CountDownLatch(1);
-                CollectorManager<Collector, Void> countingCollectorManager = new CollectorManager<>() {
-                    @Override
-                    public Collector newCollector() {
-                        return new Collector() {
-                            @Override
-                            public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                                if (Thread.currentThread() == callingThread) {
-                                    try {
-                                        assertTrue(
-                                            "timed out waiting for a worker to start a slice",
-                                            workerStarted.await(30, TimeUnit.SECONDS)
-                                        );
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                        throw new IOException("interrupted while waiting for worker", e);
-                                    }
-                                } else {
-                                    workerStarted.countDown();
-                                }
-                                // simulate bytes read on whichever thread processes this leaf
-                                threadCumulativeBytes.get().addAndGet(bytesPerLeaf);
-                                return new LeafCollector() {
-                                    @Override
-                                    public void setScorer(Scorable scorer) {}
-
-                                    @Override
-                                    public void collect(int doc) {}
-                                };
-                            }
-
-                            @Override
-                            public ScoreMode scoreMode() {
-                                return ScoreMode.COMPLETE_NO_SCORES;
-                            }
-                        };
-                    }
-
-                    @Override
-                    public Void reduce(Collection<Collector> collectors) {
-                        return null;
-                    }
-                };
-
-                int numSlices = searcher.getSlices().length;
-                assumeTrue("test requires at least two slices for forking to occur", numSlices >= 2);
-
-                searcher.search(Queries.ALL_DOCS_INSTANCE, countingCollectorManager);
-
-                int numLeaves = directoryReader.getContext().leaves().size();
-                long totalSimulatedBytes = (long) numLeaves * bytesPerLeaf;
-
-                assertThat("at least one slice should be forked to the executor", drainedFromWorkers.get(), greaterThan(0L));
-                assertEquals(totalSimulatedBytes, threadCumulativeBytes.get().get());
-                assertSame("test must run on the calling thread", callingThread, Thread.currentThread());
-            }
-        } finally {
-            terminate(executor);
-            threadCumulativeBytes.remove();
-        }
-    }
-
-    public void testNonConcurrentCollectionLeavesAllBytesOnCallingThread() throws Exception {
-        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-        final long bytesPerLeaf = 1000L;
-        ThreadLocal<AtomicLong> threadCumulativeBytes = ThreadLocal.withInitial(AtomicLong::new);
-
-        try (Directory directory = newDirectory()) {
-            indexDocs(directory);
-            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                // single-threaded searcher: no executor wrapper, no worker bytes
-                ContextIndexSearcher searcher = new ContextIndexSearcher(
-                    directoryReader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    IndexSearcher.getDefaultQueryCachingPolicy(),
-                    randomBoolean()
-                );
-                searcher.setThreadBytesRead(() -> threadCumulativeBytes.get().get());
-
-                CollectorManager<Collector, Void> countingCollectorManager = new CollectorManager<>() {
-                    @Override
-                    public Collector newCollector() {
-                        return new Collector() {
-                            @Override
-                            public LeafCollector getLeafCollector(LeafReaderContext context) {
-                                threadCumulativeBytes.get().addAndGet(bytesPerLeaf);
-                                return new LeafCollector() {
-                                    @Override
-                                    public void setScorer(Scorable scorer) {}
-
-                                    @Override
-                                    public void collect(int doc) {}
-                                };
-                            }
-
-                            @Override
-                            public ScoreMode scoreMode() {
-                                return ScoreMode.COMPLETE_NO_SCORES;
-                            }
-                        };
-                    }
-
-                    @Override
-                    public Void reduce(Collection<Collector> collectors) {
-                        return null;
-                    }
-                };
-
-                searcher.search(Queries.ALL_DOCS_INSTANCE, countingCollectorManager);
-
-                int numLeaves = directoryReader.getContext().leaves().size();
-                assertEquals(0L, searcher.getWorkerDirectoryBytesRead());
-                assertEquals((long) numLeaves * bytesPerLeaf, threadCumulativeBytes.get().get());
-            }
-        } finally {
-            threadCumulativeBytes.remove();
         }
     }
 

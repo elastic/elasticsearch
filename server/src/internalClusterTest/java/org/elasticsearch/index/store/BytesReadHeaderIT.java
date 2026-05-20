@@ -48,10 +48,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Tests that the {@code X-Elasticsearch-Bytes-Read} response header is set on data nodes during search
- * and propagated to the coordinating node across different search types.
- */
 public class BytesReadHeaderIT extends ESIntegTestCase {
 
     @Before

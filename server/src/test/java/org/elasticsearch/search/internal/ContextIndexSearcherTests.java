@@ -95,8 +95,10 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntFunction;
 
@@ -310,12 +312,32 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     threadCumulativeBytes.get().addAndGet(bytes);
                 });
 
+                // Lucene's TaskExecutor submits count-1 tasks to the executor, then the calling thread
+                // races executor workers to pick up tasks. Without coordination, the calling thread can
+                // execute every slice inline before any worker runs, leaving the worker accumulator at
+                // zero and making the "at least one slice is forked" assertion flaky. We use a latch so
+                // the calling thread blocks inside its first getLeafCollector call until a worker has
+                // started processing a slice, guaranteeing at least one slice is observed on the executor.
+                CountDownLatch workerStarted = new CountDownLatch(1);
                 CollectorManager<Collector, Void> countingCollectorManager = new CollectorManager<>() {
                     @Override
                     public Collector newCollector() {
                         return new Collector() {
                             @Override
-                            public LeafCollector getLeafCollector(LeafReaderContext context) {
+                            public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                                if (Thread.currentThread() == callingThread) {
+                                    try {
+                                        assertTrue(
+                                            "timed out waiting for a worker to start a slice",
+                                            workerStarted.await(30, TimeUnit.SECONDS)
+                                        );
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                        throw new IOException("interrupted while waiting for worker", e);
+                                    }
+                                } else {
+                                    workerStarted.countDown();
+                                }
                                 // simulate bytes read on whichever thread processes this leaf
                                 threadCumulativeBytes.get().addAndGet(bytesPerLeaf);
                                 return new LeafCollector() {

@@ -123,11 +123,11 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     /**
-     * Flushes metrics in four sequential steps: system flush, health flush, system flush, health flush.
-     * The ordering is required because {@code OtlpHttpMetricExporter} records health telemetry
-     * (e.g. {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after
-     * its HTTP export completes. The health provider must therefore flush after the system provider
-     * has finished each cycle. Callers must join the result with an appropriate timeout.
+     * Flushes the system provider first, then the health provider. The ordering is required because
+     * {@code OtlpHttpMetricExporter} records health telemetry (e.g.
+     * {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after its HTTP
+     * export completes; the health provider must therefore flush after the system provider finishes.
+     * Callers must join the result with an appropriate timeout.
      * <p>
      * The returned result always succeeds: flush is best-effort and intermediate failures are silently
      * ignored, consistent with the contract of {@link MeterSupplier#attemptFlushMetrics()}.
@@ -145,11 +145,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         // Lock released before flushing to avoid holding it during async I/O.
         // close() may race here; SdkMeterProvider.forceFlush() on a stopped provider is a safe no-op.
         CompletableResultCode result = new CompletableResultCode();
-        sys.forceFlush()
-            .whenComplete(
-                () -> health.forceFlush()
-                    .whenComplete(() -> sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed())))
-            );
+        sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed()));
         return result;
     }
 

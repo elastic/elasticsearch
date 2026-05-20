@@ -162,8 +162,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     request.getTimeout(),
                     threadPool,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    getTaskListener,
-                    () -> { /* TODO cancel the remote tasks? */}
+                    getTaskListener
                 ),
                 GetTaskResponse::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE

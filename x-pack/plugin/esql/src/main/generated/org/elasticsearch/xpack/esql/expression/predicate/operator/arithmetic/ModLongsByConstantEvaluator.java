@@ -134,11 +134,11 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public ModLongsByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends ModLongsByConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeLong(ModLongsByConstantEvaluator.class, "rhs", this.rhs);
-      if (specializedClassOpt.isPresent()) {
-        Class<? extends ModLongsByConstantEvaluator> specializedClass = specializedClassOpt.get();
+      Optional<Class<? extends ModLongsByConstantEvaluator>> constantSpecializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeLong(ModLongsByConstantEvaluator.class, "rhs", this.rhs);
+      if (constantSpecializedClassOpt.isPresent()) {
+        Class<? extends ModLongsByConstantEvaluator> constantSpecializedClass = constantSpecializedClassOpt.get();
         try {
-          return (ModLongsByConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (ModLongsByConstantEvaluator) constantSpecializedClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct specialized evaluator for ModLongsByConstantEvaluator", e);
         }
@@ -153,10 +153,10 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
   }
 
   /**
-   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
+   * Concrete non-constant-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the specialized subclass.
+   * runs correctly. The Factory chooses between this and the constant-specialized subclass.
    */
   public static final class Standard extends ModLongsByConstantEvaluator {
     private final long rhs;

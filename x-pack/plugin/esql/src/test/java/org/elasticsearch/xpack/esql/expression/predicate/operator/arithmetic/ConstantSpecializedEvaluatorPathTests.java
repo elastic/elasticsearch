@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * End-to-end exercise of the generated evaluator's two execution paths under
- * {@code @Fixed(jitConstant=true)}: the specialized subclass produced by
+ * {@code @Fixed(jitConstant=true)}: the constant-specialized subclass produced by
  * {@link ConstantMethodResultSpecializer} (fast path, constant folded at JIT time) and the
  * {@code Standard} nested subclass (admission-rejected fallback that stores the
  * constant in a regular instance field).
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
  * The {@link ConstantMethodResultSpecializer#SHARED} singleton is reset in {@code @After}
  * since these tests mutate its admission threshold to force each path.
  */
-public class SpecializedEvaluatorPathTests extends ESTestCase {
+public class ConstantSpecializedEvaluatorPathTests extends ESTestCase {
 
     @After
     public void resetSharedSpinner() {

@@ -40,11 +40,11 @@ import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
  *       reflection on the no-jit-args ctor</li>
  * </ul>
  */
-public record SpecializedFixedArgument(TypeName type, String name, boolean includeInToString, Fixed.Scope scope, boolean releasable)
+public record ConstantSpecializedFixedArgument(TypeName type, String name, boolean includeInToString, Fixed.Scope scope, boolean releasable)
     implements
         Argument {
 
-    public SpecializedFixedArgument {
+    public ConstantSpecializedFixedArgument {
         if (scope != Fixed.Scope.SINGLETON) {
             throw new IllegalArgumentException(
                 "@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ", scope: " + scope + ")"
@@ -86,7 +86,7 @@ public record SpecializedFixedArgument(TypeName type, String name, boolean inclu
         builder.addField(factoryFieldType(), name, Modifier.PRIVATE, Modifier.FINAL);
     }
 
-    /** Evaluator ctor takes no param for this — value lives on the specialized subclass. */
+    /** Evaluator ctor takes no param for this — value lives on the constant-specialized subclass. */
     @Override
     public void implementCtor(MethodSpec.Builder builder) {
         // no-op
@@ -145,7 +145,7 @@ public record SpecializedFixedArgument(TypeName type, String name, boolean inclu
 
     @Override
     public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
-        // Evaluator side: no field exists, value lives on the specialized subclass — call the accessor.
+        // Evaluator side: no field exists, value lives on the constant-specialized subclass — call the accessor.
         if (includeInToString) {
             pattern.append(" + $S + $L()");
             args.add(prefix + name + "=");

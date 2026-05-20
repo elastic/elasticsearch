@@ -139,11 +139,11 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public StartsWithConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends StartsWithConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
-      if (specializedClassOpt.isPresent()) {
-        Class<? extends StartsWithConstantEvaluator> specializedClass = specializedClassOpt.get();
+      Optional<Class<? extends StartsWithConstantEvaluator>> constantSpecializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
+      if (constantSpecializedClassOpt.isPresent()) {
+        Class<? extends StartsWithConstantEvaluator> constantSpecializedClass = constantSpecializedClassOpt.get();
         try {
-          return (StartsWithConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
+          return (StartsWithConstantEvaluator) constantSpecializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct specialized evaluator for StartsWithConstantEvaluator", e);
         }
@@ -158,10 +158,10 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
   }
 
   /**
-   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
+   * Concrete non-constant-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the specialized subclass.
+   * runs correctly. The Factory chooses between this and the constant-specialized subclass.
    */
   public static final class Standard extends StartsWithConstantEvaluator {
     private final BytesRef prefix;

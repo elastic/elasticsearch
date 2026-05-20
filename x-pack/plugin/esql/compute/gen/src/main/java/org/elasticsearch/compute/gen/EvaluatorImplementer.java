@@ -18,8 +18,8 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.gen.argument.Argument;
 import org.elasticsearch.compute.gen.argument.BlockArgument;
 import org.elasticsearch.compute.gen.argument.BuilderArgument;
+import org.elasticsearch.compute.gen.argument.ConstantSpecializedFixedArgument;
 import org.elasticsearch.compute.gen.argument.FixedArgument;
-import org.elasticsearch.compute.gen.argument.SpecializedFixedArgument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -116,7 +116,7 @@ public class EvaluatorImplementer {
 
         if (hasJitConstant) {
             builder.addType(standard(parentCtor));
-            // pathLabel() default; the Standard subclass overrides it, the specialized subclass
+            // pathLabel() default; the Standard subclass overrides it, the constant-specialized subclass
             // inherits this default. Read by toString() to make specialized vs Standard visible
             // in ESQL PROFILE output without any class-name string matching.
             builder.addMethod(
@@ -311,7 +311,7 @@ public class EvaluatorImplementer {
     }
 
     /**
-     * Concrete non-specialized subclass for the abstract jit-constant evaluator. Used when
+     * Concrete non-constant-specialized subclass for the abstract jit-constant evaluator. Used when
      * {@code ConstantMethodResultSpecializer} returns {@code Optional.empty()} (admission filter
      * rejected the specialization for a first-time key). Stores the constant in a regular instance
      * field — no JIT-time constant folding occurs — but the per-row work still executes
@@ -319,9 +319,9 @@ public class EvaluatorImplementer {
      * low-cardinality constants, not a failure-mode standard.
      */
     private TypeSpec standard(MethodSpec parentCtor) {
-        SpecializedFixedArgument jit = processFunction.args.stream()
+        ConstantSpecializedFixedArgument jit = processFunction.args.stream()
             .filter(Argument::isJitConstant)
-            .map(a -> (SpecializedFixedArgument) a)
+            .map(a -> (ConstantSpecializedFixedArgument) a)
             .findFirst()
             .orElseThrow();
 
@@ -330,10 +330,10 @@ public class EvaluatorImplementer {
             .superclass(implementation);
 
         builder.addJavadoc(
-            "Concrete non-specialized subclass used when {@link $T} returns {@code Optional.empty()}\n"
+            "Concrete non-constant-specialized subclass used when {@link $T} returns {@code Optional.empty()}\n"
                 + "(admission filter rejected the spin). The constant lives in a regular\n"
                 + "instance field — no JIT-time constant folding, but the per-row work\n"
-                + "runs correctly. The Factory chooses between this and the specialized subclass.\n",
+                + "runs correctly. The Factory chooses between this and the constant-specialized subclass.\n",
             CONSTANT_METHOD_RESULT_SPECIALIZER
         );
 
@@ -368,7 +368,7 @@ public class EvaluatorImplementer {
                 .build()
         );
 
-        // Override pathLabel() to identify this as the non-specialized path in profile output.
+        // Override pathLabel() to identify this as the non-constant-specialized path in profile output.
         builder.addMethod(
             MethodSpec.methodBuilder("pathLabel")
                 .addAnnotation(Override.class)
@@ -484,7 +484,7 @@ public class EvaluatorImplementer {
             pattern.append(" + $S");
             args.add("]");
             // For jit-constant evaluators, append " (jit-folded)" or " (standard)" via the
-            // pathLabel() override so the ESQL PROFILE output distinguishes the specialized path
+            // pathLabel() override so the ESQL PROFILE output distinguishes the constant-specialized path
             // from the Standard path. Factory's toString doesn't get the marker — the
             // factory itself isn't an evaluator; it constructs one per Driver.
             boolean hasJitConstant = this.args.stream().anyMatch(Argument::isJitConstant);
@@ -520,7 +520,7 @@ public class EvaluatorImplementer {
             }
             ctorArgs.add("context");
 
-            SpecializedFixedArgument jit = null;
+            ConstantSpecializedFixedArgument jit = null;
             for (Argument a : this.args) {
                 if (a.isJitConstant()) {
                     if (jit != null) {
@@ -528,7 +528,7 @@ public class EvaluatorImplementer {
                             "@Fixed(jitConstant=true) supported on at most one parameter per @Evaluator method"
                         );
                     }
-                    jit = (SpecializedFixedArgument) a;
+                    jit = (ConstantSpecializedFixedArgument) a;
                 }
             }
 
@@ -545,7 +545,7 @@ public class EvaluatorImplementer {
             String spinMethod = primitiveSpecializeMethod(jit.type());
             if (spinMethod != null) {
                 builder.addStatement(
-                    "$T<$T<? extends $T>> specializedClassOpt = $T.SHARED.$L($T.class, $S, this.$L)",
+                    "$T<$T<? extends $T>> constantSpecializedClassOpt = $T.SHARED.$L($T.class, $S, this.$L)",
                     ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,
@@ -557,7 +557,7 @@ public class EvaluatorImplementer {
                 );
             } else {
                 builder.addStatement(
-                    "$T<$T<? extends $T>> specializedClassOpt = $T.SHARED.specializeReference($T.class, $S, $T.class, this.$L)",
+                    "$T<$T<? extends $T>> constantSpecializedClassOpt = $T.SHARED.specializeReference($T.class, $S, $T.class, this.$L)",
                     ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,
@@ -568,15 +568,15 @@ public class EvaluatorImplementer {
                     jit.name()
                 );
             }
-            builder.beginControlFlow("if (specializedClassOpt.isPresent())");
+            builder.beginControlFlow("if (constantSpecializedClassOpt.isPresent())");
             builder.addStatement(
-                "$T<? extends $T> specializedClass = specializedClassOpt.get()",
+                "$T<? extends $T> constantSpecializedClass = constantSpecializedClassOpt.get()",
                 ClassName.get(Class.class),
                 implementation
             );
             builder.beginControlFlow("try");
             builder.addStatement(
-                "return ($T) specializedClass.getConstructors()[0].newInstance($L)",
+                "return ($T) constantSpecializedClass.getConstructors()[0].newInstance($L)",
                 implementation,
                 String.join(", ", ctorArgs)
             );

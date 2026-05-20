@@ -145,11 +145,11 @@ public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluat
 
     @Override
     public DivDoublesByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends DivDoublesByConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeDouble(DivDoublesByConstantEvaluator.class, "rhs", this.rhs);
-      if (specializedClassOpt.isPresent()) {
-        Class<? extends DivDoublesByConstantEvaluator> specializedClass = specializedClassOpt.get();
+      Optional<Class<? extends DivDoublesByConstantEvaluator>> constantSpecializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeDouble(DivDoublesByConstantEvaluator.class, "rhs", this.rhs);
+      if (constantSpecializedClassOpt.isPresent()) {
+        Class<? extends DivDoublesByConstantEvaluator> constantSpecializedClass = constantSpecializedClassOpt.get();
         try {
-          return (DivDoublesByConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (DivDoublesByConstantEvaluator) constantSpecializedClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct specialized evaluator for DivDoublesByConstantEvaluator", e);
         }
@@ -164,10 +164,10 @@ public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluat
   }
 
   /**
-   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
+   * Concrete non-constant-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the specialized subclass.
+   * runs correctly. The Factory chooses between this and the constant-specialized subclass.
    */
   public static final class Standard extends DivDoublesByConstantEvaluator {
     private final double rhs;

@@ -12,12 +12,12 @@ import com.squareup.javapoet.TypeName;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.test.ESTestCase;
 
-public class SpecializedFixedArgumentTests extends ESTestCase {
+public class ConstantSpecializedFixedArgumentTests extends ESTestCase {
 
     public void testRejectsThreadLocalScope() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new SpecializedFixedArgument(TypeName.LONG, "rhs", true, Fixed.Scope.THREAD_LOCAL, false)
+            () -> new ConstantSpecializedFixedArgument(TypeName.LONG, "rhs", true, Fixed.Scope.THREAD_LOCAL, false)
         );
         assertTrue(
             "message should name the parameter and the offending scope: " + e.getMessage(),
@@ -26,6 +26,6 @@ public class SpecializedFixedArgumentTests extends ESTestCase {
     }
 
     public void testAcceptsSingletonScope() {
-        new SpecializedFixedArgument(TypeName.LONG, "rhs", true, Fixed.Scope.SINGLETON, false);
+        new ConstantSpecializedFixedArgument(TypeName.LONG, "rhs", true, Fixed.Scope.SINGLETON, false);
     }
 }

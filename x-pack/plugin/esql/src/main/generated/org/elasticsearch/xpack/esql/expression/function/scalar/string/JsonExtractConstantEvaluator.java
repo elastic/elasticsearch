@@ -147,11 +147,11 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
     @Override
     public JsonExtractConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends JsonExtractConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
-      if (specializedClassOpt.isPresent()) {
-        Class<? extends JsonExtractConstantEvaluator> specializedClass = specializedClassOpt.get();
+      Optional<Class<? extends JsonExtractConstantEvaluator>> constantSpecializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
+      if (constantSpecializedClassOpt.isPresent()) {
+        Class<? extends JsonExtractConstantEvaluator> constantSpecializedClass = constantSpecializedClassOpt.get();
         try {
-          return (JsonExtractConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
+          return (JsonExtractConstantEvaluator) constantSpecializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
           throw new IllegalStateException("failed to construct specialized evaluator for JsonExtractConstantEvaluator", e);
         }
@@ -166,10 +166,10 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
   }
 
   /**
-   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
+   * Concrete non-constant-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the specialized subclass.
+   * runs correctly. The Factory chooses between this and the constant-specialized subclass.
    */
   public static final class Standard extends JsonExtractConstantEvaluator {
     private final JsonPath path;

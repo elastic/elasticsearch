@@ -27,7 +27,7 @@ import java.lang.reflect.Modifier;
 /**
  * Structural drift guard for {@link ConstantMethodResultSpecializer}'s emitted hidden classes.
  *
- * <p>The specializer emits an extremely narrow class shape per specialized subclass: one mirror
+ * <p>The specializer emits an extremely narrow class shape per constant-specialized subclass: one mirror
  * of each public base constructor (chained super call, no body), one constant-returning
  * accessor that reads a {@code static final} field and returns it, and — for reference
  * constants — one {@code <clinit>} that loads a {@code ConstantDynamic} via condy and
@@ -55,15 +55,15 @@ import java.lang.reflect.Modifier;
  * itself is exactly what this is meant to catch; conflating "what we emit" with "what we
  * promised to emit" in a single file would defeat the second-pair-of-eyes intent.
  */
-final class SpecializedClassShapeValidator {
+final class ConstantSpecializedClassShapeValidator {
 
     /**
-     * Immutable contract describing the exact shape we promise to emit for one specialized class.
+     * Immutable contract describing the exact shape we promise to emit for one constant-specialized class.
      * The specializer constructs one of these per spin and passes it to {@link #guarding}.
      */
-    record SpecializedClassSpec(
+    record ConstantSpecializedClassSpec(
         Class<?> baseClass,
-        String specializedInternalName,
+        String constantSpecializedInternalName,
         String accessorName,
         String accessorDescriptor,
         String fieldName,
@@ -77,10 +77,10 @@ final class SpecializedClassShapeValidator {
         }
     }
 
-    private SpecializedClassShapeValidator() {}
+    private ConstantSpecializedClassShapeValidator() {}
 
     /** Production entry: every {@code visit*} the specializer calls on the returned visitor is asserted. */
-    static ClassVisitor guarding(ClassVisitor delegate, SpecializedClassSpec spec) {
+    static ClassVisitor guarding(ClassVisitor delegate, ConstantSpecializedClassSpec spec) {
         return new GuardingClassVisitor(delegate, spec);
     }
 
@@ -89,7 +89,7 @@ final class SpecializedClassShapeValidator {
      * it through the same guard with a no-op delegate. Production never calls this —
      * {@link #guarding} is the active check at emit time.
      */
-    static void validate(byte[] bytecode, SpecializedClassSpec spec) {
+    static void validate(byte[] bytecode, ConstantSpecializedClassSpec spec) {
         new ClassReader(bytecode).accept(new GuardingClassVisitor(new ClassVisitor(Opcodes.ASM9) {}, spec), ClassReader.SKIP_FRAMES);
     }
 
@@ -102,14 +102,14 @@ final class SpecializedClassShapeValidator {
     private static final int EXPECTED_CLINIT_ACCESS = Opcodes.ACC_STATIC;
 
     private static final class GuardingClassVisitor extends ClassVisitor {
-        private final SpecializedClassSpec spec;
+        private final ConstantSpecializedClassSpec spec;
         private int fieldCount = 0;
         private int ctorCount = 0;
         private int accessorCount = 0;
         private int clinitCount = 0;
         private boolean visitedHeader = false;
 
-        GuardingClassVisitor(ClassVisitor delegate, SpecializedClassSpec spec) {
+        GuardingClassVisitor(ClassVisitor delegate, ConstantSpecializedClassSpec spec) {
             super(Opcodes.ASM9, delegate);
             this.spec = spec;
         }
@@ -125,17 +125,17 @@ final class SpecializedClassShapeValidator {
                     "class access is 0x" + Integer.toHexString(access) + ", expected 0x" + Integer.toHexString(EXPECTED_CLASS_ACCESS)
                 );
             }
-            if (spec.specializedInternalName.equals(name) == false) {
-                throw drift("class internal name is [" + name + "], expected [" + spec.specializedInternalName + "]");
+            if (spec.constantSpecializedInternalName.equals(name) == false) {
+                throw drift("class internal name is [" + name + "], expected [" + spec.constantSpecializedInternalName + "]");
             }
             if (spec.expectedSuperInternalName().equals(superName) == false) {
                 throw drift("super class is [" + superName + "], expected [" + spec.expectedSuperInternalName() + "]");
             }
             if (interfaces != null && interfaces.length > 0) {
-                throw drift("specialized class declares interfaces " + java.util.Arrays.toString(interfaces) + " (none allowed)");
+                throw drift("constant-specialized class declares interfaces " + java.util.Arrays.toString(interfaces) + " (none allowed)");
             }
             if (signature != null) {
-                throw drift("specialized class declares a generic signature (none allowed)");
+                throw drift("constant-specialized class declares a generic signature (none allowed)");
             }
             super.visit(version, access, name, signature, superName, interfaces);
         }
@@ -307,7 +307,7 @@ final class SpecializedClassShapeValidator {
 
         private AssertionError drift(String what) {
             return new AssertionError(
-                "ConstantMethodResultSpecializer shape drift in spun [" + spec.specializedInternalName + "]: " + what
+                "ConstantMethodResultSpecializer shape drift in spun [" + spec.constantSpecializedInternalName + "]: " + what
             );
         }
     }
@@ -339,10 +339,10 @@ final class SpecializedClassShapeValidator {
 
     private static final class GuardingMethodVisitor extends MethodVisitor {
         private final String mName;
-        private final SpecializedClassSpec spec;
+        private final ConstantSpecializedClassSpec spec;
         private final String expectedSuper;
 
-        GuardingMethodVisitor(MethodVisitor delegate, String mName, SpecializedClassSpec spec) {
+        GuardingMethodVisitor(MethodVisitor delegate, String mName, ConstantSpecializedClassSpec spec) {
             super(Opcodes.ASM9, delegate);
             this.mName = mName;
             this.spec = spec;
@@ -371,7 +371,7 @@ final class SpecializedClassShapeValidator {
 
         @Override
         public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-            if (spec.specializedInternalName.equals(owner) == false) {
+            if (spec.constantSpecializedInternalName.equals(owner) == false) {
                 throw drift("field op on foreign owner [" + owner + "]");
             }
             if (spec.fieldName.equals(name) == false) {
@@ -533,12 +533,17 @@ final class SpecializedClassShapeValidator {
 
         private AssertionError drift(String what) {
             return new AssertionError(
-                "ConstantMethodResultSpecializer shape drift in spun [" + spec.specializedInternalName + "] method [" + mName + "]: " + what
+                "ConstantMethodResultSpecializer shape drift in spun ["
+                    + spec.constantSpecializedInternalName
+                    + "] method ["
+                    + mName
+                    + "]: "
+                    + what
             );
         }
     }
 
-    // Used only by tests that build a SpecializedClassSpec from a base class to compute expected ctor count.
+    // Used only by tests that build a ConstantSpecializedClassSpec from a base class to compute expected ctor count.
     static int countPublicCtors(Class<?> base) {
         int n = 0;
         for (var c : base.getConstructors()) {

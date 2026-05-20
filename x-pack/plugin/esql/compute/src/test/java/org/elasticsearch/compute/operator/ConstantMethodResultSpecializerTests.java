@@ -304,7 +304,7 @@ public class ConstantMethodResultSpecializerTests extends ESTestCase {
 
     // NOTE: drift-guard negative tests (forbidden opcodes, foreign field owners, extra
     // methods, wrong superclass, ~50 paranoia cases total) live deliberately in a separate
-    // file — SpecializedClassShapeContractTests — so that a developer modifying the specializer
+    // file — ConstantSpecializedClassShapeContractTests — so that a developer modifying the specializer
     // doesn't reflexively update them alongside this file. If one fails, the failure
     // itself is the warning that the bytecode shape contract has shifted.
 }

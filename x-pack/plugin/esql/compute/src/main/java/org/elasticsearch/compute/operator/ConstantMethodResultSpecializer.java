@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.LongAdder;
  *
  * <ol>
  *   <li><b>Class cache</b>: {@code ConcurrentHashMap<Key, WeakReference<Class>>}. Unbounded;
- *       JVM manages size via reachability. A specialized class is kept alive by any live evaluator
+ *       JVM manages size via reachability. A constant-specialized class is kept alive by any live evaluator
  *       instance referencing it. Once nothing references the class, GC reclaims it and the
  *       weak ref clears — the next access starts fresh.</li>
  *   <li><b>Admission tracker</b>: bounded LRU counters keyed by specializer key (default 4096
@@ -99,7 +99,7 @@ public final class ConstantMethodResultSpecializer {
      * <p>Sized for the realistic working set of "first-sight candidates currently in
      * flight" — typically hundreds at most for dashboard-style workloads. Each entry
      * is ~120-160 bytes (LinkedHashMap.Entry + CacheKey + AtomicLong + boxed value);
-     * 512 entries ≈ ~60-80 KB per JVM. Per-class metaspace for specialized classes is
+     * 512 entries ≈ ~60-80 KB per JVM. Per-class metaspace for constant-constant-specialized classes is
      * managed separately via weak refs in the unbounded class cache.
      *
      * <p>Stress test (PR #148678, 450 measurements) showed capacity between 256 and
@@ -145,7 +145,7 @@ public final class ConstantMethodResultSpecializer {
     private volatile int admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
 
     /**
-     * Cache-entry reachability. {@code SoftReference} keeps a specialized class alive until
+     * Cache-entry reachability. {@code SoftReference} keeps a constant-specialized class alive until
      * the JVM is under genuine heap pressure (cleared only to avoid OOM), so the
      * JIT-folded class survives ordinary GC and stays a cache hit. {@code WeakReference}
      * is cleared at the next GC regardless of free heap, which under a memory-stressed
@@ -289,7 +289,7 @@ public final class ConstantMethodResultSpecializer {
      * for it. Default = 2 (skip the first-time access — usually a one-off). Set to 1 to
      * disable admission filtering (every miss spins immediately, like the prior behavior).
      *
-     * <p>Public so cross-package tests in esql can force the Standard / specialized paths by
+     * <p>Public so cross-package tests in esql can force the Standard / constant-specialized paths by
      * setting the threshold extreme. No production caller; if a tuning API becomes
      * useful, route it through {@link #SHARED} explicitly.
      */
@@ -300,7 +300,7 @@ public final class ConstantMethodResultSpecializer {
 
     /**
      * Choose cache-entry reachability. {@code true} (default) uses {@code SoftReference}
-     * — specialized classes survive ordinary GC and are reclaimed only under heap pressure.
+     * — constant-constant-specialized classes survive ordinary GC and are reclaimed only under heap pressure.
      * {@code false} uses {@code WeakReference} — cleared at the next GC regardless of
      * free heap. See {@link #useSoftReferences} for the rationale.
      */
@@ -343,7 +343,7 @@ public final class ConstantMethodResultSpecializer {
     }
 
     /**
-     * Core lookup. Returns an existing specialized class (cache hit on a still-alive weak ref) OR
+     * Core lookup. Returns an existing constant-specialized class (cache hit on a still-alive weak ref) OR
      * spins a new one (if the key has been seen enough times) OR returns empty (first-time
      * key — caller uses the non-jit-folded path).
      *
@@ -393,9 +393,9 @@ public final class ConstantMethodResultSpecializer {
 
         // Layer 3: spin. computeIfAbsent prevents stampede — only one thread spins per key.
         MISSES.increment();
-        Reference<Class<?>> specializedRef;
+        Reference<Class<?>> constantSpecializedRef;
         try {
-            specializedRef = CLASSES.computeIfAbsent(key, k -> {
+            constantSpecializedRef = CLASSES.computeIfAbsent(key, k -> {
                 Class<?> spun = primitive
                     ? emitSpecializedPrimitiveClass(baseClass, methodName, valueType, value)
                     : emitSpecializedReferenceClass(baseClass, methodName, valueType, value);
@@ -408,15 +408,15 @@ public final class ConstantMethodResultSpecializer {
             STANDARDS.increment();
             return Optional.empty();
         }
-        Class<?> specializedClass = specializedRef.get();
-        if (specializedClass == null) {
+        Class<?> constantSpecializedClass = constantSpecializedRef.get();
+        if (constantSpecializedClass == null) {
             // Race: weak ref cleared between insertion and our read. Recurse — admission will
             // re-trigger via counter, or standard. Bounded by GC frequency so this is rare.
-            CLASSES.remove(key, specializedRef);
+            CLASSES.remove(key, constantSpecializedRef);
             WEAK_REF_CLEARED.increment();
             return spinOrCache(baseClass, methodName, valueType, value, primitive);
         }
-        return Optional.of((Class<? extends T>) specializedClass);
+        return Optional.of((Class<? extends T>) constantSpecializedClass);
     }
 
     private long incrementAdmission(CacheKey key) {
@@ -443,14 +443,14 @@ public final class ConstantMethodResultSpecializer {
     // ===================================================================
 
     /**
-     * Emit a specialized subclass whose accessor returns a primitive constant.
+     * Emit a constant-specialized subclass whose accessor returns a primitive constant.
      *
      * <p>Equivalent Java for {@code base = ModLongsByConstantEvaluator}, {@code methodName = "rhs"}, {@code value = 60L}:
      * <pre>{@code
-     *   public final class ModLongsByConstantEvaluator$Specialized extends ModLongsByConstantEvaluator {
+     *   public final class ModLongsByConstantEvaluator$ConstantSpecialized extends ModLongsByConstantEvaluator {
      *       public static final long CONST_RHS = 60L;
      *
-     *       public ModLongsByConstantEvaluator$Specialized(Source source, ExpressionEvaluator lhs, DriverContext ctx) {
+     *       public ModLongsByConstantEvaluator$ConstantSpecialized(Source source, ExpressionEvaluator lhs, DriverContext ctx) {
      *           super(source, lhs, ctx);
      *       }
      *       // ...one ctor per public ctor on the base class...
@@ -467,10 +467,10 @@ public final class ConstantMethodResultSpecializer {
      */
     private Class<?> emitSpecializedPrimitiveClass(Class<?> base, String methodName, Class<?> primitive, Object boxed) {
         String typeDescriptor = Type.getDescriptor(primitive);
-        SpecializedClassShapeValidator.SpecializedClassSpec spec = primitiveSpec(base, methodName, typeDescriptor);
+        ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec = primitiveSpec(base, methodName, typeDescriptor);
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        ClassVisitor cv = SpecializedClassShapeValidator.guarding(cw, spec);
+        ClassVisitor cv = ConstantSpecializedClassShapeValidator.guarding(cw, spec);
 
         emitClassHeader(cv, spec);
         emitConstantField(cv, spec, /* initialValue */ boxed);
@@ -482,11 +482,11 @@ public final class ConstantMethodResultSpecializer {
     }
 
     /**
-     * Emit a specialized subclass whose accessor returns a reference constant.
+     * Emit a constant-specialized subclass whose accessor returns a reference constant.
      *
      * <p>Equivalent Java for {@code base = StartsWithConstantEvaluator}, {@code methodName = "prefix"}, {@code valueType = BytesRef.class}:
      * <pre>{@code
-     *   public final class StartsWithConstantEvaluator$Specialized extends StartsWithConstantEvaluator {
+     *   public final class StartsWithConstantEvaluator$ConstantSpecialized extends StartsWithConstantEvaluator {
      *       private static final BytesRef CONST_PREFIX;
      *
      *       static {
@@ -494,7 +494,7 @@ public final class ConstantMethodResultSpecializer {
      *           CONST_PREFIX = (BytesRef) MethodHandles.classData(LOOKUP, "_", BytesRef.class);
      *       }
      *
-     *       public StartsWithConstantEvaluator$Specialized(Source source, ExpressionEvaluator str, DriverContext ctx) {
+     *       public StartsWithConstantEvaluator$ConstantSpecialized(Source source, ExpressionEvaluator str, DriverContext ctx) {
      *           super(source, str, ctx);
      *       }
      *
@@ -513,10 +513,10 @@ public final class ConstantMethodResultSpecializer {
      */
     private Class<?> emitSpecializedReferenceClass(Class<?> base, String methodName, Class<?> valueType, Object value) {
         String typeDescriptor = Type.getDescriptor(valueType);
-        SpecializedClassShapeValidator.SpecializedClassSpec spec = referenceSpec(base, methodName, typeDescriptor);
+        ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec = referenceSpec(base, methodName, typeDescriptor);
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        ClassVisitor cv = SpecializedClassShapeValidator.guarding(cw, spec);
+        ClassVisitor cv = ConstantSpecializedClassShapeValidator.guarding(cw, spec);
 
         emitClassHeader(cv, spec);
         emitConstantField(cv, spec, /* initialValue */ null);   // populated by <clinit>
@@ -528,33 +528,41 @@ public final class ConstantMethodResultSpecializer {
         return defineHidden(base, cw.toByteArray(), value);
     }
 
-    private SpecializedClassShapeValidator.SpecializedClassSpec primitiveSpec(Class<?> base, String methodName, String typeDescriptor) {
+    private ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec primitiveSpec(
+        Class<?> base,
+        String methodName,
+        String typeDescriptor
+    ) {
         String baseInternal = Type.getInternalName(base);
-        return new SpecializedClassShapeValidator.SpecializedClassSpec(
+        return new ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec(
             base,
-            baseInternal + "$Specialized",
+            baseInternal + "$ConstantSpecialized",
             methodName,
             "()" + typeDescriptor,
             "CONST_" + sanitize(methodName),
             typeDescriptor,
             Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
             /* expectsClinit */ false,
-            SpecializedClassShapeValidator.countPublicCtors(base)
+            ConstantSpecializedClassShapeValidator.countPublicCtors(base)
         );
     }
 
-    private SpecializedClassShapeValidator.SpecializedClassSpec referenceSpec(Class<?> base, String methodName, String typeDescriptor) {
+    private ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec referenceSpec(
+        Class<?> base,
+        String methodName,
+        String typeDescriptor
+    ) {
         String baseInternal = Type.getInternalName(base);
-        return new SpecializedClassShapeValidator.SpecializedClassSpec(
+        return new ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec(
             base,
-            baseInternal + "$Specialized",
+            baseInternal + "$ConstantSpecialized",
             methodName,
             "()" + typeDescriptor,
             "CONST_" + sanitize(methodName),
             typeDescriptor,
             Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
             /* expectsClinit */ true,
-            SpecializedClassShapeValidator.countPublicCtors(base)
+            ConstantSpecializedClassShapeValidator.countPublicCtors(base)
         );
     }
 
@@ -563,14 +571,14 @@ public final class ConstantMethodResultSpecializer {
      *
      * <p>Equivalent Java:
      * <pre>{@code
-     *   public final class <Base>$Specialized extends <Base> { ... }
+     *   public final class <Base>$ConstantSpecialized extends <Base> { ... }
      * }</pre>
      */
-    private static void emitClassHeader(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec) {
+    private static void emitClassHeader(ClassVisitor cv, ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec) {
         cv.visit(
             Opcodes.V21,
             Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-            spec.specializedInternalName(),
+            spec.constantSpecializedInternalName(),
             null,
             spec.expectedSuperInternalName(),
             null
@@ -590,7 +598,11 @@ public final class ConstantMethodResultSpecializer {
      *   private static final BytesRef CONST_PREFIX;
      * }</pre>
      */
-    private static void emitConstantField(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec, Object initialValue) {
+    private static void emitConstantField(
+        ClassVisitor cv,
+        ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec,
+        Object initialValue
+    ) {
         cv.visitField(spec.expectedFieldAccess(), spec.fieldName(), spec.fieldDescriptor(), null, initialValue).visitEnd();
     }
 
@@ -607,7 +619,7 @@ public final class ConstantMethodResultSpecializer {
      * <p>Implemented at the bytecode level as a single LDC of a {@link ConstantDynamic} (condy) whose
      * bootstrap is {@code MethodHandles.classData}, followed by a {@code putstatic}.
      */
-    private static void emitClassDataClinit(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec) {
+    private static void emitClassDataClinit(ClassVisitor cv, ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec) {
         Handle classDataBoot = new Handle(
             Opcodes.H_INVOKESTATIC,
             "java/lang/invoke/MethodHandles",
@@ -620,23 +632,23 @@ public final class ConstantMethodResultSpecializer {
         MethodVisitor clinit = cv.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         clinit.visitCode();
         clinit.visitLdcInsn(condy);
-        clinit.visitFieldInsn(Opcodes.PUTSTATIC, spec.specializedInternalName(), spec.fieldName(), spec.fieldDescriptor());
+        clinit.visitFieldInsn(Opcodes.PUTSTATIC, spec.constantSpecializedInternalName(), spec.fieldName(), spec.fieldDescriptor());
         clinit.visitInsn(Opcodes.RETURN);
         clinit.visitMaxs(0, 0);
         clinit.visitEnd();
     }
 
     /**
-     * Mirror every public ctor of {@code base} as a forwarding ctor on the specialized subclass.
+     * Mirror every public ctor of {@code base} as a forwarding ctor on the constant-specialized subclass.
      *
      * <p>Equivalent Java (one such method per public ctor on the base):
      * <pre>{@code
-     *   public <Base>$Specialized(P1 p1, P2 p2, ..., Pn pn) {
+     *   public <Base>$ConstantSpecialized(P1 p1, P2 p2, ..., Pn pn) {
      *       super(p1, p2, ..., pn);
      *   }
      * }</pre>
      *
-     * <p>The specialized subclass holds no additional state — every parent ctor is mirrored verbatim
+     * <p>The constant-specialized subclass holds no additional state — every parent ctor is mirrored verbatim
      * with a chained {@code super(...)} call. Skips private ctors (defensive — codegen-emitted
      * evaluators never have them, but the loop should be local-safe).
      */
@@ -691,7 +703,7 @@ public final class ConstantMethodResultSpecializer {
      */
     private static void emitPrimitiveAccessor(
         ClassVisitor cv,
-        SpecializedClassShapeValidator.SpecializedClassSpec spec,
+        ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec,
         Class<?> primitive
     ) {
         int returnOp = primitive == long.class ? Opcodes.LRETURN
@@ -711,11 +723,15 @@ public final class ConstantMethodResultSpecializer {
      *   }
      * }</pre>
      */
-    private static void emitReferenceAccessor(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec) {
+    private static void emitReferenceAccessor(ClassVisitor cv, ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec) {
         emitAccessorBody(cv, spec, Opcodes.ARETURN);
     }
 
-    private static void emitAccessorBody(ClassVisitor cv, SpecializedClassShapeValidator.SpecializedClassSpec spec, int returnOp) {
+    private static void emitAccessorBody(
+        ClassVisitor cv,
+        ConstantSpecializedClassShapeValidator.ConstantSpecializedClassSpec spec,
+        int returnOp
+    ) {
         MethodVisitor m = cv.visitMethod(
             Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL,
             spec.accessorName(),
@@ -724,14 +740,14 @@ public final class ConstantMethodResultSpecializer {
             null
         );
         m.visitCode();
-        m.visitFieldInsn(Opcodes.GETSTATIC, spec.specializedInternalName(), spec.fieldName(), spec.fieldDescriptor());
+        m.visitFieldInsn(Opcodes.GETSTATIC, spec.constantSpecializedInternalName(), spec.fieldName(), spec.fieldDescriptor());
         m.visitInsn(returnOp);
         m.visitMaxs(0, 0);
         m.visitEnd();
     }
 
     private Class<?> defineHidden(Class<?> base, byte[] bytecode, Object classData) {
-        // Bytecode-shape drift is caught at *emission* time by SpecializedClassShapeValidator's
+        // Bytecode-shape drift is caught at *emission* time by ConstantSpecializedClassShapeValidator's
         // wrap (see emitSpecializedPrimitiveClass / emitSpecializedReferenceClass). On drift the validator throws
         // AssertionError, which deliberately bypasses spinOrCache's catch (RuntimeException)
         // and propagates uncaught — a drifted emitter is unsafe territory and we hard-fail
@@ -745,7 +761,7 @@ public final class ConstantMethodResultSpecializer {
             // JDK and get a hidden class in the existing module — so no entitlement grant is
             // required, unlike Painless's Compiler.Loader which needs create_class_loader.
             // The defense-in-depth concern (running unverified bytecode at runtime) is covered
-            // by SpecializedClassShapeValidator above, which hard-fails on any drift.
+            // by ConstantSpecializedClassShapeValidator above, which hard-fails on any drift.
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(base, MethodHandles.lookup());
             if (classData == null) {
                 return lookup.defineHiddenClass(bytecode, /* initialize */ true).lookupClass();

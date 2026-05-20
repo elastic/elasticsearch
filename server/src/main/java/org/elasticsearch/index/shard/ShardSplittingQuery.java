@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -300,6 +301,7 @@ public final class ShardSplittingQuery extends Query {
         final StoredFields storedFields;
         final BaseFieldVisitor storedFieldVisitor;
         final RoutingDocValuesReader routingDocValuesReader;
+        final ColumnarIdDocValuesReader columnarIdDocValuesReader;
         private String routing;
         private String id;
 
@@ -308,24 +310,42 @@ public final class ShardSplittingQuery extends Query {
             this.storedFields = leafReader.storedFields();
             FieldInfo routingFieldInfo = leafReader.getFieldInfos().fieldInfo(RoutingFieldMapper.NAME);
             boolean routingHasDocValues = routingFieldInfo != null && routingFieldInfo.getDocValuesType() == DocValuesType.SORTED;
-            if (routingHasDocValues) {
+            FieldInfo idFieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+            boolean idHasDocValues = idFieldInfo != null && idFieldInfo.getDocValuesType() == DocValuesType.BINARY;
+            if (routingHasDocValues && idHasDocValues) {
+                this.storedFieldVisitor = null;
+                this.routingDocValuesReader = new RoutingDocValuesReader(leafReader);
+                this.columnarIdDocValuesReader = new ColumnarIdDocValuesReader(leafReader);
+            } else if (idHasDocValues) {
+                this.storedFieldVisitor = new RoutingStoredFieldVisitor();
+                this.routingDocValuesReader = null;
+                this.columnarIdDocValuesReader = new ColumnarIdDocValuesReader(leafReader);
+            } else if (routingHasDocValues) {
                 this.storedFieldVisitor = new IdStoredFieldVisitor();
                 this.routingDocValuesReader = new RoutingDocValuesReader(leafReader);
+                this.columnarIdDocValuesReader = null;
             } else {
                 this.storedFieldVisitor = new IdAndRoutingStoredFieldVisitor();
                 this.routingDocValuesReader = null;
+                this.columnarIdDocValuesReader = null;
             }
         }
 
         boolean matches(int doc) throws IOException {
             routing = id = null;
-            storedFieldVisitor.reset();
-            storedFields.document(doc, storedFieldVisitor);
-            assert id != null : "docID must not be null - we might have hit a nested document";
+            if (storedFieldVisitor != null) {
+                storedFieldVisitor.reset();
+                storedFields.document(doc, storedFieldVisitor);
+            }
             if (routingDocValuesReader != null) {
                 assert routing == null;
                 routing = routingDocValuesReader.read(doc);
             }
+            if (columnarIdDocValuesReader != null) {
+                assert id == null;
+                id = columnarIdDocValuesReader.read(doc);
+            }
+            assert id != null : "docID must not be null - we might have hit a nested document";
             return shardMatcher.test(id, routing) == false;
         }
 
@@ -363,6 +383,34 @@ public final class ShardSplittingQuery extends Query {
                 // we don't support 5.x so no need for the uid field
                 switch (fieldInfo.name) {
                     case IdFieldMapper.NAME:
+                        leftToVisit--;
+                        return Status.YES;
+                    default:
+                        return leftToVisit == 0 ? Status.STOP : Status.NO;
+                }
+            }
+
+        }
+
+        final class RoutingStoredFieldVisitor extends BaseFieldVisitor {
+
+            RoutingStoredFieldVisitor() {
+                super(1);
+            }
+
+            @Override
+            public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+                switch (fieldInfo.name) {
+                    case RoutingFieldMapper.NAME -> routing = value;
+                    default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
+                }
+            }
+
+            @Override
+            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                // we don't support 5.x so no need for the uid field
+                switch (fieldInfo.name) {
+                    case RoutingFieldMapper.NAME:
                         leftToVisit--;
                         return Status.YES;
                     default:
@@ -416,6 +464,22 @@ public final class ShardSplittingQuery extends Query {
                     return docValues.lookupOrd(ordinal).utf8ToString();
                 }
                 return null;
+            }
+
+        }
+
+        static final class ColumnarIdDocValuesReader {
+
+            final BinaryDocValues docValues;
+
+            ColumnarIdDocValuesReader(LeafReader leafReader) throws IOException {
+                this.docValues = leafReader.getBinaryDocValues(IdFieldMapper.NAME);
+            }
+
+            public String read(int docId) throws IOException {
+                boolean found = docValues.advanceExact(docId);
+                assert found;
+                return Uid.decodeId(docValues.binaryValue());
             }
 
         }

@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ConstantMethodResultSpecializer;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -145,13 +145,13 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
 
     @Override
     public ModDoublesByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends ModDoublesByConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.doubleConstantSubclass(ModDoublesByConstantEvaluator.class, "rhs", this.rhs);
-      if (spunClassOpt.isPresent()) {
-        Class<? extends ModDoublesByConstantEvaluator> spunClass = spunClassOpt.get();
+      Optional<Class<? extends ModDoublesByConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeDouble(ModDoublesByConstantEvaluator.class, "rhs", this.rhs);
+      if (specializedClassOpt.isPresent()) {
+        Class<? extends ModDoublesByConstantEvaluator> specializedClass = specializedClassOpt.get();
         try {
-          return (ModDoublesByConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (ModDoublesByConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-          throw new IllegalStateException("failed to construct JIT-spun evaluator for ModDoublesByConstantEvaluator", e);
+          throw new IllegalStateException("failed to construct specialized evaluator for ModDoublesByConstantEvaluator", e);
         }
       }
       return new Standard(source, lhs.get(context), this.rhs, context);
@@ -164,10 +164,10 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
   }
 
   /**
-   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the spun subclass.
+   * runs correctly. The Factory chooses between this and the specialized subclass.
    */
   public static final class Standard extends ModDoublesByConstantEvaluator {
     private final double rhs;

@@ -32,19 +32,19 @@ import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
  *   <li>An override of the accessor on a runtime-generated hidden subclass with
  *       the value baked in as {@code static final} (primitive) or class data
  *       loaded via {@code condy} (reference) — see
- *       {@code org.elasticsearch.compute.operator.JitConstantSpinner}</li>
+ *       {@code org.elasticsearch.compute.operator.ConstantMethodResultSpecializer}</li>
  *   <li>The hot per-row loop calls {@code name()} (which the JIT inlines to the
  *       baked constant) instead of reading {@code this.name}</li>
- *   <li>The Factory's {@code get(DriverContext)} method uses the spinner to
+ *   <li>The Factory's {@code get(DriverContext)} method uses the specializer to
  *       materialise the per-value subclass and constructs an instance via
  *       reflection on the no-jit-args ctor</li>
  * </ul>
  */
-public record JitConstantFixedArgument(TypeName type, String name, boolean includeInToString, Fixed.Scope scope, boolean releasable)
+public record SpecializedFixedArgument(TypeName type, String name, boolean includeInToString, Fixed.Scope scope, boolean releasable)
     implements
         Argument {
 
-    public JitConstantFixedArgument {
+    public SpecializedFixedArgument {
         if (scope != Fixed.Scope.SINGLETON) {
             throw new IllegalArgumentException(
                 "@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ", scope: " + scope + ")"
@@ -80,13 +80,13 @@ public record JitConstantFixedArgument(TypeName type, String name, boolean inclu
         builder.addMethod(MethodSpec.methodBuilder(name).addModifiers(Modifier.PROTECTED, Modifier.ABSTRACT).returns(type).build());
     }
 
-    /** Factory still holds the value — needed to pass to the spinner. */
+    /** Factory still holds the value — needed to pass to the specializer. */
     @Override
     public void declareFactoryField(TypeSpec.Builder builder) {
         builder.addField(factoryFieldType(), name, Modifier.PRIVATE, Modifier.FINAL);
     }
 
-    /** Evaluator ctor takes no param for this — value lives on the spun subclass. */
+    /** Evaluator ctor takes no param for this — value lives on the specialized subclass. */
     @Override
     public void implementCtor(MethodSpec.Builder builder) {
         // no-op
@@ -107,7 +107,7 @@ public record JitConstantFixedArgument(TypeName type, String name, boolean inclu
 
     /**
      * Returns null because for jitConstant args we don't pass the value through the
-     * per-instance constructor — instead the factory's get() body uses the spinner
+     * per-instance constructor — instead the factory's get() body uses the specializer
      * (see EvaluatorImplementer.factoryGetWithJitConstants).
      */
     @Override
@@ -145,7 +145,7 @@ public record JitConstantFixedArgument(TypeName type, String name, boolean inclu
 
     @Override
     public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
-        // Evaluator side: no field exists, value lives on the spun subclass — call the accessor.
+        // Evaluator side: no field exists, value lives on the specialized subclass — call the accessor.
         if (includeInToString) {
             pattern.append(" + $S + $L()");
             args.add(prefix + name + "=");

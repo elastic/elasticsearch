@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ConstantMethodResultSpecializer;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -147,13 +147,13 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
     @Override
     public JsonExtractConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends JsonExtractConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.referenceConstantSubclass(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
-      if (spunClassOpt.isPresent()) {
-        Class<? extends JsonExtractConstantEvaluator> spunClass = spunClassOpt.get();
+      Optional<Class<? extends JsonExtractConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
+      if (specializedClassOpt.isPresent()) {
+        Class<? extends JsonExtractConstantEvaluator> specializedClass = specializedClassOpt.get();
         try {
-          return (JsonExtractConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, str.get(context), context);
+          return (JsonExtractConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-          throw new IllegalStateException("failed to construct JIT-spun evaluator for JsonExtractConstantEvaluator", e);
+          throw new IllegalStateException("failed to construct specialized evaluator for JsonExtractConstantEvaluator", e);
         }
       }
       return new Standard(source, str.get(context), this.path, context);
@@ -166,10 +166,10 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
   }
 
   /**
-   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the spun subclass.
+   * runs correctly. The Factory chooses between this and the specialized subclass.
    */
   public static final class Standard extends JsonExtractConstantEvaluator {
     private final JsonPath path;

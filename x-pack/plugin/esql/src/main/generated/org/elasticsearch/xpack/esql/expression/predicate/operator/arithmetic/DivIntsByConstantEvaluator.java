@@ -19,8 +19,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ConstantMethodResultSpecializer;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -134,13 +134,13 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
 
     @Override
     public DivIntsByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends DivIntsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.intConstantSubclass(DivIntsByConstantEvaluator.class, "rhs", this.rhs);
-      if (spunClassOpt.isPresent()) {
-        Class<? extends DivIntsByConstantEvaluator> spunClass = spunClassOpt.get();
+      Optional<Class<? extends DivIntsByConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeInt(DivIntsByConstantEvaluator.class, "rhs", this.rhs);
+      if (specializedClassOpt.isPresent()) {
+        Class<? extends DivIntsByConstantEvaluator> specializedClass = specializedClassOpt.get();
         try {
-          return (DivIntsByConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
+          return (DivIntsByConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, lhs.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-          throw new IllegalStateException("failed to construct JIT-spun evaluator for DivIntsByConstantEvaluator", e);
+          throw new IllegalStateException("failed to construct specialized evaluator for DivIntsByConstantEvaluator", e);
         }
       }
       return new Standard(source, lhs.get(context), this.rhs, context);
@@ -153,10 +153,10 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
   }
 
   /**
-   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the spun subclass.
+   * runs correctly. The Factory chooses between this and the specialized subclass.
    */
   public static final class Standard extends DivIntsByConstantEvaluator {
     private final int rhs;

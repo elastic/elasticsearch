@@ -64,7 +64,7 @@ public interface Argument {
 
     private static Argument fromFixed(TypeName type, String name, Fixed fixed, boolean releasable) {
         if (fixed.jitConstant()) {
-            return new JitConstantFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
+            return new SpecializedFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
         }
         return new FixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
     }
@@ -140,7 +140,7 @@ public interface Argument {
      * Add an abstract accessor method on the generated evaluator class for this argument's
      * value (typically {@code protected abstract T name()}).
      *
-     * <p>Only {@link JitConstantFixedArgument} overrides this. Its parameter intentionally
+     * <p>Only {@link SpecializedFixedArgument} overrides this. Its parameter intentionally
      * has no instance field on the evaluator — the accessor is the seam that the
      * spinner-generated hidden subclass overrides to return the JIT-baked constant, and
      * that the {@code Standard} subclass overrides to return a regular instance field.
@@ -280,7 +280,7 @@ public interface Argument {
     /**
      * Accumulate invocation pattern and arguments to implement {@link Object#toString()}
      * on the generated Factory. Defaults to the evaluator variant; overridden by
-     * {@code JitConstantFixedArgument} because the Factory still holds the value as
+     * {@code SpecializedFixedArgument} because the Factory still holds the value as
      * a regular field (only the evaluator side moved to an abstract accessor).
      */
     default void buildToStringInvocationFromFactory(StringBuilder pattern, List<Object> args, String prefix) {

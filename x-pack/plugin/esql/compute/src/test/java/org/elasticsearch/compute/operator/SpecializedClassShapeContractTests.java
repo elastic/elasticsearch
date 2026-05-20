@@ -19,26 +19,26 @@ import org.objectweb.asm.Type;
 import java.util.function.Consumer;
 
 /**
- * STOP. These tests assert the exact bytecode shape that {@link JitConstantSpinner} emits
- * at runtime, via {@link SpunClassShapeValidator}. If you arrived here because you changed
- * the spinner's codegen and a test below now fails, the failure is the point. The spun
+ * STOP. These tests assert the exact bytecode shape that {@link ConstantMethodResultSpecializer} emits
+ * at runtime, via {@link SpecializedClassShapeValidator}. If you arrived here because you changed
+ * the specializer's codegen and a test below now fails, the failure is the point. The spun
  * class runs with the compute module's privileges, so its shape is intentionally locked
  * down to a narrow allowlist (load constant, super-ctor call, return — that's it). Future
- * drift cannot quietly widen what a spun class is allowed to do, and a drift hit at runtime
- * throws {@link AssertionError} on purpose so the spinner cannot silently degrade to the
+ * drift cannot quietly widen what a specialized class is allowed to do, and a drift hit at runtime
+ * throws {@link AssertionError} on purpose so the specializer cannot silently degrade to the
  * codegen Standard path.
  *
  * <p>Do not delete or relax an assertion to make this green. If your change is a legitimate
  * widening of the allowlist (for example a new value type that requires one additional
- * opcode), update {@link SpunClassShapeValidator} first with a comment justifying why the
+ * opcode), update {@link SpecializedClassShapeValidator} first with a comment justifying why the
  * new shape is safe, then update this file in the same commit. No silent fixes.
  *
- * <p>These tests live in a separate file from {@link JitConstantSpinnerTests} so that
- * "modify the spinner, modify the spinner tests" reflex doesn't sweep these up. The drift
- * guard is a second pair of eyes; conflating it with the same file the spinner author
+ * <p>These tests live in a separate file from {@link ConstantMethodResultSpecializerTests} so that
+ * "modify the specializer, modify the specializer tests" reflex doesn't sweep these up. The drift
+ * guard is a second pair of eyes; conflating it with the same file the specializer author
  * edits defeats the intent.
  */
-public class SpunClassShapeContractTests extends ESTestCase {
+public class SpecializedClassShapeContractTests extends ESTestCase {
 
     /** A test base class with one no-arg public ctor and an abstract long accessor. */
     public abstract static class LongBase {
@@ -49,11 +49,11 @@ public class SpunClassShapeContractTests extends ESTestCase {
 
     // ===== Shared helpers =====
 
-    /** Build the canonical "good" primitive long spec the spinner emits for LongBase / divisor. */
-    private static SpunClassShapeValidator.SpunClassSpec longSpec() {
-        return new SpunClassShapeValidator.SpunClassSpec(
+    /** Build the canonical "good" primitive long spec the specializer emits for LongBase / divisor. */
+    private static SpecializedClassShapeValidator.SpecializedClassSpec longSpec() {
+        return new SpecializedClassShapeValidator.SpecializedClassSpec(
             LongBase.class,
-            Type.getInternalName(LongBase.class) + "$Spun",
+            Type.getInternalName(LongBase.class) + "$Specialized",
             "divisor",
             "()J",
             "CONST_DIVISOR",
@@ -67,8 +67,8 @@ public class SpunClassShapeContractTests extends ESTestCase {
     /** Emit a canonical "good" primitive-long class against {@code cw} (no guard). */
     private static void writeCanonicalGoodPrimitiveLongClass(ClassWriter cw) {
         String baseInternal = Type.getInternalName(LongBase.class);
-        String spunInternal = baseInternal + "$Spun";
-        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
+        String specializedInternal = baseInternal + "$Specialized";
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, specializedInternal, null, baseInternal, null);
         cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
         MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
         ctor.visitCode();
@@ -79,7 +79,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
         ctor.visitEnd();
         MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, "divisor", "()J", null, null);
         m.visitCode();
-        m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, "CONST_DIVISOR", "J");
+        m.visitFieldInsn(Opcodes.GETSTATIC, specializedInternal, "CONST_DIVISOR", "J");
         m.visitInsn(Opcodes.LRETURN);
         m.visitMaxs(0, 0);
         m.visitEnd();
@@ -87,8 +87,8 @@ public class SpunClassShapeContractTests extends ESTestCase {
     }
 
     /** Assert the validator rejects {@code bytecode} with a message containing {@code expectedFragment}. */
-    private static void assertRejects(byte[] bytecode, SpunClassShapeValidator.SpunClassSpec spec, String expectedFragment) {
-        AssertionError err = expectThrows(AssertionError.class, () -> SpunClassShapeValidator.validate(bytecode, spec));
+    private static void assertRejects(byte[] bytecode, SpecializedClassShapeValidator.SpecializedClassSpec spec, String expectedFragment) {
+        AssertionError err = expectThrows(AssertionError.class, () -> SpecializedClassShapeValidator.validate(bytecode, spec));
         assertTrue(
             "drift message [" + err.getMessage() + "] must contain [" + expectedFragment + "]",
             err.getMessage() != null && err.getMessage().contains(expectedFragment)
@@ -102,15 +102,15 @@ public class SpunClassShapeContractTests extends ESTestCase {
         return cw.toByteArray();
     }
 
-    // ===== Positive: every shape the spinner actually emits is accepted =====
+    // ===== Positive: every shape the specializer actually emits is accepted =====
 
     public void testAcceptsCanonicalGoodShape() {
-        byte[] bytes = withMutation(SpunClassShapeContractTests::writeCanonicalGoodPrimitiveLongClass);
-        SpunClassShapeValidator.validate(bytes, longSpec());
+        byte[] bytes = withMutation(SpecializedClassShapeContractTests::writeCanonicalGoodPrimitiveLongClass);
+        SpecializedClassShapeValidator.validate(bytes, longSpec());
     }
 
     public void testCountPublicCtorsReportsExpected() {
-        assertEquals(1, SpunClassShapeValidator.countPublicCtors(LongBase.class));
+        assertEquals(1, SpecializedClassShapeValidator.countPublicCtors(LongBase.class));
     }
 
     // ===== Negative: CLASS-LEVEL drift =====
@@ -120,7 +120,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 "java/lang/Object",
                 null
@@ -135,7 +135,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             c.visitEnd();
             MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, "divisor", "()J", null, null);
             m.visitCode();
-            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Spun", "CONST_DIVISOR", "J");
+            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Specialized", "CONST_DIVISOR", "J");
             m.visitInsn(Opcodes.LRETURN);
             m.visitMaxs(0, 0);
             m.visitEnd();
@@ -149,7 +149,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 new String[] { "java/lang/Runnable" }
@@ -163,7 +163,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC, // missing FINAL | SUPER
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -177,7 +177,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V17,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -191,7 +191,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 "L" + Type.getInternalName(LongBase.class) + "<TT;>;",
                 Type.getInternalName(LongBase.class),
                 null
@@ -205,7 +205,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -220,7 +220,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -235,7 +235,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -250,7 +250,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -265,7 +265,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -280,7 +280,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
             cw.visit(
                 Opcodes.V21,
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-                Type.getInternalName(LongBase.class) + "$Spun",
+                Type.getInternalName(LongBase.class) + "$Specialized",
                 null,
                 Type.getInternalName(LongBase.class),
                 null
@@ -300,7 +300,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
         // Build a shape that emits two fields directly:
         byte[] twoFields = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "EXTRA", "J", null, 0L).visitEnd();
@@ -311,7 +311,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsWrongFieldName() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "NOT_CONST_DIVISOR", "J", null, 60L).visitEnd();
         });
@@ -321,7 +321,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsWrongFieldDescriptor() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "I", null, 60).visitEnd();
         });
@@ -331,7 +331,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsWrongFieldAccess() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             // Missing FINAL — declares mutable.
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "CONST_DIVISOR", "J", null, 60L).visitEnd();
@@ -342,7 +342,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsFieldGenericSignature() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", "TT;", 60L).visitEnd();
         });
@@ -358,7 +358,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
         });
         byte[] extra = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             MethodVisitor c = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -387,7 +387,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsSecondAccessor() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             MethodVisitor c = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -412,7 +412,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsWrongCtorAccess() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             // ctor declared private — spinner promises public
@@ -430,7 +430,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsWrongAccessorAccess() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             MethodVisitor c = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -454,7 +454,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsUnexpectedMethodName() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             MethodVisitor c = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -478,7 +478,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsMissingAccessor() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             MethodVisitor c = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -496,7 +496,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsUnexpectedClinitForPrimitive() {
         byte[] bytes = withMutation(cw -> {
             String b = Type.getInternalName(LongBase.class);
-            String s = b + "$Spun";
+            String s = b + "$Specialized";
             cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
             cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
             MethodVisitor c = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -522,7 +522,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     private static byte[] withAccessorBody(Consumer<MethodVisitor> body) {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         String b = Type.getInternalName(LongBase.class);
-        String s = b + "$Spun";
+        String s = b + "$Specialized";
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, s, null, b, null);
         cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_DIVISOR", "J", null, 60L).visitEnd();
         MethodVisitor c = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -542,7 +542,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     }
 
     /**
-     * Drive the body through {@link SpunClassShapeValidator#guarding} directly, bypassing
+     * Drive the body through {@link SpecializedClassShapeValidator#guarding} directly, bypassing
      * ClassWriter+ClassReader. Use this when the test wants to verify a specific {@code visit*}
      * override fires — building real bytecode requires valid stack/frame setup which would
      * tickle our allowlist before the intended op (e.g. you can't push an int on stack for
@@ -550,12 +550,15 @@ public class SpunClassShapeContractTests extends ESTestCase {
      * which override we're checking.
      */
     private static void assertGuardRejectsBody(Consumer<MethodVisitor> body, String expectedFragment) {
-        SpunClassShapeValidator.SpunClassSpec spec = longSpec();
-        org.objectweb.asm.ClassVisitor guard = SpunClassShapeValidator.guarding(new org.objectweb.asm.ClassVisitor(Opcodes.ASM9) {}, spec);
+        SpecializedClassShapeValidator.SpecializedClassSpec spec = longSpec();
+        org.objectweb.asm.ClassVisitor guard = SpecializedClassShapeValidator.guarding(
+            new org.objectweb.asm.ClassVisitor(Opcodes.ASM9) {},
+            spec
+        );
         guard.visit(
             Opcodes.V21,
             Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER,
-            spec.spunInternalName(),
+            spec.specializedInternalName(),
             null,
             spec.expectedSuperInternalName(),
             null
@@ -649,15 +652,15 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsPutfield() {
         assertGuardRejectsBody(m -> {
             m.visitVarInsn(Opcodes.ALOAD, 0);
-            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Spun", "CONST_DIVISOR", "J");
-            m.visitFieldInsn(Opcodes.PUTFIELD, Type.getInternalName(LongBase.class) + "$Spun", "CONST_DIVISOR", "J");
+            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Specialized", "CONST_DIVISOR", "J");
+            m.visitFieldInsn(Opcodes.PUTFIELD, Type.getInternalName(LongBase.class) + "$Specialized", "CONST_DIVISOR", "J");
         }, "field-insn");
     }
 
     public void testRejectsGetfield() {
         byte[] bytes = withAccessorBody(m -> {
             m.visitVarInsn(Opcodes.ALOAD, 0);
-            m.visitFieldInsn(Opcodes.GETFIELD, Type.getInternalName(LongBase.class) + "$Spun", "CONST_DIVISOR", "J");
+            m.visitFieldInsn(Opcodes.GETFIELD, Type.getInternalName(LongBase.class) + "$Specialized", "CONST_DIVISOR", "J");
             m.visitInsn(Opcodes.LRETURN);
         });
         assertRejects(bytes, longSpec(), "field-insn");
@@ -665,8 +668,8 @@ public class SpunClassShapeContractTests extends ESTestCase {
 
     public void testRejectsPutstaticOutsideClinit() {
         assertGuardRejectsBody(m -> {
-            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Spun", "CONST_DIVISOR", "J");
-            m.visitFieldInsn(Opcodes.PUTSTATIC, Type.getInternalName(LongBase.class) + "$Spun", "CONST_DIVISOR", "J");
+            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Specialized", "CONST_DIVISOR", "J");
+            m.visitFieldInsn(Opcodes.PUTSTATIC, Type.getInternalName(LongBase.class) + "$Specialized", "CONST_DIVISOR", "J");
         }, "field-insn");
     }
 
@@ -680,7 +683,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
 
     public void testRejectsFieldOpOnWrongFieldName() {
         byte[] bytes = withAccessorBody(m -> {
-            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Spun", "OTHER_FIELD", "J");
+            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Specialized", "OTHER_FIELD", "J");
             m.visitInsn(Opcodes.LRETURN);
         });
         assertRejects(bytes, longSpec(), "unexpected field");
@@ -803,7 +806,7 @@ public class SpunClassShapeContractTests extends ESTestCase {
     public void testRejectsStoreInsn() {
         // ASTORE etc. would let a method spill state to a local — we never do this.
         assertGuardRejectsBody(m -> {
-            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Spun", "CONST_DIVISOR", "J");
+            m.visitFieldInsn(Opcodes.GETSTATIC, Type.getInternalName(LongBase.class) + "$Specialized", "CONST_DIVISOR", "J");
             m.visitVarInsn(Opcodes.LSTORE, 1);
         }, "var-insn");
     }

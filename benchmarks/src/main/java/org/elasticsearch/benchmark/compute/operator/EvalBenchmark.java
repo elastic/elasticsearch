@@ -106,7 +106,7 @@ public class EvalBenchmark {
         // case for every query past the first one for a given constant). The admission
         // filter's protection against high-cardinality workloads is measured separately
         // by the dedicated stress harness (sweep/AdmissionStress.java).
-        org.elasticsearch.compute.operator.JitConstantSpinner.setAdmissionThreshold(1);
+        org.elasticsearch.compute.operator.ConstantMethodResultSpecializer.setAdmissionThreshold(1);
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)

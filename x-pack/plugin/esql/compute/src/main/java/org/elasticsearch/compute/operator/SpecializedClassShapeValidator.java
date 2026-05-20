@@ -25,9 +25,9 @@ import org.objectweb.asm.TypePath;
 import java.lang.reflect.Modifier;
 
 /**
- * Structural drift guard for {@link JitConstantSpinner}'s emitted hidden classes.
+ * Structural drift guard for {@link ConstantMethodResultSpecializer}'s emitted hidden classes.
  *
- * <p>The spinner emits an extremely narrow class shape per spun subclass: one mirror
+ * <p>The specializer emits an extremely narrow class shape per specialized subclass: one mirror
  * of each public base constructor (chained super call, no body), one constant-returning
  * accessor that reads a {@code static final} field and returns it, and — for reference
  * constants — one {@code <clinit>} that loads a {@code ConstantDynamic} via condy and
@@ -35,14 +35,14 @@ import java.lang.reflect.Modifier;
  * classes, no annotations, no module/nest/record metadata, no debug attributes, no
  * control flow inside method bodies, no foreign method calls, no instance field access.
  *
- * <p>This validator wraps a {@link ClassVisitor} (production: the spinner's
+ * <p>This validator wraps a {@link ClassVisitor} (production: the specializer's
  * {@code ClassWriter}; tests: a no-op delegate) and asserts every {@code visit*} call
  * against that shape <em>at emit time</em>, before the bytecode is assembled or the
  * hidden class loaded. Anything that doesn't match throws {@link AssertionError}
  * synchronously.
  *
  * <p><b>Drift is treated as a hard failure on purpose.</b> {@link AssertionError} is
- * deliberately chosen so that the spinner's outer {@code catch (RuntimeException)}
+ * deliberately chosen so that the specializer's outer {@code catch (RuntimeException)}
  * (which routes ordinary spin failures to the codegen Standard) does <em>not</em>
  * catch it. A drifted emitter is unsafe territory — silently degrading to Standard
  * would mask the problem and leave the codebase one PR away from a real defect. The
@@ -51,19 +51,19 @@ import java.lang.reflect.Modifier;
  * escalates to a node-level halt. Better to crash visibly now than emit something we
  * didn't expect into a JVM-loaded hidden class.
  *
- * <p>The validator is kept in its own class on purpose. Drift in {@code JitConstantSpinner}
+ * <p>The validator is kept in its own class on purpose. Drift in {@code ConstantMethodResultSpecializer}
  * itself is exactly what this is meant to catch; conflating "what we emit" with "what we
  * promised to emit" in a single file would defeat the second-pair-of-eyes intent.
  */
-final class SpunClassShapeValidator {
+final class SpecializedClassShapeValidator {
 
     /**
-     * Immutable contract describing the exact shape we promise to emit for one spun class.
-     * The spinner constructs one of these per spin and passes it to {@link #guarding}.
+     * Immutable contract describing the exact shape we promise to emit for one specialized class.
+     * The specializer constructs one of these per spin and passes it to {@link #guarding}.
      */
-    record SpunClassSpec(
+    record SpecializedClassSpec(
         Class<?> baseClass,
-        String spunInternalName,
+        String specializedInternalName,
         String accessorName,
         String accessorDescriptor,
         String fieldName,
@@ -77,10 +77,10 @@ final class SpunClassShapeValidator {
         }
     }
 
-    private SpunClassShapeValidator() {}
+    private SpecializedClassShapeValidator() {}
 
-    /** Production entry: every {@code visit*} the spinner calls on the returned visitor is asserted. */
-    static ClassVisitor guarding(ClassVisitor delegate, SpunClassSpec spec) {
+    /** Production entry: every {@code visit*} the specializer calls on the returned visitor is asserted. */
+    static ClassVisitor guarding(ClassVisitor delegate, SpecializedClassSpec spec) {
         return new GuardingClassVisitor(delegate, spec);
     }
 
@@ -89,7 +89,7 @@ final class SpunClassShapeValidator {
      * it through the same guard with a no-op delegate. Production never calls this —
      * {@link #guarding} is the active check at emit time.
      */
-    static void validate(byte[] bytecode, SpunClassSpec spec) {
+    static void validate(byte[] bytecode, SpecializedClassSpec spec) {
         new ClassReader(bytecode).accept(new GuardingClassVisitor(new ClassVisitor(Opcodes.ASM9) {}, spec), ClassReader.SKIP_FRAMES);
     }
 
@@ -102,14 +102,14 @@ final class SpunClassShapeValidator {
     private static final int EXPECTED_CLINIT_ACCESS = Opcodes.ACC_STATIC;
 
     private static final class GuardingClassVisitor extends ClassVisitor {
-        private final SpunClassSpec spec;
+        private final SpecializedClassSpec spec;
         private int fieldCount = 0;
         private int ctorCount = 0;
         private int accessorCount = 0;
         private int clinitCount = 0;
         private boolean visitedHeader = false;
 
-        GuardingClassVisitor(ClassVisitor delegate, SpunClassSpec spec) {
+        GuardingClassVisitor(ClassVisitor delegate, SpecializedClassSpec spec) {
             super(Opcodes.ASM9, delegate);
             this.spec = spec;
         }
@@ -125,17 +125,17 @@ final class SpunClassShapeValidator {
                     "class access is 0x" + Integer.toHexString(access) + ", expected 0x" + Integer.toHexString(EXPECTED_CLASS_ACCESS)
                 );
             }
-            if (spec.spunInternalName.equals(name) == false) {
-                throw drift("class internal name is [" + name + "], expected [" + spec.spunInternalName + "]");
+            if (spec.specializedInternalName.equals(name) == false) {
+                throw drift("class internal name is [" + name + "], expected [" + spec.specializedInternalName + "]");
             }
             if (spec.expectedSuperInternalName().equals(superName) == false) {
                 throw drift("super class is [" + superName + "], expected [" + spec.expectedSuperInternalName() + "]");
             }
             if (interfaces != null && interfaces.length > 0) {
-                throw drift("spun class declares interfaces " + java.util.Arrays.toString(interfaces) + " (none allowed)");
+                throw drift("specialized class declares interfaces " + java.util.Arrays.toString(interfaces) + " (none allowed)");
             }
             if (signature != null) {
-                throw drift("spun class declares a generic signature (none allowed)");
+                throw drift("specialized class declares a generic signature (none allowed)");
             }
             super.visit(version, access, name, signature, superName, interfaces);
         }
@@ -306,7 +306,9 @@ final class SpunClassShapeValidator {
         }
 
         private AssertionError drift(String what) {
-            return new AssertionError("JitConstantSpinner shape drift in spun [" + spec.spunInternalName + "]: " + what);
+            return new AssertionError(
+                "ConstantMethodResultSpecializer shape drift in spun [" + spec.specializedInternalName + "]: " + what
+            );
         }
     }
 
@@ -337,10 +339,10 @@ final class SpunClassShapeValidator {
 
     private static final class GuardingMethodVisitor extends MethodVisitor {
         private final String mName;
-        private final SpunClassSpec spec;
+        private final SpecializedClassSpec spec;
         private final String expectedSuper;
 
-        GuardingMethodVisitor(MethodVisitor delegate, String mName, SpunClassSpec spec) {
+        GuardingMethodVisitor(MethodVisitor delegate, String mName, SpecializedClassSpec spec) {
             super(Opcodes.ASM9, delegate);
             this.mName = mName;
             this.spec = spec;
@@ -369,7 +371,7 @@ final class SpunClassShapeValidator {
 
         @Override
         public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
-            if (spec.spunInternalName.equals(owner) == false) {
+            if (spec.specializedInternalName.equals(owner) == false) {
                 throw drift("field op on foreign owner [" + owner + "]");
             }
             if (spec.fieldName.equals(name) == false) {
@@ -531,12 +533,12 @@ final class SpunClassShapeValidator {
 
         private AssertionError drift(String what) {
             return new AssertionError(
-                "JitConstantSpinner shape drift in spun [" + spec.spunInternalName + "] method [" + mName + "]: " + what
+                "ConstantMethodResultSpecializer shape drift in spun [" + spec.specializedInternalName + "] method [" + mName + "]: " + what
             );
         }
     }
 
-    // Used only by tests that build a SpunClassSpec from a base class to compute expected ctor count.
+    // Used only by tests that build a SpecializedClassSpec from a base class to compute expected ctor count.
     static int countPublicCtors(Class<?> base) {
         int n = 0;
         for (var c : base.getConstructors()) {

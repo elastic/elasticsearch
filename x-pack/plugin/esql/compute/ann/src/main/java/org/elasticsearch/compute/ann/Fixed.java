@@ -36,7 +36,7 @@ public @interface Fixed {
      * Adopts JIT-time constant folding for this parameter. The annotation processor
      * emits a class shape where the generated evaluator becomes abstract over this
      * parameter, and the Factory materialises a per-distinct-value subclass via
-     * {@code org.elasticsearch.compute.operator.JitConstantSpinner} with the value
+     * {@code org.elasticsearch.compute.operator.ConstantMethodResultSpecializer} with the value
      * baked in as {@code static final} (primitive) or class-data condy (reference).
      * This unlocks C2's constant-folding optimizations including Granlund-Montgomery
      * strength reduction for integer divide / modulo.
@@ -53,7 +53,7 @@ public @interface Fixed {
      *       attempted adoptions; the framework's value is making this experiment
      *       cheap, not guaranteeing wins.</li>
      *
-     *   <li><b>Cardinality is bounded by the admission filter + GC.</b> The spinner's
+     *   <li><b>Cardinality is bounded by the admission filter + GC.</b> The specializer's
      *       admission filter (default threshold = 2) refuses to spin for first-time
      *       keys — the codegen Factory routes them to a {@code Standard} subclass
      *       (regular instance field, no JIT folding, runs slower but runs).
@@ -63,7 +63,7 @@ public @interface Fixed {
      *       ({@code rhs} in {@code MOD x BY 60}, {@code prefix} in {@code STARTS_WITH(s, "foo")},
      *       a fixed regex pattern). It is still <b>sub-optimal</b> for parameters
      *       that could be user-supplied literals varying per session, query, or
-     *       field — the admission filter prevents the spin tax (each spin is ~13 μs
+     *       field — the admission filter prevents the specialization tax (each spin is ~13 μs
      *       in steady state, post-JIT-warmup), but those queries pay the
      *       no-JIT-folding cost for their first execution. <b>Flag parameters
      *       whose values are bounded in practice</b> — typically ≤thousands per

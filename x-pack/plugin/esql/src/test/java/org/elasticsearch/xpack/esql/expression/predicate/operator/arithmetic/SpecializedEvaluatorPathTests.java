@@ -14,8 +14,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ConstantMethodResultSpecializer;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -27,8 +27,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * End-to-end exercise of the generated evaluator's two execution paths under
- * {@code @Fixed(jitConstant=true)}: the spun subclass produced by
- * {@link JitConstantSpinner} (fast path, constant folded at JIT time) and the
+ * {@code @Fixed(jitConstant=true)}: the specialized subclass produced by
+ * {@link ConstantMethodResultSpecializer} (fast path, constant folded at JIT time) and the
  * {@code Standard} nested subclass (admission-rejected fallback that stores the
  * constant in a regular instance field).
  *
@@ -39,20 +39,20 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * <p>Uses {@link ModLongsByConstantEvaluator} as a representative; the
  * machinery is shared across all five JIT-constant ops, so one canary suffices.
- * The {@link JitConstantSpinner#SHARED} singleton is reset in {@code @After}
+ * The {@link ConstantMethodResultSpecializer#SHARED} singleton is reset in {@code @After}
  * since these tests mutate its admission threshold to force each path.
  */
-public class JitConstantEvaluatorPathTests extends ESTestCase {
+public class SpecializedEvaluatorPathTests extends ESTestCase {
 
     @After
     public void resetSharedSpinner() {
-        JitConstantSpinner.SHARED.resetForTest();
+        ConstantMethodResultSpecializer.SHARED.resetForTest();
     }
 
     public void testStandardPathLabeledAndComputes() {
         // Admission threshold above any plausible access count → spinner returns empty,
         // Factory.get() routes to the Standard nested subclass.
-        JitConstantSpinner.SHARED.setAdmissionThreshold(Integer.MAX_VALUE);
+        ConstantMethodResultSpecializer.SHARED.setAdmissionThreshold(Integer.MAX_VALUE);
 
         long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
         long[] lhsValues = new long[] { 0L, 1L, randomLong(), randomLong(), randomLong() };
@@ -71,7 +71,7 @@ public class JitConstantEvaluatorPathTests extends ESTestCase {
     public void testSpunPathLabeledAndComputes() {
         // Admission threshold = 1 → first access is admitted, spinner produces the
         // hidden subclass, Factory.get() returns the spun instance.
-        JitConstantSpinner.SHARED.setAdmissionThreshold(1);
+        ConstantMethodResultSpecializer.SHARED.setAdmissionThreshold(1);
 
         long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
         long[] lhsValues = new long[] { 0L, 1L, randomLong(), randomLong(), randomLong() };

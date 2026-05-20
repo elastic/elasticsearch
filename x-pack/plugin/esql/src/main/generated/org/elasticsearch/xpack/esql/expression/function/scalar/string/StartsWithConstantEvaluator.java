@@ -22,8 +22,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ConstantMethodResultSpecializer;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.JitConstantSpinner;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -139,13 +139,13 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public StartsWithConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends StartsWithConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.referenceConstantSubclass(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
-      if (spunClassOpt.isPresent()) {
-        Class<? extends StartsWithConstantEvaluator> spunClass = spunClassOpt.get();
+      Optional<Class<? extends StartsWithConstantEvaluator>> specializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
+      if (specializedClassOpt.isPresent()) {
+        Class<? extends StartsWithConstantEvaluator> specializedClass = specializedClassOpt.get();
         try {
-          return (StartsWithConstantEvaluator) spunClass.getConstructors()[0].newInstance(source, str.get(context), context);
+          return (StartsWithConstantEvaluator) specializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-          throw new IllegalStateException("failed to construct JIT-spun evaluator for StartsWithConstantEvaluator", e);
+          throw new IllegalStateException("failed to construct specialized evaluator for StartsWithConstantEvaluator", e);
         }
       }
       return new Standard(source, str.get(context), this.prefix, context);
@@ -158,10 +158,10 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
   }
 
   /**
-   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
-   * runs correctly. The Factory chooses between this and the spun subclass.
+   * runs correctly. The Factory chooses between this and the specialized subclass.
    */
   public static final class Standard extends StartsWithConstantEvaluator {
     private final BytesRef prefix;

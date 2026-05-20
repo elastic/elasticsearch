@@ -19,7 +19,7 @@ import org.elasticsearch.compute.gen.argument.Argument;
 import org.elasticsearch.compute.gen.argument.BlockArgument;
 import org.elasticsearch.compute.gen.argument.BuilderArgument;
 import org.elasticsearch.compute.gen.argument.FixedArgument;
-import org.elasticsearch.compute.gen.argument.JitConstantFixedArgument;
+import org.elasticsearch.compute.gen.argument.SpecializedFixedArgument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,10 +35,10 @@ import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.CONSTANT_METHOD_RESULT_SPECIALIZER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
-import static org.elasticsearch.compute.gen.Types.JIT_CONSTANT_SPINNER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.RAM_USAGE_ESIMATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -94,7 +94,7 @@ public class EvaluatorImplementer {
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", EXPRESSION_EVALUATOR, declarationType);
         builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
         // When any argument is @Fixed(jitConstant=true), the class becomes non-final + abstract so
-        // JitConstantSpinner can produce per-value hidden subclasses overriding the abstract
+        // ConstantMethodResultSpecializer can produce per-value hidden subclasses overriding the abstract
         // accessor methods with the value baked in as a JIT-time constant.
         boolean hasJitConstant = processFunction.args.stream().anyMatch(Argument::isJitConstant);
         if (hasJitConstant) {
@@ -116,8 +116,8 @@ public class EvaluatorImplementer {
 
         if (hasJitConstant) {
             builder.addType(standard(parentCtor));
-            // pathLabel() default; the Standard subclass overrides it, the spun subclass
-            // inherits this default. Read by toString() to make spun vs Standard visible
+            // pathLabel() default; the Standard subclass overrides it, the specialized subclass
+            // inherits this default. Read by toString() to make specialized vs Standard visible
             // in ESQL PROFILE output without any class-name string matching.
             builder.addMethod(
                 MethodSpec.methodBuilder("pathLabel")
@@ -311,17 +311,17 @@ public class EvaluatorImplementer {
     }
 
     /**
-     * Concrete non-spun subclass for the abstract jit-constant evaluator. Used when
-     * {@code JitConstantSpinner} returns {@code Optional.empty()} (admission filter
-     * rejected the spin for a first-time key). Stores the constant in a regular instance
+     * Concrete non-specialized subclass for the abstract jit-constant evaluator. Used when
+     * {@code ConstantMethodResultSpecializer} returns {@code Optional.empty()} (admission filter
+     * rejected the specialization for a first-time key). Stores the constant in a regular instance
      * field — no JIT-time constant folding occurs — but the per-row work still executes
      * correctly. Named {@code Standard} because this is the deliberate non-JIT path for
      * low-cardinality constants, not a failure-mode standard.
      */
     private TypeSpec standard(MethodSpec parentCtor) {
-        JitConstantFixedArgument jit = processFunction.args.stream()
+        SpecializedFixedArgument jit = processFunction.args.stream()
             .filter(Argument::isJitConstant)
-            .map(a -> (JitConstantFixedArgument) a)
+            .map(a -> (SpecializedFixedArgument) a)
             .findFirst()
             .orElseThrow();
 
@@ -330,11 +330,11 @@ public class EvaluatorImplementer {
             .superclass(implementation);
 
         builder.addJavadoc(
-            "Concrete non-spun subclass used when {@link $T} returns {@code Optional.empty()}\n"
+            "Concrete non-specialized subclass used when {@link $T} returns {@code Optional.empty()}\n"
                 + "(admission filter rejected the spin). The constant lives in a regular\n"
                 + "instance field — no JIT-time constant folding, but the per-row work\n"
-                + "runs correctly. The Factory chooses between this and the spun subclass.\n",
-            JIT_CONSTANT_SPINNER
+                + "runs correctly. The Factory chooses between this and the specialized subclass.\n",
+            CONSTANT_METHOD_RESULT_SPECIALIZER
         );
 
         // Instance field for the jit constant.
@@ -368,7 +368,7 @@ public class EvaluatorImplementer {
                 .build()
         );
 
-        // Override pathLabel() to identify this as the non-spun path in profile output.
+        // Override pathLabel() to identify this as the non-specialized path in profile output.
         builder.addMethod(
             MethodSpec.methodBuilder("pathLabel")
                 .addAnnotation(Override.class)
@@ -484,7 +484,7 @@ public class EvaluatorImplementer {
             pattern.append(" + $S");
             args.add("]");
             // For jit-constant evaluators, append " (jit-folded)" or " (standard)" via the
-            // pathLabel() override so the ESQL PROFILE output distinguishes the spun path
+            // pathLabel() override so the ESQL PROFILE output distinguishes the specialized path
             // from the Standard path. Factory's toString doesn't get the marker — the
             // factory itself isn't an evaluator; it constructs one per Driver.
             boolean hasJitConstant = this.args.stream().anyMatch(Argument::isJitConstant);
@@ -520,7 +520,7 @@ public class EvaluatorImplementer {
             }
             ctorArgs.add("context");
 
-            JitConstantFixedArgument jit = null;
+            SpecializedFixedArgument jit = null;
             for (Argument a : this.args) {
                 if (a.isJitConstant()) {
                     if (jit != null) {
@@ -528,7 +528,7 @@ public class EvaluatorImplementer {
                             "@Fixed(jitConstant=true) supported on at most one parameter per @Evaluator method"
                         );
                     }
-                    jit = (JitConstantFixedArgument) a;
+                    jit = (SpecializedFixedArgument) a;
                 }
             }
 
@@ -537,19 +537,19 @@ public class EvaluatorImplementer {
                 return builder.build();
             }
 
-            // Spinner-based construction with admission-aware standard.
-            // The spinner may return Optional.empty() if the admission filter rejected
+            // Specializer-based construction with admission-aware standard.
+            // The specializer may return Optional.empty() if the admission filter rejected
             // this constant (first-time key, count < threshold). In that case we route
             // to the Standard nested class — same evaluator, regular instance field for
             // the constant, no JIT folding. The Factory hides this from callers.
-            String spinMethod = primitiveSpinnerMethod(jit.type());
+            String spinMethod = primitiveSpecializeMethod(jit.type());
             if (spinMethod != null) {
                 builder.addStatement(
-                    "$T<$T<? extends $T>> spunClassOpt = $T.SHARED.$L($T.class, $S, this.$L)",
+                    "$T<$T<? extends $T>> specializedClassOpt = $T.SHARED.$L($T.class, $S, this.$L)",
                     ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,
-                    JIT_CONSTANT_SPINNER,
+                    CONSTANT_METHOD_RESULT_SPECIALIZER,
                     spinMethod,
                     implementation,
                     jit.name(),
@@ -557,21 +557,29 @@ public class EvaluatorImplementer {
                 );
             } else {
                 builder.addStatement(
-                    "$T<$T<? extends $T>> spunClassOpt = $T.SHARED.referenceConstantSubclass($T.class, $S, $T.class, this.$L)",
+                    "$T<$T<? extends $T>> specializedClassOpt = $T.SHARED.specializeReference($T.class, $S, $T.class, this.$L)",
                     ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,
-                    JIT_CONSTANT_SPINNER,
+                    CONSTANT_METHOD_RESULT_SPECIALIZER,
                     implementation,
                     jit.name(),
                     jit.type(),
                     jit.name()
                 );
             }
-            builder.beginControlFlow("if (spunClassOpt.isPresent())");
-            builder.addStatement("$T<? extends $T> spunClass = spunClassOpt.get()", ClassName.get(Class.class), implementation);
+            builder.beginControlFlow("if (specializedClassOpt.isPresent())");
+            builder.addStatement(
+                "$T<? extends $T> specializedClass = specializedClassOpt.get()",
+                ClassName.get(Class.class),
+                implementation
+            );
             builder.beginControlFlow("try");
-            builder.addStatement("return ($T) spunClass.getConstructors()[0].newInstance($L)", implementation, String.join(", ", ctorArgs));
+            builder.addStatement(
+                "return ($T) specializedClass.getConstructors()[0].newInstance($L)",
+                implementation,
+                String.join(", ", ctorArgs)
+            );
             builder.nextControlFlow(
                 "catch ($T | $T | $T e)",
                 ClassName.get(InstantiationException.class),
@@ -581,7 +589,7 @@ public class EvaluatorImplementer {
             builder.addStatement(
                 "throw new $T($S, e)",
                 ClassName.get(IllegalStateException.class),
-                "failed to construct JIT-spun evaluator for " + implementation.simpleName()
+                "failed to construct specialized evaluator for " + implementation.simpleName()
             );
             builder.endControlFlow(); // try-catch
             builder.endControlFlow(); // if isPresent
@@ -594,11 +602,11 @@ public class EvaluatorImplementer {
             return builder.build();
         }
 
-        /** Returns the JitConstantSpinner method name for a primitive type, or null for references. */
-        private static String primitiveSpinnerMethod(com.squareup.javapoet.TypeName type) {
-            if (type == TypeName.LONG) return "longConstantSubclass";
-            if (type == TypeName.INT) return "intConstantSubclass";
-            if (type == TypeName.DOUBLE) return "doubleConstantSubclass";
+        /** Returns the ConstantMethodResultSpecializer method name for a primitive type, or null for references. */
+        private static String primitiveSpecializeMethod(com.squareup.javapoet.TypeName type) {
+            if (type == TypeName.LONG) return "specializeLong";
+            if (type == TypeName.INT) return "specializeInt";
+            if (type == TypeName.DOUBLE) return "specializeDouble";
             return null;
         }
 

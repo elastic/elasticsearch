@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Spins a class at runtime that extends a given evaluator base class and supplies
+ * Specializes a class at runtime that extends a given evaluator base class and supplies
  * specified constants in a way HotSpot's C2 compiler treats as JIT-time constants.
  * For primitives the constant is baked as a {@code static final} field on the
  * generated subclass. For reference types the constant is passed via class data
@@ -48,11 +48,11 @@ import java.util.concurrent.atomic.LongAdder;
  *
  * <ol>
  *   <li><b>Class cache</b>: {@code ConcurrentHashMap<Key, WeakReference<Class>>}. Unbounded;
- *       JVM manages size via reachability. A spun class is kept alive by any live evaluator
+ *       JVM manages size via reachability. A specialized class is kept alive by any live evaluator
  *       instance referencing it. Once nothing references the class, GC reclaims it and the
  *       weak ref clears — the next access starts fresh.</li>
- *   <li><b>Admission tracker</b>: bounded LRU counters keyed by spinner key (default 4096
- *       entries, ~128 KB). Spin triggers only when a key's count reaches
+ *   <li><b>Admission tracker</b>: bounded LRU counters keyed by specializer key (default 4096
+ *       entries, ~128 KB). Specialization triggers only when a key's count reaches
  *       {@code admissionThreshold} (default 2). Single-occurrence keys never trigger a
  *       spin — the caller falls back to the non-folded path. This eliminates the spin
  *       tax for one-off cold keys.</li>
@@ -73,7 +73,7 @@ import java.util.concurrent.atomic.LongAdder;
  *
  * Measured on Apple aarch64 JDK 21 after JIT warmup:
  * <ul>
- *   <li>Spin cost: mean 13 μs, p99 52 μs, max 1.5 ms (cold-JIT outlier)</li>
+ *   <li>Specialization cost: mean 13 μs, p99 52 μs, max 1.5 ms (cold-JIT outlier)</li>
  *   <li>Per-class metaspace: ~1.4-2 KB</li>
  *   <li>Cache hit lookup: ~50 ns</li>
  *   <li>Admission-rejected path: ~50 ns (one CHM lookup + counter inc)</li>
@@ -89,7 +89,7 @@ import java.util.concurrent.atomic.LongAdder;
  * 11 attempted adoptions, of which 4 shipped, 1 was kept noise-band-neutral,
  * and 6 were reverted with measurement evidence.
  */
-public final class JitConstantSpinner {
+public final class ConstantMethodResultSpecializer {
 
     /**
      * Default admission-tracker capacity. The tracker holds recently-seen keys (those
@@ -99,7 +99,7 @@ public final class JitConstantSpinner {
      * <p>Sized for the realistic working set of "first-sight candidates currently in
      * flight" — typically hundreds at most for dashboard-style workloads. Each entry
      * is ~120-160 bytes (LinkedHashMap.Entry + CacheKey + AtomicLong + boxed value);
-     * 512 entries ≈ ~60-80 KB per JVM. Per-class metaspace for spun classes is
+     * 512 entries ≈ ~60-80 KB per JVM. Per-class metaspace for specialized classes is
      * managed separately via weak refs in the unbounded class cache.
      *
      * <p>Stress test (PR #148678, 450 measurements) showed capacity between 256 and
@@ -111,7 +111,7 @@ public final class JitConstantSpinner {
 
     /**
      * Default admission threshold. {@code 2} means a key must be seen at least twice
-     * before the spinner emits a class for it. First-time keys go through the codegen
+     * before the specializer emits a class for it. First-time keys go through the codegen
      * Factory's standard path (regular non-JIT-folded evaluator). This protects against
      * pathological high-cardinality workloads (many distinct one-off constants) at the
      * cost of slightly slower first execution for queries with novel constants.
@@ -128,16 +128,16 @@ public final class JitConstantSpinner {
     static final int DEFAULT_CACHE_CAPACITY = DEFAULT_ADMISSION_CAPACITY;
 
     /**
-     * JVM-wide default spinner instance. Generated evaluator factories call
-     * {@code JitConstantSpinner.SHARED.longConstantSubclass(...)}; tests construct their
-     * own instance via {@code new JitConstantSpinner()} for isolation (no shared state).
+     * JVM-wide default specializer instance. Generated evaluator factories call
+     * {@code ConstantMethodResultSpecializer.SHARED.specializeLong(...)}; tests construct their
+     * own instance via {@code new ConstantMethodResultSpecializer()} for isolation (no shared state).
      *
      * <p>The cache + admission tracker are intentionally process-global by default: two
      * instances would each spin a hidden class for the same {@code (base, accessor, value)}
      * triple, duplicating JIT compilations and defeating the cache. Use {@code new}
      * only when you want isolated state.
      */
-    public static final JitConstantSpinner SHARED = new JitConstantSpinner();
+    public static final ConstantMethodResultSpecializer SHARED = new ConstantMethodResultSpecializer();
 
     private record CacheKey(Class<?> base, String name, Object value) {}
 
@@ -145,7 +145,7 @@ public final class JitConstantSpinner {
     private volatile int admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
 
     /**
-     * Cache-entry reachability. {@code SoftReference} keeps a spun class alive until
+     * Cache-entry reachability. {@code SoftReference} keeps a specialized class alive until
      * the JVM is under genuine heap pressure (cleared only to avoid OOM), so the
      * JIT-folded class survives ordinary GC and stays a cache hit. {@code WeakReference}
      * is cleared at the next GC regardless of free heap, which under a memory-stressed
@@ -197,7 +197,7 @@ public final class JitConstantSpinner {
      * package may construct an isolated instance to avoid cross-test counter/cache
      * contamination.
      */
-    JitConstantSpinner() {}
+    ConstantMethodResultSpecializer() {}
 
     // ----- public API -----
 
@@ -209,37 +209,32 @@ public final class JitConstantSpinner {
      * capacity and adding this entry would require eviction — the caller should fall
      * back to the non-folded path in that case.
      */
-    public <T> Optional<Class<? extends T>> longConstantSubclass(Class<T> baseClass, String methodName, long value) {
+    public <T> Optional<Class<? extends T>> specializeLong(Class<T> baseClass, String methodName, long value) {
         return primitiveSubclass(baseClass, methodName, long.class, Long.valueOf(value));
     }
 
-    /** Same as {@link #longConstantSubclass} but for {@code int}. */
-    public <T> Optional<Class<? extends T>> intConstantSubclass(Class<T> baseClass, String methodName, int value) {
+    /** Same as {@link #specializeLong} but for {@code int}. */
+    public <T> Optional<Class<? extends T>> specializeInt(Class<T> baseClass, String methodName, int value) {
         return primitiveSubclass(baseClass, methodName, int.class, Integer.valueOf(value));
     }
 
-    /** Same as {@link #longConstantSubclass} but for {@code double}. */
-    public <T> Optional<Class<? extends T>> doubleConstantSubclass(Class<T> baseClass, String methodName, double value) {
+    /** Same as {@link #specializeLong} but for {@code double}. */
+    public <T> Optional<Class<? extends T>> specializeDouble(Class<T> baseClass, String methodName, double value) {
         return primitiveSubclass(baseClass, methodName, double.class, Double.valueOf(value));
     }
 
     /**
-     * Same as {@link #longConstantSubclass} but for an arbitrary reference type.
+     * Same as {@link #specializeLong} but for an arbitrary reference type.
      * The constant is passed via class data and loaded through a {@code condy}
      * bootstrap referencing {@link MethodHandles#classData(MethodHandles.Lookup, String, Class)}.
      */
-    public <T, V> Optional<Class<? extends T>> referenceConstantSubclass(
-        Class<T> baseClass,
-        String methodName,
-        Class<V> valueType,
-        V value
-    ) {
+    public <T, V> Optional<Class<? extends T>> specializeReference(Class<T> baseClass, String methodName, Class<V> valueType, V value) {
         if (value == null) throw new IllegalArgumentException("value must not be null");
         if (valueType.isPrimitive()) throw new IllegalArgumentException("use primitive variant for " + valueType);
         return spinOrCache(baseClass, methodName, valueType, value, /* primitive */ false);
     }
 
-    /** Number of entries currently in the spun-class cache (some may have cleared weak refs awaiting prune). */
+    /** Number of entries currently in the specialized-class cache (some may have cleared weak refs awaiting prune). */
     int cacheSize() {
         return CLASSES.size();
     }
@@ -290,11 +285,11 @@ public final class JitConstantSpinner {
     }
 
     /**
-     * Set admission threshold. A key must be seen this many times before a class is spun
+     * Set admission threshold. A key must be seen this many times before a class is specialized
      * for it. Default = 2 (skip the first-time access — usually a one-off). Set to 1 to
      * disable admission filtering (every miss spins immediately, like the prior behavior).
      *
-     * <p>Public so cross-package tests in esql can force the Standard / spun paths by
+     * <p>Public so cross-package tests in esql can force the Standard / specialized paths by
      * setting the threshold extreme. No production caller; if a tuning API becomes
      * useful, route it through {@link #SHARED} explicitly.
      */
@@ -305,7 +300,7 @@ public final class JitConstantSpinner {
 
     /**
      * Choose cache-entry reachability. {@code true} (default) uses {@code SoftReference}
-     * — spun classes survive ordinary GC and are reclaimed only under heap pressure.
+     * — specialized classes survive ordinary GC and are reclaimed only under heap pressure.
      * {@code false} uses {@code WeakReference} — cleared at the next GC regardless of
      * free heap. See {@link #useSoftReferences} for the rationale.
      */
@@ -348,7 +343,7 @@ public final class JitConstantSpinner {
     }
 
     /**
-     * Core lookup. Returns an existing spun class (cache hit on a still-alive weak ref) OR
+     * Core lookup. Returns an existing specialized class (cache hit on a still-alive weak ref) OR
      * spins a new one (if the key has been seen enough times) OR returns empty (first-time
      * key — caller uses the non-jit-folded path).
      *
@@ -359,7 +354,7 @@ public final class JitConstantSpinner {
      *       it, GC reclaims the class and the weak ref clears — next access starts fresh from
      *       layer 2.</li>
      *   <li>Admission tracker: bounded LRU counters per key. Only on count ≥ threshold do we
-     *       spin. This eliminates the spin tax for one-off cold keys.</li>
+     *       spin. This eliminates the specialization tax for one-off cold keys.</li>
      *   <li>Spin: ASM emit + {@code defineHiddenClass}. {@code computeIfAbsent} on the class
      *       cache prevents concurrent threads from racing into redundant spinning for the same
      *       key.</li>
@@ -398,12 +393,12 @@ public final class JitConstantSpinner {
 
         // Layer 3: spin. computeIfAbsent prevents stampede — only one thread spins per key.
         MISSES.increment();
-        Reference<Class<?>> spunRef;
+        Reference<Class<?>> specializedRef;
         try {
-            spunRef = CLASSES.computeIfAbsent(key, k -> {
+            specializedRef = CLASSES.computeIfAbsent(key, k -> {
                 Class<?> spun = primitive
-                    ? spinPrimitiveClass(baseClass, methodName, valueType, value)
-                    : spinReferenceClass(baseClass, methodName, valueType, value);
+                    ? emitSpecializedPrimitiveClass(baseClass, methodName, valueType, value)
+                    : emitSpecializedReferenceClass(baseClass, methodName, valueType, value);
                 SPINS.increment();
                 // Counter no longer needed; drop it so the tracker stays focused on candidates.
                 removeAdmission(key);
@@ -413,15 +408,15 @@ public final class JitConstantSpinner {
             STANDARDS.increment();
             return Optional.empty();
         }
-        Class<?> spunClass = spunRef.get();
-        if (spunClass == null) {
+        Class<?> specializedClass = specializedRef.get();
+        if (specializedClass == null) {
             // Race: weak ref cleared between insertion and our read. Recurse — admission will
             // re-trigger via counter, or standard. Bounded by GC frequency so this is rare.
-            CLASSES.remove(key, spunRef);
+            CLASSES.remove(key, specializedRef);
             WEAK_REF_CLEARED.increment();
             return spinOrCache(baseClass, methodName, valueType, value, primitive);
         }
-        return Optional.of((Class<? extends T>) spunClass);
+        return Optional.of((Class<? extends T>) specializedClass);
     }
 
     private long incrementAdmission(CacheKey key) {
@@ -440,29 +435,29 @@ public final class JitConstantSpinner {
 
     // ----- bytecode generation -----
 
-    private Class<?> spinPrimitiveClass(Class<?> base, String methodName, Class<?> primitive, Object boxed) {
+    private Class<?> emitSpecializedPrimitiveClass(Class<?> base, String methodName, Class<?> primitive, Object boxed) {
         String fieldName = "CONST_" + sanitize(methodName);
         String typeDescriptor = Type.getDescriptor(primitive);
         String baseInternal = Type.getInternalName(base);
-        String spunInternal = baseInternal + "$Spun";
+        String specializedInternal = baseInternal + "$Specialized";
         String accessorDescriptor = "()" + typeDescriptor;
 
-        SpunClassShapeValidator.SpunClassSpec spec = new SpunClassShapeValidator.SpunClassSpec(
+        SpecializedClassShapeValidator.SpecializedClassSpec spec = new SpecializedClassShapeValidator.SpecializedClassSpec(
             base,
-            spunInternal,
+            specializedInternal,
             methodName,
             accessorDescriptor,
             fieldName,
             typeDescriptor,
             Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
             /* expectsClinit */ false,
-            SpunClassShapeValidator.countPublicCtors(base)
+            SpecializedClassShapeValidator.countPublicCtors(base)
         );
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        ClassVisitor cv = SpunClassShapeValidator.guarding(cw, spec);
+        ClassVisitor cv = SpecializedClassShapeValidator.guarding(cw, spec);
 
-        cv.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
+        cv.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, specializedInternal, null, baseInternal, null);
         // public static final <T> CONST_<NAME> = value;
         cv.visitField(spec.expectedFieldAccess(), fieldName, typeDescriptor, null, boxed).visitEnd();
 
@@ -475,7 +470,7 @@ public final class JitConstantSpinner {
             : Opcodes.IRETURN;
         MethodVisitor m = cv.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, accessorDescriptor, null, null);
         m.visitCode();
-        m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, fieldName, typeDescriptor);
+        m.visitFieldInsn(Opcodes.GETSTATIC, specializedInternal, fieldName, typeDescriptor);
         m.visitInsn(returnOp);
         m.visitMaxs(0, 0);
         m.visitEnd();
@@ -484,29 +479,29 @@ public final class JitConstantSpinner {
         return defineHidden(base, cw.toByteArray(), /* classData */ null);
     }
 
-    private Class<?> spinReferenceClass(Class<?> base, String methodName, Class<?> valueType, Object value) {
+    private Class<?> emitSpecializedReferenceClass(Class<?> base, String methodName, Class<?> valueType, Object value) {
         String typeDescriptor = Type.getDescriptor(valueType);
         String baseInternal = Type.getInternalName(base);
-        String spunInternal = baseInternal + "$Spun";
+        String specializedInternal = baseInternal + "$Specialized";
         String fieldName = "CONST_" + sanitize(methodName);
         String accessorDescriptor = "()" + typeDescriptor;
 
-        SpunClassShapeValidator.SpunClassSpec spec = new SpunClassShapeValidator.SpunClassSpec(
+        SpecializedClassShapeValidator.SpecializedClassSpec spec = new SpecializedClassShapeValidator.SpecializedClassSpec(
             base,
-            spunInternal,
+            specializedInternal,
             methodName,
             accessorDescriptor,
             fieldName,
             typeDescriptor,
             Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
             /* expectsClinit */ true,
-            SpunClassShapeValidator.countPublicCtors(base)
+            SpecializedClassShapeValidator.countPublicCtors(base)
         );
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        ClassVisitor cv = SpunClassShapeValidator.guarding(cw, spec);
+        ClassVisitor cv = SpecializedClassShapeValidator.guarding(cw, spec);
 
-        cv.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
+        cv.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, specializedInternal, null, baseInternal, null);
 
         // private static final <T> CONST_<NAME>; — populated by <clinit> from class data.
         // C2 trusts static final reference fields as JIT-time constants when the field is
@@ -527,7 +522,7 @@ public final class JitConstantSpinner {
         MethodVisitor clinit = cv.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         clinit.visitCode();
         clinit.visitLdcInsn(condy);
-        clinit.visitFieldInsn(Opcodes.PUTSTATIC, spunInternal, fieldName, typeDescriptor);
+        clinit.visitFieldInsn(Opcodes.PUTSTATIC, specializedInternal, fieldName, typeDescriptor);
         clinit.visitInsn(Opcodes.RETURN);
         clinit.visitMaxs(0, 0);
         clinit.visitEnd();
@@ -536,7 +531,7 @@ public final class JitConstantSpinner {
 
         MethodVisitor m = cv.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, accessorDescriptor, null, null);
         m.visitCode();
-        m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, fieldName, typeDescriptor);
+        m.visitFieldInsn(Opcodes.GETSTATIC, specializedInternal, fieldName, typeDescriptor);
         m.visitInsn(Opcodes.ARETURN);
         m.visitMaxs(0, 0);
         m.visitEnd();
@@ -583,8 +578,8 @@ public final class JitConstantSpinner {
     }
 
     private Class<?> defineHidden(Class<?> base, byte[] bytecode, Object classData) {
-        // Bytecode-shape drift is caught at *emission* time by SpunClassShapeValidator's
-        // wrap (see spinPrimitiveClass / spinReferenceClass). On drift the validator throws
+        // Bytecode-shape drift is caught at *emission* time by SpecializedClassShapeValidator's
+        // wrap (see emitSpecializedPrimitiveClass / emitSpecializedReferenceClass). On drift the validator throws
         // AssertionError, which deliberately bypasses spinOrCache's catch (RuntimeException)
         // and propagates uncaught — a drifted emitter is unsafe territory and we hard-fail
         // rather than silently degrade. By the time we get here, the byte[] has been
@@ -597,7 +592,7 @@ public final class JitConstantSpinner {
             // JDK and get a hidden class in the existing module — so no entitlement grant is
             // required, unlike Painless's Compiler.Loader which needs create_class_loader.
             // The defense-in-depth concern (running unverified bytecode at runtime) is covered
-            // by SpunClassShapeValidator above, which hard-fails on any drift.
+            // by SpecializedClassShapeValidator above, which hard-fails on any drift.
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(base, MethodHandles.lookup());
             if (classData == null) {
                 return lookup.defineHiddenClass(bytecode, /* initialize */ true).lookupClass();

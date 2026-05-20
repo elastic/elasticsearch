@@ -212,20 +212,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
-                space.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        closeCursorQuietly(state.cursor);
-                        state.cursor = null;
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    closeCursorQuietly(state.cursor);
-                    state.cursor = null;
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(space, state, completionListener);
             }
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
@@ -238,6 +225,35 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
                 state.rowsRemaining -= rows;
             }
         }
+    }
+
+    /**
+     * Register a single listener that resumes the producer loop when {@code signal} fires, and
+     * return synchronously. {@link DrainResult#BLOCKED} is returned immediately after listener
+     * registration; the producer resumes asynchronously when {@code signal} completes.
+     * <p>
+     * Both branches of the listener (success and failure) close the current cursor and route
+     * resume errors through {@code completionListener.onFailure}, matching the cleanup
+     * performed by the surrounding {@link #runProducerLoop} {@code catch} block.
+     *
+     * @param signal a not-done listener from {@code waitForSpace()}; callers must verify
+     *               {@code signal.isDone() == false} before invoking this helper.
+     */
+    private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+        signal.addListener(ActionListener.wrap(v -> {
+            try {
+                executor.execute(() -> runProducerLoop(state, completionListener));
+            } catch (Exception e) {
+                closeCursorQuietly(state.cursor);
+                state.cursor = null;
+                completionListener.onFailure(e);
+            }
+        }, e -> {
+            closeCursorQuietly(state.cursor);
+            state.cursor = null;
+            completionListener.onFailure(e);
+        }));
+        return DrainResult.BLOCKED;
     }
 
     /**

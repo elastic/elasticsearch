@@ -97,7 +97,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                         );
                         tc = tc.withWarning(
                             "Line 1:1: java.lang.IllegalStateException: "
-                                + "_source is null; commonly indicates _source has been disabled or filtered out for the index"
+                                + "_source is null; this typically means the index has _source disabled in its mapping"
                         );
                         return tc;
                     }
@@ -396,7 +396,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
     }
 
     private static final String NULL_SOURCE_EXPECTED_MESSAGE =
-        "_source is null; commonly indicates _source has been disabled or filtered out for the index";
+        "_source is null; this typically means the index has _source disabled in its mapping";
 
     public void testSourceTypedExtractionHappyPath() {
         Source source = Source.synthetic("json_extract");

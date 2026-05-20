@@ -53,6 +53,19 @@ public class JsonExtract extends EsqlScalarFunction {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
     private static final BytesRef FALSE_BYTES = new BytesRef("false");
 
+    /**
+     * Warning text surfaced when {@code _source} bytes are observed as null at evaluation
+     * time. The only known upstream cause today is an index whose mapping disables
+     * {@code _source} — {@code _source.includes} / {@code _source.excludes} produce
+     * filtered-but-present bytes (handled by the regular path-not-found warning), not null
+     * bytes. We lead with what the function actually saw and hedge the inferred cause
+     * with "typically" so the message remains accurate if a future code path also produces
+     * null source bytes. {@link IllegalStateException} rather than
+     * {@link IllegalArgumentException} at the throw site — the user's invocation is fine;
+     * the runtime state is what's unexpected. HTTP warning-header dedup collapses repeats.
+     */
+    private static final String NULL_SOURCE_MESSAGE = "_source is null; this typically means the index has _source disabled in its mapping";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "JsonExtract",
@@ -225,59 +238,6 @@ public class JsonExtract extends EsqlScalarFunction {
         doExtract(builder, str, path);
     }
 
-    /**
-     * When the first argument is the {@code _source} metadata field and the input bytes are
-     * null, the default {@code @Evaluator} machinery short-circuits silently — leaving the
-     * user with a column of nulls and no signal as to why. From the function's standpoint
-     * the only known fact is that {@code _source} is null; the most common upstream cause
-     * is the index mapping disabling {@code _source}, but we don't reach for that signal
-     * directly. The SOURCE-typed evaluator pair below opts out of the null short-circuit
-     * via {@code allNullsIsNull = false} and throws a recognizable
-     * {@link IllegalStateException} on null source — the user's invocation is fine; the
-     * observed runtime state is what's unexpected, hence {@code IllegalStateException}
-     * rather than {@code IllegalArgumentException}. The generator catches the throw and
-     * surfaces it as a warning header; HTTP deduplication collapses repeats.
-     */
-    private static final String NULL_SOURCE_MESSAGE =
-        "_source is null; commonly indicates _source has been disabled or filtered out for the index";
-
-    @Evaluator(
-        extraName = "Source",
-        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
-        allNullsIsNull = false
-    )
-    static void processSource(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, BytesRefBlock pathBlock) {
-        if (strBlock.isNull(position)) {
-            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
-        }
-        if (pathBlock.isNull(position)) {
-            builder.appendNull();
-            return;
-        }
-        if (strBlock.getValueCount(position) != 1 || pathBlock.getValueCount(position) != 1) {
-            throw new IllegalArgumentException("single-value function encountered multi-value");
-        }
-        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
-        BytesRef path = pathBlock.getBytesRef(pathBlock.getFirstValueIndex(position), new BytesRef());
-        doExtract(builder, str, JsonPath.parse(path.utf8ToString()));
-    }
-
-    @Evaluator(
-        extraName = "SourceConstant",
-        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
-        allNullsIsNull = false
-    )
-    static void processSourceConstant(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, @Fixed JsonPath path) {
-        if (strBlock.isNull(position)) {
-            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
-        }
-        if (strBlock.getValueCount(position) != 1) {
-            throw new IllegalArgumentException("single-value function encountered multi-value");
-        }
-        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
-        doExtract(builder, str, path);
-    }
-
     private static void doExtract(BytesRefBlock.Builder builder, BytesRef str, JsonPath path) {
         // Detect content type — _source may be SMILE/CBOR/YAML, keyword/text is always JSON.
         XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
@@ -413,6 +373,53 @@ public class JsonExtract extends EsqlScalarFunction {
             jsonBuilder.copyCurrentStructure(parser);
             builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
         }
+    }
+
+    /**
+     * SOURCE-typed evaluator entry points — selected by {@link #toEvaluator} when the first
+     * argument is the {@code _source} metadata field. They opt out of the {@code @Evaluator}
+     * null short-circuit via {@code allNullsIsNull = false} so a null source surfaces a
+     * warning instead of returning a silent null, then delegate to {@link #doExtract} for the
+     * actual extraction. The multi-value check is required (and is not an assertion) because
+     * the block-input mode bypasses the generator's auto-inserted single-value guard; it
+     * mirrors {@code Warnings#registerSingleValueWarning} so the user-visible warning matches
+     * every other scalar function's multi-value behavior.
+     */
+    @Evaluator(
+        extraName = "Source",
+        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
+        allNullsIsNull = false
+    )
+    static void processSource(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, BytesRefBlock pathBlock) {
+        if (strBlock.isNull(position)) {
+            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
+        }
+        if (pathBlock.isNull(position)) {
+            builder.appendNull();
+            return;
+        }
+        if (strBlock.getValueCount(position) != 1 || pathBlock.getValueCount(position) != 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
+        BytesRef path = pathBlock.getBytesRef(pathBlock.getFirstValueIndex(position), new BytesRef());
+        doExtract(builder, str, JsonPath.parse(path.utf8ToString()));
+    }
+
+    @Evaluator(
+        extraName = "SourceConstant",
+        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
+        allNullsIsNull = false
+    )
+    static void processSourceConstant(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, @Fixed JsonPath path) {
+        if (strBlock.isNull(position)) {
+            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
+        }
+        if (strBlock.getValueCount(position) != 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
+        doExtract(builder, str, path);
     }
 
     @Override

@@ -51,6 +51,16 @@ public class AnalyzerUnmapped_Enrich_Tests extends AnalyzerUnmappedTestBase {
         assertThat(languageName.dataType(), is(DataType.KEYWORD));
     }
 
+    public void testNullify_allMapped_succeeds() {
+        // Baseline: all fields mapped, ENRICH works normally under nullify mode.
+        test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .statement(
+                setUnmappedNullify(
+                    "FROM test | EVAL language_code = languages | ENRICH languages ON language_code | KEEP emp_no, language_name"
+                )
+            );
+    }
+
     public void testNullify_unmappedKey_nullifiedMatchField_analysisSucceeds() {
         // language_code is absent from the primary mapping.
         // nullify() adds it to the EsRelation with NULL type; resolveEnrich() finds the NULL-typed

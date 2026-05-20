@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -35,29 +39,37 @@ public class AnalyzerUnmapped_NonKeyField_Tests extends AnalyzerUnmappedTestBase
 
     public void testNullify_inBoth_lookupTypeWins() {
         // salary: INT in primary, KEYWORD in lookup — lookup's type and value override the primary's.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY);
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY + " | KEEP salary");
         var salary = plan.output().stream().filter(a -> "salary".equals(a.name())).findFirst().orElseThrow();
         assertThat(salary.dataType(), is(DataType.KEYWORD));
     }
 
     public void testNullify_inPrimaryOnly_passesThrough() {
         // first_name: present in primary (KEYWORD), absent from custom_lookup — passes through unchanged.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY);
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY + " | KEEP first_name");
         var firstName = plan.output().stream().filter(a -> "first_name".equals(a.name())).findFirst().orElseThrow();
         assertThat(firstName.dataType(), is(DataType.KEYWORD));
     }
 
     public void testNullify_inLookupOnly_appended() {
         // lookup_only: absent from primary, present in lookup (KEYWORD) — appended to the join output.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY);
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY + " | KEEP lookup_only");
         var lookupOnly = plan.output().stream().filter(a -> "lookup_only".equals(a.name())).findFirst().orElseThrow();
         assertThat(lookupOnly.dataType(), is(DataType.KEYWORD));
     }
 
     public void testNullify_inNeither_absentFromOutput() {
         // totally_absent: not in primary, not in lookup — must not appear in the join output.
+        // No KEEP: KEEP totally_absent would error because nullify() can't inject NULL above the join boundary.
         var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY);
         assertFalse(plan.output().stream().anyMatch(a -> "totally_absent".equals(a.name())));
+    }
+
+    public void testNullify_inNeither_keepErrors() {
+        // KEEP totally_absent errors — nullify() resolves fields inside the primary EsRelation scope,
+        // but can't inject NULL for a field referenced above the join boundary.
+        test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statementError(BASE_QUERY + " | KEEP totally_absent", containsString("Unknown column [totally_absent]"));
     }
 
     // -------------------------------------------------------------------------
@@ -66,21 +78,24 @@ public class AnalyzerUnmapped_NonKeyField_Tests extends AnalyzerUnmappedTestBase
 
     public void testLoad_inBoth_lookupTypeWins() {
         // salary: INT in primary, KEYWORD in lookup — lookup type wins regardless of mode.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(setUnmappedLoad(BASE_QUERY));
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement(setUnmappedLoad(BASE_QUERY + " | KEEP salary"));
         var salary = plan.output().stream().filter(a -> "salary".equals(a.name())).findFirst().orElseThrow();
         assertThat(salary.dataType(), is(DataType.KEYWORD));
     }
 
     public void testLoad_inPrimaryOnly_passesThrough() {
         // first_name: present in primary, absent from lookup — passes through regardless of mode.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(setUnmappedLoad(BASE_QUERY));
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement(setUnmappedLoad(BASE_QUERY + " | KEEP first_name"));
         var firstName = plan.output().stream().filter(a -> "first_name".equals(a.name())).findFirst().orElseThrow();
         assertThat(firstName.dataType(), is(DataType.KEYWORD));
     }
 
     public void testLoad_inLookupOnly_appended() {
         // lookup_only: absent from primary, present in lookup — appended regardless of mode.
-        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(setUnmappedLoad(BASE_QUERY));
+        var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+            .statement(setUnmappedLoad(BASE_QUERY + " | KEEP lookup_only"));
         var lookupOnly = plan.output().stream().filter(a -> "lookup_only".equals(a.name())).findFirst().orElseThrow();
         assertThat(lookupOnly.dataType(), is(DataType.KEYWORD));
     }
@@ -91,10 +106,12 @@ public class AnalyzerUnmapped_NonKeyField_Tests extends AnalyzerUnmappedTestBase
         var plan = test().addLanguagesLookup()
             .statement(
                 setUnmappedLoad(
-                    "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | EVAL x = does_not_exist"
+                    "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | KEEP does_not_exist"
                 )
             );
-        var x = plan.output().stream().filter(a -> "x".equals(a.name())).findFirst().orElseThrow();
-        assertThat(x.dataType(), is(DataType.KEYWORD));
+        var field = plan.output().stream().filter(a -> "does_not_exist".equals(a.name())).findFirst().orElseThrow();
+        assertThat(field.dataType(), is(DataType.KEYWORD));
+        assertThat(field, instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute) field).field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
     }
 }

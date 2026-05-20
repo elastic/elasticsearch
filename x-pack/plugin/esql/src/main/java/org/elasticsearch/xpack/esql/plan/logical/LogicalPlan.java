@@ -8,10 +8,14 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A LogicalPlan is <b>what</b> (not the "how") a user told us they want to do.
@@ -85,6 +89,17 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
     }
 
     public abstract boolean expressionsResolved();
+
+    /** Plans with structural child asymmetry should override this. */
+    public Predicate<String> childResolvabilityPredicate() {
+        Set<String> names = new HashSet<>();
+        for (LogicalPlan child : children()) {
+            for (Attribute attr : child.output()) {
+                names.add(attr.name());
+            }
+        }
+        return names::contains;
+    }
 
     @Override
     public abstract int hashCode();

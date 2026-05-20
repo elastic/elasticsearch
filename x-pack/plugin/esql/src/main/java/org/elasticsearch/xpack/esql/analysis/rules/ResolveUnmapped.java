@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
@@ -51,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
@@ -93,11 +93,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         }
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan);
-        // In load mode, collectUnresolved skips left-side join keys that appear in the right child's output.
-        // Explicitly collect them here so load() can add PUK extractors for them on the primary index.
-        if (load && plan instanceof LookupJoin lj) {
-            collectUnresolvedLookupJoinLeftKeys(lj, unresolvedByName);
-        }
         if (unresolvedByName.isEmpty()) {
             return plan;
         }
@@ -344,33 +339,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * Collects left-side join keys of a {@link LookupJoin} that are unresolved but were skipped by
-     * {@link #collectUnresolved} because their name appears in the right child's output. In load mode
-     * these fields need a PUK extractor on the primary index even though the lookup index has them mapped.
-     */
-    private static void collectUnresolvedLookupJoinLeftKeys(
-        LookupJoin lj,
-        LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName
-    ) {
-        Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
-        for (Attribute key : lj.config().leftFields()) {
-            if (key instanceof UnresolvedAttribute ua && leaveUnresolved(ua) == false && leftOutputNames.contains(ua.name()) == false) {
-                unresolvedByName.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
-            }
-        }
-    }
-
-    /**
      * @return all the {@link UnresolvedAttribute}s in the given node / {@code plan}, grouped by name (preserving insertion order), but
      * excluding the {@link UnresolvedPattern} and {@link UnresolvedTimestamp} subtypes.
      */
     private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(LogicalPlan plan) {
-        Set<String> childOutputNames = new HashSet<>();
-        for (LogicalPlan child : plan.children()) {
-            for (Attribute attr : child.output()) {
-                childOutputNames.add(attr.name());
-            }
-        }
+        Predicate<String> resolvableFromChildren = plan.childResolvabilityPredicate();
         Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolved = new LinkedHashMap<>();
@@ -382,7 +355,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
             // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
             // ResolveRefs will wire them up in the next iteration of the resolution batch.
-                && childOutputNames.contains(ua.name()) == false) {
+                && resolvableFromChildren.test(ua.name()) == false) {
                 unresolved.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
             }
         };

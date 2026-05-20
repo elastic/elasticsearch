@@ -13,13 +13,17 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
@@ -59,6 +63,18 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
         super(source, left, right, joinConfig, isRemote);
+    }
+
+    @Override
+    public Predicate<String> childResolvabilityPredicate() {
+        Set<String> leftKeyNames = new HashSet<>(Expressions.names(config().leftFields()));
+        Set<String> leftOutputNames = new HashSet<>(Expressions.names(left().output()));
+        Set<String> allOutputNames = new HashSet<>(leftOutputNames);
+        allOutputNames.addAll(Expressions.names(right().output()));
+        return name -> {
+            if (leftKeyNames.contains(name)) return leftOutputNames.contains(name);
+            return allOutputNames.contains(name);
+        };
     }
 
     /**

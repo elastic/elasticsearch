@@ -117,6 +117,12 @@ public class CsvTestsDataLoader {
             "lookup-settings.json"
         ),
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
+        new TestDataset(
+            "keyword_languages_lookup",
+            "mapping-keyword_languages_lookup.json",
+            "keyword_languages_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),

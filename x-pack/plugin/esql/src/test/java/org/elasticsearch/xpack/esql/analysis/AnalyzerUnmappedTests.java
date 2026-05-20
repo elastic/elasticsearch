@@ -515,6 +515,29 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             );
     }
 
+    public void testLookupJoin_BooleanOn_SameSide_Literal_DefaultMode_Errors() {
+        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
+        // language_name > first_name is cross-side (lookup vs primary); emp_no > 1 is same-side (primary vs literal)
+        // no unmapped fields involved — same-side filter alone triggers the error
+        test().addLanguagesLookup()
+            .statementError(
+                "FROM test | LOOKUP JOIN languages_lookup ON language_name > first_name AND emp_no > 1",
+                containsString("Unsupported join filter expression")
+            );
+    }
+
+    public void testLookupJoin_BooleanOn_RightSideOnly_Literal_DefaultMode_Succeeds() {
+        assumeTrue(
+            "requires LOOKUP JOIN with full-text function support",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
+        );
+        // language_code > 0 is right-side only (language_code exists only in the lookup) — pushed down as a filter on the lookup node
+        // emp_no > 1 (same-side left) would error; language_code > 0 (same-side right) is allowed
+        test().addLanguagesLookup()
+            .minimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+            .statement("FROM test | LOOKUP JOIN languages_lookup ON language_name > first_name AND language_code > 0");
+    }
+
     public void testLoadLookupJoinAfterFilter_Works() {
         test().addLanguagesLookup().statement(setUnmappedLoad("""
             FROM test

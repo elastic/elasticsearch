@@ -41,15 +41,12 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
             }
         });
         var unmappedFields = unmappedFieldsBuilder.build();
-        return unmappedFields.isEmpty() ? logicalPlan : logicalPlan.transformUp(EsRelation.class, er -> mergeMissing(er, unmappedFields));
+        return unmappedFields.isEmpty()
+            ? logicalPlan
+            : logicalPlan.transformUp(EsRelation.class, er -> er.indexMode() == IndexMode.LOOKUP ? er : mergeMissing(er, unmappedFields));
     }
 
     private static EsRelation mergeMissing(EsRelation er, AttributeSet unmappedFields) {
-        // LOOKUP EsRelations have their own explicit mappings; never inject primary PUK fields into them.
-        // Doing so replaces the lookup's attribute (different NameId) and breaks join rightFields references.
-        if (er.indexMode() == IndexMode.LOOKUP) {
-            return er;
-        }
         Set<String> existingPuks = new HashSet<>();
         for (Attribute attr : er.output()) {
             if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {

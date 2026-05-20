@@ -41,14 +41,10 @@ public class AnalyzerUnmapped_JoinKey_Tests extends AnalyzerUnmappedTestBase {
             );
     }
 
-    public void testNullify_unmapped_mapped_leftSideError() {
+    public void testNullify_unmapped_mapped_succeeds() {
         // language_code is NOT in the primary employees mapping; it IS in languages_lookup.
-        // nullify does not load unmapped fields → left side remains unresolved.
-        test().addLanguagesLookup()
-            .statementError(
-                setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
-                containsString("Unknown column [language_code] in left side of join")
-            );
+        // nullify mode nullifies the left key → NULL join key → no matches from lookup, but query succeeds.
+        test().addLanguagesLookup().statement(setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"));
     }
 
     public void testNullify_unmapped_unmapped_rightSideError() {

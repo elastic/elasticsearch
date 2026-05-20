@@ -112,11 +112,12 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testNullify_unmapped_unmapped_error() {
-        // does_not_exist absent from both; nullify produces no PUK; error before or at the join.
+        // nullify fires at KEEP and inserts Eval(does_not_exist = NULL), resolving the left side.
+        // The lookup has no does_not_exist field — right side errors.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedNullify("FROM test | KEEP does_not_exist | LOOKUP JOIN languages_lookup ON does_not_exist"),
-                containsString("Unknown column [does_not_exist]")
+                containsString("Unknown column [does_not_exist] in right side of join")
             );
     }
 }

@@ -630,7 +630,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
     /**
      * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns} (the
-     * post-projection, pre-injector channel layout); {@code -1} when the column is absent.
+     * post-projection, pre-virtual-column channel layout); {@code -1} when the column is absent.
      * Used by deferred-extraction wiring to know which channel the encoder must rewrite.
      */
     private static int rowPositionChannelIndex(List<String> projectedColumns) {

@@ -262,7 +262,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         List<Expression> filters = splitAnd(filterExec.condition());
 
         // Conjuncts that reference partition columns are evaluated against the constant blocks
-        // injected by VirtualColumnInjector (and used as L1 pruning hints in FileSplitProvider).
+        // injected by VirtualColumnIterator (and used as L1 pruning hints in FileSplitProvider).
         // Pushing them into the format reader would translate them against file column data,
         // but partition columns are not present in the file payload -- the reader would then
         // either drop all rows (parquet) or behave format-specifically. Keep these conjuncts in

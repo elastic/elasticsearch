@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.index.reindex.TaskRelocatingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -273,8 +274,8 @@ public class TransportRethrottleActionTests extends ESTestCase {
         final AtomicBoolean listenerCalled = new AtomicBoolean();
         final ActionListener<TaskInfo> listener = ActionTestUtils.assertNoSuccessListener(e -> {
             listenerCalled.set(true);
-            assertThat(e, instanceOf(ElasticsearchStatusException.class));
-            assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(e, instanceOf(TaskRelocatingException.class));
+            assertThat(((TaskRelocatingException) e).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         });
 
         TransportRethrottleAction.rethrottle(logger, localNodeId, client, task, newRequestsPerSecond, listener);
@@ -304,8 +305,8 @@ public class TransportRethrottleActionTests extends ESTestCase {
         final AtomicBoolean listenerCalled = new AtomicBoolean();
         final ActionListener<TaskInfo> listener = ActionTestUtils.assertNoSuccessListener(e -> {
             listenerCalled.set(true);
-            assertThat(e, instanceOf(ElasticsearchStatusException.class));
-            assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(e, instanceOf(TaskRelocatingException.class));
+            assertThat(((TaskRelocatingException) e).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         });
 
         TransportRethrottleAction.rethrottle(logger, localNodeId, client, workerTask, newRequestsPerSecond, listener);

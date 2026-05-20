@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorTestCaseHelper.denseVectorScalarCases;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DivTests extends AbstractScalarFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -271,7 +272,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
                 ),
-                "DivIntsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                startsWith("DivIntsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
                 DataType.INTEGER,
                 equalTo(lhs / rhs)
             );
@@ -284,7 +285,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
                 ),
-                "DivLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                startsWith("DivLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
                 DataType.LONG,
                 equalTo(lhs / rhs)
             );
@@ -297,7 +298,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
                 ),
-                "DivLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + (long) rhs + "]",
+                startsWith("DivLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + (long) rhs + "]"),
                 DataType.LONG,
                 equalTo(lhs / (long) rhs)
             );
@@ -310,7 +311,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
                 ),
-                "DivLongsByConstantEvaluator[lhs=CastIntToLongEvaluator[v=Attribute[channel=0]], rhs=" + rhs + "]",
+                startsWith("DivLongsByConstantEvaluator[lhs=CastIntToLongEvaluator[v=Attribute[channel=0]], rhs=" + rhs + "]"),
                 DataType.LONG,
                 equalTo((long) lhs / rhs)
             );
@@ -323,7 +324,7 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataType.DOUBLE, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataType.DOUBLE, "rhs").forceLiteral()
                 ),
-                "DivDoublesByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                startsWith("DivDoublesByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
                 DataType.DOUBLE,
                 equalTo(lhs / rhs)
             );

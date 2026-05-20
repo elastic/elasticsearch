@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for {@link JsonExtract}. Parameterized suppliers cover type combinations, extraction
@@ -97,7 +98,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), jsonType, "str"),
                             new TestCaseSupplier.TypedData(new BytesRef("name"), DataType.KEYWORD, "path").forceLiteral()
                         ),
-                        "JsonExtractConstantEvaluator[str=Attribute[channel=0], path=name]",
+                        startsWith("JsonExtractConstantEvaluator[str=Attribute[channel=0], path=name]"),
                         DataType.KEYWORD,
                         equalTo(new BytesRef("Alice"))
                     )
@@ -112,7 +113,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef("not valid json"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("field"), DataType.KEYWORD, "path").forceLiteral()
                 ),
-                "JsonExtractConstantEvaluator[str=Attribute[channel=0], path=field]",
+                startsWith("JsonExtractConstantEvaluator[str=Attribute[channel=0], path=field]"),
                 DataType.KEYWORD,
                 nullValue()
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")

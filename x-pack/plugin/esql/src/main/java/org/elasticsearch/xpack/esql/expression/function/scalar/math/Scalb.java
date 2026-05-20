@@ -174,9 +174,7 @@ public class Scalb extends EsqlScalarFunction {
                     dEval,
                     (Long) (scaleFactor.fold(toEvaluator.foldCtx()))
                 );
-                case DataType type -> throw new IllegalStateException(
-                    Strings.format("Invalid type for scaleFactor: %s, should be int or long.", type)
-                );
+                default -> throw new IllegalStateException("Invalid type for scaleFactor, should be int or long.");
             };
         }
         var scaleFactorEval = toEvaluator.apply(scaleFactor);

@@ -577,6 +577,6 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
 
     @Override
     public String toString() {
-        return "NativeFlatVectorScorer";
+        return "NativeFlatVectorScorer()";
     }
 }

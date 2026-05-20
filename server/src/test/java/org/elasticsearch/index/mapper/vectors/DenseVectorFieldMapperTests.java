@@ -85,6 +85,7 @@ import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomN
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -2118,16 +2119,36 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        String expectedString = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
-            + (setM ? m : DEFAULT_MAX_CONN)
-            + ", beamWidth="
-            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
-            + ", hnswGraphThreshold="
-            + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD
-            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+
+        assertThat(
+            knnVectorsFormat,
+            hasToString(
+                allOf(
+                    startsWith(
+                        "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn="
+                            + (setM ? m : DEFAULT_MAX_CONN)
+                            + ", beamWidth="
+                            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
+                            + ", hnswGraphThreshold="
+                            + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD
+                            + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                    ),
+                    anyOf(
+                        containsString(
+                            "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                        ),
+                        containsString(
+                            "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                        )
+                    )
+                )
+            )
+        );
     }
 
     public void testConfidenceIntervalDeprecationOnLatestIndexVersion() throws IOException {
@@ -2197,10 +2218,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString("encoding=" + encoding),
                         containsString("flatVectorScorer=ESQuantizedFlatVectorsScorer("),
                         containsString("factory=" + factory),
-                        containsString(
-                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                        anyOf(
+                            containsString(
+                                "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                    + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                    + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                            ),
+                            containsString(
+                                "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                    + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                    + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                    + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                            )
                         )
                     )
                 )
@@ -2248,10 +2277,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     ),
                     containsString("encoding=SEVEN_BIT"),
                     containsString("factory=" + factory),
-                    containsString(
-                        "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                    anyOf(
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                        ),
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                        )
                     )
                 )
             )
@@ -2349,10 +2386,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     ),
                     containsString("encoding=PACKED_NIBBLE"),
                     containsString("factory=" + factory),
-                    containsString(
-                        "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                    anyOf(
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                        ),
+                        containsString(
+                            "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
+                                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                                + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                        )
                     )
                 )
             )

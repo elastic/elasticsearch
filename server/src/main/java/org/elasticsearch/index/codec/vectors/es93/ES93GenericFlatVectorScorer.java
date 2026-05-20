@@ -28,7 +28,7 @@ import java.util.Optional;
 public class ES93GenericFlatVectorScorer implements FlatVectorsScorer {
 
     private static final VectorScorerFactory FACTORY = ESVectorizationProvider.getInstance().getVectorScorerFactory();
-    private static final FlatVectorsScorer FALLBACK = FACTORY.newGenericFlatVectorScorer();
+    private static final FlatVectorsScorer FALLBACK = FACTORY.newFlatVectorsScorer();
 
     public static final ES93GenericFlatVectorScorer INSTANCE = new ES93GenericFlatVectorScorer();
 

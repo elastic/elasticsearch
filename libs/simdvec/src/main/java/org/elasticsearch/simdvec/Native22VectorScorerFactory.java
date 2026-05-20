@@ -99,7 +99,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
-    public FlatVectorsScorer newGenericFlatVectorScorer() {
+    public FlatVectorsScorer newFlatVectorsScorer() {
         return new NativeFlatVectorScorer();
     }
 

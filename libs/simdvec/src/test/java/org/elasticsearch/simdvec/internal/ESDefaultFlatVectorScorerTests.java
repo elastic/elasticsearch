@@ -30,8 +30,8 @@ public class ESDefaultFlatVectorScorerTests extends BaseVectorizationTests {
 
     // we're just testing arrays here, don't need to go into directorys/inputs/etc
 
-    private static final FlatVectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory().newGenericFlatVectorScorer();
-    private static final FlatVectorsScorer nativeScorer = nativeProvider().getVectorScorerFactory().newGenericFlatVectorScorer();
+    private static final FlatVectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory().newFlatVectorsScorer();
+    private static final FlatVectorsScorer nativeScorer = nativeProvider().getVectorScorerFactory().newFlatVectorsScorer();
 
     private final VectorSimilarityFunction function;
 

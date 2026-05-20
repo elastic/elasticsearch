@@ -53,7 +53,10 @@ public interface VectorScorerFactory {
     ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
         throws IOException;
 
-    FlatVectorsScorer newGenericFlatVectorScorer();
+    /**
+     * Create a new {@code FlatVectorsScorer} for scoring arbitrary flat vectors.
+     */
+    FlatVectorsScorer newFlatVectorsScorer();
 
     /**
      * Returns an optional containing a float vector score supplier

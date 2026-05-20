@@ -36,7 +36,6 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Arrays;
@@ -108,17 +107,9 @@ public class ReindexValidator {
         SearchSourceBuilder source = request.getSearchRequest().source();
         assert source != null : "The search request source field was null";
         SliceBuilder sliceBuilder = source.slice();
-        if (sliceBuilder != null) {
-            // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results
-            // docs)
-            if (sliceBuilder.getField() == null) {
-                source.slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
-            }
-            // Manual slicing isn't compatible with shard-based slice optimization if the assignment of docs to shards can change between
-            // slices, such as if an index is resharded between slices.
-            if (request.getParentTask().equals(TaskId.EMPTY_TASK_ID)) {
-                source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
-            }
+        // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results docs)
+        if (sliceBuilder != null && sliceBuilder.getField() == null) {
+            source.slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
         }
     }
 

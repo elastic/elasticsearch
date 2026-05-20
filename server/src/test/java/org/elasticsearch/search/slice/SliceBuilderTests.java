@@ -91,7 +91,7 @@ public class SliceBuilderTests extends ESTestCase {
                 if (original.optimizeByShard()) {
                     return SliceBuilder.withoutShardOptimization(original);
                 } else {
-                    return new SliceBuilder(original.getField(), original.getId(), original.getMax());
+                    return SliceBuilder.withShardOptimization(original);
                 }
             case 3:
             default:

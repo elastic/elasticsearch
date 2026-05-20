@@ -79,6 +79,7 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -371,6 +372,12 @@ public class Reindexer {
         // explicitly setting it, saving the cost of the match_all search incurred during the shard-level pruning.
         if (searchRequest.source() != null && searchRequest.source().query() != null) {
             pitRequest.indexFilter(searchRequest.source().query());
+        }
+        // If we aren't sharing a PIT (i.e., slices == 1), we have to disable shard-based slicing to stay consistent in the
+        // presence of resharding.
+        final var source = request.getSearchRequest().source();
+        if (source != null && source.slice() != null && request.getSlices() == 1) {
+            source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
         }
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call

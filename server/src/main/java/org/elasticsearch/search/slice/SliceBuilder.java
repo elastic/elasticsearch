@@ -120,6 +120,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         return newSliceBuilder;
     }
 
+    public static SliceBuilder withShardOptimization(SliceBuilder sb) {
+        final SliceBuilder newSliceBuilder = new SliceBuilder(sb.field, sb.id, sb.max);
+        newSliceBuilder.setOptimizeByShard(true);
+        return newSliceBuilder;
+    }
+
     private SliceBuilder setField(String field) {
         this.field = field;
         return this;

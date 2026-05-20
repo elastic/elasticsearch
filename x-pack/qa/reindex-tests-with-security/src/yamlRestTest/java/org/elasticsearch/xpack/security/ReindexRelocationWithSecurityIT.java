@@ -148,8 +148,6 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             assertListViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 4: rethrottle to unlimited via a non-coordinator node, since the coordinator's HTTP transport is being torn down.
-            // The rethrottle is dispatched via internal transport (which is still up on the coordinator during the relocation hook),
-            // and lets the throttled reindex advance past its current sleep so it can pick up the relocation flag.
             unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 5: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed

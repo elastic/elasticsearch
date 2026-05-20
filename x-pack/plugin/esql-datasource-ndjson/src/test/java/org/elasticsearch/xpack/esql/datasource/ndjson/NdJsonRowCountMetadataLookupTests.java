@@ -24,8 +24,8 @@ import java.util.OptionalLong;
 import java.util.UUID;
 
 /**
- * NDJSON parallel of {@code CsvRowCountMetadataLookupTests}. Lookup half of B'; the write half
- * (capture-on-close) is covered by {@code NdJsonRowCountCaptureTests}.
+ * NDJSON counterpart of {@code CsvRowCountMetadataLookupTests}: the cache-lookup side of
+ * {@code metadata()}. The capture-on-close counterpart is covered by {@code NdJsonRowCountCaptureTests}.
  */
 public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
 

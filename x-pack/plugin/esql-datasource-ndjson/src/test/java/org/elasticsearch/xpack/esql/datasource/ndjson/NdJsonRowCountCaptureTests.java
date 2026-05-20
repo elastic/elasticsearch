@@ -25,7 +25,7 @@ import java.time.Instant;
 import java.util.OptionalLong;
 import java.util.UUID;
 
-/** NDJSON parallel of {@code CsvRowCountCaptureTests}: write-side of B'. */
+/** NDJSON counterpart of {@code CsvRowCountCaptureTests}: the cache-write side on close. */
 public class NdJsonRowCountCaptureTests extends ESTestCase {
 
     private BlockFactory blockFactory;

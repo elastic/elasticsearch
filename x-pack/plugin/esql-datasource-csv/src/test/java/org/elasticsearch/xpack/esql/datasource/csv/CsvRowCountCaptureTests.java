@@ -26,9 +26,10 @@ import java.util.OptionalLong;
 import java.util.UUID;
 
 /**
- * Capture-on-close half of B': verifies {@code CsvFormatReader.read(...)} populates
- * {@link ExternalRowCountCache} when (and only when) the iterator was constructed for a whole-file
- * read, drained naturally to EOF, and observed zero parse errors.
+ * Verifies that {@code CsvFormatReader.read(...)} populates {@link ExternalRowCountCache} on
+ * iterator close when (and only when) the iterator was constructed for a whole-file read, drained
+ * naturally to EOF, and observed zero parse errors. Lookup side is covered by
+ * {@code CsvRowCountMetadataLookupTests}.
  */
 public class CsvRowCountCaptureTests extends ESTestCase {
 

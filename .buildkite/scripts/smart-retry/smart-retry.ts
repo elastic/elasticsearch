@@ -226,16 +226,22 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
   const runCount = multiRun.runs.length;
   const details = `Skipping ${successfulTaskCount} successful tasks and ${successfulTestCount} individual tests out of ${totalTaskCount} total tasks (across ${runCount} previous run${runCount !== 1 ? "s" : ""})`;
 
-  const annotation = [
-    `Rerunning failed build job [${originJobName}]`,
-    "",
-    `**Successful Tasks to Skip:** ${successfulTaskCount}`,
-    `**Successful Tests to Skip:** ${successfulTestCount}`,
-    `**Total Tasks in Previous Runs:** ${totalTaskCount}`,
-    `**Previous Runs Analyzed:** ${runCount}`,
-    "",
-    "This retry will skip tasks that succeeded in previous runs, exclude individual passing tests from partially-failed tasks, and run everything else.",
-  ].join("\n");
+  const hadFailures = multiRun.runs.some(
+    (run) => run.tasks.some((t) => t.outcome === "FAILED") || run.tests.some((t) => t.result === "FAILURE"),
+  );
+
+  const annotation = hadFailures
+    ? [
+        `Rerunning failed build job [${originJobName}]`,
+        "",
+        `**Successful Tasks to Skip:** ${successfulTaskCount}`,
+        `**Successful Tests to Skip:** ${successfulTestCount}`,
+        `**Total Tasks in Previous Runs:** ${totalTaskCount}`,
+        `**Previous Runs Analyzed:** ${runCount}`,
+        "",
+        "This retry will skip tasks that succeeded in previous runs, exclude individual passing tests from partially-failed tasks, and run everything else.",
+      ].join("\n")
+    : null;
 
   const metadata: Record<string, string> = {
     "smart-retry-status": "enabled",

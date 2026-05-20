@@ -844,6 +844,56 @@ describe("runSmartRetry", () => {
     expect(result.failedTestHistory!.successfulTasks).toEqual([":server:test"]);
   });
 
+  test("no annotation when previous run was purely preempted (INTERRUPTED, no failures)", async () => {
+    const result = await runSmartRetry(
+      makeEnv(),
+      makeDeps({
+        downloadArtifact: async () =>
+          makeMultiRun(
+            makeReport({
+              tasks: [
+                { path: ":server:test", outcome: "SUCCESS" },
+                { path: ":modules:test", outcome: "INTERRUPTED" },
+              ],
+              tests: [
+                { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testA", result: "SUCCESS" },
+              ],
+            }),
+          ),
+      }),
+    );
+
+    expect(result.status).toBe("enabled");
+    expect(result.failedTestHistory!.successfulTasks).toEqual([":server:test"]);
+    expect(result.annotation).toBeNull();
+    expect(result.metadata["smart-retry-status"]).toBe("enabled");
+  });
+
+  test("annotation present when previous run had FAILED tasks", async () => {
+    const result = await runSmartRetry(
+      makeEnv(),
+      makeDeps({
+        downloadArtifact: async () =>
+          makeMultiRun(
+            makeReport({
+              tasks: [
+                { path: ":server:test", outcome: "FAILED" },
+                { path: ":modules:test", outcome: "SUCCESS" },
+              ],
+              tests: [
+                { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testA", result: "SUCCESS" },
+                { taskPath: ":modules:test", className: "org.es.BarTest", methodName: "testB", result: "SUCCESS" },
+              ],
+            }),
+          ),
+      }),
+    );
+
+    expect(result.status).toBe("enabled");
+    expect(result.annotation).not.toBeNull();
+    expect(result.annotation).toContain("Rerunning failed build job");
+  });
+
   test("multi-run: task SUCCESS in early run preserved despite SKIPPED later", async () => {
     const result = await runSmartRetry(
       makeEnv(),

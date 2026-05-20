@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.memory;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndexingMemoryLimits;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -24,6 +27,8 @@ import org.elasticsearch.xpack.stateless.memory.partition.IndexingPressurePartit
  */
 public class PartitionBasedIndexingMemoryLimits implements IndexingMemoryLimits {
 
+    private static final Logger logger = LogManager.getLogger(PartitionBasedIndexingMemoryLimits.class);
+
     private final long coordinatingLimitBytes;
     private final long primaryLimitBytes;
     private final long replicaLimitBytes;
@@ -32,12 +37,31 @@ public class PartitionBasedIndexingMemoryLimits implements IndexingMemoryLimits 
 
     public PartitionBasedIndexingMemoryLimits(double indexingPressureFraction, double indexBuffersFraction, long operationLimitBytes) {
         long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
-        long pressureLimit = (long) (heapMaxBytes * indexingPressureFraction);
-        this.coordinatingLimitBytes = pressureLimit;
-        this.primaryLimitBytes = pressureLimit;
-        this.replicaLimitBytes = (long) (pressureLimit * 1.5);
+        /*
+            For consistency with the old setting defaults, the replica limit
+            uses the entire partition, and the coordinating and primary
+            limits are 2/3 of that.
+         */
+        long indexingPressurePartitionSizeBytes = (long) (heapMaxBytes * indexingPressureFraction);
+        this.coordinatingLimitBytes = indexingPressurePartitionSizeBytes * 2 / 3;
+        this.primaryLimitBytes = indexingPressurePartitionSizeBytes * 2 / 3;
+        this.replicaLimitBytes = indexingPressurePartitionSizeBytes;
         this.operationLimitBytes = operationLimitBytes;
-        this.indexBufferBytes = (long) (heapMaxBytes * indexBuffersFraction);
+        /*
+            For consistency with the old setting defaults, the buffer size is
+            2/3 of the partition size, so there is room for the limit to
+            be exceeded (we only throttle at 1.5x the buffer size, see
+            org/elasticsearch/indices/IndexingMemoryController.java:402)
+         */
+        this.indexBufferBytes = (long) (heapMaxBytes * indexBuffersFraction) * 2 / 3;
+        logger.info(
+            "Indexing limits: coordinating={}, primary={}, replica={}, operation={}, buffers={}",
+            ByteSizeValue.ofBytes(coordinatingLimitBytes),
+            ByteSizeValue.ofBytes(primaryLimitBytes),
+            ByteSizeValue.ofBytes(replicaLimitBytes),
+            ByteSizeValue.ofBytes(operationLimitBytes),
+            ByteSizeValue.ofBytes(indexBufferBytes)
+        );
     }
 
     @Override

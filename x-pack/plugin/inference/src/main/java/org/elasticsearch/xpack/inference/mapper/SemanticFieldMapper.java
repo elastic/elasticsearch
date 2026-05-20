@@ -525,12 +525,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     chunkingSettings.getValue(),
                     indexOptions.getValue(),
                     inferenceField,
+                    isFieldIncludedInSource,
                     meta.getValue()
                 ),
                 builderParams,
                 modelRegistry,
-                vectorsFormatProviders,
-                isFieldIncludedInSource
+                vectorsFormatProviders
             );
         }
 
@@ -560,21 +560,18 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     protected final ModelRegistry modelRegistry;
     protected final List<VectorsFormatProvider> vectorsFormatProviders;
-    private final boolean isFieldIncludedInSource;
 
     SemanticFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders,
-        boolean isFieldIncludedInSource
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
         this.modelRegistry = modelRegistry;
         this.vectorsFormatProviders = vectorsFormatProviders;
-        this.isFieldIncludedInSource = isFieldIncludedInSource;
     }
 
     private void ensureMultiFields(Iterator<FieldMapper> mappers) {
@@ -653,7 +650,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        if (isFieldIncludedInSource) {
+        if (this.fieldType().includedInSource) {
             context.parser().skipChildren();
             return;
         }
@@ -686,7 +683,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     @Override
     public boolean excludeFromSource() {
-        return isFieldIncludedInSource == false;
+        return this.fieldType().includedInSource == false;
     }
 
     @Override
@@ -850,6 +847,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected final ChunkingSettings chunkingSettings;
         protected final SemanticTextIndexOptions indexOptions;
         protected final ObjectMapper inferenceField;
+        protected final boolean includedInSource;
 
         public SemanticFieldType(
             String name,
@@ -859,6 +857,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             ChunkingSettings chunkingSettings,
             SemanticTextIndexOptions indexOptions,
             ObjectMapper inferenceField,
+            boolean includedInSource,
             Map<String, String> meta
         ) {
             super(name, IndexType.terms(true, false), false, meta);
@@ -868,6 +867,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.chunkingSettings = chunkingSettings;
             this.indexOptions = indexOptions;
             this.inferenceField = inferenceField;
+            this.includedInSource = includedInSource;
         }
 
         @Override
@@ -897,6 +897,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         public ObjectMapper getInferenceField() {
             return inferenceField;
+        }
+
+        public boolean isIncludedInSource() {
+            return includedInSource;
         }
 
         public NestedObjectMapper getChunksField() {

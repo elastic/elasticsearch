@@ -459,8 +459,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 ),
                 builderParams,
                 modelRegistry,
-                vectorsFormatProviders,
-                isFieldIncludedInSource
+                vectorsFormatProviders
             );
         }
 
@@ -475,10 +474,9 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders,
-        boolean isFieldIncludedInSource
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
-        super(simpleName, mappedFieldType, builderParams, modelRegistry, vectorsFormatProviders, isFieldIncludedInSource);
+        super(simpleName, mappedFieldType, builderParams, modelRegistry, vectorsFormatProviders);
     }
 
     @Override
@@ -582,7 +580,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             boolean useLegacyFormat,
             Map<String, String> meta
         ) {
-            super(name, inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, inferenceField, meta);
+            super(name, inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, inferenceField, true, meta);
             this.useLegacyFormat = useLegacyFormat;
         }
 

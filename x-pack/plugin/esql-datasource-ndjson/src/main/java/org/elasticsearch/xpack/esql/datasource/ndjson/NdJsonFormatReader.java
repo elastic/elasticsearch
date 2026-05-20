@@ -16,6 +16,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.BufferedInputStream;
@@ -32,6 +34,7 @@ import java.io.PushbackInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 
 /**
@@ -272,7 +275,30 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         try (var stream = object.newStream()) {
             schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
         }
-        return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        String location = object.path().toString();
+        OptionalLong cached = ExternalRowCountCache.lookup(object);
+        if (cached.isEmpty()) {
+            return new SimpleSourceMetadata(schema, formatName(), location);
+        }
+        long rowCount = cached.getAsLong();
+        long sizeInBytes;
+        try {
+            sizeInBytes = object.length();
+        } catch (IOException e) {
+            return new SimpleSourceMetadata(schema, formatName(), location);
+        }
+        SourceStatistics stats = new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(rowCount);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.of(sizeInBytes);
+            }
+        };
+        return new SimpleSourceMetadata(schema, formatName(), location, stats, null);
     }
 
     /**

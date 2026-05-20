@@ -181,12 +181,15 @@ public final class DataSourceModule implements Closeable {
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
+        // Pass the node-level (root) BlockFactory so VirtualColumnIterator allocations route
+        // through the global request circuit breaker rather than the driver-local breaker.
         FileSourceFactory fileFallback = new FileSourceFactory(
             storageProviderRegistry,
             formatReaderRegistry,
             codecRegistry,
             settings,
-            executor
+            executor,
+            blockFactory
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up

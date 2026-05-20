@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -88,7 +87,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
-import org.elasticsearch.xpack.esql.datasources.dataset.AuthorizeDatasetDatasourceAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.DatasetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
@@ -96,7 +94,6 @@ import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestDeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestGetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.RestPutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.dataset.TransportAuthorizeDatasetDatasourceAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportDeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportGetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportPutDatasetAction;
@@ -245,11 +242,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
-    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        clusterService.set(services.clusterService());
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
@@ -475,7 +470,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
             actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
             actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
-            actions.add(new ActionHandler(AuthorizeDatasetDatasourceAction.INSTANCE, TransportAuthorizeDatasetDatasourceAction.class));
             actions.add(new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class));
             actions.add(new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class));
             actions.add(new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class));
@@ -507,7 +501,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
-            handlers.add(new RestPutDatasetAction(clusterService.get()));
+            handlers.add(new RestPutDatasetAction());
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());
         }

@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
@@ -28,12 +25,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDatasetAction extends BaseRestHandler {
-
-    private final ClusterService clusterService;
-
-    public RestPutDatasetAction(ClusterService clusterService) {
-        this.clusterService = clusterService;
-    }
 
     @Override
     public List<Route> routes() {
@@ -55,22 +46,7 @@ public class RestPutDatasetAction extends BaseRestHandler {
                 RestUtils.getAckTimeout(request),
                 name
             );
-            if (clusterService.state()
-                .getMinTransportVersion()
-                .supports(AuthorizeDatasetDatasourceAction.AUTHORIZE_DATASET_DATASOURCE_TRANSPORT_VERSION) == false) {
-                return channel -> client.execute(PutDatasetAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
-            }
-            AuthorizeDatasetDatasourceAction.Request authRequest = AuthorizeDatasetDatasourceAction.Request.forDatasetPut(putRequest);
-            return channel -> client.execute(
-                AuthorizeDatasetDatasourceAction.INSTANCE,
-                authRequest,
-                new RestActionListener<AcknowledgedResponse>(channel) {
-                    @Override
-                    protected void processResponse(AcknowledgedResponse response) {
-                        client.execute(PutDatasetAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
-                    }
-                }
-            );
+            return channel -> client.execute(PutDatasetAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
         }
     }
 

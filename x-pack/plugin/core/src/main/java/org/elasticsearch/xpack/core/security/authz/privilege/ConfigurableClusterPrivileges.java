@@ -80,37 +80,7 @@ public final class ConfigurableClusterPrivileges {
      * Utility method to read an array of {@link ConfigurableClusterPrivilege} objects from a {@link StreamInput}
      */
     public static ConfigurableClusterPrivilege[] readArray(StreamInput in) throws IOException {
-        return normalizeEmptyDatasourcePrivileges(in.readArray(READER, ConfigurableClusterPrivilege[]::new));
-    }
-
-    /**
-     * Drops {@link ManageDatasourcePrivileges} instances with no permission groups. Empty groups can appear on the
-     * wire (legacy or mixed-version payloads); they are equivalent to omitting {@code global.datasource} entirely.
-     */
-    public static ConfigurableClusterPrivilege[] normalizeEmptyDatasourcePrivileges(ConfigurableClusterPrivilege[] privileges) {
-        if (privileges == null || privileges.length == 0) {
-            return EMPTY_ARRAY;
-        }
-        int dropCount = 0;
-        for (ConfigurableClusterPrivilege p : privileges) {
-            if (p instanceof ManageDatasourcePrivileges mds && mds.hasPermissionGroups() == false) {
-                dropCount++;
-            }
-        }
-        if (dropCount == 0) {
-            return privileges;
-        }
-        if (dropCount == privileges.length) {
-            return EMPTY_ARRAY;
-        }
-        ArrayList<ConfigurableClusterPrivilege> list = new ArrayList<>(privileges.length - dropCount);
-        for (ConfigurableClusterPrivilege p : privileges) {
-            if (p instanceof ManageDatasourcePrivileges mds && mds.hasPermissionGroups() == false) {
-                continue;
-            }
-            list.add(p);
-        }
-        return list.toArray(ConfigurableClusterPrivilege[]::new);
+        return in.readArray(READER, ConfigurableClusterPrivilege[]::new);
     }
 
     /**
@@ -132,17 +102,13 @@ public final class ConfigurableClusterPrivileges {
         builder.startObject();
         for (Category category : Category.values()) {
             if (category == Category.DATASOURCE) {
-                boolean hasDatasourcePrivilege = privileges.stream()
-                    .anyMatch(p -> p instanceof ManageDatasourcePrivileges mds && mds.hasPermissionGroups());
-                if (hasDatasourcePrivilege) {
-                    builder.startArray(category.field.getPreferredName());
-                    for (ConfigurableClusterPrivilege privilege : privileges) {
-                        if (category == privilege.getCategory()) {
-                            ((ManageDatasourcePrivileges) privilege).toXContentArrayElements(builder, params);
-                        }
+                builder.startArray(category.field.getPreferredName());
+                for (ConfigurableClusterPrivilege privilege : privileges) {
+                    if (category == privilege.getCategory()) {
+                        ((ManageDatasourcePrivileges) privilege).toXContentArrayElements(builder, params);
                     }
-                    builder.endArray();
                 }
+                builder.endArray();
             } else {
                 builder.startObject(category.field.getPreferredName());
                 for (ConfigurableClusterPrivilege privilege : privileges) {
@@ -446,32 +412,51 @@ public final class ConfigurableClusterPrivileges {
     }
 
     /**
-     * Configurable cluster privileges for ES|QL datasource operations under {@code global.datasource} in role definitions.
+     * Configurable cluster privileges for ES|QL datasource operations under {@code global.data_source} in role definitions.
      */
     public static class ManageDatasourcePrivileges implements ConfigurableClusterPrivilege {
 
         public static final String WRITEABLE_NAME = "manage-datasource-privileges";
 
-        private static final Set<String> ALLOWED_PRIVILEGE_NAMES = Set.of("create", "delete", "read_metadata", "read", "manage");
+        public static final String PRIVILEGE_CREATE = "create";
+        public static final String PRIVILEGE_DELETE = "delete";
+        public static final String PRIVILEGE_READ_METADATA = "read_metadata";
+        public static final String PRIVILEGE_READ = "read";
+        public static final String PRIVILEGE_MANAGE = "manage";
+
+        private static final Set<String> ALLOWED_PRIVILEGE_NAMES = Set.of(
+            PRIVILEGE_CREATE,
+            PRIVILEGE_DELETE,
+            PRIVILEGE_READ_METADATA,
+            PRIVILEGE_READ,
+            PRIVILEGE_MANAGE
+        );
 
         private final List<DatasourcePermissionGroup> groups;
+        private final List<CompiledDatasourcePermissionGroup> compiledGroups;
         private final Predicate<TransportRequest> requestPredicate;
 
-        /**
-         * @param groups permission groups; an empty list is allowed for wire compatibility and is removed when a
-         *               {@link RoleDescriptor} is built (see {@link ConfigurableClusterPrivileges#normalizeEmptyDatasourcePrivileges}).
-         */
         public ManageDatasourcePrivileges(List<DatasourcePermissionGroup> groups) {
             if (groups == null) {
                 throw new IllegalArgumentException("datasource privileges require a non-null group list");
             }
+            for (DatasourcePermissionGroup group : groups) {
+                if (group.names() == null || group.names().length == 0) {
+                    throw new IllegalArgumentException("datasource privileges must refer to at least one datasource name or pattern");
+                }
+                if (group.privileges() == null || group.privileges().length == 0) {
+                    throw new IllegalArgumentException("datasource privileges must define at least one privilege");
+                }
+                for (String raw : group.privileges()) {
+                    String privilege = raw.toLowerCase(Locale.ROOT);
+                    if (ALLOWED_PRIVILEGE_NAMES.contains(privilege) == false) {
+                        throw new IllegalArgumentException("unsupported datasource privilege [" + raw + "]");
+                    }
+                }
+            }
             this.groups = List.copyOf(groups);
+            this.compiledGroups = groups.stream().map(CompiledDatasourcePermissionGroup::from).toList();
             this.requestPredicate = buildRequestPredicate();
-        }
-
-        /** {@code true} if this privilege defines at least one names/privileges group (non-empty on the wire). */
-        public boolean hasPermissionGroups() {
-            return groups.isEmpty() == false;
         }
 
         private Predicate<TransportRequest> buildRequestPredicate() {
@@ -485,8 +470,7 @@ public final class ConfigurableClusterPrivileges {
                     return false;
                 }
                 for (String eachName : requestNames) {
-                    boolean covered = groups.stream()
-                        .anyMatch(g -> namesMatch(g.names(), eachName) && privilegesAllowAction(g.privileges(), action));
+                    boolean covered = compiledGroups.stream().anyMatch(g -> g.matches(eachName, action));
                     if (covered == false) {
                         return false;
                     }
@@ -495,26 +479,34 @@ public final class ConfigurableClusterPrivileges {
             };
         }
 
-        private static boolean namesMatch(String[] patterns, String name) {
-            return StringMatcher.of(patterns).test(name);
+        private record CompiledDatasourcePermissionGroup(StringMatcher nameMatcher, Set<String> privilegeNames) {
+            private static CompiledDatasourcePermissionGroup from(DatasourcePermissionGroup group) {
+                return new CompiledDatasourcePermissionGroup(
+                    StringMatcher.of(group.names()),
+                    Arrays.stream(group.privileges()).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toUnmodifiableSet())
+                );
+            }
+
+            private boolean matches(String datasourceName, String transportAction) {
+                return nameMatcher.test(datasourceName) && privilegesAllowAction(privilegeNames, transportAction);
+            }
         }
 
-        private static boolean privilegesAllowAction(String[] privilegeStrings, String transportAction) {
-            Set<String> privs = Arrays.stream(privilegeStrings).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
-            if (privs.contains("manage")) {
+        private static boolean privilegesAllowAction(Set<String> privs, String transportAction) {
+            if (privs.contains(PRIVILEGE_MANAGE)) {
                 return true;
             }
             if (EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
-                return privs.contains("create");
+                return privs.contains(PRIVILEGE_CREATE);
             }
             if (EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
-                return privs.contains("read_metadata") || privs.contains("read");
+                return privs.contains(PRIVILEGE_READ_METADATA) || privs.contains(PRIVILEGE_READ);
             }
             if (EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
-                return privs.contains("delete");
+                return privs.contains(PRIVILEGE_DELETE);
             }
             if (EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME.equals(transportAction)) {
-                return privs.contains("read") || privs.contains("manage");
+                return privs.contains(PRIVILEGE_READ);
             }
             return false;
         }
@@ -538,18 +530,6 @@ public final class ConfigurableClusterPrivileges {
                         privileges = XContentUtils.readStringArray(parser, false);
                     } else {
                         throw new XContentParseException(parser.getTokenLocation(), "unknown field [" + field + "]");
-                    }
-                }
-                if (names == null || names.length == 0) {
-                    throw new IllegalArgumentException("datasource privileges must refer to at least one datasource name or pattern");
-                }
-                if (privileges == null || privileges.length == 0) {
-                    throw new IllegalArgumentException("datasource privileges must define at least one privilege");
-                }
-                for (String raw : privileges) {
-                    String p = raw.toLowerCase(Locale.ROOT);
-                    if (ALLOWED_PRIVILEGE_NAMES.contains(p) == false) {
-                        throw new IllegalArgumentException("unsupported datasource privilege [" + raw + "]");
                     }
                 }
                 groups.add(new DatasourcePermissionGroup(names, privileges));

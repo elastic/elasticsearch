@@ -455,7 +455,7 @@ public class SecuritySystemIndices {
                                 builder.endObject();
                             }
                             if (mappingVersion.onOrAfter(ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE)) {
-                                builder.startObject("datasource");
+                                builder.startObject("data_source");
                                 {
                                     builder.field("type", "nested");
                                     builder.startObject("properties");
@@ -1128,7 +1128,7 @@ public class SecuritySystemIndices {
         ADD_CERTIFICATE_IDENTITY_FIELD(4),
 
         /**
-         * Mapping for {@code global.datasource} configurable cluster privilege on roles.
+         * Mapping for {@code global.data_source} configurable cluster privilege on roles.
          */
         ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE(5),
 

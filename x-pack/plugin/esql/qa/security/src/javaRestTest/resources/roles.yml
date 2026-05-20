@@ -81,14 +81,16 @@ user3:
           }
         }
 
-# Passes global.datasource authorize for shared IT datasource; no create_dataset on security_it_ds_* — for PUT dataset denied on index priv.
+# Passes global.data_source authorize for shared IT datasource; no create_dataset on security_it_ds_* — for PUT dataset denied on index priv.
 user_dataset_authorize_only:
   cluster: []
   indices: []
   global:
-    datasource:
-      - names: [ "security_it_shared_ds" ]
+    data_source:
+      - names: [ "security_it_*" ]
         privileges: [ "read" ]
+      - names: [ "other_*" ]
+        privileges: [ "create" ]
 
 user4:
   cluster:
@@ -348,29 +350,35 @@ ds_read_datasource:
   cluster: []
   indices: []
   global:
-    datasource:
-      - names: [ "security_it_shared_ds" ]
+    data_source:
+      - names: [ "security_it_*" ]
         privileges: [ "read" ]
+      - names: [ "other_*" ]
+        privileges: [ "create" ]
 
 ds_manage_datasource:
   cluster: []
   indices: []
   global:
-    datasource:
-      - names: [ "*" ]
+    data_source:
+      - names: [ "security_it_*" ]
         privileges: [ "manage" ]
+      - names: [ "other_*" ]
+        privileges: [ "read" ]
 
 ds_dataset_create:
   cluster: []
   global:
-    datasource:
-      - names: [ "security_it_shared_ds" ]
+    data_source:
+      - names: [ "security_it_*" ]
         privileges: [ "read" ]
+      - names: [ "other_*" ]
+        privileges: [ "manage" ]
   indices:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'create_dataset' ]
 
-# create_dataset on target indices only; no global.datasource — PUT dataset must fail on authorize_datasource before put_dataset.
+# create_dataset on target indices only; no global.data_source — PUT dataset must fail on authorize_datasource before put_dataset.
 ds_dataset_create_no_datasource:
   cluster: []
   indices:

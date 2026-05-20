@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.esql;
 /** Action name constants for the ES|QL dataset CRUD API. */
 public class EsqlDatasetActionNames {
     /**
-     * Cluster action run before {@link #ESQL_PUT_DATASET_ACTION_NAME} so {@code global.datasource} can authorize use of a datasource
+     * Cluster action run before {@link #ESQL_PUT_DATASET_ACTION_NAME} so {@code global.data_source} can authorize use of a datasource
      * when creating or replacing a dataset (see ES|QL datasources security design).
      */
     public static final String ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME = "cluster:admin/esql/dataset/authorize_datasource";

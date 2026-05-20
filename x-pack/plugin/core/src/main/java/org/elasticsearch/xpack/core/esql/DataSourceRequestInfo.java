@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.esql;
 
 /**
  * Implemented by transport requests that target named ES|QL data sources. Intended for use by
- * configurable cluster privileges under {@code global.datasource} in role definitions so security
+ * configurable cluster privileges under {@code global.data_source} in role definitions so security
  * can authorize datasource operations without {@code x-pack-core} depending on concrete request
  * classes from the ES|QL plugin.
  */

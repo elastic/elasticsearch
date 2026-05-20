@@ -342,6 +342,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ViewDlsFlsRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
@@ -1140,7 +1141,8 @@ public class Security extends Plugin
         dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get())
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get()),
+            new DatasetDatasourceRequestInterceptor()
         );
 
         if (dlsFlsEnabled.get()) {

@@ -42,26 +42,18 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
         }
     }
 
-    public void testReadArrayDropsWireEmptyManageDatasourcePrivilege() throws Exception {
+    public void testReadArrayRoundTripsEmptyManageDatasourcePrivilege() throws Exception {
         var emptyPrivilege = new ConfigurableClusterPrivileges.ManageDatasourcePrivileges(List.of());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             ConfigurableClusterPrivileges.writeArray(out, new ConfigurableClusterPrivilege[] { emptyPrivilege });
             NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
                 ConfigurableClusterPrivilege[] copy = ConfigurableClusterPrivileges.readArray(in);
-                assertThat(copy.length, equalTo(0));
+                assertThat(copy.length, equalTo(1));
+                assertThat(copy[0], instanceOf(ConfigurableClusterPrivileges.ManageDatasourcePrivileges.class));
+                assertThat(copy[0], equalTo(emptyPrivilege));
             }
         }
-    }
-
-    public void testNormalizeEmptyManageDatasourcePreservesOtherPrivileges() {
-        ConfigurableClusterPrivilege[] normalized = ConfigurableClusterPrivileges.normalizeEmptyDatasourcePrivileges(
-            new ConfigurableClusterPrivilege[] {
-                new ConfigurableClusterPrivileges.ManageDatasourcePrivileges(List.of()),
-                ManageRolesPrivilegesTests.buildPrivileges() }
-        );
-        assertThat(normalized.length, equalTo(1));
-        assertThat(normalized[0], instanceOf(ConfigurableClusterPrivileges.ManageRolesPrivilege.class));
     }
 
     public void testGenerateAndParseXContent() throws Exception {

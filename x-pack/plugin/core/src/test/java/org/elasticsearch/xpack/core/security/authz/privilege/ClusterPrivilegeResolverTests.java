@@ -94,5 +94,4 @@ public class ClusterPrivilegeResolverTests extends ESTestCase {
             is(true)
         );
     }
-
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -224,6 +225,59 @@ public class JsonExtract extends EsqlScalarFunction {
         doExtract(builder, str, path);
     }
 
+    /**
+     * When the first argument is the {@code _source} metadata field and the input bytes are
+     * null, the default {@code @Evaluator} machinery short-circuits silently — leaving the
+     * user with a column of nulls and no signal as to why. From the function's standpoint
+     * the only known fact is that {@code _source} is null; the most common upstream cause
+     * is the index mapping disabling {@code _source}, but we don't reach for that signal
+     * directly. The SOURCE-typed evaluator pair below opts out of the null short-circuit
+     * via {@code allNullsIsNull = false} and throws a recognizable
+     * {@link IllegalStateException} on null source — the user's invocation is fine; the
+     * observed runtime state is what's unexpected, hence {@code IllegalStateException}
+     * rather than {@code IllegalArgumentException}. The generator catches the throw and
+     * surfaces it as a warning header; HTTP deduplication collapses repeats.
+     */
+    private static final String NULL_SOURCE_MESSAGE =
+        "_source is null; commonly indicates _source has been disabled or filtered out for the index";
+
+    @Evaluator(
+        extraName = "Source",
+        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
+        allNullsIsNull = false
+    )
+    static void processSource(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, BytesRefBlock pathBlock) {
+        if (strBlock.isNull(position)) {
+            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
+        }
+        if (pathBlock.isNull(position)) {
+            builder.appendNull();
+            return;
+        }
+        if (strBlock.getValueCount(position) != 1 || pathBlock.getValueCount(position) != 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
+        BytesRef path = pathBlock.getBytesRef(pathBlock.getFirstValueIndex(position), new BytesRef());
+        doExtract(builder, str, JsonPath.parse(path.utf8ToString()));
+    }
+
+    @Evaluator(
+        extraName = "SourceConstant",
+        warnExceptions = { IllegalArgumentException.class, IllegalStateException.class },
+        allNullsIsNull = false
+    )
+    static void processSourceConstant(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock strBlock, @Fixed JsonPath path) {
+        if (strBlock.isNull(position)) {
+            throw new IllegalStateException(NULL_SOURCE_MESSAGE);
+        }
+        if (strBlock.getValueCount(position) != 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
+        doExtract(builder, str, path);
+    }
+
     private static void doExtract(BytesRefBlock.Builder builder, BytesRef str, JsonPath path) {
         // Detect content type — _source may be SMILE/CBOR/YAML, keyword/text is always JSON.
         XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
@@ -373,12 +427,19 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        boolean isSource = str.dataType() == DataType.SOURCE;
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         if (path.foldable()) {
             JsonPath jsonPath = JsonPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
+            if (isSource) {
+                return new JsonExtractSourceConstantEvaluator.Factory(source(), strExpr, jsonPath);
+            }
             return new JsonExtractConstantEvaluator.Factory(source(), strExpr, jsonPath);
         }
         ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(path);
+        if (isSource) {
+            return new JsonExtractSourceEvaluator.Factory(source(), strExpr, pathExpr);
+        }
         return new JsonExtractEvaluator.Factory(source(), strExpr, pathExpr);
     }
 

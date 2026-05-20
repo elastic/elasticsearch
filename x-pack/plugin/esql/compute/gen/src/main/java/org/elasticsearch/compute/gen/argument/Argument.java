@@ -37,20 +37,15 @@ public interface Argument {
     static Argument fromParameter(javax.lang.model.util.Types types, VariableElement v) {
         TypeName type = TypeName.get(v.asType());
         String name = v.getSimpleName().toString();
+
         Fixed fixed = v.getAnnotation(Fixed.class);
         if (fixed != null) {
             boolean releasable = Types.extendsSuper(types, v.asType(), CodegenConstants.RELEASABLE_FQN);
-            if (fixed.jitConstant()) {
-                return new JitConstantFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
-            }
-            return new FixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
+            return fromFixed(type, name, fixed, releasable);
         }
-
-        Position position = v.getAnnotation(Position.class);
-        if (position != null) {
+        if (v.getAnnotation(Position.class) != null) {
             return new PositionArgument(type, name);
         }
-
         if (type instanceof ClassName c
             && c.simpleName().equals("Builder")
             && c.enclosingClassName() != null
@@ -65,6 +60,13 @@ public interface Argument {
             return new BlockArgument(type, name);
         }
         return new StandardArgument(type, name);
+    }
+
+    private static Argument fromFixed(TypeName type, String name, Fixed fixed, boolean releasable) {
+        if (fixed.jitConstant()) {
+            return new JitConstantFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
+        }
+        return new FixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
     }
 
     default String blockName() {

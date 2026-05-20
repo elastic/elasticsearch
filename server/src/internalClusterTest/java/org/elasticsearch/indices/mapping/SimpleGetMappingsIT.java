@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -44,7 +46,16 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         createIndex("index");
         GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
-        assertEquals(MappingMetadata.EMPTY_MAPPINGS, response.mappings().get("index"));
+        MappingMetadata expected;
+        if (useColumnarId) {
+            expected = new MappingMetadata(
+                MapperService.SINGLE_MAPPING_NAME,
+                Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_id", Map.of("mode", "columnar")))
+            );
+        } else {
+            expected = MappingMetadata.EMPTY_MAPPINGS;
+        }
+        assertEquals(expected, response.mappings().get("index"));
     }
 
     private XContentBuilder getMappingForType() throws IOException {

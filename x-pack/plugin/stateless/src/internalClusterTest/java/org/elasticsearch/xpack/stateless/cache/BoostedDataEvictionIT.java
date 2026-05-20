@@ -38,13 +38,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
 
-/// Verifies that non-boosted searches (over data older than the boost window) can evict
-/// pre-warmed boosted data from the shared blob cache.
-///
-/// The shared blob cache is a single global LFU with no priority tier. Pre-warmed regions for
-/// in-window ("boosted") data compete on the same frequency ladder as on-demand reads for
-/// out-of-window ("non-boosted") data. When the cache is full, non-boosted search reads can
-/// promote new regions and evict previously-warmed boosted regions.
 public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final String TIMESTAMP_MAPPING = """

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -453,7 +452,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
     }
 
-    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+    public void testCaptureAndRethrottleRaceCondition() {
         final float initialRps = randomFloatBetween(0.1f, 500f, true);
         final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
         taskState.setRequestsPerSecondWithRelocationGuard(initialRps);
@@ -468,13 +467,13 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
                 safeAwait(go);
                 return taskState.captureRequestsPerSecondForRelocation();
             });
-            final Future<ElasticsearchStatusException> rethrottleFuture = executor.submit(() -> {
+            final Future<TaskRelocatingException> rethrottleFuture = executor.submit(() -> {
                 ready.countDown();
                 safeAwait(go);
                 try {
                     taskState.setRequestsPerSecondWithRelocationGuard(rethrottledRps);
                     return null;
-                } catch (ElasticsearchStatusException e) {
+                } catch (TaskRelocatingException e) {
                     return e;
                 }
             });
@@ -483,7 +482,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
             go.countDown();
 
             final float captured = safeGet(captureFuture);
-            final ElasticsearchStatusException rethrottleError = safeGet(rethrottleFuture);
+            final TaskRelocatingException rethrottleError = safeGet(rethrottleFuture);
 
             // check mutual exclusion of race, we either:
             // 1. fail to rethrottle, RPS doesn't change, and we get an exception

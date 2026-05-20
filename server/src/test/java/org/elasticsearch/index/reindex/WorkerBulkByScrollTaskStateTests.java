@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -234,7 +233,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             // Have the task use the thread pool to delay a task that does nothing
             workerState.delayPrepareBulkRequest(threadPool, 0, 1, new AbstractRunnable() {
                 @Override
-                protected void doRun() throws Exception {}
+                protected void doRun() {}
 
                 @Override
                 public void onFailure(Exception e) {
@@ -285,7 +284,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         assertThat(slicedTask.getStatus().getRequestsPerSecond(), equalTo(newRps));
     }
 
-    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+    public void testCaptureAndRethrottleRaceCondition() {
         final float initialRps = randomFloatBetween(0.1f, 500f, true);
         final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
         workerState.rethrottleWithRelocationGuard(initialRps);
@@ -300,13 +299,13 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
                 safeAwait(go);
                 return workerState.captureRequestsPerSecondForRelocation();
             });
-            final Future<ElasticsearchStatusException> rethrottleFuture = executor.submit(() -> {
+            final Future<TaskRelocatingException> rethrottleFuture = executor.submit(() -> {
                 ready.countDown();
                 safeAwait(go);
                 try {
                     workerState.rethrottleWithRelocationGuard(rethrottledRps);
                     return null;
-                } catch (ElasticsearchStatusException e) {
+                } catch (TaskRelocatingException e) {
                     return e;
                 }
             });
@@ -315,7 +314,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             go.countDown();
 
             final float captured = safeGet(captureFuture);
-            final ElasticsearchStatusException rethrottleError = safeGet(rethrottleFuture);
+            final TaskRelocatingException rethrottleError = safeGet(rethrottleFuture);
 
             // check mutual exclusion of race, we either:
             // 1. fail to rethrottle, RPS doesn't change, and we get an exception

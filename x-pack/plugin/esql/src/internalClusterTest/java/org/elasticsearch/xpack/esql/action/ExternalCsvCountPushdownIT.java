@@ -91,17 +91,19 @@ public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
 
             // Cold execution: cache is empty, the iterator scans the file end-to-end and the
             // capture hook writes (path, length) → totalRows on close. Async* operators are
-            // expected to appear in the profile.
+            // expected to appear in the profile and documentsFound reflects the scanned rows.
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
+                assertThat("cold execution must scan rows", response.documentsFound(), equalTo((long) totalRows));
             }
 
             // Warm execution: metadata() lookup hits, SourceStatistics.rowCount publishes,
             // PushStatsToExternalSource rewrites the aggregate subtree to a LocalSourceExec.
-            // No Async* operator should appear.
+            // No Async* operator should appear and documentsFound is zero (no data-node scan).
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
                 assertNoPushdownBypass(response);
+                assertThat("warm execution must not scan any documents (LocalSourceExec)", response.documentsFound(), equalTo(0L));
             }
         } finally {
             Files.deleteIfExists(csvFile);

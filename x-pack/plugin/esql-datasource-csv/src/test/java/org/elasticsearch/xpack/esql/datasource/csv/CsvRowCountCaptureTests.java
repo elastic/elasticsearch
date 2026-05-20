@@ -14,9 +14,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -46,6 +48,18 @@ public class CsvRowCountCaptureTests extends ESTestCase {
     public void tearDown() throws Exception {
         ExternalRowCountCache.clearForTests();
         super.tearDown();
+    }
+
+    /**
+     * SKIP_ROW paths emit response-header warnings via {@code HeaderWarning}. Drop the accumulated
+     * thread context here so the inherited {@code ensureNoWarnings} post-check sees an empty list;
+     * tests don't care about the warning contents, only the cache effect.
+     */
+    @After
+    public void clearWarningHeaders() {
+        if (threadContext != null) {
+            threadContext.stashContext();
+        }
     }
 
     public void testWholeFileCleanDrainPopulatesCache() throws Exception {
@@ -94,6 +108,25 @@ public class CsvRowCountCaptureTests extends ESTestCase {
             drain(it);
         }
         assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
+    }
+
+    /**
+     * Defense-in-depth: under {@code SKIP_ROW}, a CSV with at least one malformed row drains
+     * naturally to EOF but {@code errorCount > 0}, so the data-driven gate suppresses the cache
+     * write. Caching the post-skip count would mix policy-dependent values into the per-file
+     * cache and break the warm-path contract.
+     */
+    public void testSkipRowWithErrorsDoesNotPopulateCache() throws Exception {
+        // Middle row is unparseable as integer; SKIP_ROW drops it and continues.
+        // logErrors=false to keep warning-header emission out of the test-runner's expectation set.
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj("id:integer,n:integer\n1,10\nnot-an-integer,20\n3,30\n");
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build();
+        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
+            drain(it);
+            assertTrue("SKIP_ROW with malformed row must have observed at least one error", it.errorsObserved() > 0);
+        }
+        assertTrue("SKIP_ROW with errors must not populate cache (count is policy-dependent)", ExternalRowCountCache.lookup(o).isEmpty());
     }
 
     private static void drain(CloseableIterator<Page> it) {

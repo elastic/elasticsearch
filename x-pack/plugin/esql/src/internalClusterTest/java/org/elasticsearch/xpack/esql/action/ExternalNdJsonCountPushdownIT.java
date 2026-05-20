@@ -86,10 +86,12 @@ public class ExternalNdJsonCountPushdownIT extends AbstractEsqlIntegTestCase {
 
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
+                assertThat("cold execution must scan rows", response.documentsFound(), equalTo((long) totalRows));
             }
             try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
                 assertCount(response, totalRows);
                 assertNoPushdownBypass(response);
+                assertThat("warm execution must not scan any documents (LocalSourceExec)", response.documentsFound(), equalTo(0L));
             }
         } finally {
             Files.deleteIfExists(ndjsonFile);

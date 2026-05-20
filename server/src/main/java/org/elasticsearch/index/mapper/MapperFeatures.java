@@ -15,6 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
+import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES_BY_DEFAULT;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -78,6 +79,9 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
     static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
+        "mapper.text.doc_values_prefix_wildcard_regexp"
+    );
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
@@ -87,13 +91,16 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
+    static final NodeFeature ARRAY_OBJECTS_LIMIT = new NodeFeature("mapper.array_objects_limit");
     public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
     public static final NodeFeature IP_MAPPER_CARDINALITY_OPTION = new NodeFeature("mapper.ip.doc_values_cardinality_option");
     public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
     static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
-
     public static final NodeFeature KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = new NodeFeature(
         "mapper.keyword.multi_fields_not_stored_when_ignored"
+    );
+    static final NodeFeature ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER = new NodeFeature(
+        "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
 
     @Override
@@ -150,19 +157,23 @@ public class MapperFeatures implements FeatureSpecification {
             MV_MAX_FUNCTION_FUSE_TO_LOAD,
             TDIGEST_TYPE,
             TEXT_FIELD_DOC_VALUES,
+            TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
             DOC_VALUES_MULTI_VALUE_ENFORCEMENT,
             DOC_VALUES_MULTI_VALUE_RENAME,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
+            ARRAY_OBJECTS_LIMIT,
             ES940_DISK_BBQ,
             FLATTENED_PASSTHROUGH_FEATURE,
             IGNORED_VALUES_STORED_IN_BINARY_DV,
             IP_MAPPER_CARDINALITY_OPTION,
             KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
             KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
-            ROUTING_AS_DOC_VALUES
+            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
+            ROUTING_AS_DOC_VALUES,
+            ROUTING_AS_DOC_VALUES_BY_DEFAULT
         );
     }
 }

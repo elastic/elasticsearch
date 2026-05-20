@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -311,39 +310,55 @@ public final class S3StorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            // The async path materializes the response into a single byte[]; ranges larger than 2 GiB
+            // are not supportable here. Callers needing larger reads must split the range or fall
+            // back to the streaming sync path via newStream(position, length).
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         long endPosition = position + length - 1;
         String rangeHeader = Strings.format("bytes=%d-%d", position, endPosition);
 
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
+        // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
+        // copied straight into the final pre-sized byte[] (single chunk-to-destination copy),
+        // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
+        // See KnownLengthAsyncResponseTransformer for the full rationale.
         long startNanos = System.nanoTime();
-        s3AsyncClient.getObject(request, AsyncResponseTransformer.toBytes()).whenComplete((responseBytes, throwable) -> {
-            if (throwable != null) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                if (cause instanceof NoSuchKeyException) {
-                    listener.onFailure(new IOException("Object not found: " + path, cause));
-                } else {
-                    listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
+        s3AsyncClient.getObject(request, new KnownLengthAsyncResponseTransformer<>((int) length))
+            .whenComplete((responseBytes, throwable) -> {
+                if (throwable != null) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+                    if (cause instanceof NoSuchKeyException) {
+                        listener.onFailure(new IOException("Object not found: " + path, cause));
+                    } else {
+                        listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
+                    }
+                    return;
                 }
-                return;
-            }
 
-            GetObjectResponse response = responseBytes.response();
-            if (cachedLastModified == null) {
-                cachedLastModified = response.lastModified();
-            }
-            if (cachedLength == null) {
-                Long total = ContentRangeParser.parseTotalLength(response.contentRange());
-                if (total != null) {
-                    cachedLength = total;
+                GetObjectResponse response = responseBytes.response();
+                if (cachedLastModified == null) {
+                    cachedLastModified = response.lastModified();
                 }
-            }
-            byte[] payload = responseBytes.asByteArray();
-            counters.addRequest(System.nanoTime() - startNanos, payload.length);
-            listener.onResponse(ByteBuffer.wrap(payload));
-        });
+                if (cachedLength == null) {
+                    Long total = ContentRangeParser.parseTotalLength(response.contentRange());
+                    if (total != null) {
+                        cachedLength = total;
+                    }
+                }
+
+                // Safe to use asByteArrayUnsafe(): the byte[] inside responseBytes was allocated by our
+                // KnownLengthAsyncResponseTransformer above and is not retained anywhere else after the
+                // CompletableFuture completes. Wrapping it directly avoids one final defensive copy.
+                byte[] payload = responseBytes.asByteArrayUnsafe();
+                counters.addRequest(System.nanoTime() - startNanos, payload.length);
+                listener.onResponse(ByteBuffer.wrap(payload));
+            });
     }
 
     @Override

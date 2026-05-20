@@ -105,19 +105,22 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Poll a page from the buffer. Called by the operator (driver thread).
-     * @return the next page, or null if no pages available
+     *
+     * @return the next page, or {@code null} if no pages available
      */
     public Page pollPage() {
-        final var page = queue.poll();
-        if (page != null) {
-            queueSize.decrementAndGet();
-            long pageBytes = page.ramBytesUsedByBlocks();
-            bytesInBuffer.addAndGet(-pageBytes);
-            // Always notify: the previous threshold-crossing guard could miss a crossing because the
-            // producer's waitForSpace snapshot of bytesInBuffer can race with concurrent addPage calls,
-            // orphaning notFullFuture. notifyNotFull() is a no-op when no listener is registered.
-            notifyNotFull();
+        Page page = queue.poll();
+        if (page == null) {
+            signalCompletionIfDrained();
+            return null;
         }
+        queueSize.decrementAndGet();
+        long pageBytes = page.ramBytesUsedByBlocks();
+        bytesInBuffer.addAndGet(-pageBytes);
+        // Always notify: the previous threshold-crossing guard could miss a crossing because the
+        // producer's waitForSpace snapshot of bytesInBuffer can race with concurrent addPage calls,
+        // orphaning notFullFuture. notifyNotFull() is a no-op when no listener is registered.
+        notifyNotFull();
         signalCompletionIfDrained();
         return page;
     }
@@ -200,6 +203,9 @@ public final class AsyncExternalSourceBuffer {
         }
     }
 
+    // Drains and releases every queued page on teardown. Only call from finish/onFailure;
+    // bytesInBuffer is reset wholesale, which is only safe when no further pollPage() is expected
+    // to subtract from it.
     private void discardPages() {
         Page p;
         while ((p = queue.poll()) != null) {

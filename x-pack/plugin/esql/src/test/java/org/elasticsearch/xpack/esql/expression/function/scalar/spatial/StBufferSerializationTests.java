@@ -20,7 +20,8 @@ public class StBufferSerializationTests extends AbstractExpressionSerializationT
         Source source = randomSource();
         Expression geometry = randomChild();
         Expression distance = randomChild();
-        return new StBuffer(source, geometry, distance);
+        Expression options = randomBoolean() ? null : randomChild();
+        return new StBuffer(source, geometry, distance, options);
     }
 
     @Override
@@ -28,11 +29,12 @@ public class StBufferSerializationTests extends AbstractExpressionSerializationT
         Source source = instance.source();
         Expression geometry = instance.spatialField();
         Expression distance = instance.distance();
-        if (randomBoolean()) {
-            geometry = randomValueOtherThan(geometry, AbstractUnaryScalarSerializationTests::randomChild);
-        } else {
-            distance = randomValueOtherThan(distance, AbstractUnaryScalarSerializationTests::randomChild);
+        Expression options = instance.options();
+        switch (between(0, 2)) {
+            case 0 -> geometry = randomValueOtherThan(geometry, AbstractUnaryScalarSerializationTests::randomChild);
+            case 1 -> distance = randomValueOtherThan(distance, AbstractUnaryScalarSerializationTests::randomChild);
+            case 2 -> options = options == null ? randomChild() : null;
         }
-        return new StBuffer(source, geometry, distance);
+        return new StBuffer(source, geometry, distance, options);
     }
 }

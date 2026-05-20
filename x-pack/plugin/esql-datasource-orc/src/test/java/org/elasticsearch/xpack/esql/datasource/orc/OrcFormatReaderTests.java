@@ -84,6 +84,11 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertTrue(extensions.contains(".orc"));
     }
 
+    public void testDoesNotSupportWholeFileCompression() {
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
+    }
+
     /**
      * Verifies {@link OrcFormatReader#statusSnapshot()} reports populated counters after a real
      * read drains an ORC file. Sibling-parity with

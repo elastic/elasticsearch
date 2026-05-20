@@ -139,7 +139,7 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public StartsWithConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends StartsWithConstantEvaluator>> spunClassOpt = JitConstantSpinner.referenceConstantSubclass(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
+      Optional<Class<? extends StartsWithConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.referenceConstantSubclass(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
       if (spunClassOpt.isPresent()) {
         Class<? extends StartsWithConstantEvaluator> spunClass = spunClassOpt.get();
         try {

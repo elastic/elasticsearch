@@ -134,7 +134,7 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public DivLongsByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends DivLongsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.longConstantSubclass(DivLongsByConstantEvaluator.class, "rhs", this.rhs);
+      Optional<Class<? extends DivLongsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.longConstantSubclass(DivLongsByConstantEvaluator.class, "rhs", this.rhs);
       if (spunClassOpt.isPresent()) {
         Class<? extends DivLongsByConstantEvaluator> spunClass = spunClassOpt.get();
         try {

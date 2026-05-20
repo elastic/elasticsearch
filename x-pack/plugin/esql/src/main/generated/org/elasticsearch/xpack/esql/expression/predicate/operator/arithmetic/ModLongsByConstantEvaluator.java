@@ -134,7 +134,7 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
 
     @Override
     public ModLongsByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends ModLongsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.longConstantSubclass(ModLongsByConstantEvaluator.class, "rhs", this.rhs);
+      Optional<Class<? extends ModLongsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.longConstantSubclass(ModLongsByConstantEvaluator.class, "rhs", this.rhs);
       if (spunClassOpt.isPresent()) {
         Class<? extends ModLongsByConstantEvaluator> spunClass = spunClassOpt.get();
         try {

@@ -145,7 +145,7 @@ public abstract class DivDoublesByConstantEvaluator implements ExpressionEvaluat
 
     @Override
     public DivDoublesByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends DivDoublesByConstantEvaluator>> spunClassOpt = JitConstantSpinner.doubleConstantSubclass(DivDoublesByConstantEvaluator.class, "rhs", this.rhs);
+      Optional<Class<? extends DivDoublesByConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.doubleConstantSubclass(DivDoublesByConstantEvaluator.class, "rhs", this.rhs);
       if (spunClassOpt.isPresent()) {
         Class<? extends DivDoublesByConstantEvaluator> spunClass = spunClassOpt.get();
         try {

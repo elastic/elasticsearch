@@ -145,7 +145,7 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
 
     @Override
     public ModDoublesByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends ModDoublesByConstantEvaluator>> spunClassOpt = JitConstantSpinner.doubleConstantSubclass(ModDoublesByConstantEvaluator.class, "rhs", this.rhs);
+      Optional<Class<? extends ModDoublesByConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.doubleConstantSubclass(ModDoublesByConstantEvaluator.class, "rhs", this.rhs);
       if (spunClassOpt.isPresent()) {
         Class<? extends ModDoublesByConstantEvaluator> spunClass = spunClassOpt.get();
         try {

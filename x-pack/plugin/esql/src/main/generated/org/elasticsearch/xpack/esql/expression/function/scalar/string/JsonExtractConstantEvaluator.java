@@ -147,7 +147,7 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
     @Override
     public JsonExtractConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends JsonExtractConstantEvaluator>> spunClassOpt = JitConstantSpinner.referenceConstantSubclass(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
+      Optional<Class<? extends JsonExtractConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.referenceConstantSubclass(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
       if (spunClassOpt.isPresent()) {
         Class<? extends JsonExtractConstantEvaluator> spunClass = spunClassOpt.get();
         try {

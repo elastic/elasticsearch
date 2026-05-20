@@ -134,7 +134,7 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
 
     @Override
     public DivIntsByConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends DivIntsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.intConstantSubclass(DivIntsByConstantEvaluator.class, "rhs", this.rhs);
+      Optional<Class<? extends DivIntsByConstantEvaluator>> spunClassOpt = JitConstantSpinner.SHARED.intConstantSubclass(DivIntsByConstantEvaluator.class, "rhs", this.rhs);
       if (spunClassOpt.isPresent()) {
         Class<? extends DivIntsByConstantEvaluator> spunClass = spunClassOpt.get();
         try {

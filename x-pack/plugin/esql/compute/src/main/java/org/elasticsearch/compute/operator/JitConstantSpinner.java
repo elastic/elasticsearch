@@ -127,10 +127,22 @@ public final class JitConstantSpinner {
     @Deprecated
     public static final int DEFAULT_CACHE_CAPACITY = DEFAULT_ADMISSION_CAPACITY;
 
+    /**
+     * JVM-wide default spinner instance. Generated evaluator factories call
+     * {@code JitConstantSpinner.SHARED.longConstantSubclass(...)}; tests construct their
+     * own instance via {@code new JitConstantSpinner()} for isolation (no shared state).
+     *
+     * <p>The cache + admission tracker are intentionally process-global by default: two
+     * instances would each spin a hidden class for the same {@code (base, accessor, value)}
+     * triple, duplicating JIT compilations and defeating the cache. Use {@code new}
+     * only when you want isolated state.
+     */
+    public static final JitConstantSpinner SHARED = new JitConstantSpinner();
+
     private record CacheKey(Class<?> base, String name, Object value) {}
 
-    private static volatile int admissionCapacity = DEFAULT_ADMISSION_CAPACITY;
-    private static volatile int admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
+    private volatile int admissionCapacity = DEFAULT_ADMISSION_CAPACITY;
+    private volatile int admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
 
     /**
      * Cache-entry reachability. {@code SoftReference} keeps a spun class alive until
@@ -140,9 +152,9 @@ public final class JitConstantSpinner {
      * node degrades the cache to pure re-spin churn. Soft is the default; weak is kept
      * as an opt-out for workloads that prefer the most aggressive reclamation.
      */
-    private static volatile boolean useSoftReferences = true;
+    private volatile boolean useSoftReferences = true;
 
-    private static Reference<Class<?>> newRef(Class<?> cls) {
+    private Reference<Class<?>> newRef(Class<?> cls) {
         return useSoftReferences ? new SoftReference<>(cls) : new WeakReference<>(cls);
     }
 
@@ -152,7 +164,7 @@ public final class JitConstantSpinner {
      * when under heap pressure (soft). Either way the cache is a transparent index, never
      * an artificial retention root.
      */
-    private static final ConcurrentHashMap<CacheKey, Reference<Class<?>>> CLASSES = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<CacheKey, Reference<Class<?>>> CLASSES = new ConcurrentHashMap<>();
 
     /**
      * Admission tracker. Counts recently-seen keys; spin only triggers when a
@@ -160,29 +172,32 @@ public final class JitConstantSpinner {
      * never cost a spin — the caller falls back to the non-folded path.
      * Bounded LRU so memory is capped even on pathological cardinality.
      */
-    private static final Map<CacheKey, AtomicLong> ADMISSION = Collections.synchronizedMap(
-        new LinkedHashMap<>(16, 0.75f, /* accessOrder */ true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<CacheKey, AtomicLong> eldest) {
-                if (size() > admissionCapacity) {
-                    ADMISSION_EVICTIONS.increment();
-                    return true;
-                }
-                return false;
+    private final Map<CacheKey, AtomicLong> ADMISSION = Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, /* accessOrder */ true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<CacheKey, AtomicLong> eldest) {
+            if (size() > admissionCapacity) {
+                ADMISSION_EVICTIONS.increment();
+                return true;
             }
+            return false;
         }
-    );
+    });
 
     // Telemetry
-    private static final LongAdder SPINS = new LongAdder();
-    private static final LongAdder HITS = new LongAdder();
-    private static final LongAdder MISSES = new LongAdder();
-    private static final LongAdder ADMISSION_REJECTED = new LongAdder();   // returned empty because count < threshold
-    private static final LongAdder WEAK_REF_CLEARED = new LongAdder();     // cache had entry but ref was GC'd
-    private static final LongAdder ADMISSION_EVICTIONS = new LongAdder();  // counters evicted by LRU
-    private static final LongAdder STANDARDS = new LongAdder();            // spin threw — gave up
+    private final LongAdder SPINS = new LongAdder();
+    private final LongAdder HITS = new LongAdder();
+    private final LongAdder MISSES = new LongAdder();
+    private final LongAdder ADMISSION_REJECTED = new LongAdder();   // returned empty because count < threshold
+    private final LongAdder WEAK_REF_CLEARED = new LongAdder();     // cache had entry but ref was GC'd
+    private final LongAdder ADMISSION_EVICTIONS = new LongAdder();  // counters evicted by LRU
+    private final LongAdder STANDARDS = new LongAdder();            // spin threw — gave up
 
-    private JitConstantSpinner() {}
+    /**
+     * Package-private — production code uses {@link #SHARED}. Tests in the same
+     * package may construct an isolated instance to avoid cross-test counter/cache
+     * contamination.
+     */
+    JitConstantSpinner() {}
 
     // ----- public API -----
 
@@ -194,17 +209,17 @@ public final class JitConstantSpinner {
      * capacity and adding this entry would require eviction — the caller should fall
      * back to the non-folded path in that case.
      */
-    public static <T> Optional<Class<? extends T>> longConstantSubclass(Class<T> baseClass, String methodName, long value) {
+    public <T> Optional<Class<? extends T>> longConstantSubclass(Class<T> baseClass, String methodName, long value) {
         return primitiveSubclass(baseClass, methodName, long.class, Long.valueOf(value));
     }
 
     /** Same as {@link #longConstantSubclass} but for {@code int}. */
-    public static <T> Optional<Class<? extends T>> intConstantSubclass(Class<T> baseClass, String methodName, int value) {
+    public <T> Optional<Class<? extends T>> intConstantSubclass(Class<T> baseClass, String methodName, int value) {
         return primitiveSubclass(baseClass, methodName, int.class, Integer.valueOf(value));
     }
 
     /** Same as {@link #longConstantSubclass} but for {@code double}. */
-    public static <T> Optional<Class<? extends T>> doubleConstantSubclass(Class<T> baseClass, String methodName, double value) {
+    public <T> Optional<Class<? extends T>> doubleConstantSubclass(Class<T> baseClass, String methodName, double value) {
         return primitiveSubclass(baseClass, methodName, double.class, Double.valueOf(value));
     }
 
@@ -213,7 +228,7 @@ public final class JitConstantSpinner {
      * The constant is passed via class data and loaded through a {@code condy}
      * bootstrap referencing {@link MethodHandles#classData(MethodHandles.Lookup, String, Class)}.
      */
-    public static <T, V> Optional<Class<? extends T>> referenceConstantSubclass(
+    public <T, V> Optional<Class<? extends T>> referenceConstantSubclass(
         Class<T> baseClass,
         String methodName,
         Class<V> valueType,
@@ -225,43 +240,43 @@ public final class JitConstantSpinner {
     }
 
     /** Number of entries currently in the spun-class cache (some may have cleared weak refs awaiting prune). */
-    public static int cacheSize() {
+    public int cacheSize() {
         return CLASSES.size();
     }
 
     /** Number of entries in the admission tracker. */
-    public static int admissionTrackerSize() {
+    public int admissionTrackerSize() {
         synchronized (ADMISSION) {
             return ADMISSION.size();
         }
     }
 
     /** Total number of subclass-generation events (cache misses that resulted in spins). */
-    public static long spinCount() {
+    public long spinCount() {
         return SPINS.sum();
     }
 
-    public static long hitCount() {
+    public long hitCount() {
         return HITS.sum();
     }
 
-    public static long missCount() {
+    public long missCount() {
         return MISSES.sum();
     }
 
-    public static long evictionCount() {
+    public long evictionCount() {
         return ADMISSION_EVICTIONS.sum();
     }
 
-    public static long admissionRejectedCount() {
+    public long admissionRejectedCount() {
         return ADMISSION_REJECTED.sum();
     }
 
-    public static long weakRefClearedCount() {
+    public long weakRefClearedCount() {
         return WEAK_REF_CLEARED.sum();
     }
 
-    public static long standardCount() {
+    public long standardCount() {
         return STANDARDS.sum();
     }
 
@@ -269,7 +284,7 @@ public final class JitConstantSpinner {
      * Set admission tracker capacity. Counters above this are LRU-evicted. New value applies
      * to future evictions; existing entries are kept until LRU-evicted.
      */
-    public static void setAdmissionCapacity(int newCapacity) {
+    public void setAdmissionCapacity(int newCapacity) {
         if (newCapacity < 1) throw new IllegalArgumentException("capacity must be >= 1");
         admissionCapacity = newCapacity;
     }
@@ -279,7 +294,7 @@ public final class JitConstantSpinner {
      * for it. Default = 2 (skip the first-time access — usually a one-off). Set to 1 to
      * disable admission filtering (every miss spins immediately, like the prior behavior).
      */
-    public static void setAdmissionThreshold(int newThreshold) {
+    public void setAdmissionThreshold(int newThreshold) {
         if (newThreshold < 1) throw new IllegalArgumentException("threshold must be >= 1");
         admissionThreshold = newThreshold;
     }
@@ -290,13 +305,13 @@ public final class JitConstantSpinner {
      * {@code false} uses {@code WeakReference} — cleared at the next GC regardless of
      * free heap. See {@link #useSoftReferences} for the rationale.
      */
-    public static void setUseSoftReferences(boolean soft) {
+    public void setUseSoftReferences(boolean soft) {
         useSoftReferences = soft;
     }
 
     /** @deprecated use {@link #setAdmissionCapacity(int)}; this maps to the admission tracker. */
     @Deprecated
-    public static void setCacheCapacity(int newCapacity) {
+    public void setCacheCapacity(int newCapacity) {
         setAdmissionCapacity(newCapacity);
     }
 
@@ -305,7 +320,7 @@ public final class JitConstantSpinner {
      * Not for production use. Marked public so external benchmark/stress harnesses
      * can reset state between scenarios; production code should never call this.
      */
-    public static void resetForTest() {
+    public void resetForTest() {
         CLASSES.clear();
         synchronized (ADMISSION) {
             ADMISSION.clear();
@@ -324,12 +339,7 @@ public final class JitConstantSpinner {
 
     // ----- internals -----
 
-    private static <T> Optional<Class<? extends T>> primitiveSubclass(
-        Class<T> baseClass,
-        String methodName,
-        Class<?> primitive,
-        Object boxed
-    ) {
+    private <T> Optional<Class<? extends T>> primitiveSubclass(Class<T> baseClass, String methodName, Class<?> primitive, Object boxed) {
         return spinOrCache(baseClass, methodName, primitive, boxed, /* primitive */ true);
     }
 
@@ -352,7 +362,7 @@ public final class JitConstantSpinner {
      * </ol>
      */
     @SuppressWarnings("unchecked")
-    private static <T> Optional<Class<? extends T>> spinOrCache(
+    private <T> Optional<Class<? extends T>> spinOrCache(
         Class<T> baseClass,
         String methodName,
         Class<?> valueType,
@@ -410,7 +420,7 @@ public final class JitConstantSpinner {
         return Optional.of((Class<? extends T>) spunClass);
     }
 
-    private static long incrementAdmission(CacheKey key) {
+    private long incrementAdmission(CacheKey key) {
         AtomicLong counter;
         synchronized (ADMISSION) {
             counter = ADMISSION.computeIfAbsent(key, k -> new AtomicLong(0));
@@ -418,7 +428,7 @@ public final class JitConstantSpinner {
         return counter.incrementAndGet();
     }
 
-    private static void removeAdmission(CacheKey key) {
+    private void removeAdmission(CacheKey key) {
         synchronized (ADMISSION) {
             ADMISSION.remove(key);
         }
@@ -426,7 +436,7 @@ public final class JitConstantSpinner {
 
     // ----- bytecode generation -----
 
-    private static Class<?> spinPrimitiveClass(Class<?> base, String methodName, Class<?> primitive, Object boxed) {
+    private Class<?> spinPrimitiveClass(Class<?> base, String methodName, Class<?> primitive, Object boxed) {
         String fieldName = "CONST_" + sanitize(methodName);
         String typeDescriptor = Type.getDescriptor(primitive);
         String baseInternal = Type.getInternalName(base);
@@ -470,7 +480,7 @@ public final class JitConstantSpinner {
         return defineHidden(base, cw.toByteArray(), /* classData */ null);
     }
 
-    private static Class<?> spinReferenceClass(Class<?> base, String methodName, Class<?> valueType, Object value) {
+    private Class<?> spinReferenceClass(Class<?> base, String methodName, Class<?> valueType, Object value) {
         String typeDescriptor = Type.getDescriptor(valueType);
         String baseInternal = Type.getInternalName(base);
         String spunInternal = baseInternal + "$Spun";
@@ -531,7 +541,7 @@ public final class JitConstantSpinner {
         return defineHidden(base, cw.toByteArray(), value);
     }
 
-    private static void emitCtors(ClassVisitor cv, Class<?> base, String baseInternal) {
+    private void emitCtors(ClassVisitor cv, Class<?> base, String baseInternal) {
         // Reproduce every public base ctor with a chained super call. The base classes
         // we spin against are always codegen-emitted abstract evaluators with public ctors.
         for (var ctor : base.getConstructors()) {
@@ -568,7 +578,7 @@ public final class JitConstantSpinner {
         }
     }
 
-    private static Class<?> defineHidden(Class<?> base, byte[] bytecode, Object classData) {
+    private Class<?> defineHidden(Class<?> base, byte[] bytecode, Object classData) {
         // Bytecode-shape drift is caught at *emission* time by SpunClassShapeValidator's
         // wrap (see spinPrimitiveClass / spinReferenceClass). On drift the validator throws
         // AssertionError, which deliberately bypasses spinOrCache's catch (RuntimeException)
@@ -595,7 +605,7 @@ public final class JitConstantSpinner {
         }
     }
 
-    private static String methodDescriptor(Class<?>[] paramTypes, Class<?> returnType) {
+    private String methodDescriptor(Class<?>[] paramTypes, Class<?> returnType) {
         StringBuilder sb = new StringBuilder("(");
         for (Class<?> pt : paramTypes) {
             sb.append(Type.getDescriptor(pt));
@@ -604,7 +614,7 @@ public final class JitConstantSpinner {
         return sb.toString();
     }
 
-    private static String sanitize(String name) {
+    private String sanitize(String name) {
         StringBuilder sb = new StringBuilder(name.length());
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);

@@ -551,7 +551,7 @@ public class EvaluatorImplementer {
             String spinMethod = primitiveSpinnerMethod(jit.type());
             if (spinMethod != null) {
                 builder.addStatement(
-                    "$T<$T<? extends $T>> spunClassOpt = $T.$L($T.class, $S, this.$L)",
+                    "$T<$T<? extends $T>> spunClassOpt = $T.SHARED.$L($T.class, $S, this.$L)",
                     ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,
@@ -563,7 +563,7 @@ public class EvaluatorImplementer {
                 );
             } else {
                 builder.addStatement(
-                    "$T<$T<? extends $T>> spunClassOpt = $T.referenceConstantSubclass($T.class, $S, $T.class, this.$L)",
+                    "$T<$T<? extends $T>> spunClassOpt = $T.SHARED.referenceConstantSubclass($T.class, $S, $T.class, this.$L)",
                     ClassName.get(java.util.Optional.class),
                     ClassName.get(Class.class),
                     implementation,

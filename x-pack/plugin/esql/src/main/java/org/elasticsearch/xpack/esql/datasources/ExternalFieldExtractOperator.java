@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -15,8 +19,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
 /**
@@ -122,6 +130,9 @@ public class ExternalFieldExtractOperator implements Operator {
     private final List<String> deferredColumnNames;
     private final SourceExtractors registry;
     private final BlockFactory blockFactory;
+    private final LongAdder pagesProcessed = new LongAdder();
+    private final LongAdder rowsExtracted = new LongAdder();
+    private final LongAdder extractNanos = new LongAdder();
 
     private Page prev;
     private boolean finished;
@@ -176,7 +187,20 @@ public class ExternalFieldExtractOperator implements Operator {
         if (page.getPositionCount() == 0) {
             return reshapeEmpty(page);
         }
-        return materialize(page);
+        long start = System.nanoTime();
+        try {
+            Page out = materialize(page);
+            rowsExtracted.add(out.getPositionCount());
+            return out;
+        } finally {
+            extractNanos.add(System.nanoTime() - start);
+            pagesProcessed.increment();
+        }
+    }
+
+    @Override
+    public Status status() {
+        return new Status(pagesProcessed.sum(), rowsExtracted.sum(), extractNanos.sum());
     }
 
     /**
@@ -291,5 +315,114 @@ public class ExternalFieldExtractOperator implements Operator {
         // when this operator closes (driver teardown), close the registry to release per-file
         // extractors and any held StorageObjects.
         registry.close();
+    }
+
+    /**
+     * Per-driver counters for {@link ExternalFieldExtractOperator}. Surfaces as the operator's
+     * {@code status} block in the ES|QL profile.
+     * <ul>
+     *     <li>{@code pages_processed} — pages passed through {@link #getOutput()} (non-empty).</li>
+     *     <li>{@code rows_extracted} — rows whose deferred columns were materialized (the rows
+     *     surviving TopN that this operator did <em>not</em> skip).</li>
+     *     <li>{@code extract_nanos} — wall time spent in {@code materialize(...)} including the
+     *     registry's per-file extractor calls.</li>
+     * </ul>
+     * Wire-gated by {@code esql_external_source_profile} so older nodes round-trip a zero-valued
+     * status without rejecting the response.
+     */
+    public static class Status implements Operator.Status {
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "external_field_extract",
+            Status::new
+        );
+
+        private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
+
+        private final long pagesProcessed;
+        private final long rowsExtracted;
+        private final long extractNanos;
+
+        public Status(long pagesProcessed, long rowsExtracted, long extractNanos) {
+            this.pagesProcessed = pagesProcessed;
+            this.rowsExtracted = rowsExtracted;
+            this.extractNanos = extractNanos;
+        }
+
+        Status(StreamInput in) throws IOException {
+            // The operator + its Status only exist on nodes that support deferred extraction
+            // (elasticsearch#149185), which landed alongside this PR. Pre-version nodes never
+            // send this entry, but be defensive and accept either shape.
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
+                pagesProcessed = in.readVLong();
+                rowsExtracted = in.readVLong();
+                extractNanos = in.readVLong();
+            } else {
+                pagesProcessed = 0L;
+                rowsExtracted = 0L;
+                extractNanos = 0L;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
+                out.writeVLong(pagesProcessed);
+                out.writeVLong(rowsExtracted);
+                out.writeVLong(extractNanos);
+            }
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public long pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        @Override
+        public long rowsEmitted() {
+            // Output rows mirror the input rows that survived TopN; counted here so this operator
+            // contributes to the per-driver rowsEmitted rollup like any other source-ish stage.
+            return rowsExtracted;
+        }
+
+        public long extractNanos() {
+            return extractNanos;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, org.elasticsearch.xcontent.ToXContent.Params params) throws IOException {
+            builder.startObject();
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_extracted", rowsExtracted);
+            builder.field("extract_nanos", extractNanos);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Status status = (Status) o;
+            return pagesProcessed == status.pagesProcessed && rowsExtracted == status.rowsExtracted && extractNanos == status.extractNanos;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pagesProcessed, rowsExtracted, extractNanos);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
     }
 }

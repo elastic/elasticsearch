@@ -672,7 +672,7 @@ final class PrefetchedRowGroupBuilder {
         return dup.slice();
     }
 
-    private static BytesInput bytesInputFrom(ByteBuffer buffer) {
+    static BytesInput bytesInputFrom(ByteBuffer buffer) {
         if (buffer.hasArray()) {
             return BytesInput.from(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
@@ -681,7 +681,7 @@ final class PrefetchedRowGroupBuilder {
         return BytesInput.from(buffer.duplicate());
     }
 
-    private static BytesInput bytesInputFromSlice(ByteBuffer source, int offsetFromPosition, int length) {
+    static BytesInput bytesInputFromSlice(ByteBuffer source, int offsetFromPosition, int length) {
         if (length == 0) {
             return BytesInput.empty();
         }

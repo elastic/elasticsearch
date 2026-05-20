@@ -204,7 +204,7 @@ final class PrefetchedPageReader implements PageReader {
             input = directInput;
         }
         ByteBuffer output = ByteBuffer.allocateDirect(decompressedSize);
-        decompressor.decompress(input, (int) compressed.size(), output, decompressedSize);
+        decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
         output.flip();
         return BytesInput.from(output);
     }

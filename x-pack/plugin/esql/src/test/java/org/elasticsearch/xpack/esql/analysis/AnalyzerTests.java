@@ -3520,8 +3520,7 @@ public class AnalyzerTests extends ESTestCase {
             .error(
                 "TS test | STATS avg(rate(bytes_in)) BY status",
                 containsString(
-                    "Cannot use field [status] with conflicting time-series type mapping:"
-                        + " mapped as [dimension] in some indices and [metric] in others"
+                    "Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION]."
                 )
             );
     }

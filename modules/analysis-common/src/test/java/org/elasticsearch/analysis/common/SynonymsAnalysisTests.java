@@ -403,10 +403,10 @@ public class SynonymsAnalysisTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
+        // Without the #140026, syn_b's three rules collapse to one phantom entry (animal → meows/barks/sings),
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "animal", new String[] { "animal" });
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "cat", new String[] { "animal" });
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "dog", new String[] { "animal" });
-
-        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "animal", new String[] { "animal" });
     }
 
     public void testShingleFilters() {

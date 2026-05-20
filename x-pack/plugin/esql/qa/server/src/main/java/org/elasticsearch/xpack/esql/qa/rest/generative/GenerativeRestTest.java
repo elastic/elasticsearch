@@ -873,8 +873,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorMessage == null || query == null) {
             return false;
         }
-        return SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
-            && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
+        return SUBQUERY_IN_FROM_PATTERN.matcher(query).find() && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(

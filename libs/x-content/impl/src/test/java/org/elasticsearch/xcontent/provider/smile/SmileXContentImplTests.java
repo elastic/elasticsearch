@@ -14,7 +14,10 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayInputStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class SmileXContentImplTests extends ESTestCase {
 
@@ -33,5 +36,23 @@ public class SmileXContentImplTests extends ESTestCase {
             XContentParseException.class,
             () -> SmileXContentImpl.smileXContent().createParser(XContentParserConfiguration.EMPTY, json, 0, json.length)
         );
+    }
+
+    public void testStringOverloadIsUnsupported() {
+        // Smile is a binary format; Jackson rejects character-based input at parser construction.
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SmileXContentImpl.smileXContent().createParser(XContentParserConfiguration.EMPTY, "{\"foo\":\"bar\"}")
+        );
+        assertThat(e.getMessage(), containsString("character-based"));
+    }
+
+    public void testReaderOverloadIsUnsupported() {
+        // Smile is a binary format; Jackson rejects character-based input at parser construction.
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SmileXContentImpl.smileXContent().createParser(XContentParserConfiguration.EMPTY, new StringReader("{\"foo\":\"bar\"}"))
+        );
+        assertThat(e.getMessage(), containsString("character-based"));
     }
 }

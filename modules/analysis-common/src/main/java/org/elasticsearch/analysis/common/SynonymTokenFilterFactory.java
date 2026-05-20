@@ -194,7 +194,19 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        final String name = name();
+        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resource());
+    }
+
+    /**
+     * Static so the returned factory does not hold a reference to the outer instance,
+     * allowing the outer factory's raw synonym rule strings to be GC'd after {@link SynonymMap} construction.
+     */
+    static TokenFilterFactory buildChainedFactory(
+        String name,
+        SynonymMap synonyms,
+        AnalysisMode analysisMode,
+        String resourceName
+    ) {
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -221,7 +233,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public String getResourceName() {
-                return rulesReader.resource();
+                return resourceName;
             }
         };
     }

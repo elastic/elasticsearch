@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * End-to-end integration tests for the {@code SORT … | LIMIT N} deferred-extraction optimization
  * over external Parquet sources. These tests are the safety net for the entire deferred-extraction
  * pipeline: planning ({@code InsertExternalFieldExtraction}), runtime wiring
- * ({@code AsyncExternalSourceOperatorFactory}, {@code SchemaAdaptingIterator}), the
+ * ({@code ExternalSourceOperatorFactory}, {@code SchemaAdaptingIterator}), the
  * {@code _rowPosition}-emitting reader paths in
  * {@code ParquetFormatReader} ({@code read} and {@code readRange}), the runtime extractor handshake
  * ({@code ColumnExtractorProducer} → {@code ColumnExtractor}), and the on-line materialization

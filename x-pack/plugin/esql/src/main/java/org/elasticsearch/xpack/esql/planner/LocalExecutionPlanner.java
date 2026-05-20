@@ -563,7 +563,7 @@ public class LocalExecutionPlanner {
      * SourceExtractors} registry; otherwise we fail loudly because the optimizer rule should never
      * have inserted us above an incapable source. The pairing is invariant because
      * {@code FileSourceFactory} flips the deferred-extraction switch on the underlying
-     * {@code AsyncExternalSourceOperatorFactory} based on the very same
+     * {@code ExternalSourceOperatorFactory} based on the very same
      * {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor#ROW_POSITION_COLUMN
      * _rowPosition} column the rule injected.
      * <p>
@@ -1415,7 +1415,7 @@ public class LocalExecutionPlanner {
      * the source type and path. The registry will:
      * <ol>
      *   <li>Check if a plugin has registered a custom factory for the source type</li>
-     *   <li>Fall back to the generic AsyncExternalSourceOperatorFactory using
+     *   <li>Fall back to the generic ExternalSourceOperatorFactory using
      *       storage and format registries</li>
      * </ol>
      *

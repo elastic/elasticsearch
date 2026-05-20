@@ -33,7 +33,7 @@ import java.util.Set;
  * just like the data blocks they accompany. This avoids the driver-local breaker's single-thread
  * assertion firing when the producer drains pages off a generic-pool thread.
  *
- * @see AsyncExternalSourceOperatorFactory for where this iterator is attached.
+ * @see ExternalSourceOperatorFactory for where this iterator is attached.
  */
 final class VirtualColumnIterator implements CloseableIterator<Page> {
 

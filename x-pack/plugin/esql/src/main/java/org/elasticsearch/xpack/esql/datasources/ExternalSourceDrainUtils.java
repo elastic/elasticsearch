@@ -15,13 +15,13 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import java.util.concurrent.Executor;
 
 /**
- * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
+ * Utility for draining pages from a {@link CloseableIterator} into an {@link ExternalSourceBuffer}
  * with non-blocking backpressure.
  *
  * <p>Runs synchronously while the buffer has space (hot path), yields the thread when the buffer is
  * full, and resumes via the provided {@link Executor} when space is freed (cold path). No timeout is
- * needed — cancellation propagates via {@link AsyncExternalSourceBuffer#finish(boolean)} setting
- * {@code noMoreInputs}, which causes {@link AsyncExternalSourceBuffer#waitForSpace()} to return an
+ * needed — cancellation propagates via {@link ExternalSourceBuffer#finish(boolean)} setting
+ * {@code noMoreInputs}, which causes {@link ExternalSourceBuffer#waitForSpace()} to return an
  * already-completed listener so the drain loop exits promptly.
  */
 public final class ExternalSourceDrainUtils {
@@ -50,7 +50,7 @@ public final class ExternalSourceDrainUtils {
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,
-        AsyncExternalSourceBuffer buffer,
+        ExternalSourceBuffer buffer,
         Executor executor,
         ActionListener<Void> listener
     ) {
@@ -59,7 +59,7 @@ public final class ExternalSourceDrainUtils {
 
     private static void drainBatch(
         CloseableIterator<Page> pages,
-        AsyncExternalSourceBuffer buffer,
+        ExternalSourceBuffer buffer,
         Executor executor,
         ActionListener<Void> listener
     ) {

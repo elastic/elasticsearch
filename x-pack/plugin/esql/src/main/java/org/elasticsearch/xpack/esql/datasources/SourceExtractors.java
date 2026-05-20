@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * Driver-scoped lookup table of per-file {@link ColumnExtractor}s, addressed by a compact
  * {@code int} id allocated at registration time. Acts as the rendezvous between an
- * {@code AsyncExternalSourceOperatorFactory} (which {@link #register registers} a new extractor
+ * {@code ExternalSourceOperatorFactory} (which {@link #register registers} a new extractor
  * each time it opens a file) and an {@code ExternalFieldExtractOperator} (which decodes the
  * synthetic {@code _rowPosition} carried on pages and {@link #materialize routes} extraction
  * requests to the correct extractor).
@@ -47,7 +47,7 @@ import java.util.List;
  * <h2>Lifecycle</h2>
  * One {@code SourceExtractors} per driver. The source operator registers extractors during the
  * async producer loop; the extract operator reads from it on the driver thread. Both sides hold
- * the same instance via {@code AsyncExternalSourceOperatorFactory#sourceExtractorsFor(DriverContext)}.
+ * the same instance via {@code ExternalSourceOperatorFactory#sourceExtractorsFor(DriverContext)}.
  * The extract operator owns {@link #close}; closing is idempotent.
  *
  * <h2>Threading</h2>

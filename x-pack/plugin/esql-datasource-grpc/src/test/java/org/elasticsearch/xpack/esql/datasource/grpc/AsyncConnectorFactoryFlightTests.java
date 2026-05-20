@@ -18,7 +18,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceBuffer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -109,7 +109,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
             try (Connector connector = factory.open(Map.of("endpoint", endpoint))) {
                 QueryRequest request = new QueryRequest("employees", projectedColumns, attributes, Map.of(), 1000, blockFactory);
-                AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+                ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
 
                 ResultCursor cursor = connector.execute(request, Split.SINGLE);
                 CountDownLatch drainDone = new CountDownLatch(1);
@@ -226,7 +226,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
             ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
             try (Connector connector = factory.open(Map.of("endpoint", endpoint))) {
                 QueryRequest request = new QueryRequest("employees", projectedColumns, attributes, Map.of(), 1000, blockFactory);
-                AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+                ExternalSourceBuffer buffer = new ExternalSourceBuffer(1024 * 1024);
                 CountDownLatch drainDone = new CountDownLatch(1);
                 AtomicReference<Exception> drainError = new AtomicReference<>();
 
@@ -262,7 +262,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
         ExternalSliceQueue sliceQueue,
         Connector connector,
         QueryRequest request,
-        AsyncExternalSourceBuffer buffer,
+        ExternalSourceBuffer buffer,
         ExecutorService executor,
         CountDownLatch drainDone,
         AtomicReference<Exception> drainError

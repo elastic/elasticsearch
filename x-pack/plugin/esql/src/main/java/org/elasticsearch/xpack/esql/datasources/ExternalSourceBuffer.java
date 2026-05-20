@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.LongAdder;
  * - Notification via {@link SubscribableListener} when data becomes available
  * - Lifecycle management (finished state tracking)
  */
-public final class AsyncExternalSourceBuffer {
+public final class ExternalSourceBuffer {
 
     /**
      * Default byte limit for the buffer, preserving the original "10 normal-sized pages" intent.
@@ -64,7 +64,7 @@ public final class AsyncExternalSourceBuffer {
     private final AtomicInteger splitsProcessed = new AtomicInteger();
     private volatile int currentSplit = 0;
 
-    public AsyncExternalSourceBuffer(long maxBufferBytes) {
+    public ExternalSourceBuffer(long maxBufferBytes) {
         if (maxBufferBytes < 1) {
             throw new IllegalArgumentException("max_buffer_bytes must be at least one; got=" + maxBufferBytes);
         }
@@ -231,7 +231,7 @@ public final class AsyncExternalSourceBuffer {
     /**
      * Mark the buffer as failed. Called when the background reader encounters an error.
      * <p>
-     * Queued pages are retained so the driver can drain them before {@link AsyncExternalSourceOperator}
+     * Queued pages are retained so the driver can drain them before {@link ExternalSourceOperator}
      * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {

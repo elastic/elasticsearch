@@ -78,7 +78,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final ExecutorService splitDiscoveryExecutor;
     /**
      * Node-level (root) {@link BlockFactory}, threaded into
-     * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} so that
+     * {@link ExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} so that
      * producer-thread allocations performed by iterator wrappers ({@link VirtualColumnIterator},
      * {@link SchemaAdaptingIterator}) route through the global request circuit breaker rather than
      * the driver-local breaker. May be {@code null} in tests where the factory falls back to
@@ -267,7 +267,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 && context.projectedColumns() != null
                 && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN);
 
-            return AsyncExternalSourceOperatorFactory.builder(
+            return ExternalSourceOperatorFactory.builder(
                 storage,
                 format,
                 path,

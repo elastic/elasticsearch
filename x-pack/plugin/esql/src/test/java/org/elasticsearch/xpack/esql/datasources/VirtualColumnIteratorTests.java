@@ -321,7 +321,7 @@ public class VirtualColumnIteratorTests extends ESTestCase {
     /**
      * Regression test mirroring the latent thread-affinity bug fixed for
      * {@link SchemaAdaptingIterator}. {@link VirtualColumnIterator} runs on the producer side of
-     * {@link AsyncExternalSourceBuffer}; if it were given the driver-local
+     * {@link ExternalSourceBuffer}; if it were given the driver-local
      * {@link BlockFactory}, allocating a partition-column constant block would trip
      * {@link LocalCircuitBreaker#assertSingleThread()} (debug builds) and silently corrupt the
      * breaker's reserved-bytes accounting (production: assertions stripped). This test pins the
@@ -330,7 +330,7 @@ public class VirtualColumnIteratorTests extends ESTestCase {
      * <ul>
      *   <li>Driver-local factory must trip the assertion.</li>
      *   <li>Root factory must succeed — proving the production wiring in
-     *   {@link AsyncExternalSourceOperatorFactory#wrapWithVirtualColumns} prevents the bug.</li>
+     *   {@link ExternalSourceOperatorFactory#wrapWithVirtualColumns} prevents the bug.</li>
      * </ul>
      */
     public void testPartitionInjectFromProducerThreadRequiresRootBlockFactory() throws Exception {

@@ -13,7 +13,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
  * Functional interface for creating source operator factories.
  *
  * <p>This is the extension point for plugins that need custom operator logic
- * beyond what the generic AsyncExternalSourceOperatorFactory provides.
+ * beyond what the generic ExternalSourceOperatorFactory provides.
  *
  * <p>Implementations receive a {@link SourceOperatorContext} containing all
  * necessary information to create the operator factory.

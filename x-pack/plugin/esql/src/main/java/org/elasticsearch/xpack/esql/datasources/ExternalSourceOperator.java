@@ -31,15 +31,15 @@ import java.util.Objects;
  * - Operator polls from buffer without blocking the Driver
  * - {@link #isBlocked()} signals when waiting for data
  */
-public class AsyncExternalSourceOperator extends SourceOperator {
+public class ExternalSourceOperator extends SourceOperator {
 
-    private final AsyncExternalSourceBuffer buffer;
+    private final ExternalSourceBuffer buffer;
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
     private long processNanos;
 
-    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer) {
+    public ExternalSourceOperator(ExternalSourceBuffer buffer) {
         this.buffer = buffer;
     }
 
@@ -102,7 +102,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public String toString() {
-        return "AsyncExternalSourceOperator";
+        return "ExternalSourceOperator";
     }
 
     @Override
@@ -137,7 +137,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     public static class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "async_external_source",
+            "external_source",
             Status::new
         );
 
@@ -261,7 +261,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         }
 
         /**
-         * Wall time spent inside {@link AsyncExternalSourceOperator#getOutput()}'s read loop.
+         * Wall time spent inside {@link ExternalSourceOperator#getOutput()}'s read loop.
          * Producer-thread time (format-reader open, decode, decompression) lives in
          * {@code format_reader.read_nanos} on this same Status, not in this counter.
          */

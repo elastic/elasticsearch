@@ -19,16 +19,16 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializingTestCase<AsyncExternalSourceOperator.Status> {
+public class ExternalSourceOperatorStatusTests extends AbstractWireSerializingTestCase<ExternalSourceOperator.Status> {
 
     @Override
-    protected Writeable.Reader<AsyncExternalSourceOperator.Status> instanceReader() {
-        return AsyncExternalSourceOperator.Status::new;
+    protected Writeable.Reader<ExternalSourceOperator.Status> instanceReader() {
+        return ExternalSourceOperator.Status::new;
     }
 
     @Override
-    protected AsyncExternalSourceOperator.Status createTestInstance() {
-        return new AsyncExternalSourceOperator.Status(
+    protected ExternalSourceOperator.Status createTestInstance() {
+        return new ExternalSourceOperator.Status(
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
@@ -72,7 +72,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     }
 
     @Override
-    protected AsyncExternalSourceOperator.Status mutateInstance(AsyncExternalSourceOperator.Status instance) throws IOException {
+    protected ExternalSourceOperator.Status mutateInstance(ExternalSourceOperator.Status instance) throws IOException {
         int pagesWaiting = instance.pagesWaiting();
         int pagesEmitted = instance.pagesEmitted();
         long rowsEmitted = instance.rowsEmitted();
@@ -93,10 +93,10 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             case 6 -> splitsTotal = randomValueOtherThan(splitsTotal, ESTestCase::randomNonNegativeInt);
             case 7 -> currentSplit = randomValueOtherThan(currentSplit, ESTestCase::randomNonNegativeInt);
             case 8 -> bytesRead = randomValueOtherThan(bytesRead, ESTestCase::randomNonNegativeLong);
-            case 9 -> formatReader = randomValueOtherThan(formatReader, AsyncExternalSourceOperatorStatusTests::randomFormatReader);
+            case 9 -> formatReader = randomValueOtherThan(formatReader, ExternalSourceOperatorStatusTests::randomFormatReader);
             default -> throw new UnsupportedOperationException();
         }
-        return new AsyncExternalSourceOperator.Status(
+        return new ExternalSourceOperator.Status(
             pagesWaiting,
             pagesEmitted,
             rowsEmitted,
@@ -114,9 +114,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
 
     public void testToXContent() {
         assertThat(
-            Strings.toString(
-                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, null, 1_000_000L, 2, 4, 3, 8192L, 0L, Map.of("k", 7L))
-            ),
+            Strings.toString(new ExternalSourceOperator.Status(5, 10, 111, 2048, null, 1_000_000L, 2, 4, 3, 8192L, 0L, Map.of("k", 7L))),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
@@ -128,7 +126,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     public void testToXContentWithFailure() {
         assertThat(
             Strings.toString(
-                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), 0L, 0, 0, 0, 0L, 0L, Map.of())
+                new ExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), 0L, 0, 0, 0, 0L, 0L, Map.of())
             ),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
@@ -139,7 +137,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     }
 
     public void testReadFromBwcVersionPriorToProfile() throws IOException {
-        AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
+        ExternalSourceOperator.Status original = new ExternalSourceOperator.Status(
             5,
             10,
             111,
@@ -154,7 +152,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             Map.of("row_groups_read", 7L)
         );
         TransportVersion preProfile = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_external_source_profile"));
-        AsyncExternalSourceOperator.Status copy = copyInstance(original, preProfile);
+        ExternalSourceOperator.Status copy = copyInstance(original, preProfile);
         // Pre-profile fields round-trip
         assertThat(copy.pagesWaiting(), equalTo(5));
         assertThat(copy.pagesEmitted(), equalTo(10));
@@ -195,21 +193,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                 Map.of("leaf_a", 9L, "leaf_c", "eager")
             )
         );
-        AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
-            1,
-            2,
-            3L,
-            4L,
-            null,
-            5L,
-            6,
-            7,
-            8,
-            9L,
-            10L,
-            formatReader
-        );
-        AsyncExternalSourceOperator.Status copy = copyInstance(original);
+        ExternalSourceOperator.Status original = new ExternalSourceOperator.Status(1, 2, 3L, 4L, null, 5L, 6, 7, 8, 9L, 10L, formatReader);
+        ExternalSourceOperator.Status copy = copyInstance(original);
         assertThat(copy.formatReader(), equalTo(formatReader));
     }
 }

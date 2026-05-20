@@ -32,7 +32,7 @@ import java.util.function.Function;
  *     <li>Appends the deferred columns in the order requested at construction.</li>
  * </ul>
  * <p>
- * The registry is owned by the upstream {@code AsyncExternalSourceOperatorFactory} and resolved
+ * The registry is owned by the upstream {@code ExternalSourceOperatorFactory} and resolved
  * per-driver via a {@code Function<DriverContext, SourceExtractors>} supplied at construction.
  * The source populates the registry as it opens files; this operator reads it after TopN
  * finishes. Single-threaded — same driver thread.
@@ -47,7 +47,7 @@ public class ExternalFieldExtractOperator implements Operator {
     /**
      * Builds {@link ExternalFieldExtractOperator}s for each driver. The {@code sourceExtractorsLookup}
      * resolves the per-driver {@link SourceExtractors} populated by the upstream source operator
-     * factory (typically {@code AsyncExternalSourceOperatorFactory::sourceExtractorsFor}). Tests
+     * factory (typically {@code ExternalSourceOperatorFactory::sourceExtractorsFor}). Tests
      * may supply a pre-populated registry directly via {@code ignored -> registry}.
      */
     public static final class Factory implements Operator.OperatorFactory {

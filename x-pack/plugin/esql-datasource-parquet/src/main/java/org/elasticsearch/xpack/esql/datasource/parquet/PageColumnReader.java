@@ -70,7 +70,7 @@ import java.util.List;
  * wrapper itself is single-driver-owned (its non-thread-safe ref counter is never shared)
  * and decRefs the shared array when the block is closed. This decoupling lets pages be
  * buffered and consumed asynchronously by a different driver thread (see
- * {@code AsyncExternalSourceOperatorFactory} which calls
+ * {@code ExternalSourceOperatorFactory} which calls
  * {@code page.allowPassingToDifferentDriver()}) without racing the producer's per-batch
  * ref-count updates against the consumer's close. UUID-typed columns skip the ordinal path
  * because their values need per-row byte formatting that would have to be applied to

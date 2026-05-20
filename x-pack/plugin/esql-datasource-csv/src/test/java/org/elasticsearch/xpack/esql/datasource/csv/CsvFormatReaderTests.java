@@ -4399,7 +4399,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iterator = boundReader.read(
                 object,
-                // firstSplit=true, recordAligned=false: matches AsyncExternalSourceOperatorFactory's
+                // firstSplit=true, recordAligned=false: matches ExternalSourceOperatorFactory's
                 // single-shot whole-file read context.
                 FormatReadContext.builder()
                     .projectedColumns(List.of("id", "name"))

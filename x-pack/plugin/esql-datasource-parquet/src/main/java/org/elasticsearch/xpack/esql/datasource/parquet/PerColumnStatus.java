@@ -91,7 +91,7 @@ public record PerColumnStatus(
 
     /**
      * Flat {@code Map<String, Object>} representation used as the wire-format payload for the
-     * per-column entries inside {@code AsyncExternalSourceOperator.Status.formatReader}. The outer
+     * per-column entries inside {@code ExternalSourceOperator.Status.formatReader}. The outer
      * carrier serializes through {@code StreamOutput.writeGenericMap}, which requires every leaf
      * value to be in the {@code WRITERS} registry — typed records are not, so the per-column
      * snapshot is flattened at emit time. Keys mirror {@link #toXContent}.

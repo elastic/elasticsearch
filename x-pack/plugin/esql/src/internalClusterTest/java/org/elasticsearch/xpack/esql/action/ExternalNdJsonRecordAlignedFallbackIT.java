@@ -91,7 +91,7 @@ public class ExternalNdJsonRecordAlignedFallbackIT extends AbstractEsqlIntegTest
                     .drivers()
                     .stream()
                     .flatMap(driver -> driver.operators().stream())
-                    .filter(op -> op.operator().startsWith("AsyncExternalSourceOperator"))
+                    .filter(op -> op.operator().startsWith("ExternalSourceOperator"))
                     .count();
                 assertThat(asyncOps, greaterThanOrEqualTo(1L));
             }

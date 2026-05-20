@@ -88,7 +88,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                 final int driverIdx = d;
                 driverPool.submit(() -> {
                     try {
-                        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
                             storageProvider,
                             formatReader,
                             StoragePath.of("s3://bucket/f0.parquet"),
@@ -202,7 +202,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
             for (int d = 0; d < driverCount; d++) {
                 driverPool.submit(() -> {
                     try {
-                        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
                             storageProvider,
                             formatReader,
                             StoragePath.of("s3://bucket/f0.parquet"),
@@ -276,7 +276,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
             )
         );
 
-        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+        ExternalSourceOperatorFactory factory = ExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             StoragePath.of("s3://bucket/f1.parquet"),

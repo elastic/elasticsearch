@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.DefineClassEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
@@ -150,6 +151,11 @@ public class PolicyCheckerImpl implements PolicyChecker {
     @Override
     public void checkCreateClassLoader(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, CreateClassLoaderEntitlement.class);
+    }
+
+    @Override
+    public void checkDefineClass(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, DefineClassEntitlement.class);
     }
 
     @Override

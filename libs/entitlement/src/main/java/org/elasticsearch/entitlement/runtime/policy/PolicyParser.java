@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.DefineClassEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
@@ -51,6 +52,7 @@ public class PolicyParser {
 
     private static final Map<String, Class<? extends Entitlement>> EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME = Stream.of(
         CreateClassLoaderEntitlement.class,
+        DefineClassEntitlement.class,
         FilesEntitlement.class,
         InboundNetworkEntitlement.class,
         LoadNativeLibrariesEntitlement.class,

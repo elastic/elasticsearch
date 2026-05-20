@@ -96,6 +96,15 @@ public class Policies {
     }
 
     /**
+     * Returns a check method for defining classes via {@code MethodHandles.Lookup}.
+     *
+     * @return a check method that verifies entitlement for defining classes
+     */
+    public static CheckMethod defineClass() {
+        return (callingClass, policyChecker) -> policyChecker.checkDefineClass(callingClass);
+    }
+
+    /**
      * Returns a check method for URL access.
      *
      * @param url the URL being accessed

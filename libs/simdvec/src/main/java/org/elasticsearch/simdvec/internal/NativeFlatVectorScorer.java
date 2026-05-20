@@ -96,7 +96,6 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
             HasKnnVectorValues {
 
         final int dims;
-        private final MemorySegment[] segments = new MemorySegment[BULK_SIZE];
 
         AbstractNativeScorer(KnnVectorValues vectors) {
             super(vectors);
@@ -109,7 +108,18 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
 
         abstract float score(MemorySegment query, MemorySegment value);
 
-        abstract void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores);
+        abstract void bulk8Score(
+            MemorySegment v0,
+            MemorySegment v1,
+            MemorySegment v2,
+            MemorySegment v3,
+            MemorySegment v4,
+            MemorySegment v5,
+            MemorySegment v6,
+            MemorySegment v7,
+            MemorySegment query,
+            MemorySegment scores
+        );
 
         abstract float correction(float score);
 
@@ -125,11 +135,18 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
 
             int n = 0;
             for (; n + BULK_SIZE <= numNodes; n += BULK_SIZE) {
-                for (int i = 0; i < BULK_SIZE; i++) {
-                    segments[i] = vectorValueSegment(nodes[n + i], i);
-                }
-
-                bulk8Score(segments, querySegment, scoreSegment.asSlice((long) n * Float.BYTES, (long) BULK_SIZE * Float.BYTES));
+                bulk8Score(
+                    vectorValueSegment(nodes[n], 0),
+                    vectorValueSegment(nodes[n + 1], 1),
+                    vectorValueSegment(nodes[n + 2], 2),
+                    vectorValueSegment(nodes[n + 3], 3),
+                    vectorValueSegment(nodes[n + 4], 4),
+                    vectorValueSegment(nodes[n + 5], 5),
+                    vectorValueSegment(nodes[n + 6], 6),
+                    vectorValueSegment(nodes[n + 7], 7),
+                    querySegment,
+                    scoreSegment.asSlice((long) n * Float.BYTES, (long) BULK_SIZE * Float.BYTES)
+                );
             }
 
             for (; n < numNodes; n++) {
@@ -262,8 +279,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                     }
 
                     @Override
-                    void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                        Similarities.squareDistanceF32Bulk8(segments, query, dims, scores);
+                    void bulk8Score(
+                        MemorySegment v0,
+                        MemorySegment v1,
+                        MemorySegment v2,
+                        MemorySegment v3,
+                        MemorySegment v4,
+                        MemorySegment v5,
+                        MemorySegment v6,
+                        MemorySegment v7,
+                        MemorySegment query,
+                        MemorySegment scores
+                    ) {
+                        Similarities.squareDistanceF32Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                     }
 
                     @Override
@@ -278,8 +306,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                     }
 
                     @Override
-                    void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                        Similarities.dotProductF32Bulk8(segments, query, dims, scores);
+                    void bulk8Score(
+                        MemorySegment v0,
+                        MemorySegment v1,
+                        MemorySegment v2,
+                        MemorySegment v3,
+                        MemorySegment v4,
+                        MemorySegment v5,
+                        MemorySegment v6,
+                        MemorySegment v7,
+                        MemorySegment query,
+                        MemorySegment scores
+                    ) {
+                        Similarities.dotProductF32Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                     }
 
                     @Override
@@ -295,8 +334,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                     }
 
                     @Override
-                    void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                        Similarities.dotProductF32Bulk8(segments, query, dims, scores);
+                    void bulk8Score(
+                        MemorySegment v0,
+                        MemorySegment v1,
+                        MemorySegment v2,
+                        MemorySegment v3,
+                        MemorySegment v4,
+                        MemorySegment v5,
+                        MemorySegment v6,
+                        MemorySegment v7,
+                        MemorySegment query,
+                        MemorySegment scores
+                    ) {
+                        Similarities.dotProductF32Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                     }
 
                     @Override
@@ -333,8 +383,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                 }
 
                 @Override
-                void bulk8Score(MemorySegment[] segments, MemorySegment q, MemorySegment scores) {
-                    Similarities.squareDistanceF32Bulk8(segments, q, dims, scores);
+                void bulk8Score(
+                    MemorySegment v0,
+                    MemorySegment v1,
+                    MemorySegment v2,
+                    MemorySegment v3,
+                    MemorySegment v4,
+                    MemorySegment v5,
+                    MemorySegment v6,
+                    MemorySegment v7,
+                    MemorySegment q,
+                    MemorySegment scores
+                ) {
+                    Similarities.squareDistanceF32Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, q, dims, scores);
                 }
 
                 @Override
@@ -354,8 +415,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                 }
 
                 @Override
-                void bulk8Score(MemorySegment[] segments, MemorySegment q, MemorySegment scores) {
-                    Similarities.dotProductF32Bulk8(segments, q, dims, scores);
+                void bulk8Score(
+                    MemorySegment v0,
+                    MemorySegment v1,
+                    MemorySegment v2,
+                    MemorySegment v3,
+                    MemorySegment v4,
+                    MemorySegment v5,
+                    MemorySegment v6,
+                    MemorySegment v7,
+                    MemorySegment q,
+                    MemorySegment scores
+                ) {
+                    Similarities.dotProductF32Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, q, dims, scores);
                 }
 
                 @Override
@@ -376,8 +448,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                 }
 
                 @Override
-                void bulk8Score(MemorySegment[] segments, MemorySegment q, MemorySegment scores) {
-                    Similarities.dotProductF32Bulk8(segments, q, dims, scores);
+                void bulk8Score(
+                    MemorySegment v0,
+                    MemorySegment v1,
+                    MemorySegment v2,
+                    MemorySegment v3,
+                    MemorySegment v4,
+                    MemorySegment v5,
+                    MemorySegment v6,
+                    MemorySegment v7,
+                    MemorySegment q,
+                    MemorySegment scores
+                ) {
+                    Similarities.dotProductF32Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, q, dims, scores);
                 }
 
                 @Override
@@ -414,8 +497,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                     }
 
                     @Override
-                    void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                        Similarities.squareDistanceI8Bulk8(segments, query, dims, scores);
+                    void bulk8Score(
+                        MemorySegment v0,
+                        MemorySegment v1,
+                        MemorySegment v2,
+                        MemorySegment v3,
+                        MemorySegment v4,
+                        MemorySegment v5,
+                        MemorySegment v6,
+                        MemorySegment v7,
+                        MemorySegment query,
+                        MemorySegment scores
+                    ) {
+                        Similarities.squareDistanceI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                     }
 
                     @Override
@@ -430,8 +524,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                     }
 
                     @Override
-                    void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                        Similarities.dotProductI8Bulk8(segments, query, dims, scores);
+                    void bulk8Score(
+                        MemorySegment v0,
+                        MemorySegment v1,
+                        MemorySegment v2,
+                        MemorySegment v3,
+                        MemorySegment v4,
+                        MemorySegment v5,
+                        MemorySegment v6,
+                        MemorySegment v7,
+                        MemorySegment query,
+                        MemorySegment scores
+                    ) {
+                        Similarities.dotProductI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                     }
 
                     @Override
@@ -446,8 +551,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                     }
 
                     @Override
-                    void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                        Similarities.cosineI8Bulk8(segments, query, dims, scores);
+                    void bulk8Score(
+                        MemorySegment v0,
+                        MemorySegment v1,
+                        MemorySegment v2,
+                        MemorySegment v3,
+                        MemorySegment v4,
+                        MemorySegment v5,
+                        MemorySegment v6,
+                        MemorySegment v7,
+                        MemorySegment query,
+                        MemorySegment scores
+                    ) {
+                        Similarities.cosineI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                     }
 
                     @Override
@@ -462,8 +578,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                     }
 
                     @Override
-                    void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                        Similarities.dotProductI8Bulk8(segments, query, dims, scores);
+                    void bulk8Score(
+                        MemorySegment v0,
+                        MemorySegment v1,
+                        MemorySegment v2,
+                        MemorySegment v3,
+                        MemorySegment v4,
+                        MemorySegment v5,
+                        MemorySegment v6,
+                        MemorySegment v7,
+                        MemorySegment query,
+                        MemorySegment scores
+                    ) {
+                        Similarities.dotProductI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                     }
 
                     @Override
@@ -500,8 +627,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                 }
 
                 @Override
-                void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                    Similarities.squareDistanceI8Bulk8(segments, query, dims, scores);
+                void bulk8Score(
+                    MemorySegment v0,
+                    MemorySegment v1,
+                    MemorySegment v2,
+                    MemorySegment v3,
+                    MemorySegment v4,
+                    MemorySegment v5,
+                    MemorySegment v6,
+                    MemorySegment v7,
+                    MemorySegment query,
+                    MemorySegment scores
+                ) {
+                    Similarities.squareDistanceI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                 }
 
                 @Override
@@ -521,8 +659,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                 }
 
                 @Override
-                void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                    Similarities.dotProductI8Bulk8(segments, query, dims, scores);
+                void bulk8Score(
+                    MemorySegment v0,
+                    MemorySegment v1,
+                    MemorySegment v2,
+                    MemorySegment v3,
+                    MemorySegment v4,
+                    MemorySegment v5,
+                    MemorySegment v6,
+                    MemorySegment v7,
+                    MemorySegment query,
+                    MemorySegment scores
+                ) {
+                    Similarities.dotProductI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                 }
 
                 @Override
@@ -542,8 +691,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                 }
 
                 @Override
-                void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                    Similarities.cosineI8Bulk8(segments, query, dims, scores);
+                void bulk8Score(
+                    MemorySegment v0,
+                    MemorySegment v1,
+                    MemorySegment v2,
+                    MemorySegment v3,
+                    MemorySegment v4,
+                    MemorySegment v5,
+                    MemorySegment v6,
+                    MemorySegment v7,
+                    MemorySegment query,
+                    MemorySegment scores
+                ) {
+                    Similarities.cosineI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                 }
 
                 @Override
@@ -563,8 +723,19 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
                 }
 
                 @Override
-                void bulk8Score(MemorySegment[] segments, MemorySegment query, MemorySegment scores) {
-                    Similarities.dotProductI8Bulk8(segments, query, dims, scores);
+                void bulk8Score(
+                    MemorySegment v0,
+                    MemorySegment v1,
+                    MemorySegment v2,
+                    MemorySegment v3,
+                    MemorySegment v4,
+                    MemorySegment v5,
+                    MemorySegment v6,
+                    MemorySegment v7,
+                    MemorySegment query,
+                    MemorySegment scores
+                ) {
+                    Similarities.dotProductI8Bulk8(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
                 }
 
                 @Override

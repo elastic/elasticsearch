@@ -440,22 +440,21 @@ public class Similarities {
         }
     }
 
-    public static void cosineI8Bulk8(MemorySegment[] vectors, MemorySegment query, int dims, MemorySegment scores) {
-        assert vectors.length == 8;
+    public static void cosineI8Bulk8(
+        MemorySegment v0,
+        MemorySegment v1,
+        MemorySegment v2,
+        MemorySegment v3,
+        MemorySegment v4,
+        MemorySegment v5,
+        MemorySegment v6,
+        MemorySegment v7,
+        MemorySegment query,
+        int dims,
+        MemorySegment scores
+    ) {
         try {
-            COSINE_I8_BULK8.invokeExact(
-                vectors[0],
-                vectors[1],
-                vectors[2],
-                vectors[3],
-                vectors[4],
-                vectors[5],
-                vectors[6],
-                vectors[7],
-                query,
-                dims,
-                scores
-            );
+            COSINE_I8_BULK8.invokeExact(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -469,22 +468,21 @@ public class Similarities {
         }
     }
 
-    public static void dotProductI8Bulk8(MemorySegment[] vectors, MemorySegment query, int dims, MemorySegment scores) {
-        assert vectors.length == 8;
+    public static void dotProductI8Bulk8(
+        MemorySegment v0,
+        MemorySegment v1,
+        MemorySegment v2,
+        MemorySegment v3,
+        MemorySegment v4,
+        MemorySegment v5,
+        MemorySegment v6,
+        MemorySegment v7,
+        MemorySegment query,
+        int dims,
+        MemorySegment scores
+    ) {
         try {
-            DOT_PRODUCT_I8_BULK8.invokeExact(
-                vectors[0],
-                vectors[1],
-                vectors[2],
-                vectors[3],
-                vectors[4],
-                vectors[5],
-                vectors[6],
-                vectors[7],
-                query,
-                dims,
-                scores
-            );
+            DOT_PRODUCT_I8_BULK8.invokeExact(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -498,22 +496,21 @@ public class Similarities {
         }
     }
 
-    public static void squareDistanceI8Bulk8(MemorySegment[] vectors, MemorySegment query, int dims, MemorySegment scores) {
-        assert vectors.length == 8;
+    public static void squareDistanceI8Bulk8(
+        MemorySegment v0,
+        MemorySegment v1,
+        MemorySegment v2,
+        MemorySegment v3,
+        MemorySegment v4,
+        MemorySegment v5,
+        MemorySegment v6,
+        MemorySegment v7,
+        MemorySegment query,
+        int dims,
+        MemorySegment scores
+    ) {
         try {
-            SQUARE_DISTANCE_I8_BULK8.invokeExact(
-                vectors[0],
-                vectors[1],
-                vectors[2],
-                vectors[3],
-                vectors[4],
-                vectors[5],
-                vectors[6],
-                vectors[7],
-                query,
-                dims,
-                scores
-            );
+            SQUARE_DISTANCE_I8_BULK8.invokeExact(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -813,22 +810,21 @@ public class Similarities {
         }
     }
 
-    public static void dotProductF32Bulk8(MemorySegment[] vectors, MemorySegment query, int dims, MemorySegment scores) {
-        assert vectors.length == 8;
+    public static void dotProductF32Bulk8(
+        MemorySegment v0,
+        MemorySegment v1,
+        MemorySegment v2,
+        MemorySegment v3,
+        MemorySegment v4,
+        MemorySegment v5,
+        MemorySegment v6,
+        MemorySegment v7,
+        MemorySegment query,
+        int dims,
+        MemorySegment scores
+    ) {
         try {
-            DOT_PRODUCT_F32_BULK8.invokeExact(
-                vectors[0],
-                vectors[1],
-                vectors[2],
-                vectors[3],
-                vectors[4],
-                vectors[5],
-                vectors[6],
-                vectors[7],
-                query,
-                dims,
-                scores
-            );
+            DOT_PRODUCT_F32_BULK8.invokeExact(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -850,22 +846,21 @@ public class Similarities {
         }
     }
 
-    public static void squareDistanceF32Bulk8(MemorySegment[] vectors, MemorySegment query, int dims, MemorySegment scores) {
-        assert vectors.length == 8;
+    public static void squareDistanceF32Bulk8(
+        MemorySegment v0,
+        MemorySegment v1,
+        MemorySegment v2,
+        MemorySegment v3,
+        MemorySegment v4,
+        MemorySegment v5,
+        MemorySegment v6,
+        MemorySegment v7,
+        MemorySegment query,
+        int dims,
+        MemorySegment scores
+    ) {
         try {
-            SQUARE_DISTANCE_F32_BULK8.invokeExact(
-                vectors[0],
-                vectors[1],
-                vectors[2],
-                vectors[3],
-                vectors[4],
-                vectors[5],
-                vectors[6],
-                vectors[7],
-                query,
-                dims,
-                scores
-            );
+            SQUARE_DISTANCE_F32_BULK8.invokeExact(v0, v1, v2, v3, v4, v5, v6, v7, query, dims, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

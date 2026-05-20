@@ -451,7 +451,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isApproximationUnsupportedAggregationInSubqueryBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isApproximationUnsupportedAggregationInSubqueryBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1060,6 +1061,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(
+        ".*Plan \\[Aggregate\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern LOOKUP_JOIN_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LOOKUP\\s+JOIN\\b");
+    private static final Pattern ABSENT_TO_STRING_PATTERN = Pattern.compile("(?i)absent\\(\\s*to_string\\s*\\(");
+
+    /**
+     * {@code Aggregate[...]} plan drops a synthetic {@code $$<field>$converted_to$<type>} reference needed by
+     * {@code absent(to_string(...))} after subquery + lookup join + mv_expand.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/149509">#149509</a>.
+     */
+    static boolean isAggregateAbsentToStringSubqueryLookupJoinBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN.matcher(errorMessage).matches()
+            && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && LOOKUP_JOIN_COMMAND_PATTERN.matcher(query).find()
+            && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && ABSENT_TO_STRING_PATTERN.matcher(query).find();
+    }
 
     /**
      * {@code SET approximation} + subquery in {@code FROM} can hard-fail instead of degrading with a warning.

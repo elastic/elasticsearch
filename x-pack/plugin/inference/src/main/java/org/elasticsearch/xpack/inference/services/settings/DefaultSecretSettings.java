@@ -117,7 +117,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         var extractedApiKey = extractOptionalSecureString(newSecrets, API_KEY, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
-        if (extractedApiKey == null) {
+        if (extractedApiKey == null || extractedApiKey.equals(apiKey)) {
             return this;
         }
         return new DefaultSecretSettings(extractedApiKey);

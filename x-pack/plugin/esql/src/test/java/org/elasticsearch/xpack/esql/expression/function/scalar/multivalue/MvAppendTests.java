@@ -266,20 +266,22 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
-            List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
-            List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
-            var result = new ArrayList<>(field1);
-            result.addAll(field2);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
-                ),
-                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataType.FLATTENED,
-                equalTo(result)
-            );
-        }));
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                var result = new ArrayList<>(field1);
+                result.addAll(field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                    DataType.FLATTENED,
+                    equalTo(result)
+                );
+            }));
+        }
     }
 }

@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 
 /**
@@ -131,7 +132,18 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         }
 
         TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field, sourceText(), FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
 
+        // unsigned_long uses signed long comparison, which yields wrong order for values >= 2^63
+        resolution = isType(
+            field,
+            dt -> dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            FIRST,
+            "boolean, date, date_nanos, double, flattened, integer, ip, keyword, long, or version"
+        );
         if (resolution.unresolved()) {
             return resolution;
         }

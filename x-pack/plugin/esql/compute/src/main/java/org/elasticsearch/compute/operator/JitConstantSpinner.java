@@ -577,6 +577,13 @@ public final class JitConstantSpinner {
         // verified opcode-by-opcode and structurally; defineHiddenClass cannot see a class
         // shape the validator hasn't already approved.
         try {
+            // Note on entitlements: defineHiddenClass is intentionally NOT in the entitlement-
+            // instrumented set (only ClassLoader.<init> and URLClassLoader.* are, gated by
+            // create_class_loader). We don't construct a ClassLoader — we hand a byte[] to the
+            // JDK and get a hidden class in the existing module — so no entitlement grant is
+            // required, unlike Painless's Compiler.Loader which needs create_class_loader.
+            // The defense-in-depth concern (running unverified bytecode at runtime) is covered
+            // by SpunClassShapeValidator above, which hard-fails on any drift.
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(base, MethodHandles.lookup());
             if (classData == null) {
                 return lookup.defineHiddenClass(bytecode, /* initialize */ true).lookupClass();

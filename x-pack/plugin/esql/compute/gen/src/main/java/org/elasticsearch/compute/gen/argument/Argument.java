@@ -12,6 +12,7 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import org.elasticsearch.compute.ann.CodegenConstants;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
@@ -38,7 +39,7 @@ public interface Argument {
         String name = v.getSimpleName().toString();
         Fixed fixed = v.getAnnotation(Fixed.class);
         if (fixed != null) {
-            boolean releasable = Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable");
+            boolean releasable = Types.extendsSuper(types, v.asType(), CodegenConstants.RELEASABLE_FQN);
             if (fixed.jitConstant()) {
                 if (fixed.scope() != Fixed.Scope.SINGLETON) {
                     throw new IllegalArgumentException("@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ")");

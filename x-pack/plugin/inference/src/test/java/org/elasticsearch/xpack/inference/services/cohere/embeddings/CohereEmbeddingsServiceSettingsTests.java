@@ -322,10 +322,13 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
     }
 
     public void testFromMap_Persistent_V2_NoModelIdFields_ThrowsMissingModelIdError() {
-        var thrownException = expectThrows(IllegalArgumentException.class, () -> CohereEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(null, null, TEST_EMBEDDING_TYPE.toString(), CohereCommonServiceSettings.CohereApiVersion.V2),
-            ConfigurationParseContext.PERSISTENT
-        ));
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> CohereEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(null, null, TEST_EMBEDDING_TYPE.toString(), CohereCommonServiceSettings.CohereApiVersion.V2),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
 
         assertThat(thrownException.getMessage(), is(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
     }

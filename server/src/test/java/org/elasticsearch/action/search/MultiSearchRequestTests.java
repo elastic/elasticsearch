@@ -277,6 +277,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testWriteSearchRequestParamsUsesSliceFieldWhenRoutingFromSlice() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest();
         request.routing("s1");
         request.searchSlice("s1");

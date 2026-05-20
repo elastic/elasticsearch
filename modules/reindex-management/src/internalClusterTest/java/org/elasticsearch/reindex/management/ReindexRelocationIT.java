@@ -16,6 +16,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetResponse;
@@ -45,6 +47,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.ReindexMetrics;
 import org.elasticsearch.reindex.ReindexMetrics.SlicingMode;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
@@ -251,7 +254,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         });
 
         // Speed up reindex post-relocation to keep the test fast
-        unthrottleReindex(relocatedTaskId);
+        unthrottleReindex(originalTaskId, relocatedTaskId, slices, shards);
 
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, slices, shards);
 
@@ -315,7 +318,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             1,
             shards
         );
-        unthrottleReindex(relocatedTaskId);
+        unthrottleReindex(originalTaskId, relocatedTaskId, 1, shards);
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards);
         assertExpectedNumberOfDocumentsInDestinationIndex();
 
@@ -366,7 +369,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             1,
             shards
         );
-        unthrottleReindex(relocatedTaskId);
+        unthrottleReindex(originalTaskId, relocatedTaskId, 1, shards);
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards);
         assertExpectedNumberOfDocumentsInDestinationIndex();
     }
@@ -412,7 +415,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             shards
         );
 
-        unthrottleReindex(relocatedTaskId);
+        unthrottleReindex(originalTaskId, relocatedTaskId, 1, shards);
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards);
         assertExpectedNumberOfDocumentsInDestinationIndex();
 
@@ -875,14 +878,46 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueSeconds(10), index);
     }
 
-    private void unthrottleReindex(final TaskId taskId) {
-        try {
-            final RestClient restClient = getRestClient();
-            final Request request = new Request("POST", "/_reindex/" + taskId + "/_rethrottle");
-            request.addParameter("requests_per_second", Integer.toString(-1));
-            restClient.performRequest(request);
-        } catch (Exception e) {
-            throw new AssertionError("failed to rethrottle reindex", e);
+    /**
+     * Removes the reindex throttle after relocation. Rethrottles by {@code originalTaskId} so the relocation chain is
+     * followed, then verifies the running task on {@code relocatedTaskId} reports unlimited {@code requests_per_second}.
+     */
+    private void unthrottleReindex(final TaskId originalTaskId, final TaskId relocatedTaskId, final int slices, final int shards)
+        throws Exception {
+        assertBusy(() -> {
+            try {
+                final ListTasksResponse rethrottleResponse = new RethrottleRequestBuilder(client()).setTargetTaskId(originalTaskId)
+                    .setRequestsPerSecond(Float.POSITIVE_INFINITY)
+                    .setFollowRelocations(true)
+                    .get();
+                rethrottleResponse.rethrowFailures("unthrottle reindex after relocation");
+                assertThat("rethrottle should find running task", rethrottleResponse.getTasks().isEmpty(), is(false));
+                assertUnthrottledRequestsPerSecond(relocatedTaskId, slices, shards);
+            } catch (Exception e) {
+                throw new AssertionError("failed to unthrottle reindex after relocation", e);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void assertUnthrottledRequestsPerSecond(final TaskId relocatedTaskId, final int slices, final int shards) {
+        if (isSliced(slices, shards)) {
+            final int expectedSlices = getExpectedSlices(slices, shards);
+            final ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();
+            final TaskGroup group = listResponse.getTaskGroups()
+                .stream()
+                .filter(g -> g.taskInfo().taskId().equals(relocatedTaskId))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("relocated task group not found for [" + relocatedTaskId + "]"));
+            assertThat("all slices should be registered", group.childTasks().size(), equalTo(expectedSlices));
+            for (TaskGroup child : group.childTasks()) {
+                final BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) child.task().status();
+                assertThat("slice should be unthrottled", sliceStatus.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
+            }
+        } else {
+            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(
+                relocatedTaskId
+            ).get().getTask().getTask().status();
+            assertThat("relocated task should be unthrottled", status.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
         }
     }
 

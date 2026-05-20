@@ -61,10 +61,7 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
 
     public void testNewSecretSettings_EmptyServiceAccountJson_ThrowsError() {
         var initialSettings = createRandom();
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> initialSettings.newSecretSettings(secretSettingsMap(""))
-        );
+        var exception = expectThrows(ValidationException.class, () -> initialSettings.newSecretSettings(secretSettingsMap("")));
         assertValidationError(exception, emptyServiceAccountJsonError());
     }
 
@@ -78,10 +75,7 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
     }
 
     public void testFromMap_ThrowsError_IfServiceAccountJsonIsEmpty() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> GoogleVertexAiSecretSettings.fromMap(secretSettingsMap(""))
-        );
+        var exception = expectThrows(ValidationException.class, () -> GoogleVertexAiSecretSettings.fromMap(secretSettingsMap("")));
         assertValidationError(exception, emptyServiceAccountJsonError());
     }
 
@@ -92,21 +86,11 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
         secretSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(
-            xContentResult,
-            is(
-                XContentHelper.stripWhitespace(
-                    Strings.format(
-                        """
-                        {
-                            "service_account_json": "%s"
-                        }
-                        """,
-                        TEST_SERVICE_ACCOUNT_JSON
-                    )
-                )
-            )
-        );
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "service_account_json": "%s"
+            }
+            """, TEST_SERVICE_ACCOUNT_JSON))));
     }
 
     @Override

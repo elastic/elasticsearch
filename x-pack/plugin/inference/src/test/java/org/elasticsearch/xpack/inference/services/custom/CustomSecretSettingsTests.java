@@ -36,30 +36,38 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
         return randomMap(0, 5, () -> tuple(randomAlphaOfLength(5), new SecureString(randomAlphaOfLength(5).toCharArray())));
     }
 
+    public void testNewSecretSettings_UpdatesSecretParameters() {
+        var initialSettings = new CustomSecretSettings(Map.of("initial_key", new SecureString("initial_value".toCharArray())));
+        var updatedSettings = (CustomSecretSettings) initialSettings.newSecretSettings(
+            secretSettingsMap(Map.of("updated_key", "updated_value"))
+        );
+
+        assertThat(updatedSettings, is(new CustomSecretSettings(Map.of("updated_key", new SecureString("updated_value".toCharArray())))));
+    }
+
     public void testNewSecretSettings_EmptyMap_DoesNotChangeSettings() {
         var initialSettings = createRandom();
         assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
     }
 
-    public void testNewSecretSettings_MergesSecretParameters() {
-        var initialSettings = new CustomSecretSettings(Map.of("existing_key", new SecureString("existing_value".toCharArray())));
-        var updatedSettings = (CustomSecretSettings) initialSettings.newSecretSettings(
-            new HashMap<>(Map.of(CustomSecretSettings.SECRET_PARAMETERS, new HashMap<>(Map.of("new_key", "new_value"))))
+    public void testNewSecretSettings_EmptySecretParameters_DoesNotChangeSettings() {
+        var initialSettings = new CustomSecretSettings(Map.of("key", new SecureString("value".toCharArray())));
+        assertThat(initialSettings.newSecretSettings(secretSettingsMap(Map.of())), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_SameSecretParameters_DoesNotChangeSettings() {
+        var initialSettings = new CustomSecretSettings(Map.of("key", new SecureString("value".toCharArray())));
+        assertThat(initialSettings.newSecretSettings(secretSettingsMap(Map.of("key", "value"))), sameInstance(initialSettings));
+    }
+
+    public void testNewSecretSettings_InvalidValue_ThrowsError() {
+        var initialSettings = createRandom();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(secretSettingsMap(Map.of("key", Map.of("nested_key", "nested_value"))))
         );
 
-        assertThat(
-            updatedSettings,
-            is(
-                new CustomSecretSettings(
-                    Map.of(
-                        "existing_key",
-                        new SecureString("existing_value".toCharArray()),
-                        "new_key",
-                        new SecureString("new_value".toCharArray())
-                    )
-                )
-            )
-        );
+        assertValidationError(exception, invalidValueTypeError());
     }
 
     public void testFromMap() {
@@ -96,13 +104,7 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
             )
         );
 
-        assertThat(
-            exception.getMessage(),
-            is(
-                "Validation Failed: 1: Map field [secret_parameters] has an entry that is not valid. "
-                    + "Value type is not one of [String].;"
-            )
-        );
+        assertValidationError(exception, invalidValueTypeError());
     }
 
     public void testFromMap_DefaultsToEmptyMap_WhenSecretParametersField_DoesNotExist() {
@@ -164,5 +166,21 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
     @Override
     protected CustomSecretSettings mutateInstanceForVersion(CustomSecretSettings instance, TransportVersion version) {
         return instance;
+    }
+
+    private static Map<String, Object> secretSettingsMap(Map<String, ?> secretParameters) {
+        return new HashMap<>(Map.of(CustomSecretSettings.SECRET_PARAMETERS, new HashMap<>(secretParameters)));
+    }
+
+    private static void assertValidationError(ValidationException exception, String expectedError) {
+        assertThat(exception.validationErrors().size(), is(1));
+        assertThat(exception.validationErrors().getFirst(), is(expectedError));
+    }
+
+    private static String invalidValueTypeError() {
+        return Strings.format(
+            "Map field [%s] has an entry that is not valid. Value type is not one of [String].",
+            CustomSecretSettings.SECRET_PARAMETERS
+        );
     }
 }

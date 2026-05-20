@@ -176,6 +176,9 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         Function<DataType, DataType> expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
+        if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {
+            return;
+        }
         cases.add(new TestCaseSupplier(name + "(flattened)", List.of(DataType.FLATTENED), () -> {
             BytesRef data = FlattenedCases.RANDOM.get();
             return new TestCaseSupplier.TestCase(

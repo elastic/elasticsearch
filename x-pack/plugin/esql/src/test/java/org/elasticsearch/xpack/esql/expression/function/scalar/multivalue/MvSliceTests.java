@@ -430,21 +430,23 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, FlattenedCases.RANDOM::get);
-            int length = field.size();
-            int start = randomIntBetween(0, length - 1);
-            int end = randomIntBetween(start, length - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.FLATTENED, "field"),
-                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
-                ),
-                "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataType.FLATTENED,
-                equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
-            );
-        }));
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.INTEGER, DataType.INTEGER), () -> {
+                List<Object> field = randomList(1, 10, FlattenedCases.RANDOM::get);
+                int length = field.size();
+                int start = randomIntBetween(0, length - 1);
+                int end = randomIntBetween(start, length - 1);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field, DataType.FLATTENED, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    DataType.FLATTENED,
+                    equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
+                );
+            }));
+        }
     }
 }

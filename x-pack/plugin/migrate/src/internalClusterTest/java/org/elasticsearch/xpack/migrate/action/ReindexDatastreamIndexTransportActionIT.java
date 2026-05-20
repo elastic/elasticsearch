@@ -415,6 +415,15 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         );
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        // testSettingsAndMappingsFromTemplate() creates the source index using composable index template,
+        // then the randomly injected legacy index template is not being used.
+        // The target index that is being created via reindex api doesn't match with the composable index template and
+        // thne randomly created legacy index template is being used.
+        return false;
+    }
+
     public void testSettingsAndMappingsFromTemplate() throws IOException {
         var numShards = randomIntBetween(1, 10);
         var numReplicas = randomIntBetween(0, 10);

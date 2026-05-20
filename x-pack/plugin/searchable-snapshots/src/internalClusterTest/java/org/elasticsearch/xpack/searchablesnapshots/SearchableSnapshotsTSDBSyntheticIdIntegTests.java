@@ -65,6 +65,12 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     private Set<String> docIds;
     private Collection<String> deletedDocIds;
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        // tests tsdb and therefor can't randomly use columnar id.
+        return false;
+    }
+
     @Before
     @Override
     public void setUp() throws Exception {

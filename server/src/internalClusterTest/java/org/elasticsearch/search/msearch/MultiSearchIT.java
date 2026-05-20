@@ -259,34 +259,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         });
     }
 
-    public void testExecutionAllowsDifferentRoutingModesPerSubRequestWhenTargetsAllow() throws Exception {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        createIndex("routing-index", Settings.builder().put("number_of_shards", 1).build());
-        createIndex("slice-index", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());
-        ensureGreen("routing-index", "slice-index");
-
-        prepareIndex("routing-index").setId("1").setRouting("r1").setSource("field", "routing-doc").get();
-        client().index(new IndexRequest("slice-index").id("1").routing("s1").setRoutingFromSlice(true).source("field", "slice-doc"))
-            .actionGet();
-        refresh();
-
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(new SearchRequest("routing-index").routing("r1").source(new org.elasticsearch.search.builder.SearchSourceBuilder()));
-        request.add(
-            new SearchRequest("slice-index").routing("s1")
-                .searchSlice("s1")
-                .source(new org.elasticsearch.search.builder.SearchSourceBuilder())
-        );
-        assertResponse(client().multiSearch(request), response -> {
-            assertThat(response.getResponses().length, equalTo(2));
-            assertNoFailures(response.getResponses()[0].getResponse());
-            assertHitCount(response.getResponses()[0].getResponse(), 1L);
-            assertNoFailures(response.getResponses()[1].getResponse());
-            assertHitCount(response.getResponses()[1].getResponse(), 1L);
-        });
-    }
-
-    public void testExecutionWithFourInterleavedRoutingAndSliceMetadataOptions() throws Exception {
+    public void testExecutionWithMultipleRoutingAndSliceMetadataOptions() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         createIndex("routing-index", Settings.builder().put("number_of_shards", 1).build());
         createIndex("slice-index", Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1).build());

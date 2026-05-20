@@ -237,6 +237,10 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         int from = 0;
         byte marker = xContent.bulkSeparator();
         boolean warnedMrtForCps = false;
+        final boolean topLevelFromSlice = routingOrSlice != null && routingOrSlice.fromSlice();
+        final boolean topLevelHasRouting = routingOrSlice != null
+            && routingOrSlice.fromSlice() == false
+            && routingOrSlice.routing() != null;
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -280,10 +284,6 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
                     Object allowNoIndices = null;
-                    final boolean topLevelFromSlice = routingOrSlice != null && routingOrSlice.fromSlice();
-                    final boolean topLevelHasRouting = routingOrSlice != null
-                        && routingOrSlice.fromSlice() == false
-                        && routingOrSlice.routing() != null;
                     boolean routingProvided = false;
                     boolean sliceProvided = false;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {

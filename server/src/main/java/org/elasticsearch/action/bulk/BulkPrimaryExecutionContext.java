@@ -278,6 +278,8 @@ class BulkPrimaryExecutionContext {
         markAsCompleted(executionResult);
     }
 
+    /** the current operation has been executed as a batch item on the primary with the specified result. The main difference between this
+     * and markOperationAsExecuted is that the translog location can stay the same as prior executed operations. */
     public void markBatchOperationAsExecuted(Engine.Result result) {
         markOperationAsExecuted(result, true);
     }

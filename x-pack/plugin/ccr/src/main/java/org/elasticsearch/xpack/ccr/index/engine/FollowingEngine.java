@@ -17,9 +17,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -180,12 +180,18 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, BytesReference batchData, int[] rowIndices) throws IOException {
+    public List<Result> indexBatch(List<Operation> operations, EirfBatch batch) throws IOException {
         // CCR following engine has special versioning semantics that are not compatible with
         // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
-        List<IndexResult> results = new ArrayList<>(operations.size());
-        for (Index op : operations) {
-            results.add(index(op));
+        List<Result> results = new ArrayList<>(operations.size());
+        for (Operation op : operations) {
+            if (op instanceof Index index) {
+                results.add(index(index));
+            } else if (op instanceof NoOp noOp) {
+                results.add(noOp(noOp));
+            } else {
+                throw new IllegalArgumentException("indexBatch only supports Index and NoOp, got " + op.getClass().getName());
+            }
         }
         return results;
     }

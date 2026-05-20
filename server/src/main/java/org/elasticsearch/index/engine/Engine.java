@@ -71,6 +71,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
@@ -715,19 +716,27 @@ public abstract class Engine implements Closeable {
     public abstract IndexResult index(Index index) throws IOException;
 
     /**
-     * Index a batch of operations that originated from a single EIRF row batch. Implementations
-     * may write a single batched translog record covering all successful ops. The base
-     * implementation iterates {@link #index(Index)} per op and ignores the batch bytes.
+     * Index a batch of operations that originated from a single EIRF row batch. The operations
+     * list may mix {@link Index} entries with {@link NoOp} entries — the latter represent rows
+     * that were skipped (primary-detected NOOP) or failed after consuming a seqNo (post-Lucene
+     * failure) and must still be sequenced in the translog. {@code batch} contains exactly
+     * {@code operations.size()} rows so {@code operations.get(i)} corresponds to row {@code i}
+     * (NoOp rows keep their bytes for the contiguous slice but are never read on replay).
      *
-     * @param operations  the per-doc index operations, in caller order
-     * @param batchData   the raw EIRF batch bytes shared by all rows
-     * @param rowIndices  per-op row indices into {@code batchData}; {@code rowIndices[i]}
-     *                    identifies the EIRF row that produced {@code operations.get(i)}
+     * <p>Implementations may write a single batched translog record covering every entry.
+     * The base implementation falls back to {@link #index(Index)} / {@link #noOp(NoOp)} per op
+     * and ignores the batch bytes.
      */
-    public List<IndexResult> indexBatch(List<Index> operations, BytesReference batchData, int[] rowIndices) throws IOException {
-        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
-        for (Index index : operations) {
-            results.add(index(index));
+    public List<Result> indexBatch(List<Operation> operations, EirfBatch batch) throws IOException {
+        ArrayList<Result> results = new ArrayList<>(operations.size());
+        for (Operation op : operations) {
+            if (op instanceof Index index) {
+                results.add(index(index));
+            } else if (op instanceof NoOp noOp) {
+                results.add(noOp(noOp));
+            } else {
+                throw new IllegalArgumentException("indexBatch only supports Index and NoOp, got " + op.getClass().getName());
+            }
         }
         return results;
     }

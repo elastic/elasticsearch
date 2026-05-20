@@ -50,7 +50,6 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -75,6 +74,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -1133,51 +1133,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Applies a batch of index operations on the primary, with the raw EIRF batch bytes so the
-     * engine can write a single batched translog record covering all successful ops.
+     * Applies a batch of index operations on the primary, with the EIRF batch so the engine can
+     * write a single batched translog record covering all entries. The {@code batch} must hold
+     * exactly {@code operations.size()} rows aligned 1:1 with {@code operations}.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(
-        List<Engine.Index> operations,
-        BytesReference batchData,
-        int[] rowIndices
-    ) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations, EirfBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations, batchData, rowIndices);
-    }
-
-    /**
-     * Applies a batch of index operations on a replica, with the raw EIRF batch bytes for batched
-     * translog encoding.
-     */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(
-        List<Engine.Index> operations,
-        BytesReference batchData,
-        int[] rowIndices
-    ) throws IOException {
-        ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
-        final Engine engine = getEngine();
-        return indexBatch(engine, operations, batchData, rowIndices);
-    }
-
-    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations, BytesReference batchData, int[] rowIndices)
-        throws IOException {
         List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
-        // TODO: Right now the only production users are stats. Should add batch listener.
         for (Engine.Index op : operations) {
             preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
         }
         try {
-            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps, batchData, rowIndices);
-            // TODO: Look at if these can be batch optimized
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            List<Engine.Operation> ops = (List) preIndexOps;
+            List<Engine.Result> results = engine.indexBatch(ops, batch);
+            List<Engine.IndexResult> indexResults = new ArrayList<>(results.size());
             for (int i = 0; i < results.size(); i++) {
-                indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));
+                Engine.IndexResult result = (Engine.IndexResult) results.get(i);
+                indexResults.add(result);
+                indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), result);
+            }
+            active.set(true);
+            return indexResults;
+        } catch (Exception e) {
+            for (Engine.Index preIndexOp : preIndexOps) {
+                indexingOperationListeners.postIndex(shardId, preIndexOp, e);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Applies a batch of operations on a replica. {@code operations} may mix
+     * {@link Engine.Index} entries (one per primary-indexed row) and {@link Engine.NoOp}
+     * entries (primary-detected NOOPs or post-Lucene failures). The {@code batch} carries
+     * row data for every entry; NoOp rows are passed through unchanged but their bytes are
+     * not read.
+     */
+    public List<Engine.Result> applyIndexOperationBatchOnReplica(List<Engine.Operation> operations, EirfBatch batch) throws IOException {
+        ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
+        final Engine engine = getEngine();
+        List<Engine.Operation> preOps = new ArrayList<>(operations.size());
+        for (Engine.Operation op : operations) {
+            if (op instanceof Engine.Index index) {
+                preOps.add(indexingOperationListeners.preIndex(shardId, index));
+            } else {
+                preOps.add(op);
+            }
+        }
+        try {
+            List<Engine.Result> results = engine.indexBatch(preOps, batch);
+            for (int i = 0; i < results.size(); i++) {
+                Engine.Operation op = preOps.get(i);
+                if (op instanceof Engine.Index indexOp && results.get(i) instanceof Engine.IndexResult indexResult) {
+                    indexingOperationListeners.postIndex(shardId, indexOp, indexResult);
+                }
             }
             active.set(true);
             return results;
         } catch (Exception e) {
-            for (Engine.Index preIndexOp : preIndexOps) {
-                indexingOperationListeners.postIndex(shardId, preIndexOp, e);
+            for (Engine.Operation preOp : preOps) {
+                if (preOp instanceof Engine.Index indexOp) {
+                    indexingOperationListeners.postIndex(shardId, indexOp, e);
+                }
             }
             throw e;
         }

@@ -278,7 +278,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * {@code operationCounter} by the number of documents in the batch so the checkpoint's
      * {@code numOps} continues to count logical operations rather than on-disk records.
      */
-    public Translog.Location addBatch(final Translog.Serialized operation, final List<Translog.IndexBatch.Ops> ops) throws IOException {
+    public Translog.Location addBatch(final Translog.Serialized operation, final List<Translog.IndexBatch.Op> ops) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
@@ -298,7 +298,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
-            for (Translog.IndexBatch.Ops meta : ops) {
+            for (Translog.IndexBatch.Op meta : ops) {
                 final long seqNo = meta.seqNo();
                 minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
                 maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);

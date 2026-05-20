@@ -133,13 +133,10 @@ public final class ShardBatchIndexer {
                 return;
             }
 
-            // parseMappings produces operations 1:1 with items[chunkStart..chunkEnd),
-            // so the EIRF row index for operations.get(j) is chunkStart + j.
-            final int[] rowIndices = new int[operations.size()];
-            for (int j = 0; j < rowIndices.length; j++) {
-                rowIndices[j] = chunkStart + j;
-            }
-            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations, batch.data(), rowIndices);
+            // parseMappings produces operations 1:1 with items[chunkStart..chunkEnd); a contiguous
+            // slice of the EIRF batch matches one-to-one with the operations list.
+            final EirfBatch chunkBatch = batch.slice(chunkStart, chunkEnd);
+            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations, chunkBatch);
 
             for (Engine.IndexResult result : results) {
                 assert context.hasMoreOperationsToExecute();
@@ -151,7 +148,11 @@ public final class ShardBatchIndexer {
     }
 
     /**
-     * Performs a batch index on a replica using EIRF data.
+     * Performs a batch index on a replica using EIRF data. Primary-side failures and NOOPs that
+     * consumed a seqNo are folded into the batch as {@link Engine.NoOp} entries so the engine
+     * writes a single translog record per sub-batch. Items that cannot be batched (pre-flight
+     * failure without a seqNo, prepareIndex exception, or a dynamic mapping update) stop the
+     * batch path at that index and the caller falls back to the per-op replica path.
      */
     static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, EirfBatch batch, IndexShard replica) throws Exception {
         final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(batch.schema());
@@ -160,9 +161,7 @@ public final class ShardBatchIndexer {
 
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
-            final List<Engine.Index> operations = new ArrayList<>(chunkEnd - chunkStart);
-            // The replica loop may skip NOOPs and stop early on failures, so rowIndices is sparse.
-            final List<Integer> rowIndicesList = new ArrayList<>(chunkEnd - chunkStart);
+            final List<Engine.Operation> operations = new ArrayList<>(chunkEnd - chunkStart);
 
             int i = chunkStart;
             while (i < chunkEnd) {
@@ -170,16 +169,44 @@ public final class ShardBatchIndexer {
                 final BulkItemResponse response = item.getPrimaryResponse();
 
                 if (response.isFailed()) {
-                    break;
-                }
-                if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
+                    final BulkItemResponse.Failure failure = response.getFailure();
+                    if (failure.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        // Pre-flight failure: nothing to replicate at this seqNo; let the fallback path handle it.
+                        break;
+                    }
+                    operations.add(
+                        new Engine.NoOp(
+                            failure.getSeqNo(),
+                            failure.getTerm(),
+                            Engine.Operation.Origin.REPLICA,
+                            replica.getRelativeTimeInNanos(),
+                            failure.getCause().toString()
+                        )
+                    );
                     i++;
                     continue;
                 }
-                assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+
+                final DocWriteResponse primaryResponse = response.getResponse();
+                if (primaryResponse.getResult() == DocWriteResponse.Result.NOOP) {
+                    if (primaryResponse.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        break;
+                    }
+                    operations.add(
+                        new Engine.NoOp(
+                            primaryResponse.getSeqNo(),
+                            primaryResponse.getPrimaryTerm(),
+                            Engine.Operation.Origin.REPLICA,
+                            replica.getRelativeTimeInNanos(),
+                            "primary detected NOOP"
+                        )
+                    );
+                    i++;
+                    continue;
+                }
+                assert primaryResponse.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
 
                 final IndexRequest indexRequest = (IndexRequest) item.request();
-                final DocWriteResponse primaryResponse = response.getResponse();
                 final EirfRowReader row = batch.getRowReader(i);
 
                 final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
@@ -220,17 +247,13 @@ public final class ShardBatchIndexer {
                     break;
                 }
                 operations.add(operation);
-                rowIndicesList.add(i);
                 i++;
             }
 
             if (operations.isEmpty() == false) {
-                final int[] rowIndices = new int[rowIndicesList.size()];
-                for (int j = 0; j < rowIndices.length; j++) {
-                    rowIndices[j] = rowIndicesList.get(j);
-                }
-                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations, batch.data(), rowIndices);
-                for (Engine.IndexResult result : results) {
+                final EirfBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
+                final List<Engine.Result> results = replica.applyIndexOperationBatchOnReplica(operations, chunkBatch);
+                for (Engine.Result result : results) {
                     if (result.getFailure() != null) {
                         throw result.getFailure();
                     }

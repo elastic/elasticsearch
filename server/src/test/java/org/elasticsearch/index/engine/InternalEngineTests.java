@@ -232,27 +232,27 @@ public class InternalEngineTests extends EngineTestCase {
      */
     private static Engine.IndexResult indexDoc(Engine engine, Engine.Index operation) throws IOException {
         if (randomBoolean()) {
-            BytesReference batchData = tryEncodeAsEirfBatch(List.of(operation));
-            if (batchData != null) {
-                return engine.indexBatch(List.of(operation), batchData, new int[] { 0 }).get(0);
+            EirfBatch batch = tryEncodeAsEirfBatch(List.of(operation));
+            if (batch != null) {
+                return (Engine.IndexResult) engine.indexBatch(List.of(operation), batch).get(0);
             }
         }
         return engine.index(operation);
     }
 
     /**
-     * Encodes the given ops' sources into an EIRF batch payload that can be passed to
-     * {@link Engine#indexBatch(List, BytesReference, int[])}. The bytes are copied so the
-     * caller does not need to manage the {@link EirfBatch} lifecycle.
+     * Encodes the given ops' sources into an {@link EirfBatch} that can be passed to
+     * {@link Engine#indexBatch(List, EirfBatch)}. The bytes are copied so the caller
+     * does not need to manage the encoder's recycler lifecycle.
      */
-    private static BytesReference encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {
+    private static EirfBatch encodeAsEirfBatch(List<Engine.Index> operations) throws IOException {
         List<BytesReference> sources = new ArrayList<>(operations.size());
         for (Engine.Index op : operations) {
             sources.add(op.source());
         }
         XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
         try (EirfBatch batch = EirfEncoder.encode(sources, xContentType)) {
-            return new BytesArray(BytesReference.toBytes(batch.data()));
+            return new EirfBatch(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
         }
     }
 
@@ -261,7 +261,7 @@ public class InternalEngineTests extends EngineTestCase {
      * source can't be parsed as XContent (e.g. {@code B_1}-style synthetic byte sources used
      * by some engine tests). Callers should fall back to {@link Engine#index} in that case.
      */
-    private static BytesReference tryEncodeAsEirfBatch(List<Engine.Index> operations) {
+    private static EirfBatch tryEncodeAsEirfBatch(List<Engine.Index> operations) {
         try {
             return encodeAsEirfBatch(operations);
         } catch (IOException | RuntimeException e) {
@@ -269,16 +269,18 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    /**
-     * Returns the row indices {@code [0, 1, ..., size-1]} pairing 1:1 with a batch
-     * encoded by {@link #encodeAsEirfBatch}.
-     */
-    private static int[] sequentialRowIndices(int size) {
-        int[] rowIndices = new int[size];
-        for (int i = 0; i < size; i++) {
-            rowIndices[i] = i;
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static List<Engine.Operation> asOpList(List<Engine.Index> ops) {
+        return (List) ops;
+    }
+
+    private static List<Engine.IndexResult> indexBatchAllIndex(Engine engine, List<Engine.Index> ops, EirfBatch batch) throws IOException {
+        List<Engine.Result> results = engine.indexBatch(asOpList(ops), batch);
+        List<Engine.IndexResult> typed = new ArrayList<>(results.size());
+        for (Engine.Result r : results) {
+            typed.add((Engine.IndexResult) r);
         }
-        return rowIndices;
+        return typed;
     }
 
     /**
@@ -8083,7 +8085,7 @@ public class InternalEngineTests extends EngineTestCase {
             ParsedDocument doc = createParsedDoc(Integer.toString(i), null);
             ops.add(indexForDoc(doc));
         }
-        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops), sequentialRowIndices(ops.size()));
+        List<Engine.IndexResult> results = indexBatchAllIndex(engine, ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(ops.size()));
         for (int i = 0; i < results.size(); i++) {
             Engine.IndexResult result = results.get(i);
@@ -8102,7 +8104,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < batchSize; i++) {
             ops.add(indexForDoc(createParsedDoc(Integer.toString(i), null)));
         }
-        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops), sequentialRowIndices(ops.size()));
+        List<Engine.IndexResult> results = indexBatchAllIndex(engine, ops, encodeAsEirfBatch(ops));
         long prevSeqNo = -1;
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8115,7 +8117,7 @@ public class InternalEngineTests extends EngineTestCase {
         ParsedDocument doc = createParsedDoc("1", null);
         Engine.Index op = indexForDoc(doc);
         List<Engine.Index> ops = List.of(op);
-        List<Engine.IndexResult> batchResults = engine.indexBatch(ops, encodeAsEirfBatch(ops), new int[] { 0 });
+        List<Engine.IndexResult> batchResults = indexBatchAllIndex(engine, ops, encodeAsEirfBatch(ops));
         assertThat(batchResults, hasSize(1));
         Engine.IndexResult result = batchResults.get(0);
         assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
@@ -8149,7 +8151,7 @@ public class InternalEngineTests extends EngineTestCase {
             firstResult.getTerm()
         );
         List<Engine.Index> ops = List.of(conflictingOp);
-        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops), new int[] { 0 });
+        List<Engine.IndexResult> results = indexBatchAllIndex(engine, ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getResultType(), equalTo(Engine.Result.Type.FAILURE));
         assertThat(results.get(0).getFailure(), instanceOf(VersionConflictEngineException.class));
@@ -8165,7 +8167,7 @@ public class InternalEngineTests extends EngineTestCase {
             indexForDoc(createParsedDoc("1", null)),
             indexForDoc(createParsedDoc("2", null))
         );
-        List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops), sequentialRowIndices(ops.size()));
+        List<Engine.IndexResult> results = indexBatchAllIndex(engine, ops, encodeAsEirfBatch(ops));
         assertThat(results, hasSize(3));
         for (Engine.IndexResult result : results) {
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));

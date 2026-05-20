@@ -29,9 +29,9 @@ final class TranslogSnapshot extends BaseTranslogReader {
     private int skippedOperations;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
-    // When the most recently read record was an IndexBatch, its exploded Index ops are buffered here
+    // When the most recently read record was an IndexBatch, its exploded ops are buffered here
     // and emitted one-by-one by subsequent next() calls before reading the next on-disk record.
-    private final Deque<Translog.Index> pendingExploded;
+    private final Deque<Translog.Operation> pendingExploded;
 
     /**
      * Create a snapshot of translog file channel.
@@ -79,7 +79,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
 
     private Translog.Operation nextOperation() throws IOException {
         // First drain any pending exploded ops from a previously-read batch record.
-        Translog.Index pending = pendingExploded.pollFirst();
+        Translog.Operation pending = pendingExploded.pollFirst();
         if (pending != null) {
             readOperations++;
             return pending;
@@ -95,7 +95,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
         // A batch record contributed docCount to operationCounter (and hence to totalOperations).
         // Explode and queue them; the next loop iteration will emit one and bump readOperations.
         final Translog.IndexBatch batch = (Translog.IndexBatch) record;
-        final List<Translog.Index> exploded = batch.explode();
+        final List<Translog.Operation> exploded = batch.explode();
         pendingExploded.addAll(exploded);
         return null;
     }

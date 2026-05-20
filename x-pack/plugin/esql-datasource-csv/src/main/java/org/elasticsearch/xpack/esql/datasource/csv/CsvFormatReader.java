@@ -1182,6 +1182,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * <p>Mirrors the quoting contract of {@link #findNextRecordBoundaryBracketCommaMvc} and
      * {@link #findNextRecordBoundaryQuotedFieldsOnly}.
      *
+     * <p><b>Divergence from chunk-layer boundary scanners:</b>
+     * {@link #findNextRecordBoundaryBracketCommaMvc} and {@link #findNextRecordBoundaryQuotedFieldsOnly}
+     * treat lone {@code \r} outside quotes as data (only {@code \n} terminates). This method treats
+     * unquoted lone {@code \r} as a record terminator (Mac-classic line endings). The divergence is
+     * acceptable because macro-split boundaries are always re-aligned at the row layer, and Mac-classic
+     * files are vanishingly rare in modern data pipelines. A future unification under a single record
+     * splitter SPI will reconcile both layers.
+     *
+     * <p>Uses the same ASCII-only whitespace predicate ({@code ' '}, {@code '\t'}, {@code '\f'}) as
+     * the boundary scanners for field-start detection, via {@link #isAsciiCsvFieldLeadingWhitespace}.
+     *
      * @return the logical record (without trailing line terminator), or {@code null} at EOF
      */
     static String readCsvRecord(Reader reader, char quoteChar, char delimiter, boolean bracketAware) throws IOException {
@@ -1260,7 +1271,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 sb.append((char) ch);
                 continue;
             }
-            if (Character.isWhitespace((char) ch) == false) {
+            if (isAsciiCsvFieldLeadingWhitespace(ch) == false) {
                 fieldHasNonWhitespace = true;
             }
             sb.append((char) ch);

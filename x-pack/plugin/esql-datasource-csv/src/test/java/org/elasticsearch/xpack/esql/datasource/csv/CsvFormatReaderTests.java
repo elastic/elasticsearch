@@ -1678,6 +1678,28 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testQuotedFieldWithLoneCrPreservedJacksonPath() throws IOException {
+        // Same as testQuotedFieldWithLoneCrPreserved but via the Jackson (non-fused) path.
+        String csv = "id:keyword,val:keyword,end:keyword\n\"a\",\"b\rc\",\"d\"\n\"e\",\"f\",\"g\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+
+            BytesRefBlock valBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("b\rc"), valBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("f"), valBlock.getBytesRef(1, new BytesRef()));
+
+            BytesRefBlock endBlock = (BytesRefBlock) page.getBlock(2);
+            assertEquals(new BytesRef("d"), endBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("g"), endBlock.getBytesRef(1, new BytesRef()));
+        }
+    }
+
     public void testQuotedFieldWithCrLfInsidePreserved() throws IOException {
         // Embedded \r\n inside a quoted field must be preserved as field content, not treated as line terminator.
         String csv = "a:keyword,b:keyword\n\"hello\r\nworld\",\"x\"\n\"y\",\"z\"\n";

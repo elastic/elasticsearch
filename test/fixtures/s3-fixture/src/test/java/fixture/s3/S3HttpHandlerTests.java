@@ -18,6 +18,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -669,7 +670,17 @@ public class S3HttpHandlerTests extends ESTestCase {
         BytesReference requestBody,
         Headers requestHeaders
     ) {
-        final var httpExchange = new TestHttpExchange(method, uri, requestBody, requestHeaders);
+        final Headers finalRequestHeaders;
+        if (method.equals("PUT")) {
+            finalRequestHeaders = new Headers(requestHeaders);
+            finalRequestHeaders.add(
+                "x-amz-content-sha256",
+                MessageDigests.toHexString(MessageDigests.digest(requestBody, MessageDigests.sha256()))
+            );
+        } else {
+            finalRequestHeaders = requestHeaders;
+        }
+        final var httpExchange = new TestHttpExchange(method, uri, requestBody, finalRequestHeaders);
         try {
             handler.handle(httpExchange);
         } catch (IOException e) {

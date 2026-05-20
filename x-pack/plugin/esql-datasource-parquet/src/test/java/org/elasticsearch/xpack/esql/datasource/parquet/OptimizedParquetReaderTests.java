@@ -100,6 +100,14 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         assertNotSame(reader, configured);
     }
 
+    public void testDoesNotSupportWholeFileCompression() {
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        assertFalse(
+            "Parquet requires random access and cannot be wrapped in a whole-file compressor",
+            reader.supportsWholeFileCompression()
+        );
+    }
+
     public void testWithConfigDefaults() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         assertSame(reader, reader.withConfig(null));

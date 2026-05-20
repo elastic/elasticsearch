@@ -450,7 +450,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isApproximationUnsupportedAggregationInSubqueryBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1050,6 +1051,28 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern APPROXIMATION_SUBQUERY_BUG_PATTERN = Pattern.compile(
+        ".*(?:approximation not supported: aggregation function \\[.+] (?:cannot be approximated|must return a numeric value)"
+            + "|SampleProbabilityPlaceHolder).*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
+
+    /**
+     * {@code SET approximation} + subquery in {@code FROM} can hard-fail instead of degrading with a warning.
+     * Gated on both so plain-query regressions still fail. See
+     * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>.
+     */
+    static boolean isApproximationUnsupportedAggregationInSubqueryBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return FromGenerator.hasApproximationSettings(query)
+            && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && APPROXIMATION_SUBQUERY_BUG_PATTERN.matcher(errorMessage).matches();
     }
 
     @Override

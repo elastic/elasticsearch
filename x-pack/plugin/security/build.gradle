@@ -160,7 +160,6 @@ dependencies {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }
 
 tasks.named("processInternalClusterTestResources").configure {
@@ -442,7 +441,6 @@ tasks.named("internalClusterTest").configure {
    */
   systemProperty 'es.transport.buffer.size', '256k'
   systemProperty 'es.dlm_feature_flag_enabled', 'true'
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }
 
 addQaCheckDependencies(project)

@@ -139,16 +139,12 @@ public final class ShardBatchIndexer {
             for (int j = 0; j < rowIndices.length; j++) {
                 rowIndices[j] = chunkStart + j;
             }
-            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(
-                operations,
-                batch.data(),
-                rowIndices
-            );
+            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations, batch.data(), rowIndices);
 
             for (Engine.IndexResult result : results) {
                 assert context.hasMoreOperationsToExecute();
                 context.setRequestToExecute(context.getCurrent());
-                context.markOperationAsExecuted(result);
+                context.markBatchOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
             }
         }
@@ -233,16 +229,12 @@ public final class ShardBatchIndexer {
                 for (int j = 0; j < rowIndices.length; j++) {
                     rowIndices[j] = rowIndicesList.get(j);
                 }
-                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(
-                    operations,
-                    batch.data(),
-                    rowIndices
-                );
+                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations, batch.data(), rowIndices);
                 for (Engine.IndexResult result : results) {
                     if (result.getFailure() != null) {
                         throw result.getFailure();
                     }
-                    location = TransportWriteAction.locationToSync(location, result.getTranslogLocation());
+                    location = TransportWriteAction.batchLocationToSync(location, result.getTranslogLocation());
                 }
             }
 

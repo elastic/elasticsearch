@@ -1355,11 +1355,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(
-        List<Index> operations,
-        BytesReference batchData,
-        int[] rowIndices
-    ) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, BytesReference batchData, int[] rowIndices) throws IOException {
         assert rowIndices.length == operations.size() : "rowIndices length must match operations size";
         try (var ignored = acquireEnsureOpenRef()) {
             // If the first operation is recovery they are all recovery
@@ -1463,10 +1459,7 @@ public class InternalEngine extends Engine {
             subBatchOps[i] = op;
             if (op.primaryTerm() != batchPrimaryTerm) {
                 throw new IllegalArgumentException(
-                    "all operations in a batch must share the same primary term, but found "
-                        + batchPrimaryTerm
-                        + " and "
-                        + op.primaryTerm()
+                    "all operations in a batch must share the same primary term, but found " + batchPrimaryTerm + " and " + op.primaryTerm()
                 );
             }
             // TODO: Optimize indexing strategy to be batch. There are gains to look-up version ids in batch from Lucene.
@@ -1602,6 +1595,7 @@ public class InternalEngine extends Engine {
                     // GET (Translog.readOperation throws on BATCH). Store null here so realtime GET
                     // falls through to refresh+searcher; the result.translogLocation still carries
                     // the batch Location for durability acks.
+                    // TODO: eventually we will need to add a row number to assist with realtime gets.
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
                         new IndexVersionValue(null, plan.versionForIndexing, index.seqNo(), index.primaryTerm())

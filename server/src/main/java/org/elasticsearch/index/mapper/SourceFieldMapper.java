@@ -428,8 +428,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final boolean syntheticRecovery = recoverySourceEnabled && context.indexSettings().isRecoverySourceSyntheticEnabled();
 
         // Materializing the source bytes is only required when something downstream needs them:
-        //   - storing the regular _source field (stored() == true), or
-        //   - storing the reduced _recovery_source field (recovery enabled, non-synthetic).
+        // - storing the regular _source field (stored() == true), or
+        // - storing the reduced _recovery_source field (recovery enabled, non-synthetic).
         // The recovery-disabled case needs nothing at all, and the synthetic-recovery case needs
         // only a byte-size estimate, which the EIRF row can supply without re-serializing.
         if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {

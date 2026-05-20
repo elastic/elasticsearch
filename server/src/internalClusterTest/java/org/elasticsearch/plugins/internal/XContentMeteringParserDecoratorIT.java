@@ -10,6 +10,7 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -109,8 +110,8 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public java.util.List<IndexResult> indexBatch(java.util.List<Index> operations) throws IOException {
-                    List<IndexResult> results = super.indexBatch(operations);
+                public List<IndexResult> indexBatch(List<Index> operations, BytesReference batchData, int[] rowIndices) throws IOException {
+                    List<IndexResult> results = super.indexBatch(operations, batchData, rowIndices);
                     for (Index op : operations) {
                         reportDocumentSize(op.parsedDoc());
                     }

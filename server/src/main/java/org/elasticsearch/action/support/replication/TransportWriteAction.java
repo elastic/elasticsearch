@@ -210,6 +210,16 @@ public abstract class TransportWriteAction<
         return location;
     }
 
+    /**
+     * Same as locationToSync however, the Location does not need to increase. It can be equal to
+     * the prior location (common in batch indexing).
+     */
+    public static Location batchLocationToSync(Location current, Location next) {
+        assert next != null : "next operation can't be null";
+        assert current == null || current.compareTo(next) <= 0 : "all batch operations must be the same or increasing";
+        return next;
+    }
+
     public static Location locationToSync(Location current, Location next) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a

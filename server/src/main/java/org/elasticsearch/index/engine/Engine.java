@@ -714,30 +714,22 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
-        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
-        for (Index index : operations) {
-            results.add(index(index));
-        }
-        return results;
-    }
-
     /**
      * Index a batch of operations that originated from a single EIRF row batch. Implementations
      * may write a single batched translog record covering all successful ops. The base
-     * implementation falls back to {@link #indexBatch(List)} and ignores the batch bytes.
+     * implementation iterates {@link #index(Index)} per op and ignores the batch bytes.
      *
      * @param operations  the per-doc index operations, in caller order
      * @param batchData   the raw EIRF batch bytes shared by all rows
      * @param rowIndices  per-op row indices into {@code batchData}; {@code rowIndices[i]}
      *                    identifies the EIRF row that produced {@code operations.get(i)}
      */
-    public List<IndexResult> indexBatch(
-        List<Index> operations,
-        BytesReference batchData,
-        int[] rowIndices
-    ) throws IOException {
-        return indexBatch(operations);
+    public List<IndexResult> indexBatch(List<Index> operations, BytesReference batchData, int[] rowIndices) throws IOException {
+        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
+        for (Index index : operations) {
+            results.add(index(index));
+        }
+        return results;
     }
 
     /**

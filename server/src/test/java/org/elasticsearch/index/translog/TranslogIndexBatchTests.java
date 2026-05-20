@@ -119,7 +119,12 @@ public class TranslogIndexBatchTests extends ESTestCase {
         for (int i = 0; i < docs.size(); i++) {
             metas.add(
                 new Translog.IndexBatch.DocMeta(
-                    1L, firstSeqNo + i, 100L + i, i, xContentType, Uid.encodeId("doc-" + i),
+                    1L,
+                    firstSeqNo + i,
+                    100L + i,
+                    i,
+                    xContentType,
+                    Uid.encodeId("doc-" + i),
                     i % 2 == 0 ? null : "route-" + i
                 )
             );

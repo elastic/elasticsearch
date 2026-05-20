@@ -18,6 +18,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.SplitDeltaCodecStage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,6 +96,12 @@ public final class NumericDecodePipeline {
                     case DELTA_STAGE -> DeltaCodecStage.decodeStatic((DeltaCodecStage) transformStages[i], values, count, context);
                     case OFFSET_STAGE -> OffsetCodecStage.decodeStatic((OffsetCodecStage) transformStages[i], values, count, context);
                     case GCD_STAGE -> GcdCodecStage.decodeStatic((GcdCodecStage) transformStages[i], values, count, context);
+                    case SPLIT_DELTA_STAGE -> SplitDeltaCodecStage.decodeStatic(
+                        (SplitDeltaCodecStage) transformStages[i],
+                        values,
+                        count,
+                        context
+                    );
                     default -> throw new IllegalStateException("Unexpected decode stage: " + stageIds[i]);
                 }
             }

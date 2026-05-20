@@ -45,7 +45,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 
 ### Create or update a data source
 
-`PUT` creates a new data source or replaces an existing one entirely.
+`PUT` creates a new data source or replaces an existing one entirely. The create call does not validate connectivity to the external system. To verify that credentials and endpoint are correct, create a dataset that references the data source and query it.
 
 ::::{tab-set}
 :group: api-ref
@@ -429,9 +429,9 @@ The following cluster settings control the maximum number of data sources and da
 
 External data source operations use existing {{es}} privileges. No additional privileges are required.
 
-- **Data source operations** require the cluster `manage` privilege.
+- **Data source operations** require the cluster `manage` privilege. Unlike index-level privileges, cluster `manage` implies `read` for data sources, so a user who can create and update data sources can also retrieve their metadata.
 - **Dataset operations** require the index `manage` privilege scoped to the dataset name pattern.
-- **Querying a dataset** requires the `read` privilege on the dataset name.
+- **Querying a dataset** requires the `read` privilege on the dataset name. To verify that a data source is configured correctly, a user must create a dataset that references it and query that dataset.
 
 More granular per-entity privileges are planned for a future release.
 

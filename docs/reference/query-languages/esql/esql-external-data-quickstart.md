@@ -115,6 +115,10 @@ The response includes all settings, with credential values replaced by `::es_red
 }
 ```
 1. Credential values are never returned in API responses.
+
+:::{note}
+Creating a data source does not validate connectivity to the external system. To verify that a data source is working, create a dataset that references it and run a query. If the credentials or endpoint are incorrect, the query will return an error.
+:::
 ::::::
 
 ::::::{step} Create a dataset

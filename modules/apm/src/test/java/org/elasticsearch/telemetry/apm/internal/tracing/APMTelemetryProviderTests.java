@@ -59,7 +59,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
         };
 
         APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, true, true, 5_000);
-        provider.attemptFlushAll();
+        provider.attemptFlush();
 
         assertThat(calls, containsInAnyOrder("metrics", "traces"));
     }
@@ -92,7 +92,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             }
         };
 
-        // complete both from another thread while attemptFlushAll() is blocked
+        // complete both from another thread while attemptFlush() is blocked
         Thread completer = new Thread(() -> {
             try {
                 Thread.sleep(50);
@@ -107,7 +107,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
 
         long start = System.nanoTime();
         APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, true, true, 5_000);
-        provider.attemptFlushAll();
+        provider.attemptFlush();
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 
         assertTrue("should wait for results but return before full timeout", elapsedMs >= 50 && elapsedMs < 5_000);
@@ -143,7 +143,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
         };
 
         APMTelemetryProvider provider = providerWithSuppliers(meterSupplier, traceSupplier, false, false, 5_000);
-        provider.attemptFlushAll();
+        provider.attemptFlush();
 
         assertTrue("flush must not be called when disabled", calls.isEmpty());
     }

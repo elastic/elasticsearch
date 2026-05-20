@@ -53,17 +53,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
     }
 
     @Override
-    public void attemptFlushMetrics() {
-        apmMeterService.attemptFlushMetrics().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
-    }
-
-    @Override
-    public void attemptFlushTraces() {
-        apmTracer.attemptFlushTraces().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
-    }
-
-    @Override
-    public void attemptFlushAll() {
+    public void attemptFlush() {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
         CompletableResultCode traces = apmTracer.attemptFlushTraces();
         CompletableResultCode.ofAll(List.of(metrics, traces)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);

@@ -44,7 +44,7 @@ public class FlushTelemetryRestHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return channel -> {
-            telemetryProvider.get().attemptFlushAll();
+            telemetryProvider.get().attemptFlush();
             try (XContentBuilder builder = channel.newBuilder()) {
                 channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }

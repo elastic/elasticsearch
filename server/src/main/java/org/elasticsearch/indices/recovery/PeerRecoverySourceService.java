@@ -283,8 +283,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                         handlers.cancel("shard is closed");
                     } catch (Exception ex) {
                         failures.add(ex);
-                    } finally {
-                        shard.recoveryStats().decCurrentAsSource();
                     }
                 }
                 ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);

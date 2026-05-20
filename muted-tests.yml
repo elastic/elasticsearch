@@ -471,12 +471,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
   issue: https://github.com/elastic/elasticsearch/issues/147517
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:flattened.casePicksPerRow}
-  issue: https://github.com/elastic/elasticsearch/issues/149027
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
-  issue: https://github.com/elastic/elasticsearch/issues/149028
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032

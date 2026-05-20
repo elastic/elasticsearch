@@ -380,10 +380,13 @@ public class JsonExtract extends EsqlScalarFunction {
      * argument is the {@code _source} metadata field. They opt out of the {@code @Evaluator}
      * null short-circuit via {@code allNullsIsNull = false} so a null source surfaces a
      * warning instead of returning a silent null, then delegate to {@link #doExtract} for the
-     * actual extraction. The multi-value check is required (and is not an assertion) because
-     * the block-input mode bypasses the generator's auto-inserted single-value guard; it
-     * mirrors {@code Warnings#registerSingleValueWarning} so the user-visible warning matches
-     * every other scalar function's multi-value behavior.
+     * actual extraction.
+     * <p>
+     * The source-side multi-value case is impossible by construction ({@code _source} is one
+     * stored blob per doc) and is asserted, not warned. The path-side multi-value case in the
+     * non-constant overload IS reachable — paths come from regular keyword/text expressions
+     * — so it is handled with the canonical single-value warning, mirroring what the
+     * {@code @Evaluator} generator inserts for the scalar path overload.
      */
     @Evaluator(
         extraName = "Source",
@@ -398,7 +401,8 @@ public class JsonExtract extends EsqlScalarFunction {
             builder.appendNull();
             return;
         }
-        if (strBlock.getValueCount(position) != 1 || pathBlock.getValueCount(position) != 1) {
+        assert strBlock.getValueCount(position) == 1 : "_source is single-value per doc";
+        if (pathBlock.getValueCount(position) != 1) {
             throw new IllegalArgumentException("single-value function encountered multi-value");
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
@@ -415,9 +419,7 @@ public class JsonExtract extends EsqlScalarFunction {
         if (strBlock.isNull(position)) {
             throw new IllegalStateException(NULL_SOURCE_MESSAGE);
         }
-        if (strBlock.getValueCount(position) != 1) {
-            throw new IllegalArgumentException("single-value function encountered multi-value");
-        }
+        assert strBlock.getValueCount(position) == 1 : "_source is single-value per doc";
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(position), new BytesRef());
         doExtract(builder, str, path);
     }

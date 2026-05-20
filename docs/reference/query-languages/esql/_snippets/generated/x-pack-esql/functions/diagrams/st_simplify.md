@@ -6,7 +6,7 @@
 
 With a small tolerance, only collinear or near-collinear vertices are removed.
 
-:::{image} ../../../images/functions/st_simplify_low_tolerance.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_simplify_low_tolerance.svg
 :alt: Low tolerance keeps almost every vertex
 :class: text-center
 :::
@@ -15,7 +15,7 @@ With a small tolerance, only collinear or near-collinear vertices are removed.
 
 A tolerance of `0.2` is large enough to remove the small dents along each edge, leaving the underlying square.
 
-:::{image} ../../../images/functions/st_simplify_mid_tolerance.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_simplify_mid_tolerance.svg
 :alt: Mid tolerance smooths out the bumps
 :class: text-center
 :::
@@ -24,7 +24,7 @@ A tolerance of `0.2` is large enough to remove the small dents along each edge, 
 
 Higher tolerances drop more vertices and the circle becomes a rough polygon.
 
-:::{image} ../../../images/functions/st_simplify_circle_quarter.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_simplify_circle_quarter.svg
 :alt: Simplifying a circle with tolerance 0.5
 :class: text-center
 :::
@@ -33,7 +33,7 @@ Higher tolerances drop more vertices and the circle becomes a rough polygon.
 
 Tolerance `1.0` reduces the circle to a regular octagon.
 
-:::{image} ../../../images/functions/st_simplify_circle_octagon.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_simplify_circle_octagon.svg
 :alt: Simplifying a circle to an octagon
 :class: text-center
 :::
@@ -42,7 +42,7 @@ Tolerance `1.0` reduces the circle to a regular octagon.
 
 France's coastline simplified at tolerance `0.1` (roughly 10 km). Small bays and peninsulas survive but the coastline is noticeably smoother.
 
-:::{image} ../../../images/functions/st_simplify_france_medium.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_simplify_france_medium.svg
 :alt: Simplifying a coastline at moderate tolerance
 :class: text-center
 :::
@@ -51,7 +51,7 @@ France's coastline simplified at tolerance `0.1` (roughly 10 km). Small bays and
 
 France's coastline simplified at tolerance `0.5` (roughly 50 km). Only the high-level shape of the country remains.
 
-:::{image} ../../../images/functions/st_simplify_france_coarse.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_simplify_france_coarse.svg
 :alt: Simplifying a coastline at coarse tolerance
 :class: text-center
 :::

@@ -6,7 +6,7 @@
 
 Buffering a 10x10 square by `-2` produces a smaller square inset by 2 units on each side.
 
-:::{image} ../../../images/functions/st_buffer_shrink_polygon.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_buffer_shrink_polygon.svg
 :alt: Negative distance shrinks a polygon
 :class: text-center
 :::
@@ -15,7 +15,7 @@ Buffering a 10x10 square by `-2` produces a smaller square inset by 2 units on e
 
 A point with positive distance becomes a polygon approximating a circle (8 segments per quadrant by default).
 
-:::{image} ../../../images/functions/st_buffer_point.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_buffer_point.svg
 :alt: Buffering a point produces a circle
 :class: text-center
 :::
@@ -24,7 +24,7 @@ A point with positive distance becomes a polygon approximating a circle (8 segme
 
 A line buffered with default options has rounded end caps (`endcap=round`).
 
-:::{image} ../../../images/functions/st_buffer_line_round.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_buffer_line_round.svg
 :alt: Default round end caps on a line
 :class: text-center
 :::
@@ -33,7 +33,7 @@ A line buffered with default options has rounded end caps (`endcap=round`).
 
 Setting `endcap=flat` keeps the buffer flush with the line's endpoints.
 
-:::{image} ../../../images/functions/st_buffer_line_flat.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_buffer_line_flat.svg
 :alt: Flat end caps on a line
 :class: text-center
 :::
@@ -42,7 +42,7 @@ Setting `endcap=flat` keeps the buffer flush with the line's endpoints.
 
 `endcap=square` extends the buffer past each endpoint by the buffer distance.
 
-:::{image} ../../../images/functions/st_buffer_line_square.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_buffer_line_square.svg
 :alt: Square end caps on a line
 :class: text-center
 :::
@@ -51,7 +51,7 @@ Setting `endcap=flat` keeps the buffer flush with the line's endpoints.
 
 `join=mitre` produces sharp corners. Combined with `endcap=flat` you get a clean rectangle for a buffered L-shape.
 
-:::{image} ../../../images/functions/st_buffer_corner_mitre.svg
+:::{image} ../../../../../images/generated/x-pack-esql/functions/st_buffer_corner_mitre.svg
 :alt: Mitre joins on a buffered corner
 :class: text-center
 :::

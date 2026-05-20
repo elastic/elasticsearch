@@ -9,9 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractDoublesFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
@@ -19,68 +20,22 @@ import java.io.IOException;
 /**
  * Loads the MIN {@code double} in each doc.
  */
-public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDocValuesBlockLoader {
+public class MvMinDoublesFromDocValuesBlockLoader extends DoublesBlockLoader {
     public MvMinDoublesFromDocValuesBlockLoader(String fieldName, BlockDocValuesReader.ToDouble toDouble) {
         super(fieldName, toDouble);
     }
 
     @Override
-    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Singleton(docValues, toDouble);
-    }
-
-    @Override
-    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new MvMinSorted(docValues, toDouble);
-    }
-
-    @Override
-    public String toString() {
-        return "DoublesFromDocValues[" + fieldName + "]";
-    }
-
-    private static class MvMinSorted extends BlockDocValuesReader {
-        private final TrackingSortedNumericDocValues numericDocValues;
-        private final ToDouble toDouble;
-
-        MvMinSorted(TrackingSortedNumericDocValues numericDocValues, ToDouble toDouble) {
-            super(null);
-            this.numericDocValues = numericDocValues;
-            this.toDouble = toDouble;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        return new AbstractNumericBlockLoader.Sorted<>(this, "MvMinDoublesFromDocValues", docValues) {
+            @Override
+            protected void readSortedDoc(int doc, BlockLoader.DoubleBuilder builder) throws IOException {
+                if (values.docValues().advanceExact(doc) == false) {
+                    builder.appendNull();
+                    return;
                 }
-                return builder.build();
+                appendValue(builder, values.docValues().nextValue());
             }
-        }
-
-        private void read(int doc, DoubleBuilder builder) throws IOException {
-            if (false == numericDocValues.docValues().advanceExact(doc)) {
-                builder.appendNull();
-                return;
-            }
-            builder.appendDouble(toDouble.convert(numericDocValues.docValues().nextValue()));
-        }
-
-        @Override
-        public int docId() {
-            return numericDocValues.docValues().docID();
-        }
-
-        @Override
-        public String toString() {
-            return "MvMinDoublesFromDocValues.Sorted";
-        }
-
-        @Override
-        public void close() {
-            numericDocValues.close();
-        }
+        };
     }
 }

@@ -139,6 +139,23 @@ public class ParquetRsAggregatePushdownSupportTests extends ESTestCase {
         assertEquals(Pushability.YES, support.canPushAggregates(List.of(), List.of()));
     }
 
+    // --- Virtual columns (engine-synthesized _file.* / ES metadata) ---
+    // These have no parquet column to read stats from; every aggregate against them must stay
+    // non-pushable so the engine evaluates them after VirtualColumnIterator has injected the
+    // constant per-file blocks.
+
+    public void testCountVirtualColumnNotPushable() {
+        assertEquals(Pushability.NO, push(new Count(SRC, virtualField("_file.path", DataType.KEYWORD))));
+    }
+
+    public void testMinVirtualColumnNotPushable() {
+        assertEquals(Pushability.NO, push(new Min(SRC, virtualField("_file.size", DataType.LONG))));
+    }
+
+    public void testMaxVirtualColumnNotPushable() {
+        assertEquals(Pushability.NO, push(new Max(SRC, virtualField("_file.modified", DataType.DATETIME))));
+    }
+
     // --- Helpers ---
 
     private Pushability push(Expression aggregate) {
@@ -155,5 +172,9 @@ public class ParquetRsAggregatePushdownSupportTests extends ESTestCase {
 
     private static FieldAttribute field(String name, DataType dataType) {
         return new FieldAttribute(SRC, name, new EsField(name, dataType, Collections.emptyMap(), true, TimeSeriesFieldType.NONE));
+    }
+
+    private static org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute virtualField(String name, DataType type) {
+        return new org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute(SRC, name, type);
     }
 }

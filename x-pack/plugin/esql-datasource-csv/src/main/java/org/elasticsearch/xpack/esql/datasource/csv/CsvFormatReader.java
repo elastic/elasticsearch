@@ -447,16 +447,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema = readSchema(object);
         String location = object.path().toString();
-        // Always publish sizeInBytes when the file's length is resolvable — even on a row-count
-        // cache miss. The SchemaCacheEntry serializer flattens published statistics into a
-        // sourceMetadata Map and caches it; warm queries on the same (path, mtime, format, config)
-        // short-circuit metadata() entirely, so without sizeInBytes baked in at cold-pass time the
-        // warm-path row-count augmentation in ExternalSourceResolver.buildMetadataFromCache would
-        // have no way to construct the (path, length) cache key. rowCount is added on top when
-        // present.
+        // Always publish sizeInBytes and mtime when the file's length is resolvable, even on a
+        // row-count cache miss. The SchemaCacheEntry serializer flattens published statistics
+        // into a sourceMetadata Map and caches it; warm queries on the same
+        // (path, mtime, format, config) short-circuit metadata() entirely, so without these
+        // baked in at cold-pass time the warm-path row-count augmentation in
+        // ExternalSourceResolver.buildMetadataFromCache would have no way to reconstruct the
+        // (path, length, mtimeMillis) cache key. rowCount is added on top when the cache has it.
         long sizeInBytes;
+        long mtimeMillis;
         try {
             sizeInBytes = object.length();
+            mtimeMillis = object.lastModified() == null ? 0L : object.lastModified().toEpochMilli();
         } catch (IOException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
@@ -472,7 +474,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return OptionalLong.of(sizeInBytes);
             }
         };
-        return new SimpleSourceMetadata(schema, formatName(), location, stats, null);
+        Map<String, Object> sourceMetadata = Map.of(ExternalRowCountCache.MTIME_MILLIS_KEY, mtimeMillis);
+        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {

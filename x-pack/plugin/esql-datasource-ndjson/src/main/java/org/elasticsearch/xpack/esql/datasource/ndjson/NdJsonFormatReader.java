@@ -276,13 +276,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
         }
         String location = object.path().toString();
-        // Always publish sizeInBytes when resolvable so the SchemaCacheEntry's serialized
-        // sourceMetadata Map carries the file length; ExternalSourceResolver.buildMetadataFromCache
-        // then re-keys the row-count cache lookup on warm queries without an extra length() call.
-        // See the parallel comment in CsvFormatReader.metadata.
+        // Always publish sizeInBytes and mtime when resolvable so the SchemaCacheEntry's
+        // serialized sourceMetadata Map carries both; ExternalSourceResolver.buildMetadataFromCache
+        // re-keys the (path, length, mtimeMillis) row-count cache lookup on warm queries without
+        // an extra storage round-trip. See the parallel comment in CsvFormatReader.metadata.
         long sizeInBytes;
+        long mtimeMillis;
         try {
             sizeInBytes = object.length();
+            mtimeMillis = object.lastModified() == null ? 0L : object.lastModified().toEpochMilli();
         } catch (IOException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
@@ -298,7 +300,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 return OptionalLong.of(sizeInBytes);
             }
         };
-        return new SimpleSourceMetadata(schema, formatName(), location, stats, null);
+        Map<String, Object> sourceMetadata = Map.of(ExternalRowCountCache.MTIME_MILLIS_KEY, mtimeMillis);
+        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
     }
 
     /**

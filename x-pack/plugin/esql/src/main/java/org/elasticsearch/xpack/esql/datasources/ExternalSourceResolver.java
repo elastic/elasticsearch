@@ -442,18 +442,34 @@ public class ExternalSourceResolver {
         // Warm-path row-count augmentation: the SchemaCacheEntry is cached per
         // (path, mtime, format, config) and short-circuits metadata() on subsequent queries. The
         // row-count cache is populated by the iterator's close() hook AFTER the SchemaCacheEntry
-        // is written, so the cached safeMetadata Map carries sizeInBytes but no rowCount on the
-        // first query. Re-key the (path, length) row-count lookup at warm-query time and inject
-        // STATS_ROW_COUNT if the iterator has since populated the cache.
+        // is written, so the cached safeMetadata Map carries sizeInBytes + mtime but no rowCount
+        // on the first query. Re-key the (path, length, mtime) row-count lookup at warm-query
+        // time and inject STATS_ROW_COUNT if the iterator has since populated the cache.
         Map<String, Object> effectiveMetadata = entry.safeMetadata();
         if (effectiveMetadata.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
             && effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sizeBytes
+            && effectiveMetadata.get(ExternalRowCountCache.MTIME_MILLIS_KEY) instanceof Number mtimeMillis
             && entry.location() != null) {
-            OptionalLong cachedRowCount = ExternalRowCountCache.lookup(entry.location(), sizeBytes.longValue());
+            OptionalLong cachedRowCount = ExternalRowCountCache.lookup(entry.location(), sizeBytes.longValue(), mtimeMillis.longValue());
             if (cachedRowCount.isPresent()) {
-                Map<String, Object> augmented = new HashMap<>(effectiveMetadata);
-                augmented.put(SourceStatisticsSerializer.STATS_ROW_COUNT, cachedRowCount.getAsLong());
-                effectiveMetadata = Map.copyOf(augmented);
+                long count = cachedRowCount.getAsLong();
+                long size = sizeBytes.longValue();
+                // Sanity bounds: the cached count must be physically realisable inside the file
+                // size. The minimum row encoding in CSV/TSV/NDJSON is one byte (record terminator
+                // alone), so count must be in [0, size]. Anything outside indicates cache poisoning
+                // or a serialization bug; treat as a miss and warn so the next query repopulates.
+                if (count < 0 || count > size) {
+                    LOGGER.warn(
+                        "ExternalRowCountCache returned implausible count [{}] for file [{}] of size [{}]; ignoring",
+                        count,
+                        entry.location(),
+                        size
+                    );
+                } else {
+                    Map<String, Object> augmented = new HashMap<>(effectiveMetadata);
+                    augmented.put(SourceStatisticsSerializer.STATS_ROW_COUNT, count);
+                    effectiveMetadata = Map.copyOf(augmented);
+                }
             }
         }
         final Map<String, Object> finalMetadata = effectiveMetadata;

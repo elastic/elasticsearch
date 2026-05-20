@@ -65,16 +65,34 @@ public class ExternalRowCountCacheTests extends ESTestCase {
         assertTrue("different path must not see another path's entry", ExternalRowCountCache.lookup(b).isEmpty());
     }
 
-    public void testPathLengthOverloadMatchesStorageObjectLookup() {
+    public void testPathLengthMtimeOverloadMatchesStorageObjectLookup() throws Exception {
         StorageObject o = obj("memory://c.csv", 150L);
         ExternalRowCountCache.put(o, 13L);
         OptionalLong viaObject = ExternalRowCountCache.lookup(o);
-        OptionalLong viaPathLength = ExternalRowCountCache.lookup("memory://c.csv", 150L);
+        OptionalLong viaTriple = ExternalRowCountCache.lookup("memory://c.csv", 150L, o.lastModified().toEpochMilli());
         assertTrue(viaObject.isPresent());
-        assertTrue(viaPathLength.isPresent());
-        assertEquals(viaObject.getAsLong(), viaPathLength.getAsLong());
-        // And a (path, length) lookup with the wrong length is a miss.
-        assertTrue(ExternalRowCountCache.lookup("memory://c.csv", 151L).isEmpty());
+        assertTrue(viaTriple.isPresent());
+        assertEquals(viaObject.getAsLong(), viaTriple.getAsLong());
+        // A (path, length, mtime) lookup with the wrong length is a miss.
+        assertTrue(ExternalRowCountCache.lookup("memory://c.csv", 151L, o.lastModified().toEpochMilli()).isEmpty());
+        // A (path, length, mtime) lookup with the wrong mtime is a miss — same-length file mutation
+        // produces a fresh mtime, which is exactly what makes that case automatically invalidate.
+        assertTrue(ExternalRowCountCache.lookup("memory://c.csv", 150L, o.lastModified().toEpochMilli() + 1).isEmpty());
+    }
+
+    public void testSameLengthDifferentMtimesAreDistinct() {
+        // The cache's safety story for same-length file mutations: a fresh mtime is a fresh key,
+        // so the previous version's count cannot leak across the mutation boundary.
+        Instant tNow = Instant.now();
+        Instant tLater = tNow.plusMillis(1);
+        StorageObject before = objWithMtime("memory://mutated.csv", 100L, tNow);
+        StorageObject after = objWithMtime("memory://mutated.csv", 100L, tLater);
+        ExternalRowCountCache.put(before, 50L);
+        assertEquals(50L, ExternalRowCountCache.lookup(before).getAsLong());
+        assertTrue(
+            "same (path, length) but different mtime must miss — proves no stale serve on same-length mutation",
+            ExternalRowCountCache.lookup(after).isEmpty()
+        );
     }
 
     public void testStorageObjectLengthIOExceptionDegradesToMiss() {
@@ -114,7 +132,10 @@ public class ExternalRowCountCacheTests extends ESTestCase {
     }
 
     private StorageObject obj(String pathStr, long lengthBytes) {
-        Instant mtime = Instant.now();
+        return objWithMtime(pathStr, lengthBytes, Instant.now());
+    }
+
+    private StorageObject objWithMtime(String pathStr, long lengthBytes, Instant mtime) {
         return new StorageObject() {
             @Override
             public InputStream newStream() {

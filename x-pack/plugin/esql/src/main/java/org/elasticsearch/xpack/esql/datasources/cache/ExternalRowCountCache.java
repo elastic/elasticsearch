@@ -12,6 +12,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.time.Instant;
 import java.util.OptionalLong;
 
 /**
@@ -19,42 +20,63 @@ import java.util.OptionalLong;
  * {@code PushStatsToExternalSource} short-circuit {@code COUNT(*)} to a {@code LocalSourceExec}
  * after the file has been seen at least once.
  * <p>
- * Identity is {@code (path, length)} — matching {@code FooterByteCache.Key} for Parquet. The
- * {@code (path, length)} convention is shared with {@code FooterByteCache}, {@code ParsedFooterCache}
- * and {@code ExternalSourceCacheService.schemaCache}; each of those bounds same-length-mutation
- * staleness with an {@code expireAfter*} TTL rather than treating identity as proof of immutability.
- * This cache inherits the same TTL discipline via {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS}
- * so a file rewritten between queries with the same byte length stops serving its stale row count
- * once the entry idles past the access window. Within a single query, concurrent splits keep the
- * entry alive via access-time resets, so the warm short-circuit path is unaffected.
+ * Identity is {@code (path, length, mtimeMillis)}. Path + length alone (matching
+ * {@code FooterByteCache.Key}) can't distinguish a same-length file mutation, and an
+ * invalidation-on-schema-cache-miss approach races in multi-node clusters (the schema cache is
+ * per-node, this cache is JVM-static; a warm query routed to a different node would
+ * incorrectly invalidate). Including mtime turns "file changed but length is identical" into
+ * an automatic cache miss across every node, no cross-cache coordination needed. The
+ * access-based TTL from {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS} bounds residual
+ * staleness inside the brief window where two clients write versions with the same length and
+ * same mtime resolution.
  */
 public final class ExternalRowCountCache {
 
-    private static final Cache<FooterByteCache.Key, Long> CACHE = CacheBuilder.<FooterByteCache.Key, Long>builder()
-        .setMaximumWeight(10_000)
+    /**
+     * Well-known key under which file last-modified time (as epoch millis) is published into
+     * {@code SourceMetadata.sourceMetadata()} by line-oriented text readers. The warm-path
+     * augmentation in {@code ExternalSourceResolver.buildMetadataFromCache} reads this to
+     * complete the {@code (path, length, mtime)} cache lookup without a fresh storage round-trip.
+     */
+    public static final String MTIME_MILLIS_KEY = "_stats.file_mtime_millis";
+
+    /** Bound on the number of cache entries. */
+    private static final int MAX_ENTRIES = 10_000;
+
+    /**
+     * Cache key. {@code mtimeMillis} is the file's last-modified time at write/read time; including
+     * it makes same-length mutations resolve to a different key without a cross-cache invalidation
+     * hook (and so works correctly in multi-node clusters where each node's schema-cache state is
+     * independent of this JVM-static cache).
+     */
+    public record Key(String path, long length, long mtimeMillis) {}
+
+    private static final Cache<Key, Long> CACHE = CacheBuilder.<Key, Long>builder()
+        .setMaximumWeight(MAX_ENTRIES)
         .setExpireAfterAccess(TimeValue.timeValueSeconds(FooterByteCache.EXPIRE_AFTER_ACCESS_SECONDS))
         .build();
 
     private ExternalRowCountCache() {}
 
-    /** Look up a cached row count by file identity. */
+    /** Look up a cached row count by full file identity. */
     public static OptionalLong lookup(StorageObject object) {
         try {
-            return lookup(object.path().toString(), object.length());
+            Instant mtime = object.lastModified();
+            return lookup(object.path().toString(), object.length(), mtime == null ? 0L : mtime.toEpochMilli());
         } catch (Exception e) {
-            // IOException from object.length() or any cache-internal failure → miss.
+            // IOException from object.length() / lastModified() or any cache-internal failure → miss.
             return OptionalLong.empty();
         }
     }
 
     /**
-     * Look up a cached row count by file identity, given an already-resolved {@code (path, length)}.
-     * Used by the warm-query optimizer path where the SchemaCacheEntry already carries the file
-     * length, avoiding a fresh {@code length()} I/O round-trip on every query.
+     * Look up a cached row count given already-resolved key components. Used by the warm-query
+     * optimizer path where the {@code SchemaCacheEntry} already carries length + mtime, avoiding
+     * a fresh storage round-trip on every query.
      */
-    public static OptionalLong lookup(String path, long length) {
+    public static OptionalLong lookup(String path, long length, long mtimeMillis) {
         try {
-            Long v = CACHE.get(new FooterByteCache.Key(path, length));
+            Long v = CACHE.get(new Key(path, length, mtimeMillis));
             return v == null ? OptionalLong.empty() : OptionalLong.of(v);
         } catch (Exception e) {
             return OptionalLong.empty();
@@ -64,11 +86,13 @@ public final class ExternalRowCountCache {
     /**
      * Record a row count for a fully-drained file. The gate (whole-file context, natural EOF,
      * zero parse errors observed) lives at the caller — see the iterator {@code close()} paths in
-     * {@code CsvBatchIterator} and {@code NdJsonPageIterator}. This method writes unconditionally.
+     * {@code CsvBatchIterator} and {@code NdJsonPageIterator}. This method writes unconditionally
+     * once invoked.
      */
     public static void put(StorageObject object, long rowCount) {
         try {
-            CACHE.put(FooterByteCache.Key.keyFor(object, object.length()), rowCount);
+            Instant mtime = object.lastModified();
+            CACHE.put(new Key(object.path().toString(), object.length(), mtime == null ? 0L : mtime.toEpochMilli()), rowCount);
         } catch (Exception e) {
             // Cache write failures degrade silently — next query repopulates.
         }

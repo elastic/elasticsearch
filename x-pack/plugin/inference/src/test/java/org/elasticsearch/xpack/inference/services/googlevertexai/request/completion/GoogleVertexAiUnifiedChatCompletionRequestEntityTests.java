@@ -397,6 +397,86 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(jsonString, expectedJson);
     }
 
+    public void testSerialization_FallsBackToTaskSettingsMaxTokensWhenRequestValueIsNull() throws IOException {
+        // The max_tokens task setting must be honoured when the per-request maxCompletionTokens is null.
+        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString("Use my task setting."),
+            USER_ROLE,
+            null,
+            null
+        );
+        var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig,
+            42
+        );
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String expectedJson = """
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [ { "text": "Use my task setting." } ]
+                    }
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": 42
+                }
+            }
+            """;
+        assertJsonEquals(Strings.toString(builder), expectedJson);
+    }
+
+    public void testSerialization_RequestMaxCompletionTokensTakesPrecedenceOverTaskSettings() throws IOException {
+        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString("Use the request value."),
+            USER_ROLE,
+            null,
+            null
+        );
+        var unifiedRequest = new UnifiedCompletionRequest(
+            List.of(message),
+            "modelId",
+            123L, // explicit per-request value
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig,
+            42 // would be used if request value were null
+        );
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String expectedJson = """
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [ { "text": "Use the request value." } ]
+                    }
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": 123
+                }
+            }
+            """;
+        assertJsonEquals(Strings.toString(builder), expectedJson);
+    }
+
     public void testSerialization_NoGenerationConfig() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("No extra config."),

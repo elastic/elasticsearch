@@ -23,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -757,7 +758,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return result;
     }
 
-    private CloseableIterator<Page> adaptSchema(CloseableIterator<Page> pages, ColumnMapping mapping, DriverContext driverContext) {
+    private CloseableIterator<Page> adaptSchema(
+        CloseableIterator<Page> pages,
+        ColumnMapping mapping,
+        DriverContext driverContext,
+        @Nullable List<Attribute> perFileReadSchema,
+        @Nullable List<String> perFileCols
+    ) {
         if (mapping == null || mapping.isIdentity()) {
             return pages;
         }
@@ -767,6 +774,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // through to downstream operators unchanged. When deferred extraction is off, the
         // reader's output has only data columns and the adapter ignores this slot.
         int rowPositionInputIndex = deferredExtraction ? mapping.width() : -1;
+        // Per-file source types are only needed to disambiguate LongBlock under a KEYWORD cast.
+        // Every other cast path is self-contained and ignores the array, so we skip the lookup
+        // for mappings that have no KEYWORD slots — i.e. virtually every file split outside the
+        // UBN cross-type-drift path.
+        DataType[] perFileColumnTypes = mapping.hasKeywordCast()
+            ? ColumnMapping.buildPerFileColumnTypes(perFileReadSchema, perFileCols)
+            : null;
         // Use the producer-thread factory: SchemaAdaptingIterator allocates null-fill / cast
         // blocks while the reader is draining pages off the generic pool, off the driver thread.
         return new SchemaAdaptingIterator(
@@ -774,7 +788,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             queryDataSchema.attributes(),
             mapping,
             producerBlockFactory(driverContext),
-            rowPositionInputIndex
+            rowPositionInputIndex,
+            perFileColumnTypes
         );
     }
 
@@ -1177,7 +1192,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     pages = fileReader.read(obj, ctx);
                 }
             }
-            CloseableIterator<Page> adapted = adaptSchema(pages, fileSplit.columnMapping(), state.driverContext);
+            // Resolve the file's read schema and the reader's projected column order so the
+            // adapter can disambiguate LongBlock sources when stringifying under UBN. Pulled
+            // off the FileSplit because both the range and non-range branches above already
+            // pinned the reader to that schema (or fell back to inference); the same source of
+            // truth keeps the cast's source-type view consistent.
+            List<Attribute> perFileReadSchemaForAdapter = fileSplit.readSchema();
+            List<String> perFileColsForAdapter = perFileQueryProjection(cols, perFileReadSchemaForAdapter);
+            CloseableIterator<Page> adapted = adaptSchema(
+                pages,
+                fileSplit.columnMapping(),
+                state.driverContext,
+                perFileReadSchemaForAdapter,
+                perFileColsForAdapter
+            );
             // Deferred extraction: register one extractor per opened file split. Range-splits of
             // the same file therefore register multiple extractors; this is benign — each row's
             // encoded id maps back to the registered extractor that produced it, addressing the
@@ -1302,7 +1330,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .build();
                 pages = formatReader.read(obj, ctx);
             }
-            CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext);
+            CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.

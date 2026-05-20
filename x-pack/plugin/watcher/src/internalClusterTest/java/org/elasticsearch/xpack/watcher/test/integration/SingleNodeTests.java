@@ -12,7 +12,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -23,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -72,6 +75,16 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
                 searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(greaterThanOrEqualTo(1L)))
             );
         }, 30, TimeUnit.SECONDS);
+
+        // Delete watch so that it can't refire during cleanup, recreating the watch-history index after it has been deleted.
+        assertThat(new DeleteWatchRequestBuilder(client()).setId(watchId).get().isFound(), is(true));
+
+        // and drain any tasks that may have been triggered but not yet executed, since they will still record history
+        assertBusy(() -> {
+            indicesAdmin().prepareRefresh(TriggeredWatchStoreField.INDEX_NAME).get();
+            assertHitCount(prepareSearch(TriggeredWatchStoreField.INDEX_NAME).setSize(0), 0L);
+        });
+
     }
 
 }

@@ -16,7 +16,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-32
+          machineType: n4-standard-16
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
@@ -28,8 +28,8 @@ steps:
             BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n4-standard-32
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
@@ -41,8 +41,8 @@ steps:
             BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n4-standard-32
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
@@ -54,8 +54,8 @@ steps:
             BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n4-standard-32
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
@@ -67,8 +67,8 @@ steps:
             BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n4-standard-32
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
@@ -80,7 +80,7 @@ steps:
             BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n4-standard-32
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk

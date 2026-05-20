@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -493,6 +494,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRequiredRoutingUsesSliceMessageWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
             IndexMetadata.builder("test")
                 .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build())
@@ -815,6 +817,124 @@ public class IndexRoutingTests extends ESTestCase {
             assertNull(req.id());
 
             // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("foo", value), shards);
+            req.source(Map.of("foo", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRoutingPathColumnar() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+                        .build()
+                )
+                .numberOfShards(shards)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        IndexRequest req = new IndexRequest();
+        routing.preProcess(req);
+        assertNull(req.id());
+
+        int expectedShard = expectedShard(routing, List.of("foo", "A"), shards);
+        req.source(Map.of("foo", "A", "bar", "B"));
+        assertEquals(expectedShard, routing.indexShard(req));
+
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
+    public void testRerouteToTargetColumnar() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+                    .build()
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("foo", value), shards);
+            req.source(Map.of("foo", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRoutingPathColumnarLogsdb() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                        .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+                        .build()
+                )
+                .numberOfShards(shards)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        IndexRequest req = new IndexRequest();
+        routing.preProcess(req);
+        assertNull(req.id());
+
+        int expectedShard = expectedShard(routing, List.of("foo", "A"), shards);
+        req.source(Map.of("foo", "A", "bar", "B"));
+        assertEquals(expectedShard, routing.indexShard(req));
+
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
+    public void testRerouteToTargetColumnarLogsdb() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+                    .build()
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
             String value = randomAlphaOfLength(20);
             int expectedShard = expectedShard(routing, List.of("foo", value), shards);
             req.source(Map.of("foo", value, "bar", "B"));

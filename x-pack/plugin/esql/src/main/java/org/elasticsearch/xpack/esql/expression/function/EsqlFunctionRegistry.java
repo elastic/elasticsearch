@@ -123,6 +123,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
@@ -214,6 +216,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -620,11 +623,14 @@ public class EsqlFunctionRegistry {
                 // dense vector functions
                 Magnitude.DEFINITION,
                 // date_range functions
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
                 RangeMax.DEFINITION,
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                ToText.DEFINITION } };
+                ToText.DEFINITION,
+                FieldExtract.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -650,13 +656,22 @@ public class EsqlFunctionRegistry {
         return false;
     }
 
+    private static final Set<Class<? extends Function>> SNAPSHOT_FUNCTION_CLASSES = Arrays.stream(snapshotFunctions())
+        .flatMap(Arrays::stream)
+        .map(FunctionDefinition::clazz)
+        .collect(Collectors.toUnmodifiableSet());
+
+    public static boolean isSnapshotOnly(Class<? extends Function> functionClass) {
+        return SNAPSHOT_FUNCTION_CLASSES.contains(functionClass);
+    }
+
     public static String normalizeName(String name) {
         return name.toLowerCase(Locale.ROOT);
     }
 
     public static class ArgSignature {
 
-        public record Hint(String entityType, Map<String, String> constraints) {}
+        public record Hint(String entityType, String kind, Map<String, String> constraints) {}
 
         protected final String name;
         protected final String[] type;
@@ -878,10 +893,11 @@ public class EsqlFunctionRegistry {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
         int countOfParamsToDescribe = params.length;
+        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe--; // skip the implicit @timestamp parameter
+        }
         if (TemporalityAware.class.isAssignableFrom(def.clazz())) {
-            countOfParamsToDescribe -= 2; // skip the implicit @timestamp and temporality parameter (last or last before Configuration)
-        } else if (TimestampAware.class.isAssignableFrom(def.clazz())) {
-            countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
+            countOfParamsToDescribe--; // skip the implicit temporality parameter
         }
         if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {
             // this isn't enforced by the contract, but the convention is: func(..., Expression timestamp, Configuration config)
@@ -903,15 +919,36 @@ public class EsqlFunctionRegistry {
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionInfo.type());
     }
 
+    private static boolean shouldRenderHint(Param.Hint hint) {
+        return hint.entityType() != Param.Hint.ENTITY_TYPE.NONE || hint.kind() != Param.Hint.Kind.STANDARD;
+    }
+
     public static ArgSignature param(Param param, boolean variadic) {
         String[] type = removeUnderConstruction(param.type());
         String desc = param.description().replace('\n', ' ');
         DataType targetDataType = getTargetType(type);
         ArgSignature.Hint hint = null;
-        if (param.hint() != null && param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE) {
+        if (shouldRenderHint(param.hint())) {
             Map<String, String> constraints = Arrays.stream(param.hint().constraints())
                 .collect(Collectors.toMap(Param.Hint.Constraint::name, Param.Hint.Constraint::value));
-            hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
+            String entityType = param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE
+                ? param.hint().entityType().name().toLowerCase(Locale.ROOT)
+                : null;
+            if (entityType != null && param.hint().kind() != Param.Hint.Kind.ENTITY) {
+                throw new IllegalArgumentException(
+                    "Param ["
+                        + param.name()
+                        + "] has entityType ["
+                        + entityType
+                        + "] but kind is ["
+                        + param.hint().kind()
+                        + "], expected ["
+                        + Param.Hint.Kind.ENTITY
+                        + "]"
+                );
+            }
+            String kind = param.hint().kind() != Param.Hint.Kind.STANDARD ? param.hint().kind().name().toLowerCase(Locale.ROOT) : null;
+            hint = new ArgSignature.Hint(entityType, kind, constraints);
         }
 
         return new EsqlFunctionRegistry.ArgSignature(

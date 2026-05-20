@@ -30,8 +30,8 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -100,7 +100,7 @@ public class SpanDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(resource, scope, span);
 
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(2_000_000_000L)));
+        assertThat(doc.evaluate("@timestamp"), equalTo(2000));
         assertThat(doc.evaluate("trace_id"), equalTo(MessageDigests.toHexString(traceId.toByteArray())));
         assertThat(doc.evaluate("span_id"), equalTo(MessageDigests.toHexString(spanId.toByteArray())));
         assertThat(doc.evaluate("parent_span_id"), equalTo(MessageDigests.toHexString(parentSpanId.toByteArray())));
@@ -137,10 +137,47 @@ public class SpanDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
 
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(5_000_000_000L)));
+        assertThat(doc.evaluate("@timestamp"), equalTo(5000));
+        assertThat(doc.evaluate("kind"), equalTo("Unspecified"));
         assertThat(doc.evaluate("duration"), nullValue());
         assertThat(doc.evaluate("status"), nullValue());
         assertThat(doc.evaluate("links"), nullValue());
+    }
+
+    public void testGeoLocationAttributesAreMerged() throws IOException {
+        Resource resource = Resource.newBuilder()
+            .addAttributes(keyValue("resource.geo.location.lon", 9.9))
+            .addAttributes(keyValue("resource.geo.location.lat", 10.1))
+            .build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder()
+            .addAttributes(keyValue("scope.geo.location.lon", 11.1))
+            .addAttributes(keyValue("scope.geo.location.lat", 12.2))
+            .build();
+        Span span = Span.newBuilder()
+            .setStartTimeUnixNano(2_000_000_000L)
+            .addAttributes(keyValue("client.geo.location.lon", 1.1))
+            .addAttributes(keyValue("client.geo.location.lat", 2.2))
+            .addLinks(
+                Span.Link.newBuilder()
+                    .addAttributes(keyValue("peer.geo.location.lon", 3.3))
+                    .addAttributes(keyValue("peer.geo.location.lat", 4.4))
+            )
+            .build();
+
+        ObjectPath doc = buildDocument(resource, scope, span);
+
+        assertThat(doc.evaluate("attributes.client\\.geo\\.location"), equalTo(List.of(1.1, 2.2)));
+        assertThat(doc.evaluate("links.0.attributes.peer\\.geo\\.location"), equalTo(List.of(3.3, 4.4)));
+        assertThat(doc.evaluate("resource.attributes.resource\\.geo\\.location"), equalTo(List.of(9.9, 10.1)));
+        assertThat(doc.evaluate("scope.attributes.scope\\.geo\\.location"), equalTo(List.of(11.1, 12.2)));
+    }
+
+    public void testTimestampPreservesSubMillisecondPrecision() throws IOException {
+        Span span = Span.newBuilder().setStartTimeUnixNano(1_721_314_113_467_654_123L).build();
+
+        ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
+
+        assertThat(doc.evaluate("@timestamp"), equalTo("1721314113467.654123"));
     }
 
     public void testStatusMessageWithoutCodeIsIgnored() throws IOException {
@@ -159,7 +196,7 @@ public class SpanDocumentBuilderTests extends ESTestCase {
 
         ObjectPath doc = buildDocument(Resource.getDefaultInstance(), InstrumentationScope.getDefaultInstance(), span);
 
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(0L));
+        assertThat(doc.evaluate("@timestamp"), equalTo(0));
         assertThat(doc.evaluate("duration"), nullValue());
     }
 

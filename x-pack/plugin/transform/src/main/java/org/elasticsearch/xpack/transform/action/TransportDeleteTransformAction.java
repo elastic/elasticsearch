@@ -89,7 +89,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (TransformMetadata.upgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(state)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot delete any Transform while the Transform feature is upgrading.",
@@ -99,7 +99,10 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
+        final boolean transformIsRunning = TransformTask.getTransformTask(
+            request.getId(),
+            projectResolver.getProjectMetadata(state)
+        ) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(

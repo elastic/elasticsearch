@@ -23,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 import java.time.Clock;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.indexMarkedForFrozen;
 import static org.elasticsearch.logging.LogManager.getLogger;
@@ -37,7 +38,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "dlm.frozen_transition.poll_interval",
         TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
 
@@ -68,13 +69,13 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
-        XPackLicenseState licenseState,
+        Supplier<XPackLicenseState> licenseStateSupplier,
         DLMFrozenTransitionSettings transitionSettings,
         DataStreamLifecycleErrorStore errorStore
     ) {
         this(
             clusterService,
-            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseState, Clock.systemUTC()),
+            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseStateSupplier, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
             transitionSettings,
             errorStore
@@ -156,6 +157,11 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     // Visible for testing
     DLMFrozenTransitionExecutor getTransitionExecutor() {
         return transitionExecutor;
+    }
+
+    // Visible for testing
+    DataStreamLifecycleErrorStore getErrorStore() {
+        return errorStore;
     }
 
     // visible for testing

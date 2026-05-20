@@ -134,6 +134,7 @@ toc:
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
                   - file: esql/commands/ts-info.md
+                  - file: esql/commands/ts_collapse.md
                   - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
@@ -214,6 +215,8 @@ toc:
                   - hidden: esql/functions-operators/date-time-functions/range_max.md
                   - hidden: esql/functions-operators/date-time-functions/range_min.md
                   - hidden: esql/functions-operators/date-time-functions/range_within.md
+                  - hidden: esql/functions-operators/date-time-functions/range_contains.md
+                  - hidden: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:
@@ -410,6 +413,10 @@ toc:
           - file: esql/esql-query-log.md
           - file: esql/esql-task-management.md
       - file: esql/limitations.md
+  - file: promql.md
+    children:
+      - file: promql/promql-http-api.md
+      - file: promql/promql-limitations.md
   - file: sql.md
     children:
       - file: sql/sql-getting-started.md

@@ -40,14 +40,40 @@ import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
  *       reflection on the no-jit-args ctor</li>
  * </ul>
  */
-public record ConstantSpecializedFixedArgument(TypeName type, String name, boolean includeInToString, Fixed.Scope scope, boolean releasable)
+public record ConstantSpecializedFixedArgument(TypeName type, String name, boolean includeInToString, Fixed.Scope scope)
     implements
         Argument {
 
-    public ConstantSpecializedFixedArgument {
+    /**
+     * Validates that a parameter type + scope combination is compatible with
+     * {@code @Fixed(jitConstant=true)}. Throws {@link IllegalArgumentException} if not. Call
+     * before constructing the record so a downstream codegen never sees an invalid shape.
+     *
+     * <p>Two combinations are forbidden:
+     * <ul>
+     *   <li><b>{@code scope != SINGLETON}</b> — the specializer caches one hidden class per
+     *       {@code (base, accessor, value)} triple; thread-local scope would require a
+     *       per-thread specialization model the cache doesn't support.</li>
+     *   <li><b>Releasable parameter type</b> — the JIT-constant value lives on the spun
+     *       subclass's {@code static final} field (or class-data slot), shared across every
+     *       evaluator instance built from that specialization. Per-evaluator {@code close()}
+     *       on a shared value would corrupt other live evaluators. Forbidden at codegen
+     *       rather than papered over with refcounting.</li>
+     * </ul>
+     */
+    public static void validateJitConstantCompatible(String name, Fixed.Scope scope, boolean releasable) {
         if (scope != Fixed.Scope.SINGLETON) {
             throw new IllegalArgumentException(
                 "@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ", scope: " + scope + ")"
+            );
+        }
+        if (releasable) {
+            throw new IllegalArgumentException(
+                "@Fixed(jitConstant=true) cannot be applied to a Releasable type — the value would be shared "
+                    + "across evaluator instances via the specialized subclass's static field, and per-evaluator "
+                    + "close() would corrupt other live evaluators (parameter: "
+                    + name
+                    + ")"
             );
         }
     }
@@ -165,7 +191,8 @@ public record ConstantSpecializedFixedArgument(TypeName type, String name, boole
 
     @Override
     public String closeInvocation() {
-        return releasable ? name : null;
+        // Never emits a close() invocation: validateJitConstantCompatible forbids Releasable types.
+        return null;
     }
 
     @Override

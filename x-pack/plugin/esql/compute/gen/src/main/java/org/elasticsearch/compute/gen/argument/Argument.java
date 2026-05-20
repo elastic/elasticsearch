@@ -64,7 +64,8 @@ public interface Argument {
 
     private static Argument fromFixed(TypeName type, String name, Fixed fixed, boolean releasable) {
         if (fixed.jitConstant()) {
-            return new ConstantSpecializedFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
+            ConstantSpecializedFixedArgument.validateJitConstantCompatible(name, fixed.scope(), releasable);
+            return new ConstantSpecializedFixedArgument(type, name, fixed.includeInToString(), fixed.scope());
         }
         return new FixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
     }

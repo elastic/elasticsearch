@@ -44,6 +44,7 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -306,6 +307,9 @@ public abstract class EngineTestCase extends ESTestCase {
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool), nodeEnvironment);
+            if (LuceneTestCase.LEAVE_TEMPORARY == false) {
+                IOUtils.rm(primaryTranslogDir, replicaTranslogDir);
+            }
         }
     }
 

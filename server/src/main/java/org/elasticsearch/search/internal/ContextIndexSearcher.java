@@ -84,8 +84,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private volatile boolean timeExceeded = false;
 
-    private volatile LongSupplier threadBytesRead;
-    private AtomicLong workerDirectoryBytesRead;
+    private final AtomicLong workerDirectoryBytesRead;
+    private final BytesReadHolder bytesReadHolder;
 
     /** constructor for non-concurrent search */
     @SuppressWarnings("this-escape")
@@ -136,7 +136,39 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
-        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            cancellable,
+            wrapWithExitableDirectoryReader,
+            executor,
+            maximumNumberOfSlices,
+            minimumDocsPerSlice,
+            DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? new AtomicLong() : null,
+            new BytesReadHolder()
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    private ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        MutableQueryTimeout cancellable,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice,
+        AtomicLong workerDirectoryBytesRead,
+        BytesReadHolder bytesReadHolder
+    ) throws IOException {
+        super(
+            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
+            wrapExecutor(executor, workerDirectoryBytesRead, bytesReadHolder)
+        );
         this.hasExecutor = executor != null;
         setSimilarity(similarity);
         setQueryCache(queryCache);
@@ -144,9 +176,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable = cancellable;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.maximumNumberOfSlices = maximumNumberOfSlices;
-        if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            workerDirectoryBytesRead = new AtomicLong();
+        this.workerDirectoryBytesRead = workerDirectoryBytesRead;
+        this.bytesReadHolder = bytesReadHolder;
+    }
+
+    /**
+     * Holder used to publish the current thread bytes-read supplier to the {@link Executor} wrapper installed
+     * at construction time, since we cannot reference instance fields from the {@code super(...)} call.
+     */
+    private static final class BytesReadHolder {
+        private volatile LongSupplier threadBytesRead;
+    }
+
+    private static Executor wrapExecutor(Executor executor, AtomicLong workerDirectoryBytesRead, BytesReadHolder bytesReadHolder) {
+        if (executor == null || workerDirectoryBytesRead == null) {
+            return executor;
         }
+        return r -> executor.execute(() -> {
+            final LongSupplier threadBytesRead = bytesReadHolder.threadBytesRead;
+            final long before = threadBytesRead == null ? -1 : threadBytesRead.getAsLong();
+            try {
+                r.run();
+            } finally {
+                if (before >= 0) {
+                    workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
+                }
+            }
+        });
     }
 
     /**
@@ -160,18 +216,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Sets a supplier that returns the current thread's cumulative store-level bytes-read count.
-     * Used to capture bytes read by parallel search worker threads whose reads would otherwise
-     * be invisible to the calling thread's directory metrics delta.
+     * Used by the {@link Executor} wrapper installed at construction time to capture bytes read by
+     * parallel search worker threads whose reads would otherwise be invisible to the calling
+     * thread's directory metrics delta.
      */
     public void setThreadBytesRead(LongSupplier threadBytesRead) {
-        this.threadBytesRead = threadBytesRead;
+        this.bytesReadHolder.threadBytesRead = threadBytesRead;
     }
 
     /**
      * Returns the total bytes read by worker threads during parallel collection.
      */
     public long getWorkerDirectoryBytesRead() {
-        if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+        if (workerDirectoryBytesRead != null) {
             return workerDirectoryBytesRead.get();
         }
         return 0;
@@ -414,15 +471,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
                 final C collector = collectors.get(i);
                 listTasks.add(() -> {
-                    final long before = threadBytesRead != null ? threadBytesRead.getAsLong() : -1;
-                    try {
-                        search(leaves, weight, collector);
-                        return collector;
-                    } finally {
-                        if (before >= 0) {
-                            workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
-                        }
-                    }
+                    search(leaves, weight, collector);
+                    return collector;
                 });
             }
             List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);

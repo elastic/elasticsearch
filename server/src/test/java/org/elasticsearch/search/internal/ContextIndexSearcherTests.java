@@ -107,6 +107,7 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -280,10 +281,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
-    public void testConcurrentCollectionTracksAllLeafBytesInWorkerAccumulator() throws Exception {
+    public void testConcurrentCollectionTracksWorkerBytesViaExecutorWrapper() throws Exception {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         final long bytesPerLeaf = 1000L;
         ThreadLocal<AtomicLong> threadCumulativeBytes = ThreadLocal.withInitial(AtomicLong::new);
+        Thread callingThread = Thread.currentThread();
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
 
         try (Directory directory = newDirectory()) {
@@ -308,7 +310,78 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         return new Collector() {
                             @Override
                             public LeafCollector getLeafCollector(LeafReaderContext context) {
-                                // simulate bytes read
+                                // simulate bytes read on whichever thread processes this leaf
+                                threadCumulativeBytes.get().addAndGet(bytesPerLeaf);
+                                return new LeafCollector() {
+                                    @Override
+                                    public void setScorer(Scorable scorer) {}
+
+                                    @Override
+                                    public void collect(int doc) {}
+                                };
+                            }
+
+                            @Override
+                            public ScoreMode scoreMode() {
+                                return ScoreMode.COMPLETE_NO_SCORES;
+                            }
+                        };
+                    }
+
+                    @Override
+                    public Void reduce(Collection<Collector> collectors) {
+                        return null;
+                    }
+                };
+
+                int numSlices = searcher.getSlices().length;
+                assumeTrue("test requires at least two slices for forking to occur", numSlices >= 2);
+
+                searcher.search(Queries.ALL_DOCS_INSTANCE, countingCollectorManager);
+
+                int numLeaves = directoryReader.getContext().leaves().size();
+                long totalSimulatedBytes = (long) numLeaves * bytesPerLeaf;
+                long workerBytes = searcher.getWorkerDirectoryBytesRead();
+                long callerBytes = threadCumulativeBytes.get().get();
+
+                // The Executor wrapper meters only forked tasks: one slice runs inline on the calling thread
+                // (its bytes stay on the caller's accumulator), the rest run on the executor and land in workerBytes.
+                // Together they must account for every leaf exactly once - no double counting.
+                assertEquals(totalSimulatedBytes, callerBytes + workerBytes);
+                assertThat("at least one slice should be forked to the executor", workerBytes, greaterThan(0L));
+                assertThat("at least one slice should run inline on the calling thread", callerBytes, greaterThan(0L));
+                assertSame("test must run on the calling thread", callingThread, Thread.currentThread());
+            }
+        } finally {
+            terminate(executor);
+            threadCumulativeBytes.remove();
+        }
+    }
+
+    public void testNonConcurrentCollectionLeavesAllBytesOnCallingThread() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        final long bytesPerLeaf = 1000L;
+        ThreadLocal<AtomicLong> threadCumulativeBytes = ThreadLocal.withInitial(AtomicLong::new);
+
+        try (Directory directory = newDirectory()) {
+            indexDocs(directory);
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                // single-threaded searcher: no executor wrapper, no worker bytes
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean()
+                );
+                searcher.setThreadBytesRead(() -> threadCumulativeBytes.get().get());
+
+                CollectorManager<Collector, Void> countingCollectorManager = new CollectorManager<>() {
+                    @Override
+                    public Collector newCollector() {
+                        return new Collector() {
+                            @Override
+                            public LeafCollector getLeafCollector(LeafReaderContext context) {
                                 threadCumulativeBytes.get().addAndGet(bytesPerLeaf);
                                 return new LeafCollector() {
                                     @Override
@@ -335,13 +408,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 searcher.search(Queries.ALL_DOCS_INSTANCE, countingCollectorManager);
 
                 int numLeaves = directoryReader.getContext().leaves().size();
-                long totalSimulatedBytes = numLeaves * bytesPerLeaf;
-                long workerBytes = searcher.getWorkerDirectoryBytesRead();
-
-                assertEquals(totalSimulatedBytes, workerBytes);
+                assertEquals(0L, searcher.getWorkerDirectoryBytesRead());
+                assertEquals((long) numLeaves * bytesPerLeaf, threadCumulativeBytes.get().get());
             }
         } finally {
-            terminate(executor);
             threadCumulativeBytes.remove();
         }
     }

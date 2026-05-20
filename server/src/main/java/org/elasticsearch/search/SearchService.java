@@ -1032,18 +1032,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, CancellableTask task, ReaderContext readerContext)
         throws Exception {
-        // Capture directory metrics in two windows around the search/fetch work: the pre-search delta covers context
-        // setup, and the post-search delta covers result bookkeeping plus the worker-bytes fold. The actual search is excluded,
-        // so reads happening on the calling thread inside Lucene's parallel collection (when TaskExecutor#invokeAll inlines a task)
-        // are not double-counted alongside the worker accumulator.
-        final Supplier<DirectoryMetrics> preDelta = directoryMetricsDeltaOrNull();
+        final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
         try (
             Releasable scope = tracer.withScope(task);
             SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
         ) {
             setupWorkerBytesTracking(context.searcher());
             tracer.startTrace("executeQueryPhase", Map.of());
-            final DirectoryMetrics preMetrics = preDelta == null ? DirectoryMetrics.EMPTY : preDelta.get();
             final long afterQueryTime;
             final long beforeQueryTime = System.nanoTime();
             var opsListener = context.indexShard().getSearchOperationListener();
@@ -1076,20 +1071,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     });
                 }
                 context.addFetchResult();
-                final Supplier<DirectoryMetrics> postDelta = directoryMetricsDeltaOrNull();
                 QueryFetchSearchResult result = executeFetchPhase(readerContext, context, afterQueryTime);
-                result.setDirectoryMetrics(preMetrics.merge(resolveDirectoryMetrics(postDelta, context.searcher())));
+                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.searcher()));
                 return result;
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
                 // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
-                final Supplier<DirectoryMetrics> postDelta = directoryMetricsDeltaOrNull();
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
                 // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
-                context.queryResult().setDirectoryMetrics(preMetrics.merge(resolveDirectoryMetrics(postDelta, context.searcher())));
+                context.queryResult().setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.searcher()));
                 return context.queryResult();
             }
         } catch (Exception e) {

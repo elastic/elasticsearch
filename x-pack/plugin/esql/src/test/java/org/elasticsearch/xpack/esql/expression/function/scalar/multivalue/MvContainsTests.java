@@ -257,8 +257,8 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
         if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
             // Random case: nearly always false because random values rarely collide
             suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
-                List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
-                List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                List<Object> field1 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                List<Object> field2 = randomList(1, 10, FlattenedCases.RANDOM::get);
                 boolean result = field1.containsAll(field2);
                 return new TestCaseSupplier.TestCase(
                     List.of(
@@ -294,8 +294,14 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
             suppliers.add(
                 new TestCaseSupplier("flattened subset partially outside superset", List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
                     BytesRef shared = FlattenedCases.RANDOM.get();
-                    List<Object> superset = List.of(shared, FlattenedCases.RANDOM.get());
-                    List<Object> subset = List.of(shared, FlattenedCases.RANDOM.get());
+                    BytesRef supersetExtra = FlattenedCases.RANDOM.get();
+                    List<Object> superset = List.of(shared, supersetExtra);
+                    // Ensure subsetExtra is not already in the superset, so MV_CONTAINS must return false.
+                    BytesRef subsetExtra;
+                    do {
+                        subsetExtra = FlattenedCases.RANDOM.get();
+                    } while (subsetExtra.equals(shared) || subsetExtra.equals(supersetExtra));
+                    List<Object> subset = List.of(shared, subsetExtra);
                     return new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(superset, DataType.FLATTENED, "superset"),

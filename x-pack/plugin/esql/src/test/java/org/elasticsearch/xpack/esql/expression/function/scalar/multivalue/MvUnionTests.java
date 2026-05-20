@@ -294,8 +294,8 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
 
         if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
             suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
-                List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
-                List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                List<Object> field1 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                List<Object> field2 = randomList(1, 10, FlattenedCases.RANDOM::get);
                 LinkedHashSet<Object> result = new LinkedHashSet<>(field1);
                 result.addAll(field2);
                 return new TestCaseSupplier.TestCase(

@@ -258,8 +258,8 @@ public class MvIntersectsTests extends AbstractScalarFunctionTestCase {
         if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
             // Random case: nearly always false because random values rarely collide
             suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
-                List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
-                List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                List<Object> field1 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                List<Object> field2 = randomList(1, 10, FlattenedCases.RANDOM::get);
                 boolean result = containsAny(field1, field2);
                 return new TestCaseSupplier.TestCase(
                     List.of(

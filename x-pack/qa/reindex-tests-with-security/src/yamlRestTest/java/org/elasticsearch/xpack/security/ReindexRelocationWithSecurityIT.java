@@ -148,9 +148,12 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             assertListViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 4: rethrottle to unlimited via a non-coordinator node, since the coordinator's HTTP transport is being torn down.
+            // The rethrottle is dispatched via internal transport (which is still up on the coordinator during the relocation hook),
+            // and lets the throttled reindex advance past its current sleep so it can pick up the relocation flag.
             unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 5: wait for the relocated task to complete successfully.
+            // Stage 5: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
+            // successfully. Without the fix, the resume action is rejected by RBAC and this never happens.
             assertReindexCompletesOnDataNode(dataNodeAddress, taskId, numDocs);
         } finally {
             stopThread.join(TimeUnit.SECONDS.toMillis(60));
@@ -298,6 +301,8 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             RestClient dataClient = buildClient(restClientSettingsForUser(GET_USER), new HttpHost[] { HttpHost.create(dataNodeAddress) })
         ) {
             assertBusy(() -> {
+                // Look up the original (relocated) task in the .tasks index via the dedicated GET /_reindex/{task_id} endpoint;
+                // it follows the relocated_task_id chain server-side and returns the final task once completed.
                 final Request get = new Request("GET", "/_reindex/" + originalTaskId);
                 get.addParameter("wait_for_completion", "true");
                 get.addParameter("timeout", "10s");
@@ -314,7 +319,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                     assertThat("relocated reindex should report the full source size", ((Number) total).intValue(), equalTo(numDocs));
                 } catch (ResponseException e) {
                     // Translate ResponseException (e.g. timeouts, node_closed_exception) to AssertionError so assertBusy will retry
-                    logger.warn("Get reindex task failed (will retry): {}", e.getMessage());
+                    logger.info("Get reindex task failed (will retry): {}", e.getMessage());
                     throw new AssertionError("get reindex task failed: " + e.getMessage(), e);
                 }
             }, 30, TimeUnit.SECONDS);

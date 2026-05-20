@@ -42,12 +42,12 @@ import java.util.zip.GZIPOutputStream;
  * the decompressor falls back to the byte-array path. Two call sites reach these decompressors:
  * <ul>
  *   <li>{@code PrefetchedPageReader} explicitly calls the {@code decompress(ByteBuffer, int,
- *       ByteBuffer, int)} overload with both sides guaranteed direct: S3-prefetched column chunks
- *       arrive as heap-backed {@code byte[]} (the S3 client writes into a byte array), so
- *       {@link ColumnChunkPrefetcher} promotes each fetched range from heap to a direct
- *       {@link java.nio.ByteBuffer} once at fetch time. Page slices derived from that direct
- *       buffer are already direct when they reach {@code PrefetchedPageReader}, so the
- *       direct-to-direct JNI path is always taken with no per-page copy.</li>
+ *       ByteBuffer, int)} overload with both sides guaranteed direct: all {@code StorageObject}
+ *       backends return direct {@link java.nio.ByteBuffer}s from {@code readBytesAsync}, and
+ *       {@link ColumnChunkPrefetcher} promotes any heap buffer to direct as defense-in-depth for
+ *       future backends. Page slices derived from that direct buffer are already direct when they
+ *       reach {@code PrefetchedPageReader}, so the direct-to-direct JNI path is always taken with
+ *       no per-page copy.</li>
  *   <li>Parquet-MR's {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer} overload only
  *       when the allocator is direct and {@code useOffHeapDecryptBuffer} is enabled; because we
  *       use {@code DirectByteBufferAllocator}, this path also takes the direct-to-direct fast
@@ -180,12 +180,12 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            // Fast path: avoid BytesInput.toByteArray() for heap-buffer-backed inputs. The default
-            // toByteArray() for those BytesInput subtypes funnels bytes through a sized
-            // ByteArrayOutputStream, adding one allocation and one System.arraycopy that the JNI
-            // Snappy binding does not need. PrefetchedPageReader uses the ByteBuffer overload
-            // (both sides direct) to avoid GetPrimitiveArrayCritical pinning; this path handles
-            // the non-prefetch (ColumnChunkPageReadStore) code path.
+            // Both production call sites (PrefetchedPageReader and ColumnChunkPageReadStore with
+            // DirectByteBufferAllocator) use the ByteBuffer overload, so this overload is not on
+            // the hot path. It is retained as a safety net for external callers or future use.
+            // Fast path: avoid BytesInput.toByteArray() for heap-buffer-backed inputs — the default
+            // toByteArray() funnels through a sized ByteArrayOutputStream, adding one allocation
+            // and one System.arraycopy that the JNI Snappy binding does not need.
             ByteBuffer input = bytes.toByteBuffer();
             if (input.hasArray()) {
                 Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);

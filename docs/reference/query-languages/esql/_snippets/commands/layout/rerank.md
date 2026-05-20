@@ -121,8 +121,15 @@ The `RERANK` command requires an
 [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 configured with the `rerank` task type. If you omit the `inference_id` option,
 `RERANK` uses the preconfigured `.rerank-v1-elasticsearch` endpoint, which is
-available by default. To use a different model, create a `rerank` inference
-endpoint and specify its ID in the `WITH` clause.
+available by default.
+
+For improved relevance, you can use the preconfigured
+`.jina-reranker-v3` endpoint, powered by the
+[Elastic Inference Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
+To use a different model, create a `rerank` inference endpoint and specify
+its ID in the `WITH` clause. Refer to
+[semantic reranking](docs-content://solutions/search/ranking/semantic-reranking.md)
+for a full list of supported reranking models.
 
 ### Handling timeouts
 

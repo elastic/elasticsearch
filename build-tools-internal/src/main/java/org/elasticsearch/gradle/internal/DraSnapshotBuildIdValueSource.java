@@ -167,7 +167,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         }
 
         JsonNode manifestJson = mapper.readTree(manifestResponse.body());
-        String draCommit = manifestJson.path("projects").path("elasticsearch").path("commit").asText("");
+        String draCommit = manifestJson.path("projects").path("elasticsearch").path("commit_hash").asText("");
         if (draCommit.isEmpty()) {
             return "";
         }

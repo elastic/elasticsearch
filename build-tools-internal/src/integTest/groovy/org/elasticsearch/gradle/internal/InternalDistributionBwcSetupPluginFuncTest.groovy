@@ -177,7 +177,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
             wireMock.stubFor(get(urlEqualTo(manifestPath))
                 .willReturn(aResponse().withStatus(200)
-                    .withBody("""{"projects": {"elasticsearch": {"commit": "${fullHash}"}}}""")))
+                    .withBody("""{"projects": {"elasticsearch": {"commit_hash": "${fullHash}"}}}""")))
             wireMock.stubFor(head(urlEqualTo(artifactPath)).willReturn(aResponse().withStatus(200)))
             wireMock.stubFor(get(urlEqualTo(artifactPath))
                 .willReturn(aResponse().withStatus(200)
@@ -291,7 +291,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
             wireMock.stubFor(get(urlEqualTo(manifestPath))
                 .willReturn(aResponse().withStatus(200)
-                    .withBody("""{"projects": {"elasticsearch": {"commit": "${fullHash}"}}}""")))
+                    .withBody("""{"projects": {"elasticsearch": {"commit_hash": "${fullHash}"}}}""")))
             wireMock.stubFor(head(urlEqualTo(artifactPath)).willReturn(aResponse().withStatus(200)))
             wireMock.stubFor(get(urlEqualTo(artifactPath))
                 .willReturn(aResponse().withStatus(200)
@@ -357,7 +357,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
             wireMock.stubFor(get(urlEqualTo(manifestPath))
                 .willReturn(aResponse().withStatus(200)
-                    .withBody("""{"projects": {"elasticsearch": {"commit": "${differentCommit}"}}}""")))
+                    .withBody("""{"projects": {"elasticsearch": {"commit_hash": "${differentCommit}"}}}""")))
 
             when:
             def result = gradleRunner(

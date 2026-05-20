@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 149371
+pr: 149375
+summary: Fix Potential of NPE in PIT search after relocation
+type: bug

@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -55,7 +56,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -69,6 +69,7 @@ import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
@@ -106,6 +107,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -146,6 +148,7 @@ public class Reindexer {
     private final FeatureService featureService;
     private final TaskResultsService taskResultsService;
     private final TimeValue reindexShutdownGracePeriod;
+    private final CircuitBreaker requestBreaker;
 
     Reindexer(
         ClusterService clusterService,
@@ -160,7 +163,8 @@ public class Reindexer {
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this.clusterService = clusterService;
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
@@ -177,6 +181,7 @@ public class Reindexer {
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
+        this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -305,7 +310,9 @@ public class Reindexer {
                 listener,
                 remoteVersion,
                 reindexShutdownGracePeriod,
-                bulkByScrollSearchContextMetrics
+                bulkByScrollSearchContextMetrics,
+                reindexSettings,
+                requestBreaker
             );
             searchAction.start();
         };
@@ -934,12 +941,12 @@ public class Reindexer {
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByPaginatedSearchAction<ReindexRequest, TransportReindexAction> {
         /**
-         * Mapper for the {@code _id} of the destination index used to
+         * Transformer for the {@code _id} of the destination index used to
          * normalize {@code _id}s landing in the index.
          */
-        private final IdFieldMapper destinationIndexIdMapper;
+        private final Function<String, String> destinationIndexIdMapper;
 
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
@@ -962,7 +969,9 @@ public class Reindexer {
             ActionListener<BulkByScrollResponse> listener,
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
+            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            ReindexSettings reindexSettings,
+            CircuitBreaker requestBreaker
         ) {
             super(
                 task,
@@ -985,9 +994,12 @@ public class Reindexer {
                 bulkByScrollSearchContextMetrics,
                 BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
-                maxTaskShutdownGracePeriod
+                maxTaskShutdownGracePeriod,
+                reindexSettings,
+                requestBreaker,
+                "reindex_bulk_batch"
             );
-            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
+            this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -1092,7 +1104,7 @@ public class Reindexer {
             }
 
             // id and source always come from the found doc. Scripts can change them but they operate on the index request.
-            index.id(destinationIndexIdMapper.reindexId(doc.getId()));
+            index.id(destinationIndexIdMapper.apply(doc.getId()));
 
             // the source xcontent type and destination could be different
             final XContentType sourceXContentType = doc.getXContentType();

@@ -44,11 +44,10 @@ restResources {
 if (OS.current() == OS.WINDOWS) {
   // Windows cannot cleanup database files properly unless it loads everything on heap.
   // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
-  tasks.named("test").configure {
-    systemProperty 'es.geoip.load_db_on_heap', 'true'
-  }
-  tasks.named("internalClusterTest").configure {
-    systemProperty 'es.geoip.load_db_on_heap', 'true'
+  ["test", "internalClusterTest"].each { taskName ->
+    tasks.named(taskName).configure {
+      systemProperty 'es.geoip.load_db_on_heap', 'true'
+    }
   }
 }
 

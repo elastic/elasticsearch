@@ -29,13 +29,13 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
  * An interceptor which checks if the requested views or datasets have any DLS or FLS permissions applied.
  * If so, then the request is rejected, because views and datasets are not compatible with DLS or FLS.
  */
-public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
-    private static final Logger logger = LogManager.getLogger(ViewDlsFlsRequestInterceptor.class);
+public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestInterceptor {
+    private static final Logger logger = LogManager.getLogger(ViewAndDatasetDlsFlsRequestInterceptor.class);
 
     private final ThreadContext threadContext;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
 
-    public ViewDlsFlsRequestInterceptor(ThreadContext threadContext, Supplier<ProjectMetadata> projectMetadataSupplier) {
+    public ViewAndDatasetDlsFlsRequestInterceptor(ThreadContext threadContext, Supplier<ProjectMetadata> projectMetadataSupplier) {
         this.threadContext = threadContext;
         this.projectMetadataSupplier = projectMetadataSupplier;
     }

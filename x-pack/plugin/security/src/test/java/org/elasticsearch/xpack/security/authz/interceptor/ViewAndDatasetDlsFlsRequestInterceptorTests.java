@@ -38,7 +38,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
+public class ViewAndDatasetDlsFlsRequestInterceptorTests extends ESTestCase {
 
     private ThreadContext threadContext;
     private Authentication authentication;
@@ -56,7 +56,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testRejectsViewWithDls() {
         String viewName = "test-view";
         ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
@@ -72,7 +72,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testRejectsViewWithFls() {
         String viewName = "test-view";
         ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         FieldPermissions fieldPerms = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "value" }, null));
         setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(fieldPerms, DocumentPermissions.allowAll())));
@@ -88,7 +88,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testRejectsViewWithBothDlsAndFls() {
         String viewName = "test-view";
         ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         FieldPermissions fieldPerms = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "value" }, null));
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
@@ -105,7 +105,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testAllowsViewWithoutDlsOrFls() {
         String viewName = "test-view";
         ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         setAccessControl(
             Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll()))
@@ -117,7 +117,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testAllowsNonViewIndexWithDls() {
         String indexName = "regular-index";
         ProjectMetadata projectMetadata = mockProjectMetadata();
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(indexName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
@@ -128,7 +128,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testIgnoresNonIndexRequest() {
         String viewName = "test-view";
         ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
@@ -140,7 +140,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testIgnoresRequestWithNoResolveViews() {
         String viewName = "test-view";
         ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
@@ -158,7 +158,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
         ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
         when(projectMetadata.hasView(view1)).thenReturn(true);
         when(projectMetadata.hasView(view2)).thenReturn(true);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(
@@ -180,7 +180,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testRejectsDatasetWithDls() {
         String datasetName = "test-dataset";
         ProjectMetadata projectMetadata = mockDatasetProjectMetadata(datasetName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(datasetName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
@@ -201,7 +201,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
     public void testIgnoresRequestWithNoResolveDatasetsForDataset() {
         String datasetName = "test-dataset";
         ProjectMetadata projectMetadata = mockDatasetProjectMetadata(datasetName);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(datasetName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
@@ -217,7 +217,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
         ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
         when(projectMetadata.hasView(viewName)).thenReturn(true);
         when(projectMetadata.hasView(indexName)).thenReturn(false);
-        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
 
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(
@@ -260,7 +260,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
         return request;
     }
 
-    private void validateNoException(ViewDlsFlsRequestInterceptor interceptor, TransportRequest request) {
+    private void validateNoException(ViewAndDatasetDlsFlsRequestInterceptor interceptor, TransportRequest request) {
         RequestInfo requestInfo = new RequestInfo(authentication, request, "indices:data/read/esql", null);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         interceptor.intercept(requestInfo, null, null).addListener(future);

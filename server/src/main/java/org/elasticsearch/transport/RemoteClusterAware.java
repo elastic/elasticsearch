@@ -221,6 +221,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                             )
                         );
                     } else {
+                        everIncluded.addAll(clusters);
                         for (String clusterName : clusters) {
                             perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add("-" + indexName);
                         }

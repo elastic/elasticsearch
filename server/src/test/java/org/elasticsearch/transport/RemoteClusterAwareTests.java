@@ -153,6 +153,38 @@ public class RemoteClusterAwareTests extends ESTestCase {
             new String[] { "-cluster1:logs", "cluster1:*" }
         );
         assertThat(groupedIndicesExclusionBeforeInclusion.get("cluster1"), containsInAnyOrder("-logs", "*"));
+
+        Map<String, List<String>> wildcardExclusionWithExistingSyntax = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "*:-logs", "-cluster2:*" }
+        );
+        assertThat(wildcardExclusionWithExistingSyntax, not(hasKey("cluster2")));
+        assertThat(wildcardExclusionWithExistingSyntax.get("cluster1"), contains("-logs"));
+        assertThat(wildcardExclusionWithExistingSyntax.get("some-cluster3"), contains("-logs"));
+
+        Map<String, List<String>> wildcardExclusionWithNewSyntax = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "-*:logs", "-cluster2:*" }
+        );
+        assertThat(wildcardExclusionWithNewSyntax, equalTo(wildcardExclusionWithExistingSyntax));
+
+        IllegalArgumentException existingSyntaxIndexExclusionThenClusterExclusion = expectThrows(
+            IllegalArgumentException.class,
+            () -> remoteClusterAware.groupClusterIndices(remoteClusterNames, new String[] { "cluster1:-logs", "-cluster1:*" })
+        );
+        assertThat(
+            existingSyntaxIndexExclusionThenClusterExclusion.getMessage(),
+            containsString("The '-' exclusions in the index expression list excludes all indexes")
+        );
+
+        IllegalArgumentException newSyntaxIndexExclusionThenClusterExclusion = expectThrows(
+            IllegalArgumentException.class,
+            () -> remoteClusterAware.groupClusterIndices(remoteClusterNames, new String[] { "-cluster1:logs", "-cluster1:*" })
+        );
+        assertThat(
+            newSyntaxIndexExclusionThenClusterExclusion.getMessage(),
+            containsString("The '-' exclusions in the index expression list excludes all indexes")
+        );
     }
 
     private static <T extends Throwable> void mustThrowException(String[] requestIndices, Class<T> expectedType, String expectedMessage) {

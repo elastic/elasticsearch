@@ -89,7 +89,7 @@ public interface ESVectorUtilSupport {
 
     void squareDistanceBulk(
         float[] query,
-        int queryOffset,
+        int offset,
         int length,
         float[] v0,
         float[] v1,

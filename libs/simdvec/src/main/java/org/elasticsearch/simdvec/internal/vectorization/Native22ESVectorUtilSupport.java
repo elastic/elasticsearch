@@ -151,7 +151,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     @Override
     public void squareDistanceBulk(
         float[] query,
-        int queryOffset,
+        int offset,
         int length,
         float[] v0,
         float[] v1,
@@ -164,18 +164,34 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
         int distancesOffset,
         float[] distances
     ) {
-        Similarities.squareDistanceF32Bulk8(
-            MemorySegment.ofArray(v0),
-            MemorySegment.ofArray(v1),
-            MemorySegment.ofArray(v2),
-            MemorySegment.ofArray(v3),
-            MemorySegment.ofArray(v4),
-            MemorySegment.ofArray(v5),
-            MemorySegment.ofArray(v6),
-            MemorySegment.ofArray(v7),
-            MemorySegment.ofArray(query).asSlice((long) queryOffset * Float.BYTES, (long) length * Float.BYTES),
-            length,
-            MemorySegment.ofArray(distances).asSlice((long) distancesOffset * Float.BYTES, 8L * Float.BYTES)
-        );
+        if (offset == 0 && length == query.length) {
+            Similarities.squareDistanceF32Bulk8(
+                MemorySegment.ofArray(v0),
+                MemorySegment.ofArray(v1),
+                MemorySegment.ofArray(v2),
+                MemorySegment.ofArray(v3),
+                MemorySegment.ofArray(v4),
+                MemorySegment.ofArray(v5),
+                MemorySegment.ofArray(v6),
+                MemorySegment.ofArray(v7),
+                MemorySegment.ofArray(query),
+                length,
+                MemorySegment.ofArray(distances).asSlice((long) distancesOffset * Float.BYTES, 8L * Float.BYTES)
+            );
+        } else {
+            Similarities.squareDistanceF32Bulk8(
+                MemorySegment.ofArray(v0).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(v1).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(v2).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(v3).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(v4).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(v5).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(v6).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(v7).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                MemorySegment.ofArray(query).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
+                length,
+                MemorySegment.ofArray(distances).asSlice((long) distancesOffset * Float.BYTES, 8L * Float.BYTES)
+            );
+        }
     }
 }

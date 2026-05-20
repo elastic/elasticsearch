@@ -983,7 +983,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public void squareDistanceBulk(
         float[] query,
-        int queryOffset,
+        int offset,
         int length,
         float[] v0,
         float[] v1,
@@ -996,7 +996,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int distancesOffset,
         float[] distances
     ) {
-        if (queryOffset == 0 && length == query.length) {
+        if (offset == 0 && length == query.length) {
             distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
             distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
             distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
@@ -1006,14 +1006,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             distances[distancesOffset + 6] = VectorUtil.squareDistance(query, v6);
             distances[distancesOffset + 7] = VectorUtil.squareDistance(query, v7);
         } else {
-            distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-            distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-            distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-            distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
-            distances[distancesOffset + 4] = squareDistance(query, v4, queryOffset, length);
-            distances[distancesOffset + 5] = squareDistance(query, v5, queryOffset, length);
-            distances[distancesOffset + 6] = squareDistance(query, v6, queryOffset, length);
-            distances[distancesOffset + 7] = squareDistance(query, v7, queryOffset, length);
+            distances[distancesOffset] = squareDistance(query, v0, offset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, offset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, offset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, offset, length);
+            distances[distancesOffset + 4] = squareDistance(query, v4, offset, length);
+            distances[distancesOffset + 5] = squareDistance(query, v5, offset, length);
+            distances[distancesOffset + 6] = squareDistance(query, v6, offset, length);
+            distances[distancesOffset + 7] = squareDistance(query, v7, offset, length);
         }
     }
 

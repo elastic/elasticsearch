@@ -123,6 +123,38 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         expectThrows(IndexSearcher.TooManyNestedClauses.class, () -> visitor.consumeTerms(parent, tooMany));
     }
 
+    public void testConsumeTermsChargesBytesProportionalToN() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int n = randomIntBetween(2, 32);
+        Term[] terms = new Term[n];
+        for (int i = 0; i < n; i++) {
+            terms[i] = new Term("f", "v" + i);
+        }
+        Query parent = new TermQuery(terms[0]);
+
+        visitor.consumeTerms(parent, terms);
+
+        long expected = RamUsageEstimator.shallowSizeOf(parent) + MaxClauseCountQueryVisitor.LEAF_BASE_BYTES * n;
+        assertEquals(expected, visitor.getEstimatedBytes());
+        assertEquals(n, visitor.getNumClauses());
+    }
+
+    public void testConsumeTermsAccountableParentChargedOnce() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        int n = randomIntBetween(2, 32);
+        Term[] terms = new Term[n];
+        for (int i = 0; i < n; i++) {
+            terms[i] = new Term("f", "v" + i);
+        }
+        long parentRamBytes = randomLongBetween(1_000L, 1_000_000L);
+        AccountableTestQuery parent = new AccountableTestQuery(parentRamBytes);
+
+        visitor.consumeTerms(parent, terms);
+
+        assertEquals(parentRamBytes, visitor.getEstimatedBytes());
+        assertEquals(n, visitor.getNumClauses());
+    }
+
     public void testConsumeTermsMatchingThrowsOnOverflow() {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(1);
         visitor.consumeTermsMatching(ALL_DOCS_INSTANCE, "f", () -> null);
@@ -144,6 +176,35 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
 
         assertEquals(0, visitor.getNumClauses());
         assertEquals(0L, visitor.getEstimatedBytes());
+    }
+
+    public void testResetRecapturesBreakerBaseline() {
+        long limit = 1_000L;
+        FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker);
+
+        new AccountableTestQuery(600L).visit(visitor);
+        assertFalse("precondition: initial visit must not trip", breaker.tripped);
+
+        breaker.setUsed(900L);
+
+        visitor.reset();
+
+        expectThrows(CircuitBreakingException.class, () -> new AccountableTestQuery(200L).visit(visitor));
+        assertTrue("reset() must recapture the breaker baseline so post-reset trips reflect new used", breaker.tripped);
+    }
+
+    public void testResetWithoutBreakerIsANoOpForBaseline() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null);
+        new AccountableTestQuery(123L).visit(visitor);
+
+        visitor.reset();
+
+        assertEquals(0, visitor.getNumClauses());
+        assertEquals(0L, visitor.getEstimatedBytes());
+
+        new AccountableTestQuery(456L).visit(visitor);
+        assertEquals(456L, visitor.getEstimatedBytes());
     }
 
     public void testMergeAccumulatesClausesAndBytes() {
@@ -243,7 +304,7 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
      */
     private static final class FakeCircuitBreaker extends NoopCircuitBreaker {
         private final long limit;
-        private final long used;
+        private long used;
         boolean tripped;
         int addEstimateCalls;
         int addWithoutBreakingCalls;
@@ -262,6 +323,10 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         @Override
         public long getUsed() {
             return used;
+        }
+
+        void setUsed(long used) {
+            this.used = used;
         }
 
         @Override

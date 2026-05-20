@@ -52,7 +52,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
     @Nullable
     private final CircuitBreaker breaker;
-    private final long breakerBaseline;
+    private long breakerBaseline;
 
     public MaxClauseCountQueryVisitor(int maxClauseCount) {
         this(maxClauseCount, null);
@@ -84,9 +84,16 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         return estimatedBytes;
     }
 
+    /**
+     * Clears the accumulated clause count and byte estimate, and recaptures the breaker baseline
+     * from {@code breaker.getUsed()} when a breaker is configured.
+     */
     public void reset() {
         numClauses = 0;
         estimatedBytes = 0L;
+        if (breaker != null) {
+            breakerBaseline = breaker.getUsed();
+        }
     }
 
     public void merge(MaxClauseCountQueryVisitor other) {
@@ -98,7 +105,19 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     }
 
     private void chargeBytesFor(Query query) {
-        addEstimatedBytes(query instanceof Accountable a ? a.ramBytesUsed() : RamUsageEstimator.shallowSizeOf(query) + LEAF_BASE_BYTES);
+        chargeBytesFor(query, 1);
+    }
+
+    /**
+     * Charge the byte estimate for {@code query}, scaling the non-{@link Accountable} per-clause
+     * floor by {@code termMultiplier}.
+     */
+    private void chargeBytesFor(Query query, int termMultiplier) {
+        assert termMultiplier > 0 : "termMultiplier must be positive, got " + termMultiplier;
+        long bytes = query instanceof Accountable a
+            ? a.ramBytesUsed()
+            : RamUsageEstimator.shallowSizeOf(query) + LEAF_BASE_BYTES * termMultiplier;
+        addEstimatedBytes(bytes);
     }
 
     private void maybeTripBreaker() {
@@ -152,7 +171,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         if (numClauses > maxClauseCount) {
             throw new IndexSearcher.TooManyNestedClauses();
         }
-        chargeBytesFor(query);
+        chargeBytesFor(query, terms.length);
     }
 
     @Override

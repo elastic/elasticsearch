@@ -47,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -250,12 +251,17 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     public void testAggTookTooMuch() throws Exception {
         assumeFalse("--> noop breakers used, skipping test", noopBreakerUsed());
-        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(
+            prepareCreate(
+                "cb-test",
+                1,
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+            ).setMapping("test", "type=long")
+        );
         Client client = client();
 
-        // Make request breaker limited to a small amount
         updateClusterSettings(
-            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2kb")
         );
 
         // index some different terms so we have some field data for loading
@@ -277,7 +283,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(CircuitBreakingException.class));
             assertThat(cause.toString(), containsString("[request] Data too large, data for [preallocate[aggregations]] would be"));
-            assertThat(cause.toString(), containsString("which is larger than the limit of [100/100b]"));
+            assertThat(cause.toString(), containsString("which is larger than the limit of [2048/2kb]"));
         }
     }
 

@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractWireTestCase<T> {
-    public static EsField randomAnyEsField(int maxDepth) {
+    public static EsField randomSerializableEsField(int maxDepth) {
         return switch (between(0, 4)) {
             case 0 -> EsFieldTests.randomEsField(maxDepth);
             case 1 -> DateEsFieldTests.randomDateEsField(maxDepth);
@@ -74,7 +74,7 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
         int targetSize = between(1, 5);
         Map<String, EsField> properties = new TreeMap<>();
         while (properties.size() < targetSize) {
-            properties.put(randomAlphaOfLength(properties.size() + 1), randomAnyEsField(maxDepth - 1));
+            properties.put(randomAlphaOfLength(properties.size() + 1), randomSerializableEsField(maxDepth - 1));
         }
         return properties;
     }

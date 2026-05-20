@@ -90,8 +90,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1026343b - added time series field type to EsField  #129649
          *  1033593b - added qualifier back to FieldAttribute #132925
          *  1033595b - added split indices to EsRelation #138396
+         *  1152296b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033595));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1152296));
     }
 
     /**
@@ -113,8 +114,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1971523b - added time series field type to EsField  #129649
          *  1986023b - added qualifier back to FieldAttribute #132925
          *  1986025b - added split indices to EsRelation #138396
+         *  2303919b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986025));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2303919));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {

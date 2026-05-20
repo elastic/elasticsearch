@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -290,5 +291,42 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
                 matchResult(result)
             );
         }));
+
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                LinkedHashSet<Object> result = new LinkedHashSet<>(field1);
+                result.addAll(field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                    DataType.FLATTENED,
+                    matchResult(result)
+                );
+            }));
+            // Partial overlap: one shared value, one disjoint — result has both from field1 plus the new one from field2
+            suppliers.add(new TestCaseSupplier("flattened partial overlap", List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                Object shared = FlattenedCases.RANDOM.get();
+                Object only1 = FlattenedCases.RANDOM.get();
+                Object only2 = FlattenedCases.RANDOM.get();
+                List<Object> field1 = List.of(shared, only1);
+                List<Object> field2 = List.of(only2, shared);
+                LinkedHashSet<Object> result = new LinkedHashSet<>(field1);
+                result.addAll(field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                    DataType.FLATTENED,
+                    matchResult(result)
+                );
+            }));
+        }
     }
 }

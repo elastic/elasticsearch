@@ -686,3 +686,41 @@ id:integer | contains:boolean | intersects:boolean
 4          | false              | false
 5          | true               | true
 ;
+
+// MV_UNION returns all unique values from both inputs; null is treated as an empty set.
+mvUnion
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+
+FROM flattened_many
+| EVAL union = MV_UNION(flat_a, flat_c)
+| KEEP id, union
+| SORT id
+;
+
+id:integer | union:flattened
+1          | "{""k"":""v1""}"
+2          | "[{""k"":""v1""}, {""k"":""v2""}]"
+3          | "[{""k"":""v1""}, {""k"":""v3""}]"
+4          | "{""k"":""v2""}"
+5          | "{""k"":""same""}"
+;
+
+// Row 3 (v1, v2, v3 all distinct): MV_UNION([v1,v2], [v2,v3]) = [v1,v2,v3], not [v1,v2] or [v2,v3].
+mvUnionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL union = MV_UNION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, union
+;
+
+id:integer | union:flattened
+3          | "[{""k"":""v1""}, {""k"":""v2""}, {""k"":""v3""}]"
+;

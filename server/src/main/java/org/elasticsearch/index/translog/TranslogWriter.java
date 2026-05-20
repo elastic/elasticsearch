@@ -278,8 +278,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * {@code operationCounter} by the number of documents in the batch so the checkpoint's
      * {@code numOps} continues to count logical operations rather than on-disk records.
      */
-    public Translog.Location addBatch(final Translog.Serialized operation, final List<Translog.IndexBatch.DocMeta> docMetas)
-        throws IOException {
+    public Translog.Location addBatch(final Translog.Serialized operation, final List<Translog.IndexBatch.Ops> ops) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
@@ -299,14 +298,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
-            for (Translog.IndexBatch.DocMeta meta : docMetas) {
+            for (Translog.IndexBatch.Ops meta : ops) {
                 final long seqNo = meta.seqNo();
                 minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
                 maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
                 nonFsyncedSequenceNumbers.add(seqNo);
             }
 
-            operationCounter += docMetas.size();
+            operationCounter += ops.size();
 
             location = new Translog.Location(generation, offset, operation.length());
             // TODO: operationListener needs batch-aware support — design a per-batch event so listeners

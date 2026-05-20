@@ -115,10 +115,10 @@ public class TranslogIndexBatchTests extends ESTestCase {
         try (eirf) {
             batchData = new BytesArray(eirf.data().toBytesRef(), true);
         }
-        final List<Translog.IndexBatch.DocMeta> metas = new ArrayList<>(docs.size());
+        final List<Translog.IndexBatch.Ops> metas = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
             metas.add(
-                new Translog.IndexBatch.DocMeta(
+                new Translog.IndexBatch.Ops(
                     1L,
                     firstSeqNo + i,
                     100L + i,
@@ -148,9 +148,9 @@ public class TranslogIndexBatchTests extends ESTestCase {
         try (eirf) {
             batchData = new BytesArray(eirf.data().toBytesRef(), true);
         }
-        final List<Translog.IndexBatch.DocMeta> metas = List.of(
-            new Translog.IndexBatch.DocMeta(1L, 5L, 100L, 0, xContentType, Uid.encodeId("doc-0"), null),
-            new Translog.IndexBatch.DocMeta(1L, 6L, 101L, 1, xContentType, Uid.encodeId("doc-1"), "route")
+        final List<Translog.IndexBatch.Ops> metas = List.of(
+            new Translog.IndexBatch.Ops(1L, 5L, 100L, 0, xContentType, Uid.encodeId("doc-0"), null),
+            new Translog.IndexBatch.Ops(1L, 6L, 101L, 1, xContentType, Uid.encodeId("doc-1"), "route")
         );
         final Translog.IndexBatch batch = new Translog.IndexBatch(batchData, primaryTerm.get(), metas);
 
@@ -161,8 +161,8 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 assertEquals(Translog.Operation.Type.BATCH.id(), typeByte);
                 final Translog.IndexBatch read = Translog.IndexBatch.readFrom(in);
                 assertEquals(batch, read);
-                assertEquals(xContentType, read.docMetas().get(0).xContentType());
-                assertEquals(xContentType, read.docMetas().get(1).xContentType());
+                assertEquals(xContentType, read.ops().get(0).xContentType());
+                assertEquals(xContentType, read.ops().get(1).xContentType());
             }
         }
     }

@@ -84,6 +84,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED;
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -113,7 +114,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         (indexVersion, modelElementType) -> defaultElementTypeToBfloat16(modelElementType)
             ? DenseVectorFieldMapper.ElementType.BFLOAT16
             : modelElementType,
-        (indexVersion, modelSimilarity) -> modelSimilarity != null ? modelSimilarity.vectorSimilarity() : null,
+        (indexVersion, modelSimilarity) -> {
+            // Skip setting similarity on pre 8.11 indices. It causes dense vector field creation to fail because similarity can only be set
+            // on indexed fields, which is not done by default prior to 8.11. The fact that the dense vector field is partially configured
+            // is moot because we will explicitly fail to index docs into this semantic text field anyways.
+            return indexVersion.onOrAfter(NEW_SPARSE_VECTOR) && modelSimilarity != null ? modelSimilarity.vectorSimilarity() : null;
+        },
         (indexVersion, modelSettings) -> null
     );
 
@@ -669,6 +675,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 indexValue(context, BytesReference.bytes(builder).toBytesRef());
             }
         }
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     private void indexValue(DocumentParserContext context, XContentString value) {

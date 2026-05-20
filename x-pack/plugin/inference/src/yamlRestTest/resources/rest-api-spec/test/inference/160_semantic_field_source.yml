@@ -1,0 +1,199 @@
+setup:
+  - requires:
+      cluster_features: "semantic_field.semantic_field_mapper"
+      reason: "semantic field needs to be available"
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-field-exclude-source
+        body:
+          settings:
+            index:
+              mapping:
+                include_source_semanatic_field: false
+          mappings:
+            properties:
+              title:
+                type: keyword
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+  - do:
+      indices.create:
+        index: test-semantic-field-include-source
+        body:
+          mappings:
+            properties:
+              title:
+                type: keyword
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+---
+"text shorthand value excluded from source when setting is false":
+  - do:
+      index:
+        index: test-semantic-field-exclude-source
+        id: doc_1
+        body:
+          title: "doc one"
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-exclude-source
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.title: "doc one" }
+  - not_exists: hits.hits.0._source.my_field
+
+---
+"image object value excluded from source when setting is false":
+  - do:
+      index:
+        index: test-semantic-field-exclude-source
+        id: doc_1
+        body:
+          title: "doc one"
+          my_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-exclude-source
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.title: "doc one" }
+  - not_exists: hits.hits.0._source.my_field
+
+---
+"multiple values excluded from source when setting is false":
+  - do:
+      index:
+        index: test-semantic-field-exclude-source
+        id: doc_1
+        body:
+          title: "doc one"
+          my_field:
+            - "the quick brown fox"
+            - type: image
+              value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-exclude-source
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.title: "doc one" }
+  - not_exists: hits.hits.0._source.my_field
+
+---
+"text shorthand value included in source when setting is true":
+  - do:
+      index:
+        index: test-semantic-field-include-source
+        id: doc_1
+        body:
+          title: "doc one"
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-include-source
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.title: "doc one" }
+  - match: { hits.hits.0._source.my_field: "the quick brown fox" }
+
+---
+"image object value included in source when setting is true":
+  - do:
+      index:
+        index: test-semantic-field-include-source
+        id: doc_1
+        body:
+          title: "doc one"
+          my_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-include-source
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.title: "doc one" }
+  - match: { hits.hits.0._source.my_field.type: image }
+  - match: { hits.hits.0._source.my_field.value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+
+---
+"multiple values included in source when setting is true":
+  - do:
+      index:
+        index: test-semantic-field-include-source
+        id: doc_1
+        body:
+          title: "doc one"
+          my_field:
+            - type: image
+              value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+            - "the quick brown fox"
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-include-source
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.title: "doc one" }
+  - length: { hits.hits.0._source.my_field: 3 }
+  - match: { hits.hits.0._source.my_field.0.type: image }
+  - match: { hits.hits.0._source.my_field.0.value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+  - match: { hits.hits.0._source.my_field.1: "the quick brown fox" }
+  - match: { hits.hits.0._source.my_field.2.type: image }
+  - match: { hits.hits.0._source.my_field.2.value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }

@@ -66,7 +66,6 @@ public class SubqueryWithRowCommandTests extends AbstractStatementParserTests {
         assumeTrue("Requires where in subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
     }
 
-
     /**
      * Single ROW subquery alongside an index pattern in the main FROM:
      *

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -112,6 +113,7 @@ public class ApproximationVerifier {
                 Filter.class,
                 Grok.class,
                 Insist.class,
+                IpLocation.class,
                 LocalRelation.class,
                 MvExpand.class,
                 NamedSubquery.class,

@@ -218,7 +218,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         } finally {
             Releasables.closeExpectNoException(targetBlocks);
         }
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge$IpLocationDatabaseUnavailableException: "
                 + "IP location database ["
@@ -259,7 +259,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         } finally {
             Releasables.closeExpectNoException(targetBlocks);
         }
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge$IpLocationDatabaseExpiredException: "
                 + "IP location database ["
@@ -297,7 +297,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         } finally {
             Releasables.closeExpectNoException(targetBlocks);
         }
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.io.IOException: IP location lookup failed for database [" + DATABASE_FILE + "]"
         );
@@ -316,7 +316,7 @@ public class IpLocationFunctionBridgeTests extends AbstractCompoundOutputEvaluat
         List<String> input = List.of(KNOWN_IP, SECOND_IP);
         List<Object[]> expected = Collections.nCopies(fields.size(), new Object[] { null });
         evaluateAndCompare(input, fields, expected, WARNINGS);
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:2: evaluation of [ip_location_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
         );

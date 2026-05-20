@@ -126,7 +126,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     /**
      * Simple implementation of update-by-query using scrolling and bulk.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByPaginatedSearchAction<
+        UpdateByQueryRequest,
+        TransportUpdateByQueryAction> {
 
         AsyncIndexBySearchAction(
             BulkByPaginatedSearchTask task,

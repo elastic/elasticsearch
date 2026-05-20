@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createE
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfoCluster;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
-import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomAnyEsField;
+import static org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests.randomSerializableEsField;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -724,7 +724,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         int size = between(0, 10);
         Map<String, EsField> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.put(randomAlphaOfLength(5), randomAnyEsField(1));
+            result.put(randomAlphaOfLength(5), randomSerializableEsField(1));
         }
         return result;
     }

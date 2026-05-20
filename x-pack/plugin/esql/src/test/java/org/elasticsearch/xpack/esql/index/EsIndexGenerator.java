@@ -20,7 +20,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomMap;
-import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomAnyEsField;
+import static org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests.randomSerializableEsField;
 
 public class EsIndexGenerator {
 
@@ -44,7 +44,7 @@ public class EsIndexGenerator {
         int size = ESTestCase.between(0, 10);
         Map<String, EsField> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.put(randomIdentifier(), randomAnyEsField(1));
+            result.put(randomIdentifier(), randomSerializableEsField(1));
         }
         return result;
     }

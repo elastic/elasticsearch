@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -253,6 +254,41 @@ public class MvIntersectsTests extends AbstractScalarFunctionTestCase {
                 equalTo(result)
             );
         }));
+
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            // Random case: nearly always false because random values rarely collide
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+                boolean result = containsAny(field1, field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                    DataType.BOOLEAN,
+                    equalTo(result)
+                );
+            }));
+
+            // Partial overlap: one shared value, each side has unique extras → intersects=true,
+            // but mv_contains(field1, field2) would be false (extra2 not in field1).
+            suppliers.add(new TestCaseSupplier("flattened partial overlap", List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                BytesRef shared = FlattenedCases.RANDOM.get();
+                List<Object> field1 = List.of(shared, FlattenedCases.RANDOM.get());
+                List<Object> field2 = List.of(shared, FlattenedCases.RANDOM.get());
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                    DataType.BOOLEAN,
+                    equalTo(true)
+                );
+            }));
+        }
     }
 
     protected static boolean containsAny(List<?> a, List<?> b) {

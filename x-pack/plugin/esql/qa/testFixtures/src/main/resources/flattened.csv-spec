@@ -573,3 +573,79 @@ FROM flattened_mv_contains
 id:integer | superset_null:boolean | subset_null:boolean
 4          | false                 | true
 ;
+
+mvIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_mv_contains
+| EVAL c = MV_INTERSECTS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_mv_contains
+| EVAL c = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_mv_contains
+| WHERE id == 4
+| EVAL left_null = MV_INTERSECTS(flat_a, flat_c), right_null = MV_INTERSECTS(flat_c, flat_a)
+| KEEP id, left_null, right_null
+;
+
+id:integer | left_null:boolean | right_null:boolean
+4          | false             | false
+;
+
+// MV_CONTAINS requires *all* subset values to be present; MV_INTERSECTS only requires *any*.
+// Row 3 (v1, v2, v3 all distinct) is the distinguishing case: superset=[v1,v2],
+// second-arg=[v2,v3] shares v2 with the superset (intersects=true) but v3 is absent (contains=false).
+mvContainsVsIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_mv_contains
+| EVAL
+    contains_r = MV_CONTAINS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c)),
+    intersects_r = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, contains_r, intersects_r
+| SORT id
+;
+
+id:integer | contains_r:boolean | intersects_r:boolean
+1          | true               | true
+2          | true               | true
+3          | false              | true
+4          | false              | false
+5          | true               | true
+;

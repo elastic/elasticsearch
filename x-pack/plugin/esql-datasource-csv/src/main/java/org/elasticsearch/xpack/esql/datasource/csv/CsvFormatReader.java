@@ -456,13 +456,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return inferSchemaWithSyntheticNames(reader);
             }
             String headerLine = null;
-            String record;
-            while ((record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
-                String trimmed = record.trim();
-                if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
+            while ((headerLine = reader.readLine()) != null) {
+                headerLine = headerLine.trim();
+                if (headerLine.isEmpty()
+                    || (options.commentPrefix().isEmpty() == false && headerLine.startsWith(options.commentPrefix()))) {
                     continue;
                 }
-                headerLine = record;
                 break;
             }
             if (headerLine == null) {
@@ -797,7 +796,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } else {
             // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
             // the prior split.
-            readCsvRecord(reader, options.quoteChar(), options.delimiter(), false);
+            reader.readLine();
             effectiveSchema = resolvedSchema;
         }
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
@@ -1051,99 +1050,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public void close() throws IOException {}
 
     /**
-     * Reads a full logical CSV record character-by-character, tracking quote and bracket state,
-     * and only terminates at {@code \n} (or {@code \r\n}) <em>outside</em> of quoted fields and
-     * bracket cells. Lone {@code \r} inside quotes/brackets is preserved verbatim in the output.
-     * This subsumes the {@code hasUnclosedQuote} re-glue loop: multi-line quoted fields are
-     * handled naturally by not terminating at embedded newlines.
-     *
-     * @return the next logical record (without the terminating newline), or {@code null} at EOF
-     */
-    static String readCsvRecord(BufferedReader reader, char quoteChar, char delimiter, boolean bracketAware) throws IOException {
-        StringBuilder sb = null;
-        boolean inQuotes = false;
-        int bracketDepth = 0;
-        boolean fieldHasNonWhitespace = false;
-
-        while (true) {
-            int ch = reader.read();
-            if (ch == -1) {
-                return sb == null ? null : sb.toString();
-            }
-            if (sb == null) {
-                sb = new StringBuilder();
-            }
-
-            if (inQuotes) {
-                if (ch == quoteChar) {
-                    reader.mark(1);
-                    int next = reader.read();
-                    if (next == quoteChar) {
-                        sb.append((char) ch);
-                        sb.append((char) next);
-                        continue;
-                    }
-                    if (next != -1) {
-                        reader.reset();
-                    }
-                    sb.append((char) ch);
-                    inQuotes = false;
-                } else {
-                    sb.append((char) ch);
-                }
-                continue;
-            }
-
-            if (bracketDepth > 0) {
-                if (ch == '[') {
-                    bracketDepth++;
-                } else if (ch == ']') {
-                    bracketDepth--;
-                }
-                sb.append((char) ch);
-                continue;
-            }
-
-            if (ch == '\n') {
-                return sb.toString();
-            }
-            if (ch == '\r') {
-                reader.mark(1);
-                int next = reader.read();
-                if (next != '\n' && next != -1) {
-                    reader.reset();
-                }
-                return sb.toString();
-            }
-
-            sb.append((char) ch);
-
-            if (ch == delimiter) {
-                fieldHasNonWhitespace = false;
-                continue;
-            }
-            if (ch == quoteChar && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-                continue;
-            }
-            if (bracketAware && ch == '[' && fieldHasNonWhitespace == false) {
-                bracketDepth = 1;
-                continue;
-            }
-            if (Character.isWhitespace(ch) == false) {
-                fieldHasNonWhitespace = true;
-            }
-        }
-    }
-
-    /**
      * Consumes one header line from {@code reader}, skipping over leading empty lines and
      * comment lines. Used by {@link #read} when a schema is already bound but the input split
      * still starts with the file header.
      */
     private void skipHeaderLine(BufferedReader reader) throws IOException {
         String line;
-        while ((line = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
+        while ((line = reader.readLine()) != null) {
             String trimmed = line.trim();
             if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
                 continue;
@@ -1567,13 +1480,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 } else {
                     String headerLine = null;
-                    String rec;
-                    while ((rec = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
-                        String trimmed = rec.trim();
-                        if (trimmed.isEmpty() || (hasCommentFilter && trimmed.startsWith(options.commentPrefix()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        line = line.trim();
+                        if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
                             continue;
                         }
-                        headerLine = rec;
+                        headerLine = line;
                         break;
                     }
                     if (headerLine == null) {
@@ -1670,19 +1583,83 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * reader are propagated since they signal an unrecoverable I/O fault.
          */
         private void readRowsBracketAware(List<String[]> rows, int batchSize) throws IOException {
-            String record;
-            while (rows.size() < batchSize && (record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), true)) != null) {
-                if (isBlankOrComment(record, options.commentPrefix())) {
+            String line;
+            while (rows.size() < batchSize && (line = reader.readLine()) != null) {
+                if (isBlankOrComment(line, options.commentPrefix())) {
                     continue;
                 }
+                StringBuilder logicalLine = new StringBuilder(line);
+                while (hasUnclosedQuote(logicalLine.toString(), options.quoteChar())) {
+                    String next = reader.readLine();
+                    if (next == null) {
+                        break;
+                    }
+                    logicalLine.append('\n').append(next);
+                }
                 try {
-                    String[] row = splitLineBracketAware(record);
+                    String[] row = splitLineBracketAware(logicalLine.toString());
                     rows.add(row);
                 } catch (MalformedRowException e) {
                     totalRowCount++;
                     onRowError(e.getMessage(), e, EMPTY_ROW, true);
                 }
             }
+        }
+
+        /**
+         * RFC-4180-style detection for whether {@code s} ends inside a quoted field. A {@code "} only
+         * opens quoting at field start (after {@code ,} or line-start, optionally preceded by whitespace);
+         * stray {@code "} inside an unquoted cell or inside a {@code [..]} MVC cell is a literal byte, not a
+         * quote toggle. Without this guard, real-world rows with embedded {@code "} characters cause
+         * {@link #readRowsBracketAware} to merge adjacent physical lines until the {@code "} count is even,
+         * yielding "row has [N] columns but schema defines [M]" failures and pathological multi-line scans.
+         */
+        private static boolean hasUnclosedQuote(String s, char quote) {
+            boolean inQuotes = false;
+            int bracketDepth = 0;
+            boolean fieldHasNonWhitespace = false;
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (inQuotes) {
+                    if (c == quote) {
+                        if (i + 1 < s.length() && s.charAt(i + 1) == quote) {
+                            i++;
+                            continue;
+                        }
+                        inQuotes = false;
+                    }
+                    continue;
+                }
+                if (bracketDepth > 0) {
+                    if (c == '[') {
+                        bracketDepth++;
+                    } else if (c == ']') {
+                        bracketDepth--;
+                    }
+                    continue;
+                }
+                if (c == ',') {
+                    fieldHasNonWhitespace = false;
+                    continue;
+                }
+                if (c == quote && fieldHasNonWhitespace == false) {
+                    inQuotes = true;
+                    continue;
+                }
+                if (c == '[' && fieldHasNonWhitespace == false) {
+                    // Intentionally enters bracket mode without calling hasMvcBracketClose: this
+                    // method only determines whether a quote is unclosed for multi-line gluing.
+                    // An unclosed bracket here is harmless (it suppresses quote detection for the
+                    // remainder of the line) while a false-negative hasMvcBracketClose would cause
+                    // spurious multi-line gluing on rows with stray quotes inside bracket cells.
+                    bracketDepth = 1;
+                    continue;
+                }
+                if (Character.isWhitespace(c) == false) {
+                    fieldHasNonWhitespace = true;
+                }
+            }
+            return inQuotes;
         }
 
         /**
@@ -1872,12 +1849,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * type-converted — that work is deferred to {@link #splitAndConvertProjected}.
          */
         private void readLogicalLinesBracketAware(List<String> lines, int batchSize) throws IOException {
-            String record;
-            while (lines.size() < batchSize && (record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), true)) != null) {
-                if (isBlankOrComment(record, options.commentPrefix())) {
+            String line;
+            while (lines.size() < batchSize && (line = reader.readLine()) != null) {
+                if (isBlankOrComment(line, options.commentPrefix())) {
                     continue;
                 }
-                lines.add(record);
+                StringBuilder logicalLine = new StringBuilder(line);
+                while (hasUnclosedQuote(logicalLine.toString(), options.quoteChar())) {
+                    String next = reader.readLine();
+                    if (next == null) {
+                        break;
+                    }
+                    logicalLine.append('\n').append(next);
+                }
+                lines.add(logicalLine.toString());
             }
         }
 

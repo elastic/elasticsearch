@@ -197,9 +197,6 @@ public class RemoteClusterAwareTests extends ESTestCase {
     }
 
     public void testGroupClusterIndicesFail() {
-        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
-        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");
-
         mustThrowException(new String[] { ":foo" }, IllegalArgumentException.class, "is invalid because the remote part is empty");
         mustThrowException(new String[] { "notacluster:foo" }, NoSuchRemoteClusterException.class, "no such remote cluster");
         mustThrowException(

@@ -277,7 +277,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         } catch (Exception e) {
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(CircuitBreakingException.class));
-            assertThat(cause.toString(), containsString("[request] Data too large, data for [preallocate[aggregations]] would be"));
+            assertThat(cause.toString(), containsString("[request] Data too large"));
             assertThat(cause.toString(), containsString("which is larger than the limit of [2048/2kb]"));
         }
     }

@@ -361,7 +361,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     }
 
     /**
-     * Shared in-JVM state read by the test thread. 
+     * Shared in-JVM state read by the test thread.
      */
     private static final class TestControlState {
         final AtomicInteger callCount = new AtomicInteger();

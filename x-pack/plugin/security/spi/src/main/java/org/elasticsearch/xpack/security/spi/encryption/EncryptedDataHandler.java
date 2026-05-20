@@ -24,7 +24,7 @@ public interface EncryptedDataHandler<T extends Metadata.ProjectCustom> {
     String customName();
 
     /**
-     * Returns a re-encrypted copy of {@code current} where every encrypted value is under {@code activeKeyId}. 
+     * Returns a re-encrypted copy of {@code current} where every encrypted value is under {@code activeKeyId}.
      *
      * @param current          the current value of the custom in cluster state, or {@code null} if absent
      * @param encryptionService used to decrypt with the previous key and encrypt under the active key

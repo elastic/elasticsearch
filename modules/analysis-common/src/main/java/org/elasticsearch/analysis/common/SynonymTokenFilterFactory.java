@@ -194,14 +194,20 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resource());
+        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resource(), ts -> new SynonymFilter(ts, synonyms, false));
     }
 
     /**
      * Static so the returned factory does not hold a reference to the outer instance,
      * allowing the outer factory's raw synonym rule strings to be GC'd after {@link SynonymMap} construction.
      */
-    static TokenFilterFactory buildChainedFactory(String name, SynonymMap synonyms, AnalysisMode analysisMode, String resourceName) {
+    protected static TokenFilterFactory buildChainedFactory(
+        String name,
+        SynonymMap synonyms,
+        AnalysisMode analysisMode,
+        String resourceName,
+        Function<TokenStream, TokenStream> createFilter
+    ) {
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -210,14 +216,24 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
+                return synonyms.fst == null ? tokenStream : createFilter.apply(tokenStream);
             }
 
             @Override
             public TokenFilterFactory getSynonymFilter() {
-                // In order to allow chained synonym filters, we return IDENTITY here to
-                // ensure that synonyms don't get applied to the synonym map itself,
-                // which doesn't support stacked input tokens
+                // When building a synonym filter, we must prevent previous synonym filters in the chain
+                // from being active, as this would cause recursive synonym expansion during the building phase.
+                //
+                // Without this fix, when chaining multiple synonym filters (e.g., synonym_A → synonym_B → synonym_C),
+                // building synonym_C would use an analyzer containing active synonym_A and synonym_B filters.
+                // This causes:
+                // 1. Recursive synonym expansion when parsing synonym rules (e.g., synonyms are expanded via previous filters)
+                // 2. Each SynonymMap inflates since it applies all previous synonym rules again
+                // 3. Triggering O(n²) operations in SynonymGraphFilter.bufferOutputTokens()
+                // 4. Massive memory allocation during analyzer reload → OutOfMemoryError
+                //
+                // This matches the behavior of SynonymTokenFilterFactory and prevents OOM with chained
+                // synonym filters (critical for users with many chained synonym sets).
                 return IDENTITY_FILTER;
             }
 

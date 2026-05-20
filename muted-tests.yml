@@ -471,12 +471,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
   issue: https://github.com/elastic/elasticsearch/issues/147517
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:flattened.casePicksPerRow}
-  issue: https://github.com/elastic/elasticsearch/issues/149027
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
-  issue: https://github.com/elastic/elasticsearch/issues/149028
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
@@ -546,9 +540,6 @@ tests:
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testIpLocationServiceLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/149284
-- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
-  method: testReindexRelocatesWhenCoordinatorShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/149285
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:tdigest.isNotNullFilter (timeseries mode)}
   issue: https://github.com/elastic/elasticsearch/issues/149293
@@ -564,9 +555,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogLocalFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/149343
-- class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
-  method: testConsumerScopedDownloads
-  issue: https://github.com/elastic/elasticsearch/issues/149264
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/149350

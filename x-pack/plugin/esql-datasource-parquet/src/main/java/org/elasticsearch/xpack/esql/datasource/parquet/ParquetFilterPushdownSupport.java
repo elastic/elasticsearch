@@ -264,7 +264,14 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             // unreachable today (WildcardLike's constructor takes a non-null WildcardPattern), but is
             // kept as a cheap boundary guard so an upstream regression cannot turn into an NPE in the
             // per-batch evaluator. Mirrors the prefix() != null guard on StartsWith above.
-            return wl.field() instanceof NamedExpression ne && ne.dataType() == DataType.KEYWORD && wl.pattern() != null;
+            // Virtual columns (e.g. {@code _file.*}) live outside the parquet schema and the late-mat
+            // evaluator has no column block to walk for them, so accepting them as YES would drop
+            // the post-source FilterExec without ever actually evaluating the pattern - silently
+            // returning all rows (see github.com/elastic/elasticsearch/issues/149393).
+            return wl.field() instanceof NamedExpression ne
+                && PushdownPredicates.isVirtualColumn(ne) == false
+                && ne.dataType() == DataType.KEYWORD
+                && wl.pattern() != null;
         }
         return false;
     }

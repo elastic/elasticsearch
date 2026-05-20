@@ -3960,39 +3960,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
         final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().getTimestampFieldType() != null;
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            warmer,
-            store,
-            indexSettings.getMergePolicy(isTimeBasedIndex),
-            buildIndexAnalyzer(mapperService),
-            similarityService.similarity(mapperService == null ? null : mapperService::fieldType),
-            codecService,
-            shardEventListener,
-            indexCache != null ? indexCache.query() : null,
-            cachingPolicy,
-            translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
-            List.of(new RefreshMetricUpdater(refreshMetric), new RefreshShardFieldStatsListener()),
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            replicationTracker::getRetentionLeases,
-            this::getOperationPrimaryTerm,
-            snapshotCommitSupplier,
-            isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
-            relativeTimeInNanosSupplier,
-            indexCommitListener,
-            routingEntry().isPromotableToPrimary(),
-            mapperService(),
-            engineResetLock,
-            mergeMetrics,
-            Function.identity()
-        );
+        return EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .warmer(warmer)
+            .store(store)
+            .mergePolicy(indexSettings.getMergePolicy(isTimeBasedIndex))
+            .analyzer(buildIndexAnalyzer(mapperService))
+            .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
+            .codecProvider(codecService)
+            .eventListener(shardEventListener)
+            .queryCache(indexCache != null ? indexCache.query() : null)
+            .queryCachingPolicy(cachingPolicy)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()))
+            .externalRefreshListener(List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener))
+            .internalRefreshListener(List.of(new RefreshMetricUpdater(refreshMetric), new RefreshShardFieldStatsListener()))
+            .indexSort(indexSort)
+            .circuitBreakerService(circuitBreakerService)
+            .globalCheckpointSupplier(globalCheckpointSupplier)
+            .retentionLeasesSupplier(replicationTracker::getRetentionLeases)
+            .primaryTermSupplier(this::getOperationPrimaryTerm)
+            .snapshotCommitSupplier(snapshotCommitSupplier)
+            .leafSorter(isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null)
+            .relativeTimeInNanosSupplier(relativeTimeInNanosSupplier)
+            .indexCommitListener(indexCommitListener)
+            .promotableToPrimary(routingEntry().isPromotableToPrimary())
+            .mapperService(mapperService())
+            .engineResetLock(engineResetLock)
+            .mergeMetrics(mergeMetrics)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
     }
 
     /**

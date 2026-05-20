@@ -271,9 +271,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * Attaches per-loop safety mechanisms. Opted-in contexts get both {@link IRCCancellationCheck}
      * (cancellation path) and {@link IRDMaxLoopCounter} (legacy fallback when no runnable is
      * bound at runtime). Non-opted-in contexts get only the legacy counter (unchanged).
+     * Static functions (lambdas that don't capture {@code this}) cannot call
+     * {@code _getCancellationCheck()} and therefore only receive the legacy counter.
      */
     protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
-        if (scriptScope.getScriptClassInfo().supportsCancellation()) {
+        if (scriptScope.getScriptClassInfo().supportsCancellation() && irFunctionNode.hasCondition(IRCStatic.class) == false) {
             irFunctionNode.attachCondition(IRCCancellationCheck.class);
         }
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));

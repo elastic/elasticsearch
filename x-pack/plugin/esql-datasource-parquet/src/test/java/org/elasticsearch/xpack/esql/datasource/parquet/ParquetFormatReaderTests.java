@@ -43,6 +43,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -892,6 +893,108 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
             assertFalse(iterator.hasNext());
         }
+    }
+
+    /**
+     * REQUIRED parquet columns must produce attributes with {@link Nullability#FALSE} so the optimizer
+     * can correctly fold {@code IS NULL}/{@code IS NOT NULL}/{@code COALESCE} on columns the file
+     * footer guarantees contain no nulls.
+     */
+    public void testSchemaNullabilityForRequiredColumns() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 1L);
+            g.add("name", "Alice");
+            return List.of(g);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        List<Attribute> attributes = metadata.schema();
+        assertEquals(2, attributes.size());
+        assertEquals("id", attributes.get(0).name());
+        assertEquals(Nullability.FALSE, attributes.get(0).nullable());
+        assertEquals("name", attributes.get(1).name());
+        assertEquals(Nullability.FALSE, attributes.get(1).nullable());
+    }
+
+    /**
+     * OPTIONAL parquet columns must produce attributes with {@link Nullability#TRUE}, otherwise
+     * the optimizer folds {@code WHERE col IS NULL} to {@code FALSE} (and {@code IS NOT NULL} to
+     * {@code TRUE}) for columns whose footer-declared repetition allows null rows.
+     */
+    public void testSchemaNullabilityForOptionalColumns() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .optional(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("active")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 1L);
+            g.add("name", "Alice");
+            g.add("age", 30);
+            g.add("score", 95.5);
+            g.add("active", true);
+            return List.of(g);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        List<Attribute> attributes = metadata.schema();
+        assertEquals(5, attributes.size());
+        assertEquals("id", attributes.get(0).name());
+        assertEquals(Nullability.FALSE, attributes.get(0).nullable());
+        for (int i = 1; i < attributes.size(); i++) {
+            Attribute attr = attributes.get(i);
+            assertEquals("OPTIONAL column [" + attr.name() + "] must be nullable", Nullability.TRUE, attr.nullable());
+        }
+    }
+
+    /**
+     * LIST columns are exposed as a single attribute whose nullability is driven by the outer
+     * group's repetition (the inner {@code repeated group list} is a Parquet structural artifact).
+     */
+    public void testSchemaNullabilityForOptionalListColumn() throws Exception {
+        Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("numbers");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("numbers");
+            list.addGroup("list").append("element", 1);
+            return List.of(g);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        List<Attribute> attributes = metadata.schema();
+        assertEquals(1, attributes.size());
+        assertEquals("numbers", attributes.get(0).name());
+        assertEquals(Nullability.TRUE, attributes.get(0).nullable());
     }
 
     public void testReadOptionalLongWithNulls() throws Exception {

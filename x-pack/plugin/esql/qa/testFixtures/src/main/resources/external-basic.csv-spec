@@ -89,6 +89,56 @@ emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword
 10007          | "Tzvetan"          | "Zielinski"       | "F"
 ;
 
+// Locks in the planner-level contract that OPTIONAL parquet columns (and empty
+// CSV cells) are exposed as nullable attributes. Without this, future optimizer
+// rules trusting Nullability.FALSE could fold these predicates away and silently
+// return wrong results. See https://github.com/elastic/esql-planning/issues/756.
+whereGenderIsNull
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE gender IS NULL
+| STATS null_genders = COUNT()
+;
+
+null_genders:long
+10
+;
+
+whereGenderIsNotNull
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE gender IS NOT NULL
+| STATS non_null_genders = COUNT()
+;
+
+non_null_genders:long
+90
+;
+
+whereLanguagesIsNull
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE languages IS NULL
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10020
+10021
+10022
+10023
+10024
+10025
+10026
+10027
+10028
+10029
+;
+
 filterByEmploymentStatus
 required_capability: external_command
 

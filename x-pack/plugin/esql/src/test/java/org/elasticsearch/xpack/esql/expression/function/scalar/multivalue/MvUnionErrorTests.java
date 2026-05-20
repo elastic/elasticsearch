@@ -16,6 +16,7 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,6 +30,24 @@ public class MvUnionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new MvUnion(source, args.get(0), args.get(1));
+    }
+
+    /**
+     * MvUnion treats null as an empty set, so {@code MV_UNION(null, T)} and {@code MV_UNION(T, null)}
+     * resolve successfully for any representable type T. Skip those signatures — the corresponding
+     * non-null versions (e.g. {@code [histogram, histogram]}) still cover the unsupported-type errors.
+     */
+    @Override
+    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
+        return super.testCandidates(cases, valid).filter(signature -> {
+            if (signature.get(0) == DataType.NULL) {
+                return valid.stream().noneMatch(v -> v.get(1).equals(signature.get(1)));
+            }
+            if (signature.get(1) == DataType.NULL) {
+                return valid.stream().noneMatch(v -> v.get(0).equals(signature.get(0)));
+            }
+            return true;
+        });
     }
 
     @Override

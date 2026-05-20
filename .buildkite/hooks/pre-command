@@ -225,10 +225,10 @@ fi
 # =============================================================================
 # PART 2: Smart retry test filtering
 # =============================================================================
-# Extracted to .buildkite/scripts/smart-retry.sh for single responsibility.
-# The script is sourced (not executed) so it can read BUILD_JSON, ORIGIN_JOB_ID,
-# and TESTS_SEED set by PART 1 above, and export SMART_RETRY_STATUS,
-# FILTERED_WORK_UNITS, etc. back to the caller.
+# Runs .buildkite/scripts/smart-retry/main.ts via a thin shell wrapper.
+# Reads ORIGIN_JOB_ID and TESTS_SEED (exported above), plus BUILDKITE_*
+# env vars. Writes .failed-test-history.json, buildkite-agent metadata,
+# and annotations.
 # =============================================================================
 if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
   source .buildkite/scripts/smart-retry.sh

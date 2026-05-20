@@ -50,3 +50,46 @@ export interface TestMethodEntry {
   outcome: { overall: string };
   children: never[];
 }
+
+/** Environment variables read by the smart-retry orchestrator. */
+export interface SmartRetryEnv {
+  buildkiteApiToken: string;
+  buildkiteJobId: string;
+  buildkitePipelineSlug: string;
+  buildkiteBuildNumber: string;
+  originJobId?: string;
+  testsSeed?: string;
+}
+
+export type SmartRetryStatus = "enabled" | "disabled" | "failed";
+
+/** Everything the orchestrator decides — no side effects, just data. */
+export interface SmartRetryResult {
+  status: SmartRetryStatus;
+  details: string;
+  failedTestHistory: FailedTestsReport | null;
+  annotation: string | null;
+  metadata: Record<string, string>;
+}
+
+/** Injectable I/O operations so tests can replace them. */
+export interface SmartRetryDeps {
+  fetchBuildJson: (
+    apiToken: string,
+    pipelineSlug: string,
+    buildNumber: string
+  ) => Promise<BuildkiteBuildJson | null>;
+  downloadArtifact: (originJobId: string) => Promise<TaskStatusReport | null>;
+}
+
+/** Minimal subset of the Buildkite build JSON we actually use. */
+export interface BuildkiteBuildJson {
+  jobs: BuildkiteJob[];
+  meta_data: Record<string, string>;
+}
+
+export interface BuildkiteJob {
+  id: string;
+  name?: string;
+  retry_source?: { job_id: string };
+}

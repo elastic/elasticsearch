@@ -50,6 +50,10 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
 
   protected abstract double rhs();
 
+  protected String pathLabel() {
+    return "jit-folded";
+  }
+
   @Override
   public Block eval(Page page) {
     try (DoubleBlock lhsBlock = (DoubleBlock) lhs.eval(page)) {
@@ -111,7 +115,7 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
 
   @Override
   public String toString() {
-    return "ModDoublesByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]";
+    return "ModDoublesByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]" + " (" + pathLabel() + ")";
   }
 
   @Override
@@ -150,7 +154,7 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
           throw new IllegalStateException("failed to construct JIT-spun evaluator for ModDoublesByConstantEvaluator", e);
         }
       }
-      return new Fallback(source, lhs.get(context), this.rhs, context);
+      return new Standard(source, lhs.get(context), this.rhs, context);
     }
 
     @Override
@@ -160,15 +164,15 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
   }
 
   /**
-   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
    * runs correctly. The Factory chooses between this and the spun subclass.
    */
-  public static final class Fallback extends ModDoublesByConstantEvaluator {
+  public static final class Standard extends ModDoublesByConstantEvaluator {
     private final double rhs;
 
-    public Fallback(Source source, ExpressionEvaluator lhs, double rhs,
+    public Standard(Source source, ExpressionEvaluator lhs, double rhs,
         DriverContext driverContext) {
       super(source, lhs, driverContext);
       this.rhs = rhs;
@@ -177,6 +181,11 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
     @Override
     protected final double rhs() {
       return rhs;
+    }
+
+    @Override
+    protected final String pathLabel() {
+      return "standard";
     }
   }
 }

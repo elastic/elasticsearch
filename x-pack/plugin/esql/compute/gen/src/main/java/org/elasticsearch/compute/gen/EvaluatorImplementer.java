@@ -111,7 +111,17 @@ public class EvaluatorImplementer {
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         if (hasJitConstant) {
-            builder.addType(fallback());
+            builder.addType(standard());
+            // pathLabel() default; the Standard subclass overrides it, the spun subclass
+            // inherits this default. Read by toString() to make spun vs Standard visible
+            // in ESQL PROFILE output without any class-name string matching.
+            builder.addMethod(
+                MethodSpec.methodBuilder("pathLabel")
+                    .addModifiers(Modifier.PROTECTED)
+                    .returns(String.class)
+                    .addStatement("return $S", "jit-folded")
+                    .build()
+            );
         }
 
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
@@ -299,26 +309,26 @@ public class EvaluatorImplementer {
     }
 
     /**
-     * Concrete fallback subclass for the abstract jit-constant evaluator. Used when
+     * Concrete non-spun subclass for the abstract jit-constant evaluator. Used when
      * {@code JitConstantSpinner} returns {@code Optional.empty()} (admission filter
-     * rejected the spin for a first-time key). The fallback stores the constant in a
-     * regular instance field — no JIT-time constant folding occurs — but the per-row
-     * work still executes correctly. This is the safety net that lets the admission
-     * filter ship in production without breaking queries with novel constants.
+     * rejected the spin for a first-time key). Stores the constant in a regular instance
+     * field — no JIT-time constant folding occurs — but the per-row work still executes
+     * correctly. Named {@code Standard} because this is the deliberate non-JIT path for
+     * low-cardinality constants, not a failure-mode standard.
      */
-    private TypeSpec fallback() {
+    private TypeSpec standard() {
         JitConstantFixedArgument jit = processFunction.args.stream()
             .filter(Argument::isJitConstant)
             .map(a -> (JitConstantFixedArgument) a)
             .findFirst()
             .orElseThrow();
 
-        TypeSpec.Builder builder = TypeSpec.classBuilder("Fallback")
+        TypeSpec.Builder builder = TypeSpec.classBuilder("Standard")
             .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
             .superclass(implementation);
 
         builder.addJavadoc(
-            "Concrete fallback used when {@link $T} returns {@code Optional.empty()}\n"
+            "Concrete non-spun subclass used when {@link $T} returns {@code Optional.empty()}\n"
                 + "(admission filter rejected the spin). The constant lives in a regular\n"
                 + "instance field — no JIT-time constant folding, but the per-row work\n"
                 + "runs correctly. The Factory chooses between this and the spun subclass.\n",
@@ -361,6 +371,16 @@ public class EvaluatorImplementer {
                 .addModifiers(Modifier.PROTECTED, Modifier.FINAL)
                 .returns(jit.type())
                 .addStatement("return $L", jit.name())
+                .build()
+        );
+
+        // Override pathLabel() to identify this as the non-spun path in profile output.
+        builder.addMethod(
+            MethodSpec.methodBuilder("pathLabel")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PROTECTED, Modifier.FINAL)
+                .returns(String.class)
+                .addStatement("return $S", "standard")
                 .build()
         );
 
@@ -469,6 +489,16 @@ public class EvaluatorImplementer {
             }
             pattern.append(" + $S");
             args.add("]");
+            // For jit-constant evaluators, append " (jit-folded)" or " (standard)" via the
+            // pathLabel() override so the ESQL PROFILE output distinguishes the spun path
+            // from the Standard path. Factory's toString doesn't get the marker — the
+            // factory itself isn't an evaluator; it constructs one per Driver.
+            boolean hasJitConstant = this.args.stream().anyMatch(Argument::isJitConstant);
+            if (hasJitConstant && fromFactory == false) {
+                pattern.append(" + $S + pathLabel() + $S");
+                args.add(" (");
+                args.add(")");
+            }
             builder.addStatement(pattern.toString(), args.toArray());
             return builder.build();
         }
@@ -513,10 +543,10 @@ public class EvaluatorImplementer {
                 return builder.build();
             }
 
-            // Spinner-based construction with admission-aware fallback.
+            // Spinner-based construction with admission-aware standard.
             // The spinner may return Optional.empty() if the admission filter rejected
             // this constant (first-time key, count < threshold). In that case we route
-            // to the Fallback nested class — same evaluator, regular instance field for
+            // to the Standard nested class — same evaluator, regular instance field for
             // the constant, no JIT folding. The Factory hides this from callers.
             String spinMethod = primitiveSpinnerMethod(jit.type());
             if (spinMethod != null) {
@@ -562,11 +592,11 @@ public class EvaluatorImplementer {
             builder.endControlFlow(); // try-catch
             builder.endControlFlow(); // if isPresent
 
-            // Fallback path. ctorArgs are "source", non-jit args (via factoryInvocation),
-            // "context". The Fallback ctor inserts the jit value just before "context".
-            List<String> fallbackArgs = new ArrayList<>(ctorArgs);
-            fallbackArgs.add(fallbackArgs.size() - 1, "this." + jit.name());
-            builder.addStatement("return new $T($L)", implementation.nestedClass("Fallback"), String.join(", ", fallbackArgs));
+            // Standard path. ctorArgs are "source", non-jit args (via factoryInvocation),
+            // "context". The Standard ctor inserts the jit value just before "context".
+            List<String> standardArgs = new ArrayList<>(ctorArgs);
+            standardArgs.add(standardArgs.size() - 1, "this." + jit.name());
+            builder.addStatement("return new $T($L)", implementation.nestedClass("Standard"), String.join(", ", standardArgs));
             return builder.build();
         }
 

@@ -112,7 +112,7 @@ public final class JitConstantSpinner {
     /**
      * Default admission threshold. {@code 2} means a key must be seen at least twice
      * before the spinner emits a class for it. First-time keys go through the codegen
-     * Factory's fallback path (regular non-JIT-folded evaluator). This protects against
+     * Factory's standard path (regular non-JIT-folded evaluator). This protects against
      * pathological high-cardinality workloads (many distinct one-off constants) at the
      * cost of slightly slower first execution for queries with novel constants.
      *
@@ -180,7 +180,7 @@ public final class JitConstantSpinner {
     private static final LongAdder ADMISSION_REJECTED = new LongAdder();   // returned empty because count < threshold
     private static final LongAdder WEAK_REF_CLEARED = new LongAdder();     // cache had entry but ref was GC'd
     private static final LongAdder ADMISSION_EVICTIONS = new LongAdder();  // counters evicted by LRU
-    private static final LongAdder FALLBACKS = new LongAdder();            // spin threw — gave up
+    private static final LongAdder STANDARDS = new LongAdder();            // spin threw — gave up
 
     private JitConstantSpinner() {}
 
@@ -261,8 +261,8 @@ public final class JitConstantSpinner {
         return WEAK_REF_CLEARED.sum();
     }
 
-    public static long fallbackCount() {
-        return FALLBACKS.sum();
+    public static long standardCount() {
+        return STANDARDS.sum();
     }
 
     /**
@@ -316,7 +316,7 @@ public final class JitConstantSpinner {
         ADMISSION_REJECTED.reset();
         WEAK_REF_CLEARED.reset();
         ADMISSION_EVICTIONS.reset();
-        FALLBACKS.reset();
+        STANDARDS.reset();
         admissionCapacity = DEFAULT_ADMISSION_CAPACITY;
         admissionThreshold = DEFAULT_ADMISSION_THRESHOLD;
         useSoftReferences = true;
@@ -396,13 +396,13 @@ public final class JitConstantSpinner {
                 return newRef(spun);
             });
         } catch (RuntimeException e) {
-            FALLBACKS.increment();
+            STANDARDS.increment();
             return Optional.empty();
         }
         Class<?> spunClass = spunRef.get();
         if (spunClass == null) {
             // Race: weak ref cleared between insertion and our read. Recurse — admission will
-            // re-trigger via counter, or fallback. Bounded by GC frequency so this is rare.
+            // re-trigger via counter, or standard. Bounded by GC frequency so this is rare.
             CLASSES.remove(key, spunRef);
             WEAK_REF_CLEARED.increment();
             return spinOrCache(baseClass, methodName, valueType, value, primitive);

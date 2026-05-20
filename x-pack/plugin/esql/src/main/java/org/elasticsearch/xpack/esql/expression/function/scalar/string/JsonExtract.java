@@ -342,19 +342,19 @@ public class JsonExtract extends EsqlScalarFunction {
                         int end = (int) endLocation.byteOffset() + rawOffset;
                         builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
                     } else {
-                        // Fallback if offsets are unavailable (shouldn't happen for JSON)
-                        copyCurrentStructureFallback(builder, parser);
+                        // Standard if offsets are unavailable (shouldn't happen for JSON)
+                        copyCurrentStructureStandard(builder, parser);
                     }
                 } else {
                     // Non-JSON format (SMILE/CBOR/YAML) — must re-serialize to JSON
-                    copyCurrentStructureFallback(builder, parser);
+                    copyCurrentStructureStandard(builder, parser);
                 }
             }
             default -> throw new IllegalArgumentException("unexpected token: " + token);
         }
     }
 
-    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
+    private static void copyCurrentStructureStandard(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
         try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             jsonBuilder.copyCurrentStructure(parser);
             builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());

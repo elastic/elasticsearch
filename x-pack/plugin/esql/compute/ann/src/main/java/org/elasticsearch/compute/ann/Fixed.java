@@ -55,7 +55,7 @@ public @interface Fixed {
      *
      *   <li><b>Cardinality is bounded by the admission filter + GC.</b> The spinner's
      *       admission filter (default threshold = 2) refuses to spin for first-time
-     *       keys — the codegen Factory routes them to a {@code Fallback} subclass
+     *       keys — the codegen Factory routes them to a {@code Standard} subclass
      *       (regular instance field, no JIT folding, runs slower but runs).
      *       Repeat keys spin once and the class lives only as long as some live
      *       evaluator references it (weak-referenced in the cache; GC reclaims when

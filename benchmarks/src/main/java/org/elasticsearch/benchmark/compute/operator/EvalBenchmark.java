@@ -100,7 +100,7 @@ public class EvalBenchmark {
         Utils.configureBenchmarkLogging();
         // EvalBenchmark constructs a fresh evaluator per invocation and discards it. With
         // admission threshold=2 (production default), each invocation would start a fresh
-        // admission cycle and route through the Fallback (non-JIT-folded) path — defeating
+        // admission cycle and route through the Standard (non-JIT-folded) path — defeating
         // the measurement of the JIT-folded steady-state performance. Set threshold=1 here
         // so the bench measures what production sees AFTER admission is met (which is the
         // case for every query past the first one for a given constant). The admission

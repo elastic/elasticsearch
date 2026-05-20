@@ -49,6 +49,10 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
 
   protected abstract int rhs();
 
+  protected String pathLabel() {
+    return "jit-folded";
+  }
+
   @Override
   public Block eval(Page page) {
     try (IntBlock lhsBlock = (IntBlock) lhs.eval(page)) {
@@ -100,7 +104,7 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "DivIntsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]";
+    return "DivIntsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]" + " (" + pathLabel() + ")";
   }
 
   @Override
@@ -139,7 +143,7 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
           throw new IllegalStateException("failed to construct JIT-spun evaluator for DivIntsByConstantEvaluator", e);
         }
       }
-      return new Fallback(source, lhs.get(context), this.rhs, context);
+      return new Standard(source, lhs.get(context), this.rhs, context);
     }
 
     @Override
@@ -149,15 +153,15 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
   }
 
   /**
-   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
    * runs correctly. The Factory chooses between this and the spun subclass.
    */
-  public static final class Fallback extends DivIntsByConstantEvaluator {
+  public static final class Standard extends DivIntsByConstantEvaluator {
     private final int rhs;
 
-    public Fallback(Source source, ExpressionEvaluator lhs, int rhs, DriverContext driverContext) {
+    public Standard(Source source, ExpressionEvaluator lhs, int rhs, DriverContext driverContext) {
       super(source, lhs, driverContext);
       this.rhs = rhs;
     }
@@ -165,6 +169,11 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
     @Override
     protected final int rhs() {
       return rhs;
+    }
+
+    @Override
+    protected final String pathLabel() {
+      return "standard";
     }
   }
 }

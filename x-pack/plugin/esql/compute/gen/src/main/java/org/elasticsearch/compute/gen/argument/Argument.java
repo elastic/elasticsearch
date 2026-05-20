@@ -162,15 +162,15 @@ public interface Argument {
 
     /**
      * Declare ONLY the constructor parameter for this argument, without any field-assignment
-     * statement. Used by the codegen-emitted {@code Fallback} concrete subclass, which mirrors
+     * statement. Used by the codegen-emitted {@code Standard} concrete subclass, which mirrors
      * the abstract evaluator's ctor signature (to pass params via {@code super()}) without
      * re-assigning the parent's private fields. Default implementation throws — argument types
-     * that need to participate in fallback construction override this.
+     * that need to participate in standard construction override this.
      */
     default void declareCtorParam(MethodSpec.Builder builder) {
         throw new UnsupportedOperationException(
             getClass().getSimpleName()
-                + " does not support fallback constructor codegen; "
+                + " does not support standard constructor codegen; "
                 + "extend Argument.declareCtorParam if you want to use @Fixed(jitConstant=true) with this argument type"
         );
     }

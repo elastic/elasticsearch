@@ -271,7 +271,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
             ExpressionEvaluator.Factory lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             return doublesConst.create(source(), lhs, rhs.doubleValue());
         }
-        // UNSIGNED_LONG is the intentional binary-path fallback for operators that opt into
+        // UNSIGNED_LONG is the intentional binary-path standard for operators that opt into
         // the fast path (we have no UNSIGNED_LONG constant-RHS evaluator yet). Anything else
         // is unclassified — likely a new numeric type added without extending the fast path.
         if (commonType == UNSIGNED_LONG) {

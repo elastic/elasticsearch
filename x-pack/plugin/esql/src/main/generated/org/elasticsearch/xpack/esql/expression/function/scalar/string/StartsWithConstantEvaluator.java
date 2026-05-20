@@ -52,6 +52,10 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
 
   protected abstract BytesRef prefix();
 
+  protected String pathLabel() {
+    return "jit-folded";
+  }
+
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
@@ -105,7 +109,7 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
 
   @Override
   public String toString() {
-    return "StartsWithConstantEvaluator[" + "str=" + str + ", prefix=" + prefix() + "]";
+    return "StartsWithConstantEvaluator[" + "str=" + str + ", prefix=" + prefix() + "]" + " (" + pathLabel() + ")";
   }
 
   @Override
@@ -144,7 +148,7 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
           throw new IllegalStateException("failed to construct JIT-spun evaluator for StartsWithConstantEvaluator", e);
         }
       }
-      return new Fallback(source, str.get(context), this.prefix, context);
+      return new Standard(source, str.get(context), this.prefix, context);
     }
 
     @Override
@@ -154,15 +158,15 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
   }
 
   /**
-   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
    * runs correctly. The Factory chooses between this and the spun subclass.
    */
-  public static final class Fallback extends StartsWithConstantEvaluator {
+  public static final class Standard extends StartsWithConstantEvaluator {
     private final BytesRef prefix;
 
-    public Fallback(Source source, ExpressionEvaluator str, BytesRef prefix,
+    public Standard(Source source, ExpressionEvaluator str, BytesRef prefix,
         DriverContext driverContext) {
       super(source, str, driverContext);
       this.prefix = prefix;
@@ -171,6 +175,11 @@ public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator
     @Override
     protected final BytesRef prefix() {
       return prefix;
+    }
+
+    @Override
+    protected final String pathLabel() {
+      return "standard";
     }
   }
 }

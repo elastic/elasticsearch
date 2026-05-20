@@ -149,7 +149,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
             }));
             // Long-literal contains pattern — value and literal both exceed the SIMD activation
             // threshold inside ESVectorUtil (>= 24 bytes). Ensures the evaluator drives the
-            // vectorized first+last-byte filter, not just the scalar fallback.
+            // vectorized first+last-byte filter, not just the scalar standard.
             suppliers.add(new TestCaseSupplier("long-literal contains match with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
                 String middle = randomAlphaOfLength(32);
                 BytesRef str = new BytesRef(randomAlphaOfLength(16) + middle + randomAlphaOfLength(16));

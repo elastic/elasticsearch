@@ -43,8 +43,8 @@ import java.lang.reflect.Modifier;
  *
  * <p><b>Drift is treated as a hard failure on purpose.</b> {@link AssertionError} is
  * deliberately chosen so that the spinner's outer {@code catch (RuntimeException)}
- * (which routes ordinary spin failures to the codegen Fallback) does <em>not</em>
- * catch it. A drifted emitter is unsafe territory — silently degrading to Fallback
+ * (which routes ordinary spin failures to the codegen Standard) does <em>not</em>
+ * catch it. A drifted emitter is unsafe territory — silently degrading to Standard
  * would mask the problem and leave the codebase one PR away from a real defect. The
  * error propagates out of {@code defineHiddenClass}, out of {@code computeIfAbsent},
  * up the call stack, aborts the query, and (via ES's standard uncaught-error handling)

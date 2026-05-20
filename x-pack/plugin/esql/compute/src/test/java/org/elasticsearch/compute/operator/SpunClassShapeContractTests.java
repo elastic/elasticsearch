@@ -26,7 +26,7 @@ import java.util.function.Consumer;
  * down to a narrow allowlist (load constant, super-ctor call, return — that's it). Future
  * drift cannot quietly widen what a spun class is allowed to do, and a drift hit at runtime
  * throws {@link AssertionError} on purpose so the spinner cannot silently degrade to the
- * codegen Fallback path.
+ * codegen Standard path.
  *
  * <p>Do not delete or relax an assertion to make this green. If your change is a legitimate
  * widening of the allowlist (for example a new value type that requires one additional

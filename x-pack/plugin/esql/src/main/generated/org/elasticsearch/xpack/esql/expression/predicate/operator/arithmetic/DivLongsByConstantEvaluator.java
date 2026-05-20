@@ -49,6 +49,10 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
 
   protected abstract long rhs();
 
+  protected String pathLabel() {
+    return "jit-folded";
+  }
+
   @Override
   public Block eval(Page page) {
     try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
@@ -100,7 +104,7 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
 
   @Override
   public String toString() {
-    return "DivLongsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]";
+    return "DivLongsByConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs() + "]" + " (" + pathLabel() + ")";
   }
 
   @Override
@@ -139,7 +143,7 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
           throw new IllegalStateException("failed to construct JIT-spun evaluator for DivLongsByConstantEvaluator", e);
         }
       }
-      return new Fallback(source, lhs.get(context), this.rhs, context);
+      return new Standard(source, lhs.get(context), this.rhs, context);
     }
 
     @Override
@@ -149,15 +153,15 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
   }
 
   /**
-   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
    * runs correctly. The Factory chooses between this and the spun subclass.
    */
-  public static final class Fallback extends DivLongsByConstantEvaluator {
+  public static final class Standard extends DivLongsByConstantEvaluator {
     private final long rhs;
 
-    public Fallback(Source source, ExpressionEvaluator lhs, long rhs, DriverContext driverContext) {
+    public Standard(Source source, ExpressionEvaluator lhs, long rhs, DriverContext driverContext) {
       super(source, lhs, driverContext);
       this.rhs = rhs;
     }
@@ -165,6 +169,11 @@ public abstract class DivLongsByConstantEvaluator implements ExpressionEvaluator
     @Override
     protected final long rhs() {
       return rhs;
+    }
+
+    @Override
+    protected final String pathLabel() {
+      return "standard";
     }
   }
 }

@@ -50,6 +50,10 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
   protected abstract JsonPath path();
 
+  protected String pathLabel() {
+    return "jit-folded";
+  }
+
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
@@ -113,7 +117,7 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path() + "]";
+    return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path() + "]" + " (" + pathLabel() + ")";
   }
 
   @Override
@@ -152,7 +156,7 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
           throw new IllegalStateException("failed to construct JIT-spun evaluator for JsonExtractConstantEvaluator", e);
         }
       }
-      return new Fallback(source, str.get(context), this.path, context);
+      return new Standard(source, str.get(context), this.path, context);
     }
 
     @Override
@@ -162,15 +166,15 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
   }
 
   /**
-   * Concrete fallback used when {@link JitConstantSpinner} returns {@code Optional.empty()}
+   * Concrete non-spun subclass used when {@link JitConstantSpinner} returns {@code Optional.empty()}
    * (admission filter rejected the spin). The constant lives in a regular
    * instance field — no JIT-time constant folding, but the per-row work
    * runs correctly. The Factory chooses between this and the spun subclass.
    */
-  public static final class Fallback extends JsonExtractConstantEvaluator {
+  public static final class Standard extends JsonExtractConstantEvaluator {
     private final JsonPath path;
 
-    public Fallback(Source source, ExpressionEvaluator str, JsonPath path,
+    public Standard(Source source, ExpressionEvaluator str, JsonPath path,
         DriverContext driverContext) {
       super(source, str, driverContext);
       this.path = path;
@@ -179,6 +183,11 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
     @Override
     protected final JsonPath path() {
       return path;
+    }
+
+    @Override
+    protected final String pathLabel() {
+      return "standard";
     }
   }
 }

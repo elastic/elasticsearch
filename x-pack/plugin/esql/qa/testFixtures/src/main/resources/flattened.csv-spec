@@ -522,3 +522,54 @@ FROM flattened_otel_logs
 v:flattened
 "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;
+
+mvContains
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+
+FROM flattened_mv_contains
+| EVAL c = MV_CONTAINS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_mv_contains
+| EVAL c = MV_CONTAINS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+
+FROM flattened_mv_contains
+| WHERE id == 4
+| EVAL superset_null = MV_CONTAINS(flat_a, flat_c), subset_null = MV_CONTAINS(flat_c, flat_a)
+| KEEP id, superset_null, subset_null
+;
+
+id:integer | superset_null:boolean | subset_null:boolean
+4          | false                 | true
+;

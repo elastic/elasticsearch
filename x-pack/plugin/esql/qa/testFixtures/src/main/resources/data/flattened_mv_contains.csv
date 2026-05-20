@@ -1,0 +1,6 @@
+id:integer,flat_a:json,flat_b:json,flat_c:json
+1,{"k": "v1"},{"k": "v2"},{"k": "v1"}
+2,{"k": "v1"},{"k": "v2"},{"k": "v2"}
+3,{"k": "v1"},{"k": "v2"},{"k": "v3"}
+4,,{"k": "v2"},{"k": "v2"}
+5,{"k": "same"},{"k": "same"},{"k": "same"}

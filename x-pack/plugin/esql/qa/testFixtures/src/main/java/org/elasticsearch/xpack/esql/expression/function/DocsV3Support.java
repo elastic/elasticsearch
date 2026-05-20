@@ -814,7 +814,7 @@ public abstract class DocsV3Support {
                 snippet.append(
                     String.format(
                         Locale.ROOT,
-                        ":::{image} ../../../images/%s/%s.svg%n:alt: %s%n:class: text-center%n:::%n%n",
+                        ":::{image} ../../../../../images/generated/x-pack-esql/%s/%s.svg%n:alt: %s%n:class: text-center%n:::%n%n",
                         category,
                         fileName,
                         diagram.title()

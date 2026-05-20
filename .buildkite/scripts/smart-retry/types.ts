@@ -62,11 +62,7 @@ export interface SmartRetryResult {
 
 /** Injectable I/O operations so tests can replace them. */
 export interface SmartRetryDeps {
-  fetchBuildJson: (
-    apiToken: string,
-    pipelineSlug: string,
-    buildNumber: string
-  ) => Promise<BuildkiteBuildJson | null>;
+  fetchBuildJson: (apiToken: string, pipelineSlug: string, buildNumber: string) => Promise<BuildkiteBuildJson | null>;
   downloadArtifact: (originJobId: string) => Promise<MultiRunTaskStatus | null>;
 }
 

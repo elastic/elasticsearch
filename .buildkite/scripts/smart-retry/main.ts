@@ -1,5 +1,8 @@
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+
 import { runSmartRetry, normalizeTaskStatus } from "./smart-retry.ts";
-import type { SmartRetryEnv, SmartRetryDeps, BuildkiteBuildJson, MultiRunTaskStatus } from "./types.ts";
+import type { SmartRetryEnv, SmartRetryDeps, BuildkiteBuildJson } from "./types.ts";
 
 const env: SmartRetryEnv = {
   buildkiteApiToken: process.env.BUILDKITE_API_TOKEN ?? "",
@@ -29,35 +32,22 @@ const deps: SmartRetryDeps = {
 
   downloadArtifact: async (originJobId) => {
     try {
-      const dl = Bun.spawnSync([
-        "buildkite-agent",
-        "artifact",
-        "download",
-        "task-status.json.gz",
-        ".",
-        "--step",
-        originJobId,
-      ]);
-      if (dl.exitCode !== 0) return null;
+      execFileSync("buildkite-agent", ["artifact", "download", "task-status.json.gz", ".", "--step", originJobId]);
 
-      const gz = Bun.spawnSync(["gunzip", "-f", "task-status.json.gz"]);
-      if (gz.exitCode !== 0) return null;
+      execFileSync("gunzip", ["-f", "task-status.json.gz"]);
 
-      const text = await Bun.file("task-status.json").text();
+      const text = readFileSync("task-status.json", "utf-8");
       const raw = JSON.parse(text);
       const multi = normalizeTaskStatus(raw);
 
-      // Persist the raw artifact so post-command can merge the current run into it
-      const { mkdirSync } = await import("node:fs");
       mkdirSync("build", { recursive: true });
-      await Bun.write(PREVIOUS_TASK_STATUS_PATH, JSON.stringify(multi, null, 2));
+      writeFileSync(PREVIOUS_TASK_STATUS_PATH, JSON.stringify(multi, null, 2));
 
       return multi;
     } catch {
       return null;
     } finally {
       try {
-        const { unlinkSync } = await import("node:fs");
         unlinkSync("task-status.json.gz");
         unlinkSync("task-status.json");
       } catch {
@@ -73,20 +63,19 @@ const result = await runSmartRetry(env, deps);
 
 if (result.failedTestHistory) {
   const json = JSON.stringify(result.failedTestHistory, null, 2);
-  await Bun.write(".failed-test-history.json", json);
-  const { chmodSync } = await import("node:fs");
+  writeFileSync(".failed-test-history.json", json);
   chmodSync(".failed-test-history.json", 0o600);
 }
 
 if (result.annotation) {
   const jobId = env.buildkiteJobId;
-  Bun.spawnSync(["buildkite-agent", "annotate", "--style", "info", "--context", `smart-retry-${jobId}`], {
-    stdin: new TextEncoder().encode(result.annotation),
+  execFileSync("buildkite-agent", ["annotate", "--style", "info", "--context", `smart-retry-${jobId}`], {
+    input: result.annotation,
   });
 }
 
 for (const [key, value] of Object.entries(result.metadata)) {
-  Bun.spawnSync(["buildkite-agent", "meta-data", "set", key, value]);
+  execFileSync("buildkite-agent", ["meta-data", "set", key, value]);
 }
 
 if (result.status === "enabled") {

@@ -31,7 +31,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
 
     public void testLongColumnNoNulls() {
         long[] values = { 10L, 20L, 30L, 40L };
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 4, true, false, null);
+        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 4, true, false, null, true);
         try {
             assertEquals(4, block.getPositionCount());
             LongBlock lb = (LongBlock) block;
@@ -50,7 +50,15 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testLongColumnWithNulls() {
         long[] values = { 10L, 0L, 30L, 0L };
         boolean[] isNull = { false, true, false, true };
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 4, false, false, isNull);
+        Block block = ColumnBlockConversions.longColumn(
+            blockFactory,
+            values,
+            4,
+            false,
+            false,
+            ColumnBlockConversions.toBitSet(isNull, 4),
+            true
+        );
         try {
             assertEquals(4, block.getPositionCount());
             LongBlock lb = (LongBlock) block;
@@ -67,7 +75,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
 
     public void testLongColumnRepeating() {
         long[] values = { 42L };
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 5, true, true, null);
+        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 5, true, true, null, true);
         try {
             assertEquals(5, block.getPositionCount());
             LongBlock lb = (LongBlock) block;
@@ -82,7 +90,15 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testLongColumnRepeatingNull() {
         long[] values = { 0L };
         boolean[] isNull = { true };
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 3, false, true, isNull);
+        Block block = ColumnBlockConversions.longColumn(
+            blockFactory,
+            values,
+            3,
+            false,
+            true,
+            ColumnBlockConversions.toBitSet(isNull, 1),
+            true
+        );
         try {
             assertEquals(3, block.getPositionCount());
             for (int i = 0; i < 3; i++) {
@@ -95,7 +111,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
 
     public void testLongColumnCopiesArray() {
         long[] values = { 1L, 2L, 3L };
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 3, true, false, null);
+        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 3, true, false, null, true);
         try {
             values[0] = 999L;
             LongBlock lb = (LongBlock) block;
@@ -124,7 +140,14 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testIntColumnWithNulls() {
         long[] values = { 100L, 0L, 300L };
         boolean[] isNull = { false, true, false };
-        Block block = ColumnBlockConversions.intColumnFromLongs(blockFactory, values, 3, false, false, isNull);
+        Block block = ColumnBlockConversions.intColumnFromLongs(
+            blockFactory,
+            values,
+            3,
+            false,
+            false,
+            ColumnBlockConversions.toBitSet(isNull, 3)
+        );
         try {
             assertEquals(3, block.getPositionCount());
             IntBlock ib = (IntBlock) block;
@@ -155,7 +178,14 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testIntColumnRepeatingNull() {
         long[] values = { 0L };
         boolean[] isNull = { true };
-        Block block = ColumnBlockConversions.intColumnFromLongs(blockFactory, values, 3, false, true, isNull);
+        Block block = ColumnBlockConversions.intColumnFromLongs(
+            blockFactory,
+            values,
+            3,
+            false,
+            true,
+            ColumnBlockConversions.toBitSet(isNull, 1)
+        );
         try {
             assertEquals(3, block.getPositionCount());
             for (int i = 0; i < 3; i++) {
@@ -199,7 +229,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
 
     public void testDoubleColumnNoNulls() {
         double[] values = { 1.5, 2.5, 3.5 };
-        Block block = ColumnBlockConversions.doubleColumn(blockFactory, values, 3, true, false, null);
+        Block block = ColumnBlockConversions.doubleColumn(blockFactory, values, 3, true, false, null, true);
         try {
             assertEquals(3, block.getPositionCount());
             DoubleBlock db = (DoubleBlock) block;
@@ -214,7 +244,15 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testDoubleColumnWithNulls() {
         double[] values = { 1.0, 0.0, 3.0 };
         boolean[] isNull = { false, true, false };
-        Block block = ColumnBlockConversions.doubleColumn(blockFactory, values, 3, false, false, isNull);
+        Block block = ColumnBlockConversions.doubleColumn(
+            blockFactory,
+            values,
+            3,
+            false,
+            false,
+            ColumnBlockConversions.toBitSet(isNull, 3),
+            true
+        );
         try {
             DoubleBlock db = (DoubleBlock) block;
             assertFalse(block.isNull(0));
@@ -229,7 +267,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
 
     public void testDoubleColumnRepeating() {
         double[] values = { 3.14 };
-        Block block = ColumnBlockConversions.doubleColumn(blockFactory, values, 3, true, true, null);
+        Block block = ColumnBlockConversions.doubleColumn(blockFactory, values, 3, true, true, null, true);
         try {
             DoubleBlock db = (DoubleBlock) block;
             for (int i = 0; i < 3; i++) {
@@ -242,7 +280,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
 
     public void testDoubleColumnCopiesArray() {
         double[] values = { 1.0, 2.0 };
-        Block block = ColumnBlockConversions.doubleColumn(blockFactory, values, 2, true, false, null);
+        Block block = ColumnBlockConversions.doubleColumn(blockFactory, values, 2, true, false, null, true);
         try {
             values[0] = 999.0;
             DoubleBlock db = (DoubleBlock) block;
@@ -272,7 +310,14 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testBooleanColumnWithNulls() {
         long[] values = { 1L, 0L, 0L };
         boolean[] isNull = { false, true, false };
-        Block block = ColumnBlockConversions.booleanColumnFromLongs(blockFactory, values, 3, false, false, isNull);
+        Block block = ColumnBlockConversions.booleanColumnFromLongs(
+            blockFactory,
+            values,
+            3,
+            false,
+            false,
+            ColumnBlockConversions.toBitSet(isNull, 3)
+        );
         try {
             BooleanBlock bb = (BooleanBlock) block;
             assertFalse(block.isNull(0));
@@ -301,7 +346,14 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testBooleanColumnRepeatingNull() {
         long[] values = { 0L };
         boolean[] isNull = { true };
-        Block block = ColumnBlockConversions.booleanColumnFromLongs(blockFactory, values, 3, false, true, isNull);
+        Block block = ColumnBlockConversions.booleanColumnFromLongs(
+            blockFactory,
+            values,
+            3,
+            false,
+            true,
+            ColumnBlockConversions.toBitSet(isNull, 1)
+        );
         try {
             assertEquals(3, block.getPositionCount());
             for (int i = 0; i < 3; i++) {
@@ -361,7 +413,14 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testDoubleColumnFromLongsWithNulls() {
         long[] values = { 10L, 0L, 30L };
         boolean[] isNull = { false, true, false };
-        Block block = ColumnBlockConversions.doubleColumnFromLongs(blockFactory, values, 3, false, false, isNull);
+        Block block = ColumnBlockConversions.doubleColumnFromLongs(
+            blockFactory,
+            values,
+            3,
+            false,
+            false,
+            ColumnBlockConversions.toBitSet(isNull, 3)
+        );
         try {
             DoubleBlock db = (DoubleBlock) block;
             assertFalse(block.isNull(0));
@@ -390,7 +449,14 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testDoubleColumnFromLongsRepeatingNull() {
         long[] values = { 0L };
         boolean[] isNull = { true };
-        Block block = ColumnBlockConversions.doubleColumnFromLongs(blockFactory, values, 3, false, true, isNull);
+        Block block = ColumnBlockConversions.doubleColumnFromLongs(
+            blockFactory,
+            values,
+            3,
+            false,
+            true,
+            ColumnBlockConversions.toBitSet(isNull, 1)
+        );
         try {
             assertEquals(3, block.getPositionCount());
             for (int i = 0; i < 3; i++) {
@@ -434,7 +500,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
 
     public void testSingleRow() {
         long[] values = { 99L };
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 1, true, false, null);
+        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 1, true, false, null, true);
         try {
             assertEquals(1, block.getPositionCount());
             LongBlock lb = (LongBlock) block;
@@ -447,7 +513,15 @@ public class ColumnBlockConversionsTests extends ESTestCase {
     public void testAllNulls() {
         long[] values = { 0L, 0L, 0L };
         boolean[] isNull = { true, true, true };
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 3, false, false, isNull);
+        Block block = ColumnBlockConversions.longColumn(
+            blockFactory,
+            values,
+            3,
+            false,
+            false,
+            ColumnBlockConversions.toBitSet(isNull, 3),
+            true
+        );
         try {
             assertEquals(3, block.getPositionCount());
             for (int i = 0; i < 3; i++) {
@@ -463,7 +537,7 @@ public class ColumnBlockConversionsTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             values[i] = i;
         }
-        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 10, true, false, null);
+        Block block = ColumnBlockConversions.longColumn(blockFactory, values, 10, true, false, null, true);
         try {
             assertEquals(10, block.getPositionCount());
             LongBlock lb = (LongBlock) block;

@@ -78,7 +78,11 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         List<String> testsToExclude = testsBuildServiceProvider.get().getSuccessfulTestsForTask(test.getPath());
         if (testsToExclude.isEmpty() == false) {
             test.getLogger()
-                .lifecycle("Smart retry: excluding {} successful tests from {} (rerunning failures)", testsToExclude.size(), test.getPath());
+                .lifecycle(
+                    "Smart retry: excluding {} successful tests from {} (rerunning failures)",
+                    testsToExclude.size(),
+                    test.getPath()
+                );
             test.filter(filter -> {
                 for (String testRef : testsToExclude) {
                     int hashIdx = testRef.indexOf('#');
@@ -92,8 +96,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
                 }
             });
         } else {
-            test.getLogger()
-                .lifecycle("Smart retry: running all tests for {} (not confirmed successful in previous run)", test.getPath());
+            test.getLogger().lifecycle("Smart retry: running all tests for {} (not confirmed successful in previous run)", test.getPath());
         }
     }
 

@@ -26,11 +26,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Unit tests for {@link AbstractAsyncBulkByScrollAction#remapSearchFailures} and
- * {@link AbstractAsyncBulkByScrollAction#maybeWrapCatastrophicFailure}: how PIT keep-alive
+ * Unit tests for {@link AbstractAsyncBulkByPaginatedSearchAction#remapSearchFailures} and
+ * {@link AbstractAsyncBulkByPaginatedSearchAction#maybeWrapCatastrophicFailure}: how PIT keep-alive
  * semantics map {@link SearchContextMissingException} to {@link RestStatus} for HTTP-style failure handling.
  */
-public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTestCase {
+public class AbstractAsyncBulkByPaginatedSearchActionPitKeepaliveHttpTests extends ESTestCase {
 
     /**
      * Scroll pagination keeps the original failure list and {@link RestStatus#NOT_FOUND} for
@@ -40,7 +40,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
         PaginatedSearchFailure paginatedSearchFailure = new PaginatedSearchFailure(missingContext());
         assertThat(paginatedSearchFailure.getStatus(), equalTo(RestStatus.NOT_FOUND));
         List<PaginatedSearchFailure> originalSearchFailures = singletonList(paginatedSearchFailure);
-        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByScrollAction.remapSearchFailures(
+        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByPaginatedSearchAction.remapSearchFailures(
             false,
             true,
             originalSearchFailures
@@ -56,7 +56,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
     public void testRemapSearchFailuresPitDeadlineNotPassedLeavesListUntouched() {
         PaginatedSearchFailure paginatedSearchFailure = new PaginatedSearchFailure(missingContext());
         List<PaginatedSearchFailure> originalSearchFailures = singletonList(paginatedSearchFailure);
-        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByScrollAction.remapSearchFailures(
+        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByPaginatedSearchAction.remapSearchFailures(
             true,
             false,
             originalSearchFailures
@@ -70,7 +70,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
      */
     public void testRemapSearchFailuresPitPastDeadlineThrowsInternalServerError() {
         PaginatedSearchFailure paginatedSearchFailure = new PaginatedSearchFailure(missingContext());
-        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByScrollAction.remapSearchFailures(
+        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByPaginatedSearchAction.remapSearchFailures(
             true,
             true,
             singletonList(paginatedSearchFailure)
@@ -87,7 +87,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
     public void testRemapSearchFailuresPitPastDeadlineReturnsOriginalListForOtherFailures() {
         PaginatedSearchFailure paginatedSearchFailure = new PaginatedSearchFailure(new RuntimeException("other"));
         List<PaginatedSearchFailure> originalSearchFailures = singletonList(paginatedSearchFailure);
-        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByScrollAction.remapSearchFailures(
+        List<PaginatedSearchFailure> remappedSearchFailures = AbstractAsyncBulkByPaginatedSearchAction.remapSearchFailures(
             true,
             true,
             originalSearchFailures
@@ -97,7 +97,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
 
     /** A null catastrophic failure stays null regardless of PIT and deadline flags. */
     public void testMaybeWrapCatastrophicFailureReturnsNullForNullFailure() {
-        assertNull(AbstractAsyncBulkByScrollAction.maybeWrapCatastrophicFailure(true, true, null));
+        assertNull(AbstractAsyncBulkByPaginatedSearchAction.maybeWrapCatastrophicFailure(true, true, null));
     }
 
     /**
@@ -105,7 +105,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
      */
     public void testMaybeWrapCatastrophicFailureScrollPastDeadlinePreservesOriginalException() {
         Exception originalFailure = missingContext();
-        Exception maybeWrappedFailure = AbstractAsyncBulkByScrollAction.maybeWrapCatastrophicFailure(false, true, originalFailure);
+        Exception maybeWrappedFailure = AbstractAsyncBulkByPaginatedSearchAction.maybeWrapCatastrophicFailure(false, true, originalFailure);
         assertThat(maybeWrappedFailure, sameInstance(originalFailure));
     }
 
@@ -114,7 +114,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
      */
     public void testMaybeWrapCatastrophicFailurePitDeadlineNotPastPreservesOriginalException() {
         Exception originalFailure = missingContext();
-        Exception maybeWrappedFailure = AbstractAsyncBulkByScrollAction.maybeWrapCatastrophicFailure(true, false, originalFailure);
+        Exception maybeWrappedFailure = AbstractAsyncBulkByPaginatedSearchAction.maybeWrapCatastrophicFailure(true, false, originalFailure);
         assertThat(maybeWrappedFailure, sameInstance(originalFailure));
     }
 
@@ -124,7 +124,7 @@ public class AbstractAsyncBulkByScrollActionPitKeepaliveHttpTests extends ESTest
      */
     public void testMaybeWrapCatastrophicFailurePitPastDeadlineWrapsSearchContextMissing() {
         Exception originalFailure = missingContext();
-        Exception maybeWrappedFailure = AbstractAsyncBulkByScrollAction.maybeWrapCatastrophicFailure(true, true, originalFailure);
+        Exception maybeWrappedFailure = AbstractAsyncBulkByPaginatedSearchAction.maybeWrapCatastrophicFailure(true, true, originalFailure);
         assertThat(maybeWrappedFailure, instanceOf(ElasticsearchStatusException.class));
         ElasticsearchStatusException elasticsearchStatusException = (ElasticsearchStatusException) maybeWrappedFailure;
         assertThat(elasticsearchStatusException.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));

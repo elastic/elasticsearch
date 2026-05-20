@@ -91,7 +91,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
  * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
-public abstract class AbstractAsyncBulkByScrollAction<
+public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Action extends TransportAction<Request, ?>> {
 
@@ -171,7 +171,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
 
-    AbstractAsyncBulkByScrollAction(
+    AbstractAsyncBulkByPaginatedSearchAction(
         BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
@@ -215,7 +215,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         );
     }
 
-    AbstractAsyncBulkByScrollAction(
+    AbstractAsyncBulkByPaginatedSearchAction(
         BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
@@ -1307,7 +1307,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * are read while another thread updates this field. {@link #consumeHits} uses a non-atomic
          * read-then-add on this value; {@code volatile} does not make that sequence atomic—callers rely
          * on at most one thread executing {@code consumeHits} per response, coordinated by
-         * {@link AbstractAsyncBulkByScrollAction#currentScrollResponse} CAS, not on this field alone.
+         * {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse} CAS, not on this field alone.
          */
         private volatile int consumedOffset = 0;
         private final Releasable releaseRemainingHitsOnce;

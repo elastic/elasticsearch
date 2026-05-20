@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -193,12 +194,17 @@ public class ExternalSourceResolver {
             object = provider.newObject(storagePath);
         }
 
+        // Capture the raw file schema before enriching with virtual columns: schemaMap describes
+        // the physical schema each reader actually sees, not the user-facing projection.
+        List<Attribute> fileSchema = extMetadata.schema();
+        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
+
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
         // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, extMetadata.schema());
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -339,7 +345,7 @@ public class ExternalSourceResolver {
             }
         }
 
-        // Capture pre-enrichment schema: partition columns are injected by VirtualColumnInjector
+        // Capture pre-enrichment schema: partition columns are added by VirtualColumnIterator
         // at read time, so per-file readSchema must NOT include them.
         List<Attribute> dataOnlySchema = extMetadata.schema();
 
@@ -347,6 +353,8 @@ public class ExternalSourceResolver {
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
+
+        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
 
         // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
@@ -495,6 +503,8 @@ public class ExternalSourceResolver {
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
+
+        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
@@ -758,6 +768,40 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Returns a wrapper that delegates everything to {@code metadata} except {@code schema()},
+     * which is replaced by the provided schema. Used by the schema-enrichment helpers so each
+     * caller doesn't have to spell out a fresh anonymous {@link ExternalSourceMetadata}.
+     */
+    private static ExternalSourceMetadata withSchema(ExternalSourceMetadata metadata, List<Attribute> newSchema) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return newSchema;
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
+    }
+
+    /**
      * Returns a wrapper that delegates everything to {@code metadata} except {@code sourceMetadata()},
      * which is enriched with the given extra entries.
      */
@@ -824,34 +868,29 @@ public class ExternalSourceResolver {
             enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
         }
 
-        List<Attribute> finalSchema = List.copyOf(enrichedSchema);
+        return withSchema(metadata, List.copyOf(enrichedSchema));
+    }
 
-        return new ExternalSourceMetadata() {
-            @Override
-            public String location() {
-                return metadata.location();
-            }
+    static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
+        List<Attribute> originalSchema = metadata.schema();
+        Set<String> existingNames = new LinkedHashSet<>();
+        for (Attribute attr : originalSchema) {
+            existingNames.add(attr.name());
+        }
 
-            @Override
-            public List<Attribute> schema() {
-                return finalSchema;
+        List<Attribute> enrichedSchema = new ArrayList<>(originalSchema);
+        for (Map.Entry<String, DataType> entry : FileMetadataColumns.COLUMNS.entrySet()) {
+            String name = entry.getKey();
+            if (existingNames.contains(name) == false) {
+                enrichedSchema.add(new ExternalMetadataAttribute(Source.EMPTY, name, entry.getValue()));
             }
+        }
 
-            @Override
-            public String sourceType() {
-                return metadata.sourceType();
-            }
+        if (enrichedSchema.size() == originalSchema.size()) {
+            return metadata;
+        }
 
-            @Override
-            public Map<String, Object> sourceMetadata() {
-                return metadata.sourceMetadata();
-            }
-
-            @Override
-            public Map<String, Object> config() {
-                return metadata.config();
-            }
-        };
+        return withSchema(metadata, List.copyOf(enrichedSchema));
     }
 
     /**

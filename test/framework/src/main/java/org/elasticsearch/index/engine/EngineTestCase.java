@@ -1352,7 +1352,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static MapperService createMapperService() throws IOException {
-        return createMapperService(Settings.EMPTY, "{}", List.of());
+        return createMapperService(Settings.EMPTY, "{}");
     }
 
     public static MapperService createMapperService(Settings settings, String mappings) throws IOException {

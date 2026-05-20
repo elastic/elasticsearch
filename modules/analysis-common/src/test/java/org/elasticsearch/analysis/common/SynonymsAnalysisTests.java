@@ -17,7 +17,6 @@ import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;

@@ -6,8 +6,10 @@
 # Writes: .failed-test-history.json, buildkite-agent metadata and annotations
 if ! command -v pnpm > /dev/null; then
   cd .buildkite
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
+  \. "$HOME/.nvm/nvm.sh"
   nvm install
-  npm install -g pnpm
+  corepack enable pnpm
   pnpm install
   cd -
 fi

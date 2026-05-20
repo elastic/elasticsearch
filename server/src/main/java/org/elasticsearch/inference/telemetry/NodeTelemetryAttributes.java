@@ -16,6 +16,8 @@ import org.elasticsearch.telemetry.metric.MetricAttributes;
 
 import java.util.Map;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.ES_PLUGIN_NAME_VALUE;
+
 /**
  * A snapshot of node-level attributes included as constants on every inference metric.
  * These are node-scoped rather than cluster-scoped: during a rolling upgrade, different
@@ -44,7 +46,9 @@ public record NodeTelemetryAttributes(String stackVersion, boolean isProductionR
             MetricAttributes.ES_PRODUCTION_RELEASE,
             isProductionRelease,
             MetricAttributes.ES_DEPLOYMENT_TYPE,
-            deploymentType
+            deploymentType,
+            MetricAttributes.ES_PLUGIN_NAME,
+            ES_PLUGIN_NAME_VALUE
         );
     }
 }

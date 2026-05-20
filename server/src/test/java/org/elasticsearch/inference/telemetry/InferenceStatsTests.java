@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.ES_PLUGIN_NAME_VALUE;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEPLOYMENT_DURATION;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
 import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_DURATION;
@@ -37,6 +38,7 @@ import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATT
 import static org.elasticsearch.inference.telemetry.InferenceStats.create;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_DEPLOYMENT_TYPE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PLUGIN_NAME;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCTION_RELEASE;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCT_ORIGIN;
 import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_STACK_VERSION;
@@ -141,7 +143,9 @@ public class InferenceStatsTests extends ESTestCase {
                 ES_PRODUCTION_RELEASE,
                 TEST_IS_PRODUCTION_RELEASE,
                 ES_DEPLOYMENT_TYPE,
-                TEST_DEPLOYMENT_TYPE
+                TEST_DEPLOYMENT_TYPE,
+                ES_PLUGIN_NAME,
+                ES_PLUGIN_NAME_VALUE
             )
         );
 
@@ -162,7 +166,9 @@ public class InferenceStatsTests extends ESTestCase {
                     ES_DEPLOYMENT_TYPE,
                     TEST_DEPLOYMENT_TYPE,
                     STATUS_CODE_ATTRIBUTE,
-                    200
+                    200,
+                    ES_PLUGIN_NAME,
+                    ES_PLUGIN_NAME_VALUE
                 )
             )
         );
@@ -361,7 +367,14 @@ public class InferenceStatsTests extends ESTestCase {
             mock(),
             longHistogram,
             mock(),
-            Map.of(ES_STACK_VERSION, TEST_STACK_VERSION, ES_PRODUCTION_RELEASE, TEST_IS_PRODUCTION_RELEASE)
+            Map.of(
+                ES_STACK_VERSION,
+                TEST_STACK_VERSION,
+                ES_PRODUCTION_RELEASE,
+                TEST_IS_PRODUCTION_RELEASE,
+                ES_PLUGIN_NAME,
+                ES_PLUGIN_NAME_VALUE
+            )
         );
 
         stats.inferenceDuration().withModel(model(TEST_SERVICE, TaskType.ANY)).withSuccess().record(expectedDuration);
@@ -379,7 +392,9 @@ public class InferenceStatsTests extends ESTestCase {
                     ES_PRODUCTION_RELEASE,
                     TEST_IS_PRODUCTION_RELEASE,
                     STATUS_CODE_ATTRIBUTE,
-                    200
+                    200,
+                    ES_PLUGIN_NAME,
+                    ES_PLUGIN_NAME_VALUE
                 )
             )
         );

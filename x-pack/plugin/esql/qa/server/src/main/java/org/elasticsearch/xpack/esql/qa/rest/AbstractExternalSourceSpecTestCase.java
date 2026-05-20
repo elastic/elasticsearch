@@ -293,8 +293,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
-        if (query.contains(MULTIFILE_SUFFIX)) {
-            // HTTP does not support directory listing, so skip multi-file glob tests
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+            // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
 
@@ -432,6 +432,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String MULTIFILE_SUFFIX = "_multifile";
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
+    /**
+     * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
+     * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
+     * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
+     * warning; under STRICT it still throws.
+     */
+    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
+    private static final String HIVE_SUFFIX = "_hive";
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
@@ -441,12 +450,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
+        if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
+            relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SUFFIX)) {
+            // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
+            // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
+            // parses the directory names independently)
+            relativePath = "hive-partitioned/**/*." + format;
         } else {
             // Single-file template: employees -> standalone/employees.parquet
             String filename = templateName + "." + format;
@@ -465,8 +481,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             case LOCAL:
                 // Local path: file:///absolute/path/to/iceberg-fixtures/standalone/employees.parquet
                 if (localFixturesPath != null) {
-                    Path localFile = localFixturesPath.resolve(relativePath);
-                    return localFile.toUri().toString();
+                    return resolveLocalUri(localFixturesPath, relativePath);
                 } else {
                     // Fallback to S3 if local path not available
                     logger.warn("Local fixtures path not available, falling back to S3");
@@ -489,6 +504,51 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             default:
                 throw new IllegalArgumentException("Unknown storage backend: " + storageBackend);
         }
+    }
+
+    /**
+     * Build a {@code file://} URI for a relative path under {@code base}, tolerating glob
+     * characters like {@code *} that are illegal in filesystem path components on Windows.
+     * <p>
+     * {@link Path#resolve(String)} delegates to the filesystem provider, which on Windows
+     * (NTFS) rejects {@code *} because it is a reserved filename character. The downstream
+     * local file loader expands the glob itself, so the URI we produce here only needs to
+     * be a syntactically valid {@code file://} URI - we don't have to round-trip through
+     * {@link Path}. We split the relative path on the first glob meta-character, resolve
+     * the literal prefix via {@link Path#resolve(String)} (which is portable), and append
+     * the glob suffix to the resulting URI as-is. {@code *} is a valid URI sub-delim
+     * character per RFC 3986 and does not require percent-encoding.
+     */
+    static String resolveLocalUri(Path base, String relativePath) {
+        int globIdx = indexOfGlobMeta(relativePath);
+        if (globIdx < 0) {
+            return base.resolve(relativePath).toUri().toString();
+        }
+        // Find the last path separator before the glob meta-character so the literal portion
+        // we feed to Path.resolve() contains no glob characters.
+        int splitIdx = relativePath.lastIndexOf('/', globIdx);
+        if (splitIdx < 0) {
+            // Glob meta-character in the first path segment - resolve the base itself.
+            return appendGlobSuffix(base.toUri().toString(), relativePath);
+        }
+        String literalPrefix = relativePath.substring(0, splitIdx);
+        String globSuffix = relativePath.substring(splitIdx + 1);
+        Path literalParent = base.resolve(literalPrefix);
+        return appendGlobSuffix(literalParent.toUri().toString(), globSuffix);
+    }
+
+    private static int indexOfGlobMeta(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '*' || c == '?') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String appendGlobSuffix(String baseUri, String suffix) {
+        return baseUri.endsWith("/") ? baseUri + suffix : baseUri + "/" + suffix;
     }
 
     @Override

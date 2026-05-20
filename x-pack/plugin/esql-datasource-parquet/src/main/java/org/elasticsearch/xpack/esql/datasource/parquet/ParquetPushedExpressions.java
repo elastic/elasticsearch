@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,7 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -395,7 +396,12 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
             case LONG -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
-            case DOUBLE -> orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+            case DOUBLE -> {
+                if (isPhysicalDouble(schema, columnName)) {
+                    yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+                }
+                yield null;
+            }
             case KEYWORD -> orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op);
             case BOOLEAN -> {
                 var col = FilterApi.booleanColumn(columnName);
@@ -409,6 +415,17 @@ final class ParquetPushedExpressions {
             case DATETIME -> buildDatetimePredicate(columnName, value, op, schema);
             default -> null;
         };
+    }
+
+    /**
+     * Returns {@code true} when the file's physical primitive for {@code columnName} is
+     * {@link PrimitiveType.PrimitiveTypeName#DOUBLE}.
+     */
+    private static boolean isPhysicalDouble(MessageType schema, String columnName) {
+        if (schema.containsField(columnName) == false) {
+            return false;
+        }
+        return schema.getType(columnName).asPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE;
     }
 
     private static FilterPredicate buildDatetimePredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
@@ -492,7 +509,12 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
             case LONG -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
-            case DOUBLE -> inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+            case DOUBLE -> {
+                if (isPhysicalDouble(schema, columnName)) {
+                    yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+                }
+                yield null;
+            }
             case KEYWORD -> inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary);
             case BOOLEAN -> inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v);
             case DATETIME -> translateDatetimeIn(columnName, rawValues, schema);
@@ -1468,7 +1490,7 @@ final class ParquetPushedExpressions {
      */
     private static boolean[] matchingDictionaryEntries(BytesRefVector dictionary, Predicate<BytesRef> matcher) {
         int size = dictionary.getPositionCount();
-        boolean[] matches = new boolean[size];
+        boolean[] matches = UninitializedArrays.newBooleanArray(size);
         BytesRef scratch = new BytesRef();
         for (int i = 0; i < size; i++) {
             matches[i] = matcher.test(dictionary.getBytesRef(i, scratch));

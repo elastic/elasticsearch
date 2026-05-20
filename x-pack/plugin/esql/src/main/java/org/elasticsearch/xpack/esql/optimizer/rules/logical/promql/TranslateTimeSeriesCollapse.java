@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
+import static org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse.isZeroLimit;
+
 /**
  * Populates a {@link TimeSeriesCollapse} that wraps a {@link PromqlCommand} with the dimensions and
  * bounds extracted from the inner PromqlCommand. The PromqlCommand itself stays in place as the
@@ -34,6 +36,10 @@ public final class TranslateTimeSeriesCollapse extends OptimizerRules.Parameteri
 
     @Override
     protected LogicalPlan rule(TimeSeriesCollapse collapse, LogicalOptimizerContext context) {
+        // Missing Prometheus indices have already been lowered to an empty child by analysis.
+        if (isZeroLimit(collapse.child())) {
+            return collapse.child();
+        }
         if (collapse.child() instanceof PromqlCommand pc) {
             // pc.promqlPlan().output() is the dimension list by construction: PromqlCommand.output() is
             // [value, step] ++ promqlPlan.output(). ResolvePromqlFunctions has reshaped promqlPlan during

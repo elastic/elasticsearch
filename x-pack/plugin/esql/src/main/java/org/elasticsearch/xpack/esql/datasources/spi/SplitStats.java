@@ -39,8 +39,23 @@ public interface SplitStats {
     }
 
     /**
-     * Number of null values in the named column, or {@code -1} if unknown or the
-     * column is not present in this split's statistics.
+     * Number of null values in the named column under the "implicit nulls" contract:
+     * a column that is physically absent from this split contributes {@code rowCount()}
+     * implicit nulls (every row would deserialize as {@code null}). Returns {@code -1}
+     * only when the column is physically present in the split but the reader could not
+     * extract a null count (the rare Parquet present-but-stats-less case; ORC always emits one).
+     * <p>
+     * This contract makes {@code Count(col) = rowCount - columnNullCount} correct for
+     * UNION_BY_NAME pushdown across files where some files lack the column, and lets
+     * {@code IS NULL}/{@code IS NOT NULL} classifiers treat absent-column splits as
+     * unconditionally null without needing a separate "column present?" probe.
+     * <p>
+     * <b>Producer contract:</b> implementations must mark a column as physically present
+     * by carrying at least one column-family stat (e.g. {@code size_bytes}, a min/max value,
+     * or a null count). Both Parquet and ORC readers satisfy this — Parquet always emits
+     * {@code size_bytes} and ORC always emits {@code null_count}. Producers that build
+     * stats by hand must follow the same rule, otherwise this method will silently report
+     * a present column as absent and inflate the implicit-null contribution.
      */
     long columnNullCount(String name);
 

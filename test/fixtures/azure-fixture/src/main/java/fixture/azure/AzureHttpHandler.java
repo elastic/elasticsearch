@@ -58,6 +58,15 @@ public class AzureHttpHandler implements HttpHandler {
     static final String X_MS_LEASE_ID = "x-ms-lease-id";
     static final String X_MS_PROPOSED_LEASE_ID = "x-ms-proposed-lease-id";
     static final String X_MS_LEASE_DURATION = "x-ms-lease-duration";
+
+    /**
+     * Default {@code Last-Modified} value (RFC 1123) reported under {@code <Properties>} in the
+     * blob listing XML. Real Azure returns the wall-clock time the blob was last modified;
+     * consumers such as {@code _file.modified} in ES|QL distinguish "unknown" (epoch / null)
+     * from "known" mtime, so the default is a fixed, non-epoch timestamp. Keep this stable
+     * across releases.
+     */
+    static final String DEFAULT_BLOB_LAST_MODIFIED = "Mon, 01 Jan 2024 00:00:00 GMT";
     static final String X_MS_LEASE_BREAK_PERIOD = "x-ms-lease-break-period";
     static final String X_MS_BLOB_TYPE = "x-ms-blob-type";
     static final String X_MS_BLOB_CONTENT_LENGTH = "x-ms-blob-content-length";
@@ -378,10 +387,11 @@ public class AzureHttpHandler implements HttpHandler {
                         <Blob>
                            <Name>%s</Name>
                            <Properties>
+                             <Last-Modified>%s</Last-Modified>
                              <Content-Length>%s</Content-Length>
                              <BlobType>BlockBlob</BlobType>
                            </Properties>
-                        </Blob>""", blobPath, blob.getValue().getContents().length()));
+                        </Blob>""", blobPath, DEFAULT_BLOB_LAST_MODIFIED, blob.getValue().getContents().length()));
                 }
                 if (blobPrefixes.isEmpty() == false) {
                     blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));

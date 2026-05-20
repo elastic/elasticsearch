@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -261,6 +262,22 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.CARTESIAN_SHAPE,
+                equalTo(result)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+            List<Object> field1 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+            List<Object> field2 = randomList(1, 10, () -> FlattenedCases.RANDOM.get());
+            var result = new ArrayList<>(field1);
+            result.addAll(field2);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                ),
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.FLATTENED,
                 equalTo(result)
             );
         }));

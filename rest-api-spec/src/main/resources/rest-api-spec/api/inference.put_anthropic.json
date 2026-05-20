@@ -26,7 +26,8 @@
               "type": "enum",
               "description": "The task type",
               "options": [
-                "completion"
+                "completion",
+                "chat_completion"
               ]
             },
             "anthropic_inference_id": {

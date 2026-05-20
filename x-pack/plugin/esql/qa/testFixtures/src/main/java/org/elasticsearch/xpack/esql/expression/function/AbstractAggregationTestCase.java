@@ -776,7 +776,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case CARTESIAN_SHAPE -> "CartesianShape";
             case GEO_POINT -> "GeoPoint";
             case GEO_SHAPE -> "GeoShape";
-            case KEYWORD, TEXT, VERSION, TSID_DATA_TYPE -> "BytesRef";
+            case KEYWORD, TEXT, VERSION, TSID_DATA_TYPE, FLATTENED -> "BytesRef";
             case DOUBLE, COUNTER_DOUBLE -> "Double";
             case INTEGER, COUNTER_INTEGER -> "Int";
             case IP -> "Ip";

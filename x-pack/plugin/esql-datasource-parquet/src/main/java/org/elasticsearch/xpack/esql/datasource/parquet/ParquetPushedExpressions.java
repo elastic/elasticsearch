@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,7 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -1489,7 +1490,7 @@ final class ParquetPushedExpressions {
      */
     private static boolean[] matchingDictionaryEntries(BytesRefVector dictionary, Predicate<BytesRef> matcher) {
         int size = dictionary.getPositionCount();
-        boolean[] matches = new boolean[size];
+        boolean[] matches = UninitializedArrays.newBooleanArray(size);
         BytesRef scratch = new BytesRef();
         for (int i = 0; i < size; i++) {
             matches[i] = matcher.test(dictionary.getBytesRef(i, scratch));

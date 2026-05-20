@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -170,6 +171,28 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         return true;
     }
 
+    /**
+     * Resolves the value of an ungrouped aggregate purely from split-level statistics.
+     * <p>
+     * For {@code COUNT(col)} we use {@code rowCount - columnNullCount(col)}. This relies on the
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} "implicit nulls" contract:
+     * {@code columnNullCount} already includes both explicit nulls in files that contain the
+     * column and rows in files that do not contain the column at all (those count as nulls
+     * because every row would deserialize as {@code null}). When the column is fully absent
+     * from a scope, {@code columnNullCount == rowCount}, so {@code COUNT(col) == 0} for that
+     * scope — exactly the right answer for UNION_BY_NAME mixes.
+     * <p>
+     * The only short-circuit is the rare "column present but stats unknown" case, where
+     * {@code columnNullCount} returns {@code -1} and we bail out so the engine falls back to a
+     * regular scan.
+     * <p>
+     * For {@code MIN}/{@code MAX} we read {@code columnMin}/{@code columnMax} verbatim. Under the
+     * SPI's "implicit nulls" contract, {@link org.elasticsearch.xpack.esql.datasources.MergedSplitStats}
+     * skips children whose null count equals their row count (absent column or all rows null) and
+     * only poisons on a genuine unknown ({@code columnNullCount &lt; 0}). Result of {@code null} therefore
+     * means either "no child contributed a candidate value" or "incompatible/unknown stats" — both are
+     * correct fall-back signals, the rule does not pushdown.
+     */
     private Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (aggFunction instanceof Count count) {
             if (count.hasFilter()) {
@@ -179,7 +202,9 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (target.foldable()) {
                 return stats.rowCount();
             }
-            if (target instanceof Attribute ref) {
+            // Virtual columns are not present in the split's column stats; refuse the pushdown
+            // here even if a format-level gate happens to let one through (defense in depth).
+            if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 long nc = stats.columnNullCount(ref.name());
                 if (nc >= 0) {
                     return stats.rowCount() - nc;
@@ -190,7 +215,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (min.hasFilter()) {
                 return null;
             }
-            if (min.field() instanceof Attribute ref) {
+            if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 return stats.columnMin(ref.name());
             }
             return null;
@@ -198,7 +223,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (max.hasFilter()) {
                 return null;
             }
-            if (max.field() instanceof Attribute ref) {
+            if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 return stats.columnMax(ref.name());
             }
             return null;

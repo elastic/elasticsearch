@@ -131,12 +131,11 @@ static inline void bf16_bulk_inner(
             sums[I] = _mm256_setzero_ps();
         });
 
-        // Inner step is 8 bf16 = 16 bytes (quarter cache line), so gate the spread
-        // on cache-line boundaries: fires every 4th iter (i = 0, 32, 64, ...).
         int i = 0;
         for (; i < (dims & ~(stride - 1)); i += stride) {
-            if (has_next && ((i * sizeof(bf16_t)) & (CACHE_LINE_SIZE - 1)) == 0) {
-                spread_prefetch<batches, 1>(next_vecs, i * sizeof(bf16_t), lines_to_fetch);
+            if (has_next) {
+                spread_prefetch_step<batches, 1, stride * sizeof(bf16_t)>(
+                    next_vecs, i * sizeof(bf16_t), lines_to_fetch);
             }
             __m256 bi = load_q(b, i);
             apply_indexed<batches>([&](auto I) {

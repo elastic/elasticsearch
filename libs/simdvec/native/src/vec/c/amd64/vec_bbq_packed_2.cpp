@@ -114,6 +114,8 @@ static inline void dotd2q4_packed_bulk_impl_avx512(
 ) {
     const __m512i mask_two_bits = _mm512_set1_epi8(0x03);
     constexpr int stride = sizeof(__m512i);
+    static_assert(stride == CACHE_LINE_SIZE,
+        "spread_prefetch_step<lines_per_iter=1> below assumes one full cache line per iter");
     const int blk = packed_len & ~(stride - 1);
     const int lines_to_fetch = packed_len / CACHE_LINE_SIZE + 1;
 
@@ -146,12 +148,10 @@ static inline void dotd2q4_packed_bulk_impl_avx512(
             acc_s3[I] = _mm512_setzero_si512();
         });
 
-        // Inner step is 64 bytes (one cache line), so the spread fires every
-        // iter with lines_per_iter=1.
         int i = 0;
         for (; i < blk; i += stride) {
             if (has_next) {
-                spread_prefetch<batches, 1>(next_doc_ptrs, i, lines_to_fetch);
+                spread_prefetch_step<batches, 1, stride>(next_doc_ptrs, i, lines_to_fetch);
             }
             __m512i query_s0 = _mm512_loadu_si512((const __m512i*)(query + i));
             __m512i query_s1 = _mm512_loadu_si512((const __m512i*)(query + i + packed_len));

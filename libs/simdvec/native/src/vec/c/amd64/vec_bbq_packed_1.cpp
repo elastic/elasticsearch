@@ -149,11 +149,9 @@ static inline void dotd2q4_packed_bulk_impl(
 
             const int end = std::min(i + chunk, blk);
 
-            // Inner step is 32 bytes (half a cache line), so gate the spread
-            // on cache-line boundaries to avoid re-prefetching the same line.
             for (; i < end; i += stride) {
-                if (has_next && (i & (CACHE_LINE_SIZE - 1)) == 0) {
-                    spread_prefetch<batches, 1>(next_doc_ptrs, i, lines_to_fetch);
+                if (has_next) {
+                    spread_prefetch_step<batches, 1, stride>(next_doc_ptrs, i, lines_to_fetch);
                 }
                 __m256i query_s0 = _mm256_loadu_si256((const __m256i*)(query + i));
                 __m256i query_s1 = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));

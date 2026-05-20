@@ -467,8 +467,8 @@ static inline void sqri8_bulk(
 
         int i = 0;
         for (; i + chunk <= blk; i += chunk) {
-            if (has_next && (i & (CACHE_LINE_SIZE - 1)) == 0) {
-                spread_prefetch<batches, 1>(next_vecs, i, lines_to_fetch);
+            if (has_next) {
+                spread_prefetch_step<batches, 1, chunk>(next_vecs, i, lines_to_fetch);
             }
             __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
             apply_indexed<batches>([&](auto I) {
@@ -628,12 +628,10 @@ static inline void cosi8_inner_bulk(
             a_norms[I] = _mm512_setzero_si512();
         });
 
-        // Inner step is 32 bytes (half a cache line), so gate the spread on
-        // cache-line boundaries to avoid re-prefetching the same line.
         int i = 0;
         for (; i < blk; i += sizeof(__m256i)) {
-            if (has_next && (i & (CACHE_LINE_SIZE - 1)) == 0) {
-                spread_prefetch<batches, 1>(next_vecs, i, lines_to_fetch);
+            if (has_next) {
+                spread_prefetch_step<batches, 1, sizeof(__m256i)>(next_vecs, i, lines_to_fetch);
             }
             const __m512i vb16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
 

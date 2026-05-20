@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -66,6 +68,8 @@ public class NdJsonPageDecoder implements Closeable {
      * its small-input fast paths.
      */
     private final byte[] sourceBytes;
+    /** Factory used to create (and recreate after recovery) the underlying {@link JsonParser}. */
+    private final JsonFactory jsonFactory;
     /**
      * Exclusive end of the readable region in {@link #sourceBytes}. The decoder may read bytes in
      * the half-open range {@code [parserSliceStart, sourceEnd)}; everything outside it must not
@@ -115,7 +119,19 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation
     ) throws IOException {
-        this(input, null, 0, 0, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation);
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            NdJsonUtils.JSON_FACTORY
+        );
     }
 
     /**
@@ -135,7 +151,36 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation
     ) throws IOException {
-        this(null, data, offset, length, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation);
+        this(
+            null,
+            data,
+            offset,
+            length,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            NdJsonUtils.JSON_FACTORY
+        );
+    }
+
+    /**
+     * Test-only: accepts an injected {@link JsonFactory} so tests can wrap the created parser in a
+     * delegate (e.g. to count token-advance calls) without reflection.
+     */
+    NdJsonPageDecoder(
+        InputStream input,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        JsonFactory factory
+    ) throws IOException {
+        this(input, null, 0, 0, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation, factory);
     }
 
     private NdJsonPageDecoder(
@@ -148,8 +193,10 @@ public class NdJsonPageDecoder implements Closeable {
         int batchSize,
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
-        String sourceLocation
+        String sourceLocation,
+        JsonFactory factory
     ) throws IOException {
+        this.jsonFactory = factory;
         this.input = input;
         this.sourceBytes = sourceBytes;
         if (sourceBytes != null) {
@@ -179,14 +226,17 @@ public class NdJsonPageDecoder implements Closeable {
         );
 
         List<Attribute> fullSchema = attributes;
-        // Three projection cases:
+        // Four projection cases:
         // - null : caller has no projection info (e.g. metadata path); materialize every attribute.
         // - empty : optimizer pruned every column (COUNT(*) and similar); produce row-count-only Pages.
+        // - sentinel : ProjectAwayColumns inserts a single synthetic "<all-fields-projected>" attribute
+        // when all real columns are pruned; treat it the same as empty so the decoder
+        // takes the row-count-only fast path instead of walking every JSON field.
         // - other : project the listed columns in the requested order, with NULL for missing names.
         List<Attribute> projectedAttributes;
         if (projectedColumns == null) {
             projectedAttributes = attributes;
-        } else if (projectedColumns.isEmpty()) {
+        } else if (projectedColumns.isEmpty() || isAllFieldsProjectedSentinel(projectedColumns)) {
             projectedAttributes = List.of();
         } else {
             // Build the lookup map once: O(N) here vs. O(N*M) for a per-projection nested scan,
@@ -214,9 +264,9 @@ public class NdJsonPageDecoder implements Closeable {
         this.blockTracker = new BitSet(projectedAttributes.size());
 
         if (sourceBytes != null) {
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(sourceBytes, sourceOffset, sourceLength);
+            this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);
         } else {
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
+            this.parser = factory.createParser(input);
         }
     }
 
@@ -225,10 +275,10 @@ public class NdJsonPageDecoder implements Closeable {
             int next = nextLineStartByteAfter(failedParser);
             failedParser.close();
             this.parserSliceStart = next;
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(sourceBytes, next, sourceEnd - next);
+            this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
         } else {
             this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+            this.parser = jsonFactory.createParser(this.input);
         }
     }
 
@@ -500,6 +550,17 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /**
+     * {@code ProjectAwayColumns} (in the ES|QL planner) inserts a synthetic
+     * {@code "<all-fields-projected>"} attribute when every real column is pruned (e.g. COUNT(*)).
+     * Detect that sentinel here so the decoder can take its existing row-count-only fast path
+     * without the planner layer needing to special-case the NDJSON format.
+     */
+    private static boolean isAllFieldsProjectedSentinel(List<String> projectedColumns) {
+        // ProjectAwayColumns.ALL_FIELDS_PROJECTED can't be imported because of cyclic module dependency
+        return projectedColumns.size() == 1 && "<all-fields-projected>".equals(projectedColumns.get(0));
+    }
+
+    /**
      * Whether {@code name} is a dotted field that shares a prefix with another attribute (e.g. {@code languages}
      * vs {@code languages.long}). In that case the NDJSON uses a single field name equal to the full attribute name.
      */
@@ -565,18 +626,17 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void decodeObject(JsonParser parser, boolean inArray) throws IOException {
-            JsonToken token = parser.currentToken();
-            if (token != JsonToken.START_OBJECT) {
+            if (parser.currentToken() != JsonToken.START_OBJECT) {
                 throw new NdJsonParseException(parser, "Expected JSON object");
             }
-            while ((token = parser.nextToken()) != JsonToken.END_OBJECT) {
-                if (token != JsonToken.FIELD_NAME) {
-                    throw new NdJsonParseException(parser, "Expected field name in object");
-                }
-                var childDecoder = this.children == null ? null : this.children.get(parser.currentName());
+            String fieldName;
+            while ((fieldName = parser.nextFieldName()) != null) {
+                var childDecoder = this.children == null ? null : this.children.get(fieldName);
                 parser.nextToken();
                 if (childDecoder == null) {
-                    // Unknown field, skip it
+                    // Unknown/unprojected field: advance to its value then skip (no decode).
+                    // For string values nextFieldName() uses _skipString() internally on the next
+                    // call, so we avoid _finishString2 for non-projected string fields.
                     parser.skipChildren();
                 } else {
                     childDecoder.decodeValue(parser, inArray);
@@ -673,10 +733,12 @@ public class NdJsonPageDecoder implements Closeable {
             }
 
             blockTracker.set(blockIdx);
-            if (token == JsonToken.VALUE_NULL && inArray == false) {
+            if (token == JsonToken.VALUE_NULL) {
                 // Nulls in arrays aren't supported. Furthermore, appendNull will implicitly call endPositionEntry()
+                if (inArray) {
+                    return;
+                }
                 blockBuilder.appendNull();
-                return;
             }
 
             switch (dataType) {
@@ -735,13 +797,9 @@ public class NdJsonPageDecoder implements Closeable {
                     }
                 }
                 case KEYWORD -> {
-                    // Be lenient, this is a catch-all type
-                    var str = parser.getValueAsString();
-                    if (str != null) {
-                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(new BytesRef(str));
-                    } else {
-                        unexpectedValue(blockBuilder, parser, inArray);
-                    }
+                    char[] chars = parser.getTextCharacters();
+                    CharBuffer charBuffer = CharBuffer.wrap(chars, parser.getTextOffset(), parser.getTextLength());
+                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(new BytesRef(charBuffer));
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             }

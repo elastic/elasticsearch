@@ -68,11 +68,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
     }
 
-    // Tests that the provider instance is present or not on expected platforms/architectures
-    public void testSupport() {
-        supported();
-    }
-
     public void testSimple() throws IOException {
         testSimpleImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE);
     }
@@ -84,8 +79,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     void testSimpleImpl(long maxChunkSize) throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
             for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
@@ -151,21 +144,18 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testRandomMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
             testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
         }
     }
 
     public void testRandomNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
             testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT7_FUNC);
         }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
@@ -174,21 +164,18 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
             testRandomSupplier(dir, BYTE_ARRAY_MAX_INT7_FUNC);
         }
     }
 
     public void testRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
             testRandomSupplier(dir, BYTE_ARRAY_MIN_INT7_FUNC);
         }
     }
 
     void testRandomSupplier(Directory dir, IntFunction<byte[]> byteArraySupplier) throws IOException {
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         final int dims = randomIntBetween(1, 4096);
         final int size = randomIntBetween(2, 100);
@@ -276,8 +263,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     void testRandomScorerImpl(Directory dir, IntFunction<float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
             var scalarQuantizer = new OptimizedScalarQuantizer(sim.function());
@@ -329,12 +314,10 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testRandomSlice() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier) throws IOException {
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
@@ -388,8 +371,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     // Tests with a large amount of data (> 2GB), which ensures that data offsets do not overflow
     @Nightly
     public void testLarge() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {
             final int dims = 8192;
@@ -434,8 +415,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     // Test that the scorer works well when the IndexInput is greater than the directory segment chunk size
     public void testDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testDatasetGreaterThanChunkSize"), 8192)) {
             final int dims = 1024;
@@ -474,21 +453,18 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testBulkMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testBulkMMap"))) {
             testBulkImpl(dir);
         }
     }
 
     public void testBulkNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
             testBulkImpl(dir);
         }
     }
 
     void testBulkImpl(Directory dir) throws IOException {
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = randomIntBetween(1, 102);
@@ -531,8 +507,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testBulkWithDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = 128;
@@ -580,8 +554,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
     // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
     public void testBulkScoreWithZeroNodes() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
         final int dims = 1024;
         final int size = randomIntBetween(2, 100);
         final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
@@ -617,8 +589,6 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
     // Tests that copies in threads do not interfere with each other
     void testRaceImpl(org.elasticsearch.simdvec.VectorSimilarityType sim) throws Exception {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         final long maxChunkSize = 32;
         final int dims = 34; // dimensions that are larger than the chunk size, to force fallback

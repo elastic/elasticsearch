@@ -40,6 +40,9 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
+import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.apache.lucene.util.hnsw.NeighborArray;
+import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
@@ -183,46 +186,39 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         logger.debug("Flush total time [{}ms]", elapsed / 1_000_000.0);
     }
 
-    private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException, InterruptedException {
+    private void flushFieldsWithoutMemoryMappedFile(Sorter.DocMap sortMap) throws IOException {
         // No tmp file written, or the file cannot be mmapped
         for (FieldWriter field : fields) {
             var started = System.nanoTime();
             var fieldInfo = field.fieldInfo;
+            int dims = fieldInfo.getVectorDimension();
 
             var originalVectors = field.flatFieldVectorsWriter.getVectors();
             final List<float[]> vectorsInSortedOrder = sortMap == null
                 ? originalVectors
                 : getVectorsInSortedOrder(field, sortMap, originalVectors);
             int numVectors = vectorsInSortedOrder.size();
-            CagraIndexParams cagraIndexParams = createCagraIndexParams(
-                fieldInfo.getVectorSimilarityFunction(),
-                numVectors,
-                fieldInfo.getVectorDimension()
-            );
+            CagraIndexParams cagraIndexParams = createCagraIndexParams(fieldInfo.getVectorSimilarityFunction(), numVectors, dims);
 
             if (numVectors < MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 logger.debug("Skip building carga index; vectors length {} < {} (min for GPU)", numVectors, MIN_NUM_VECTORS_FOR_GPU_BUILD);
                 // Will not be indexed on the GPU
                 generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             } else {
-                try (
-                    var resourcesHolder = new ResourcesHolder(
-                        cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT, cagraIndexParams)
-                    )
-                ) {
-                    var builder = CuVSMatrix.deviceBuilder(
-                        resourcesHolder.resources(),
-                        numVectors,
-                        fieldInfo.getVectorDimension(),
-                        CuVSMatrix.DataType.FLOAT
-                    );
-                    for (var vector : vectorsInSortedOrder) {
-                        builder.addVector(vector);
+                var resource = cuVSResourceManager.tryAcquire(numVectors, dims, CuVSMatrix.DataType.FLOAT, cagraIndexParams, "flush");
+                if (resource != null) {
+                    try (var resourcesHolder = new ResourcesHolder(cuVSResourceManager, resource)) {
+                        var builder = CuVSMatrix.deviceBuilder(resourcesHolder.resources(), numVectors, dims, CuVSMatrix.DataType.FLOAT);
+                        for (var vector : vectorsInSortedOrder) {
+                            builder.addVector(vector);
+                        }
+                        try (var dataset = builder.build()) {
+                            generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
+                        }
                     }
-                    try (var dataset = builder.build()) {
-                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                    }
+                } else {
+                    logger.debug("GPU busy, building HNSW on CPU for [{}] vectors", numVectors);
+                    buildCpuGraphAndWriteMeta(fieldInfo, vectorsInSortedOrder, fieldInfo.getVectorSimilarityFunction());
                 }
             }
             var elapsed = System.nanoTime() - started;
@@ -577,6 +573,57 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
         };
     }
 
+    private HnswGraph writeGraph(OnHeapHnswGraph graph, int[][] graphLevelNodeOffsets) throws IOException {
+        int countOnLevel0 = graph.size();
+        int[] scratch = new int[graph.maxConn() * 2];
+        for (int level = 0; level < graph.numLevels(); level++) {
+            NodesIterator nodesOnLevel = graph.getSortedNodes(level);
+            int nodeOffsetId = 0;
+            while (nodesOnLevel.hasNext()) {
+                NeighborArray neighbors = graph.getNeighbors(level, nodesOnLevel.next());
+                int size = neighbors.size();
+                long offsetStart = vectorIndex.getFilePointer();
+                int[] nnodes = neighbors.nodes();
+                Arrays.sort(nnodes, 0, size);
+                int actualSize = 0;
+                if (size > 0) {
+                    scratch[0] = nnodes[0];
+                    actualSize = 1;
+                }
+                for (int i = 1; i < size; i++) {
+                    assert nnodes[i] < countOnLevel0 : "node too large: " + nnodes[i] + ">=" + countOnLevel0;
+                    if (nnodes[i - 1] == nnodes[i]) {
+                        continue;
+                    }
+                    scratch[actualSize++] = nnodes[i] - nnodes[i - 1];
+                }
+                vectorIndex.writeVInt(actualSize);
+                vectorIndex.writeGroupVInts(scratch, actualSize);
+                graphLevelNodeOffsets[level][nodeOffsetId++] = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
+            }
+        }
+        return graph;
+    }
+
+    private void buildCpuGraphAndWriteMeta(FieldInfo fieldInfo, List<float[]> vectors, VectorSimilarityFunction similarity)
+        throws IOException {
+        int numVectors = vectors.size();
+        int dims = fieldInfo.getVectorDimension();
+        var flatVectorsScorer = flatVectorWriter.getFlatVectorScorer();
+        var scorerSupplier = flatVectorsScorer.getRandomVectorScorerSupplier(similarity, FloatVectorValues.fromFloats(vectors, dims));
+        var graphBuilder = HnswGraphBuilder.create(scorerSupplier, M, beamWidth, HnswGraphBuilder.randSeed, numVectors);
+        OnHeapHnswGraph cpuGraph = graphBuilder.build(numVectors);
+
+        long vectorIndexOffset = vectorIndex.getFilePointer();
+        int[][] graphLevelNodeOffsets = new int[cpuGraph.numLevels()][];
+        for (int level = 0; level < cpuGraph.numLevels(); level++) {
+            graphLevelNodeOffsets[level] = new int[level == 0 ? numVectors : cpuGraph.getNodesOnLevel(level).size()];
+        }
+        HnswGraph graph = writeGraph(cpuGraph, graphLevelNodeOffsets);
+        long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
+        writeMeta(fieldInfo, vectorIndexOffset, vectorIndexLength, numVectors, graph, graphLevelNodeOffsets);
+    }
+
     @Override
     public IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         flatVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
@@ -660,7 +707,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 try (
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     );
                     var packedSegmentHolder = getContiguousPackedMemorySegment(
                         memorySegmentAccessInput,
@@ -702,7 +749,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -723,7 +770,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -756,7 +803,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 try (
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     );
                     var memorySegmentHolder = getContiguousMemorySegment(
                         memorySegmentAccessInput,
@@ -789,7 +836,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                     var dataset = builder.build();
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
-                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                     )
                 ) {
                     generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
@@ -811,7 +858,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams, "merge")
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);

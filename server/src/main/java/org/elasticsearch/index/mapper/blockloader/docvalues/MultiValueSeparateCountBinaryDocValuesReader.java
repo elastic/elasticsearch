@@ -43,6 +43,25 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
         builder.endPositionEntry();
     }
 
+    /**
+     * Deep-copies every value out of the doc-value blob so callers can index into the result by ord without invalidating slices on
+     * subsequent reads. Used by ordered (offsets-aware) readers, which need random access into the per-doc value list.
+     */
+    public BytesRef[] materialize(BytesRef bytes, long count) throws IOException {
+        BytesRef[] out = new BytesRef[Math.toIntExact(count)];
+        if (count == 1) {
+            out[0] = BytesRef.deepCopyOf(bytes);
+            return out;
+        }
+        scratch.bytes = bytes.bytes;
+        in.reset(bytes.bytes, bytes.offset, bytes.length);
+        for (int v = 0; v < count; v++) {
+            initializeScratch();
+            out[v] = BytesRef.deepCopyOf(scratch);
+        }
+        return out;
+    }
+
     public boolean match(BytesRef bytes, long count, Predicate<BytesRef> predicate) throws IOException {
         if (count == 1) {
             return predicate.test(bytes);

@@ -43,9 +43,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractCohereServiceS
 
     public static CohereCompletionServiceSettings createRandom() {
         var apiVersion = randomFrom(CohereCommonServiceSettings.CohereApiVersion.values());
-        var modelId = apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2
-            ? randomAlphaOfLength(8)
-            : randomAlphaOfLengthOrNull(8);
+        var modelId = apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2 ? randomAlphaOfLength(8) : randomAlphaOfLengthOrNull(8);
         return new CohereCompletionServiceSettings(
             new CohereCommonServiceSettings(modelId, RateLimitSettingsTests.createRandom(), apiVersion)
         );

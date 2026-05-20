@@ -60,8 +60,18 @@ public class MvUnionErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             DataType.TDIGEST,
             DataType.DATE_RANGE
         );
-        if (unsupportedTypes.contains(signature.getFirst())
-            || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
+        if (signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
+            // resolveType() checks the non-null (second) arg; the error names that arg's type, not "null"
+            return containsString(
+                "argument of ["
+                    + sourceForSignature(signature)
+                    + "] must be [any type except counter types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+                    + "], found value [] type ["
+                    + signature.get(1).typeName()
+                    + "]"
+            );
+        } else if (unsupportedTypes.contains(signature.getFirst())) {
             return containsString(
                 typeErrorMessage(
                     false,

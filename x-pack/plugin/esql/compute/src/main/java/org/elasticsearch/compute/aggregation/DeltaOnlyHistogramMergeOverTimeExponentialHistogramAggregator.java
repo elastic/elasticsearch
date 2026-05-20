@@ -31,10 +31,6 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 )
 public class DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator {
 
-    public static final String CUMULATIVE_UNSUPPORTED_WARNING =
-        "Some nodes in your cluster don't support cumulative temporality for exponential_histograms yet."
-            + " The affected time series are excluded. Upgrade your cluster to fix this.";
-
     public static TemporalityAwareExpHistGroupingState initGrouping(BigArrays bigArrays, DriverContext driverContext, Warnings warnings) {
         return new TemporalityAwareExpHistGroupingState(bigArrays, driverContext, warnings);
     }
@@ -54,7 +50,9 @@ public class DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator {
             if (current.cachedTemporalityAccessor.get(position) == Temporality.DELTA) {
                 current.delegate.add(groupId, value);
             } else {
-                current.warnings.registerException(IllegalArgumentException.class, CUMULATIVE_UNSUPPORTED_WARNING);
+                throw new UnsupportedTemporalityException(
+                    "Cumulative temporality is not supported for the exponential_histogram type on all nodes"
+                );
             }
         } catch (InvalidTemporalityException e) {
             current.warnings.registerException(e);

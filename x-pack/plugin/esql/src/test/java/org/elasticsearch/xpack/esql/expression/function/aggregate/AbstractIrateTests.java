@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.compute.aggregation.UnsupportedTemporalityException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
@@ -37,6 +38,16 @@ public abstract class AbstractIrateTests extends AbstractAggregationTestCase {
     @Override
     public void testAggregateIntermediate() {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testGroupingAggregate() {
+        if (testCase.extra() instanceof Class<?> c && UnsupportedTemporalityException.class.isAssignableFrom(c)) {
+            Exception e = expectThrows(UnsupportedTemporalityException.class, super::testGroupingAggregate);
+            assertThat(e.getMessage(), org.hamcrest.Matchers.notNullValue());
+            return;
+        }
+        super.testGroupingAggregate();
     }
 
     protected static List<List<TestCaseSupplier.TypedDataSupplier>> valuesSuppliers() {
@@ -129,14 +140,7 @@ public abstract class AbstractIrateTests extends AbstractAggregationTestCase {
                                     + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
                             );
                     } else if (temporality == RateTests.TemporalityParameter.DELTA && supportsDelta == false) {
-                        return result.withWarning(
-                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                        )
-                            .withWarning(
-                                "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support delta temporality"
-                                    + " for counters yet. The affected time series are excluded from irate calculations."
-                                    + " Upgrade your cluster to fix this."
-                            );
+                        return result.withExtra(UnsupportedTemporalityException.class);
                     }
                 }
                 return result;

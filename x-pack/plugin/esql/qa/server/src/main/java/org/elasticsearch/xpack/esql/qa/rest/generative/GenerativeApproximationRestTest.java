@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FIX_SUM_AGG_LONG_OVERFLOW;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CERTIFIED_COLUMN_PREFIX;
 import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX;
@@ -101,7 +101,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        assumeFalse("No approximation tests", testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName()));
+        assumeFalse("No approximation tests", testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName()));
         assumeFalse(
             "Approximation casts integer SUM to double, preventing long overflow",
             testCase.requiredCapabilities.contains(FIX_SUM_AGG_LONG_OVERFLOW.capabilityName())

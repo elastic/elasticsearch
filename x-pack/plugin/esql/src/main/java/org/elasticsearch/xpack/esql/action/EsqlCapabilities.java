@@ -2207,7 +2207,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V6,
+        APPROXIMATION_V7,
 
         /**
          * Create a ScoreOperator only when shard contexts are available

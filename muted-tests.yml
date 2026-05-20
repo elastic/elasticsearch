@@ -593,9 +593,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149352
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testDynamicStringMappingWithoutAutoTextSubfield
-  issue: https://github.com/elastic/elasticsearch/issues/149374
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupNdjsonZstd
   issue: https://github.com/elastic/elasticsearch/issues/149432

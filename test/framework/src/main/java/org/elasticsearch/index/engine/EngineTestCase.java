@@ -359,7 +359,6 @@ public abstract class EngineTestCase extends ESTestCase {
             routing,
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
-            null,
             recoverySource,
             syntheticId,
             columnarId
@@ -367,7 +366,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected ParsedDocument testParsedDocument(String id, String routing, LuceneDocument document, BytesReference source) {
-        return testParsedDocument(id, routing, document, source, false, false);
+        return testParsedDocument(id, routing, document, source, false, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(String id, LuceneDocument document, BytesReference source, boolean recoverySource) {

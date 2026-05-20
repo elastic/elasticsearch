@@ -335,6 +335,60 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Empty projection (e.g. EXTERNAL parquet | STATS COUNT(*) — or a query that only references
+     * {@code _file.*} virtual columns) must not allocate any column reader. The reader emits
+     * row-count-only pages directly from the row group metadata, and the request circuit breaker
+     * stays at zero because no buffer is ever charged. Regression test for the ~44KB-per-query
+     * leak in https://github.com/elastic/elasticsearch/issues/149393.
+     */
+    public void testReadWithEmptyProjectionEmitsCountOnlyPagesAndDoesNotAllocate() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new java.util.ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("name", "row" + i);
+                g.add("score", (double) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        var trackingBreaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        var localFactory = new BlockFactory(trackingBreaker, this.blockFactory.bigArrays());
+        ParquetFormatReader reader = new ParquetFormatReader(localFactory);
+
+        long beforeRead = trackingBreaker.getUsed();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of(), 10)) {
+            long afterOpen = trackingBreaker.getUsed();
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                assertEquals("count-only path must emit zero blocks", 0, page.getBlockCount());
+                totalRows += page.getPositionCount();
+            }
+            assertEquals(5, totalRows);
+            // After open, only the parquet I/O window buffer / footer parsing may have been charged
+            // — the count-only path must not grow the breaker further per row group / page. (Iterating
+            // pages allocates no column readers, no decode buffers, no value blocks.)
+            assertEquals("count-only iteration must not allocate per-page; breaker must not grow", afterOpen, trackingBreaker.getUsed());
+        }
+        // After close everything allocated during open is released and the breaker returns to its initial level.
+        assertEquals("count-only path must release all allocations on close", beforeRead, trackingBreaker.getUsed());
+    }
+
     public void testCircuitBreaker() throws IOException {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)

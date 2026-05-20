@@ -257,8 +257,8 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         assertThat(captured, equalTo(rps));
 
         final float anotherRps = randomFloatBetween(0.1f, 1000f, true);
-        final ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
+        final TaskRelocatingException e = expectThrows(
+            TaskRelocatingException.class,
             () -> workerState.rethrottleWithRelocationGuard(anotherRps)
         );
         assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

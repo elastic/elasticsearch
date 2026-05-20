@@ -1182,7 +1182,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         try {
             StoreMetrics callerMetrics = threadStoreMetrics.get();
             Executor wrapped = DefaultSearchContext.wrapExecutorForBytesTracking(executor, true, currentThreadStoreMetrics, accumulator);
-            assertNotSame("wrapper must replace the executor when tracking is active", executor, wrapped);
+            assertNotSame(executor, wrapped);
 
             final long bytesPerTask = randomLongBetween(1L, 10_000L);
             int numTasks = randomIntBetween(2, 10);
@@ -1198,7 +1198,10 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             }
 
             assertTrue("forked tasks did not complete in time", done.await(30, TimeUnit.SECONDS));
-            assertEquals("accumulator must aggregate every forked task's delta", bytesPerTask * numTasks, accumulator.sum());
+            // wrapped in assert busy because the latch countdown happens before the accumulation
+            assertBusy(() -> {
+                assertEquals("accumulator must aggregate every forked task's delta", bytesPerTask * numTasks, accumulator.sum());
+            });
             assertEquals("caller StoreMetrics must remain untouched until drain runs", 0L, callerMetrics.getBytesRead());
         } finally {
             terminate(executor);

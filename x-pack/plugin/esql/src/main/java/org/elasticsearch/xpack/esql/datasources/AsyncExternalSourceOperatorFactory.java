@@ -23,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
@@ -757,7 +758,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return result;
     }
 
-    private CloseableIterator<Page> adaptSchema(CloseableIterator<Page> pages, ColumnMapping mapping, DriverContext driverContext) {
+    private CloseableIterator<Page> adaptSchema(
+        CloseableIterator<Page> pages,
+        ColumnMapping mapping,
+        DriverContext driverContext,
+        @Nullable List<Attribute> perFileReadSchema,
+        @Nullable List<String> perFileCols
+    ) {
         if (mapping == null || mapping.isIdentity()) {
             return pages;
         }
@@ -767,6 +774,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // through to downstream operators unchanged. When deferred extraction is off, the
         // reader's output has only data columns and the adapter ignores this slot.
         int rowPositionInputIndex = deferredExtraction ? mapping.width() : -1;
+        // Per-file source types are only needed to disambiguate LongBlock under a KEYWORD cast.
+        // Every other cast path is self-contained and ignores the array, so we skip the lookup
+        // for mappings that have no KEYWORD slots — i.e. virtually every file split outside the
+        // UBN cross-type-drift path.
+        DataType[] perFileColumnTypes = mapping.hasKeywordCast()
+            ? ColumnMapping.buildPerFileColumnTypes(perFileReadSchema, perFileCols)
+            : null;
         // Use the producer-thread factory: SchemaAdaptingIterator allocates null-fill / cast
         // blocks while the reader is draining pages off the generic pool, off the driver thread.
         return new SchemaAdaptingIterator(
@@ -774,7 +788,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             queryDataSchema.attributes(),
             mapping,
             producerBlockFactory(driverContext),
-            rowPositionInputIndex
+            rowPositionInputIndex,
+            perFileColumnTypes
         );
     }
 
@@ -980,18 +995,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // immediately-completed listener and fall straight through.
             SubscribableListener<Void> ready = pages.waitForReady();
             if (ready.isDone() == false) {
-                ready.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        clearCurrentIterator(state);
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    clearCurrentIterator(state);
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(ready, state, completionListener);
             }
             if (pages.hasNext() == false) {
                 // Race: waitForReady reported done (page available or EOF), but by the time we
@@ -1005,33 +1009,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 if (recheck.isDone()) {
                     return DrainResult.EOF;
                 }
-                recheck.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        clearCurrentIterator(state);
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    clearCurrentIterator(state);
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(recheck, state, completionListener);
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
-                space.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        clearCurrentIterator(state);
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    clearCurrentIterator(state);
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(space, state, completionListener);
             }
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
@@ -1044,6 +1026,45 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.rowsRemaining -= rows;
             }
         }
+    }
+
+    /**
+     * Register a single listener that resumes the producer loop when {@code signal} fires, and
+     * return synchronously. {@link DrainResult#BLOCKED} is returned immediately after listener
+     * registration; the producer resumes asynchronously when {@code signal} completes.
+     * <p>
+     * Cleanup semantics by branch:
+     * <ul>
+     * <li>Success branch (happy path): re-submits {@link #runProducerLoop} on {@code executor};
+     *     the current iterator stays open across the park. Only if {@code executor.execute()}
+     *     itself throws (e.g. shutting-down pool) is the iterator cleared and the failure
+     *     routed through {@code completionListener.onFailure}.</li>
+     * <li>Failure branch: clears the current iterator and routes the signal's failure through
+     *     {@code completionListener.onFailure}.</li>
+     * </ul>
+     * Both cleanup paths match what the surrounding {@link #runProducerLoop} {@code catch} block
+     * does on a synchronous throw.
+     * <p>
+     * Collapses three structurally identical {@code addListener} blocks (page-ready, page-ready
+     * recheck, buffer-space) into one site, removing copy-paste drift risk between branches.
+     *
+     * @param signal a not-done listener from {@code waitForReady()} or {@code waitForSpace()};
+     *               callers must verify {@code signal.isDone() == false} before invoking this
+     *               helper, otherwise the producer will be re-submitted immediately.
+     */
+    private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+        signal.addListener(ActionListener.wrap(v -> {
+            try {
+                executor.execute(() -> runProducerLoop(state, completionListener));
+            } catch (Exception e) {
+                clearCurrentIterator(state);
+                completionListener.onFailure(e);
+            }
+        }, e -> {
+            clearCurrentIterator(state);
+            completionListener.onFailure(e);
+        }));
+        return DrainResult.BLOCKED;
     }
 
     /**
@@ -1177,7 +1198,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     pages = fileReader.read(obj, ctx);
                 }
             }
-            CloseableIterator<Page> adapted = adaptSchema(pages, fileSplit.columnMapping(), state.driverContext);
+            // Resolve the file's read schema and the reader's projected column order so the
+            // adapter can disambiguate LongBlock sources when stringifying under UBN. Pulled
+            // off the FileSplit because both the range and non-range branches above already
+            // pinned the reader to that schema (or fell back to inference); the same source of
+            // truth keeps the cast's source-type view consistent.
+            List<Attribute> perFileReadSchemaForAdapter = fileSplit.readSchema();
+            List<String> perFileColsForAdapter = perFileQueryProjection(cols, perFileReadSchemaForAdapter);
+            CloseableIterator<Page> adapted = adaptSchema(
+                pages,
+                fileSplit.columnMapping(),
+                state.driverContext,
+                perFileReadSchemaForAdapter,
+                perFileColsForAdapter
+            );
             // Deferred extraction: register one extractor per opened file split. Range-splits of
             // the same file therefore register multiple extractors; this is benign — each row's
             // encoded id maps back to the registered extractor that produced it, addressing the
@@ -1302,7 +1336,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .build();
                 pages = formatReader.read(obj, ctx);
             }
-            CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext);
+            CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.

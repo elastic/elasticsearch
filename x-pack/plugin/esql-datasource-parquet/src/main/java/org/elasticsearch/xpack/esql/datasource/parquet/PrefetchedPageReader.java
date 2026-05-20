@@ -185,15 +185,24 @@ final class PrefetchedPageReader implements PageReader {
 
     /**
      * Decompresses {@code compressed} into a direct {@link ByteBuffer}, then wraps the result
-     * as a {@link BytesInput}. Routing through the {@code decompress(ByteBuffer, int, ByteBuffer,
-     * int)} overload lets each codec take its direct-to-direct JNI fast path (Zstd:
-     * {@code decompressDirectByteBuffer}; Snappy: {@code Snappy.uncompress(ByteBuffer, ByteBuffer)})
-     * avoiding {@code GetPrimitiveArrayCritical} JNI pinning and the G1GC evacuation failures it
-     * causes. When the compressed input is already a direct-backed {@link BytesInput} (the common
-     * case for S3-prefetched column chunks), the input side is also zero-copy.
+     * as a {@link BytesInput}. Both the input and output sides are guaranteed to be direct so
+     * each codec takes its direct-to-direct JNI fast path (Zstd: {@code decompressDirectByteBuffer};
+     * Snappy: {@code Snappy.uncompress(ByteBuffer, ByteBuffer)}), avoiding
+     * {@code GetPrimitiveArrayCritical} JNI pinning and the G1GC evacuation failures it causes.
+     *
+     * <p>S3-prefetched column chunks arrive as heap-backed {@code BytesInput.from(byte[])} (the
+     * S3 client writes into a {@code byte[]}), so the input side requires an explicit copy to a
+     * direct buffer. The copy adds one allocation and one bulk memory transfer, but that cost is
+     * far smaller than the cost of a G1GC evacuation failure caused by the pinned heap region.
      */
     private BytesInput decompressToDirectBuffer(BytesInput compressed, int decompressedSize) throws IOException {
         ByteBuffer input = compressed.toByteBuffer();
+        if (input.isDirect() == false) {
+            ByteBuffer directInput = ByteBuffer.allocateDirect(input.remaining());
+            directInput.put(input);
+            directInput.flip();
+            input = directInput;
+        }
         ByteBuffer output = ByteBuffer.allocateDirect(decompressedSize);
         decompressor.decompress(input, (int) compressed.size(), output, decompressedSize);
         output.flip();

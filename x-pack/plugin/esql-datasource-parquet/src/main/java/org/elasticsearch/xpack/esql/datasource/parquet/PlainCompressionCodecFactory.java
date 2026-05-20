@@ -42,9 +42,11 @@ import java.util.zip.GZIPOutputStream;
  * the decompressor falls back to the byte-array path. Two call sites reach these decompressors:
  * <ul>
  *   <li>{@code PrefetchedPageReader} explicitly calls the {@code decompress(ByteBuffer, int,
- *       ByteBuffer, int)} overload with a direct output buffer; when S3-prefetched column chunks
- *       arrive as direct {@code ByteBuffer}s (the common case), both sides are direct and
- *       {@code GetPrimitiveArrayCritical} JNI pinning is avoided end-to-end.</li>
+ *       ByteBuffer, int)} overload with both sides guaranteed direct: S3-prefetched column chunks
+ *       arrive as heap-backed {@code byte[]} (the S3 client writes into a byte array), so
+ *       {@code PrefetchedPageReader} copies the input to a direct buffer before decompressing.
+ *       This ensures the direct-to-direct JNI path is always taken, avoiding
+ *       {@code GetPrimitiveArrayCritical} pinning end-to-end.</li>
  *   <li>Parquet-MR's {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer} overload only
  *       when the allocator is direct and {@code useOffHeapDecryptBuffer} is enabled; because we
  *       use {@code DirectByteBufferAllocator}, this path also takes the direct-to-direct fast
@@ -180,9 +182,9 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
             // Fast path: avoid BytesInput.toByteArray() for heap-buffer-backed inputs. The default
             // toByteArray() for those BytesInput subtypes funnels bytes through a sized
             // ByteArrayOutputStream, adding one allocation and one System.arraycopy that the JNI
-            // Snappy binding does not need. S3-prefetched column chunks go through
-            // PrefetchedPageReader which calls the ByteBuffer overload directly, so this path
-            // handles the non-prefetch (ColumnChunkPageReadStore) code path.
+            // Snappy binding does not need. PrefetchedPageReader uses the ByteBuffer overload
+            // (both sides direct) to avoid GetPrimitiveArrayCritical pinning; this path handles
+            // the non-prefetch (ColumnChunkPageReadStore) code path.
             ByteBuffer input = bytes.toByteBuffer();
             if (input.hasArray()) {
                 Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);

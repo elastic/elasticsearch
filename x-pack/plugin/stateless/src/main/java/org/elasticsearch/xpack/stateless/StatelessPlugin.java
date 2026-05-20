@@ -178,11 +178,19 @@ import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.memory.HeapMemoryUsagePublisher;
+import org.elasticsearch.xpack.stateless.memory.IndexingTierPartitionMetrics;
 import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import org.elasticsearch.xpack.stateless.memory.TransportPublishHeapMemoryMetrics;
 import org.elasticsearch.xpack.stateless.memory.TransportPublishIndexingOperationsHeapMemoryRequirements;
 import org.elasticsearch.xpack.stateless.memory.TransportPublishMergeMemoryEstimate;
+import org.elasticsearch.xpack.stateless.memory.partition.HeadroomPartition;
+import org.elasticsearch.xpack.stateless.memory.partition.HostedShardsPartition;
+import org.elasticsearch.xpack.stateless.memory.partition.IndexBuffersPartition;
+import org.elasticsearch.xpack.stateless.memory.partition.IndexMetadataPartition;
+import org.elasticsearch.xpack.stateless.memory.partition.IndexingPressurePartition;
+import org.elasticsearch.xpack.stateless.memory.partition.MergePartition;
+import org.elasticsearch.xpack.stateless.memory.partition.PartitionedMemoryModel;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
@@ -919,6 +927,18 @@ public class StatelessPlugin extends Plugin
         this.statelessMemoryMetricsService.set(memoryMetricsService);
         components.add(memoryMetricsService);
 
+        var partitionedMemoryModel = new PartitionedMemoryModel(
+            List.of(
+                new IndexMetadataPartition(clusterService.getClusterSettings()),
+                new IndexingPressurePartition(clusterService.getClusterSettings()),
+                new IndexBuffersPartition(clusterService.getClusterSettings()),
+                new MergePartition(clusterService.getClusterSettings()),
+                new HostedShardsPartition(clusterService.getClusterSettings()),
+                new HeadroomPartition(clusterService.getClusterSettings())
+            )
+        );
+        IndexingTierPartitionMetrics.create(services.telemetryProvider().getMeterRegistry(), partitionedMemoryModel, memoryMetricsService);
+
         var heapMemoryUsagePublisher = new HeapMemoryUsagePublisher(client);
         components.add(heapMemoryUsagePublisher);
         var shardsMappingSizeCollector = ShardsMappingSizeCollector.create(
@@ -1298,6 +1318,12 @@ public class StatelessPlugin extends Plugin
             StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
             StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
             StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+            IndexMetadataPartition.FRACTION_SETTING,
+            IndexingPressurePartition.FRACTION_SETTING,
+            IndexBuffersPartition.FRACTION_SETTING,
+            MergePartition.FRACTION_SETTING,
+            HostedShardsPartition.FRACTION_SETTING,
+            HeadroomPartition.FRACTION_SETTING,
             ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
             ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,

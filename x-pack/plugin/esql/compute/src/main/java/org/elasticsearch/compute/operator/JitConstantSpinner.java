@@ -107,7 +107,7 @@ public final class JitConstantSpinner {
      * defensible default — large enough to handle realistic concurrent dashboard
      * workloads without thrashing, small enough that the memory cost is negligible.
      */
-    public static final int DEFAULT_ADMISSION_CAPACITY = 512;
+    static final int DEFAULT_ADMISSION_CAPACITY = 512;
 
     /**
      * Default admission threshold. {@code 2} means a key must be seen at least twice
@@ -121,11 +121,11 @@ public final class JitConstantSpinner {
      * that benefit from JIT folding even on first invocation, but vulnerable to
      * pathological cardinality.
      */
-    public static final int DEFAULT_ADMISSION_THRESHOLD = 2;
+    static final int DEFAULT_ADMISSION_THRESHOLD = 2;
 
     /** @deprecated kept for compatibility with {@link #setCacheCapacity}; admission tracker is the new bound. */
     @Deprecated
-    public static final int DEFAULT_CACHE_CAPACITY = DEFAULT_ADMISSION_CAPACITY;
+    static final int DEFAULT_CACHE_CAPACITY = DEFAULT_ADMISSION_CAPACITY;
 
     /**
      * JVM-wide default spinner instance. Generated evaluator factories call
@@ -240,43 +240,43 @@ public final class JitConstantSpinner {
     }
 
     /** Number of entries currently in the spun-class cache (some may have cleared weak refs awaiting prune). */
-    public int cacheSize() {
+    int cacheSize() {
         return CLASSES.size();
     }
 
     /** Number of entries in the admission tracker. */
-    public int admissionTrackerSize() {
+    int admissionTrackerSize() {
         synchronized (ADMISSION) {
             return ADMISSION.size();
         }
     }
 
     /** Total number of subclass-generation events (cache misses that resulted in spins). */
-    public long spinCount() {
+    long spinCount() {
         return SPINS.sum();
     }
 
-    public long hitCount() {
+    long hitCount() {
         return HITS.sum();
     }
 
-    public long missCount() {
+    long missCount() {
         return MISSES.sum();
     }
 
-    public long evictionCount() {
+    long evictionCount() {
         return ADMISSION_EVICTIONS.sum();
     }
 
-    public long admissionRejectedCount() {
+    long admissionRejectedCount() {
         return ADMISSION_REJECTED.sum();
     }
 
-    public long weakRefClearedCount() {
+    long weakRefClearedCount() {
         return WEAK_REF_CLEARED.sum();
     }
 
-    public long standardCount() {
+    long standardCount() {
         return STANDARDS.sum();
     }
 
@@ -284,7 +284,7 @@ public final class JitConstantSpinner {
      * Set admission tracker capacity. Counters above this are LRU-evicted. New value applies
      * to future evictions; existing entries are kept until LRU-evicted.
      */
-    public void setAdmissionCapacity(int newCapacity) {
+    void setAdmissionCapacity(int newCapacity) {
         if (newCapacity < 1) throw new IllegalArgumentException("capacity must be >= 1");
         admissionCapacity = newCapacity;
     }
@@ -293,6 +293,10 @@ public final class JitConstantSpinner {
      * Set admission threshold. A key must be seen this many times before a class is spun
      * for it. Default = 2 (skip the first-time access — usually a one-off). Set to 1 to
      * disable admission filtering (every miss spins immediately, like the prior behavior).
+     *
+     * <p>Public so cross-package tests in esql can force the Standard / spun paths by
+     * setting the threshold extreme. No production caller; if a tuning API becomes
+     * useful, route it through {@link #SHARED} explicitly.
      */
     public void setAdmissionThreshold(int newThreshold) {
         if (newThreshold < 1) throw new IllegalArgumentException("threshold must be >= 1");
@@ -305,13 +309,13 @@ public final class JitConstantSpinner {
      * {@code false} uses {@code WeakReference} — cleared at the next GC regardless of
      * free heap. See {@link #useSoftReferences} for the rationale.
      */
-    public void setUseSoftReferences(boolean soft) {
+    void setUseSoftReferences(boolean soft) {
         useSoftReferences = soft;
     }
 
     /** @deprecated use {@link #setAdmissionCapacity(int)}; this maps to the admission tracker. */
     @Deprecated
-    public void setCacheCapacity(int newCapacity) {
+    void setCacheCapacity(int newCapacity) {
         setAdmissionCapacity(newCapacity);
     }
 

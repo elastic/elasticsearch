@@ -55,13 +55,13 @@ import java.lang.reflect.Modifier;
  * itself is exactly what this is meant to catch; conflating "what we emit" with "what we
  * promised to emit" in a single file would defeat the second-pair-of-eyes intent.
  */
-public final class SpunClassShapeValidator {
+final class SpunClassShapeValidator {
 
     /**
      * Immutable contract describing the exact shape we promise to emit for one spun class.
      * The spinner constructs one of these per spin and passes it to {@link #guarding}.
      */
-    public record SpunClassSpec(
+    record SpunClassSpec(
         Class<?> baseClass,
         String spunInternalName,
         String accessorName,
@@ -72,7 +72,7 @@ public final class SpunClassShapeValidator {
         boolean expectsClinit,
         int expectedCtorCount
     ) {
-        public String expectedSuperInternalName() {
+        String expectedSuperInternalName() {
             return Type.getInternalName(baseClass);
         }
     }
@@ -80,7 +80,7 @@ public final class SpunClassShapeValidator {
     private SpunClassShapeValidator() {}
 
     /** Production entry: every {@code visit*} the spinner calls on the returned visitor is asserted. */
-    public static ClassVisitor guarding(ClassVisitor delegate, SpunClassSpec spec) {
+    static ClassVisitor guarding(ClassVisitor delegate, SpunClassSpec spec) {
         return new GuardingClassVisitor(delegate, spec);
     }
 
@@ -89,7 +89,7 @@ public final class SpunClassShapeValidator {
      * it through the same guard with a no-op delegate. Production never calls this —
      * {@link #guarding} is the active check at emit time.
      */
-    public static void validate(byte[] bytecode, SpunClassSpec spec) {
+    static void validate(byte[] bytecode, SpunClassSpec spec) {
         new ClassReader(bytecode).accept(new GuardingClassVisitor(new ClassVisitor(Opcodes.ASM9) {}, spec), ClassReader.SKIP_FRAMES);
     }
 

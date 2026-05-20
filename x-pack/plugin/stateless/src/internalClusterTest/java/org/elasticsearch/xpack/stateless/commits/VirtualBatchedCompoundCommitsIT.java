@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -983,64 +984,69 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // Ensure VBCC not yet uploaded
         assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
-        CountDownLatch getVBCCChunkSent = new CountDownLatch(1);
-        CountDownLatch getVBCCChunkBlocked = new CountDownLatch(1);
-        final var transportService = MockTransportService.getInstance(searchNode);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (connection.getNode().getName().equals(indexNodeA)
-                && action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                getVBCCChunkSent.countDown();
-                safeAwait(getVBCCChunkBlocked);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
-
-        // Wait till search shard start recovery
-        safeAwait(getVBCCChunkSent);
+        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
 
         if (randomBoolean()) {
+            // stop-node case: hold the first GetVBCC at the sender while stopping indexNodeA
+            CountDownLatch getVBCCChunkSent = new CountDownLatch(1);
+            CountDownLatch getVBCCChunkBlocked = new CountDownLatch(1);
+            MockTransportService.getInstance(searchNode)
+                .addSendBehavior(indexNodeATransportService, (connection, requestId, action, request, options) -> {
+                    if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                        getVBCCChunkSent.countDown();
+                        safeAwait(getVBCCChunkBlocked);
+                    }
+                    connection.sendRequest(requestId, action, request, options);
+                });
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            safeAwait(getVBCCChunkSent);
             internalCluster().stopNode(indexNodeA);
+            getVBCCChunkBlocked.countDown();
         } else {
-            // Relocate primary, which will make original indexing node throw IndexNotFoundException for GetVBCC action
-            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+            // relocate case: hold the first GetVBCC at indexNodeA until the shard is relocated.
             final String indexNodeBNodeId = getNodeId(indexNodeB);
+            CountDownLatch getVbccArrivedAtIndexNodeA = new CountDownLatch(1);
+            CountDownLatch releaseGetVbccAtIndexNodeA = new CountDownLatch(1);
+            indexNodeATransportService.addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    getVbccArrivedAtIndexNodeA.countDown();
+                    safeAwait(releaseGetVbccAtIndexNodeA);
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            assertThat(exception, instanceOf(IndexNotFoundException.class));
+                            channel.sendResponse(exception);
+                        }
+
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            assert false : "unexpectedly trying to send response " + response;
+                        }
+                    }, task);
+                }
+            );
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            safeAwait(getVbccArrivedAtIndexNodeA);
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+            // Wait for indexNodeA to apply the cluster state showing the primary on indexNodeB
             awaitClusterState(
                 indexNodeA,
-                clusterState -> clusterState.routingTable()
+                clusterState -> clusterState.routingTable(ProjectId.DEFAULT)
                     .index(indexName)
                     .shard(shardId.id())
                     .primaryShard()
                     .currentNodeId()
                     .equals(indexNodeBNodeId)
             );
-            internalCluster().awaitNodeVacated(indexName, indexNodeA);
             logger.info("--> relocated primary");
-            final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
-            indexNodeATransportService.addRequestHandlingBehavior(
-                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
-                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
-                    @Override
-                    public void sendResponse(Exception exception) {
-                        assertThat(exception, instanceOf(IndexNotFoundException.class));
-                        channel.sendResponse(exception);
-                    }
-
-                    @Override
-                    public String getProfileName() {
-                        return channel.getProfileName();
-                    }
-
-                    @Override
-                    public void sendResponse(TransportResponse response) {
-                        assert false : "unexpectedly trying to send response " + response;
-                    }
-                }, task)
-            );
+            releaseGetVbccAtIndexNodeA.countDown();
         }
-
-        getVBCCChunkBlocked.countDown();
         // The first recovery for the search shard will fail but it will recover quickly again with the new primary
         ensureGreen(indexName);
     }

@@ -9,16 +9,23 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -30,6 +37,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -879,6 +887,70 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
+    }
+
+    public void testColumnarStoredPostParseWritesBinaryDocValues() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
+
+        IndexableField sourceField = doc.rootDoc().getField(SourceFieldMapper.NAME);
+        assertNotNull(sourceField);
+        assertFalse(sourceField.fieldType().stored());
+        assertEquals(
+            "_source field must have binary doc values when mode is columnar_stored",
+            DocValuesType.BINARY,
+            sourceField.fieldType().docValuesType()
+        );
+    }
+
+    public void testColumnarStoredSourceIsComplete() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+        assertTrue("columnar_stored source should be complete", mapper.sourceMapper().isComplete());
+    }
+
+    public void testColumnarStoredSourceReadableViaStoredFieldLoader() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
+
+        // Write the document to a temporary in-memory segment and read source back via StoredFieldLoader
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+                iw.addDocuments(doc.docs());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
+                LeafStoredFieldLoader leafLoader = loader.getLoader(reader.leaves().getFirst(), null);
+                leafLoader.advanceTo(reader.leaves().getFirst().reader().maxDoc() - 1);
+                BytesReference source = leafLoader.source();
+                assertNotNull(source);
+                assertTrue(source.length() > 0);
+                Map<String, Object> sourceMap = XContentHelper.convertToMap(source, true).v2();
+                assertEquals("hello", sourceMap.get("field"));
+            }
+        }
+    }
+
+    public void testColumnarStoredModeIsStored() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+        SourceFieldMapper sourceMapper = mapper.sourceMapper();
+        // COLUMNAR_STORED is stored (just in doc values rather than stored fields)
+        assertFalse(sourceMapper.isSynthetic());
+        assertFalse(sourceMapper.isDisabled());
+        assertTrue(sourceMapper.enabled());
     }
 
     public void testRecoverySourceWithTimeSeries() throws IOException {

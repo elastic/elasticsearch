@@ -9,11 +9,14 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -90,7 +93,18 @@ public abstract class StoredFieldLoader {
         return new StoredFieldLoader() {
             @Override
             public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(forceSequentialReader ? sequentialReader(ctx) : reader(ctx, docs), loadSource, fields);
+                LeafStoredFieldLoader base = new ReaderStoredFieldLoader(
+                    forceSequentialReader ? sequentialReader(ctx) : reader(ctx, docs),
+                    loadSource,
+                    fields
+                );
+                if (loadSource) {
+                    BinaryDocValues bdv = ctx.reader().getBinaryDocValues(SourceFieldMapper.NAME);
+                    if (bdv != null) {
+                        return new BinaryDocValuesSourceLeafLoader(base, bdv);
+                    }
+                }
+                return base;
             }
 
             @Override
@@ -107,7 +121,12 @@ public abstract class StoredFieldLoader {
         return new StoredFieldLoader() {
             @Override
             public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(sequentialReader(ctx), true, Set.of());
+                LeafStoredFieldLoader base = new ReaderStoredFieldLoader(sequentialReader(ctx), true, Set.of());
+                BinaryDocValues bdv = ctx.reader().getBinaryDocValues(SourceFieldMapper.NAME);
+                if (bdv != null) {
+                    return new BinaryDocValuesSourceLeafLoader(base, bdv);
+                }
+                return base;
             }
 
             @Override
@@ -236,6 +255,54 @@ public abstract class StoredFieldLoader {
         @Override
         public Map<String, List<Object>> storedFields() {
             return visitor.fields();
+        }
+    }
+
+    /**
+     * A {@link LeafStoredFieldLoader} that reads {@code _source} from binary doc values instead of
+     * stored fields. All other fields (id, routing, stored fields) are delegated to the wrapped loader.
+     * Used when the index was created with {@code index.mapping.source.mode: columnar_stored}.
+     */
+    private static class BinaryDocValuesSourceLeafLoader implements LeafStoredFieldLoader {
+
+        private final LeafStoredFieldLoader delegate;
+        private final BinaryDocValues docValues;
+        private BytesReference source;
+
+        BinaryDocValuesSourceLeafLoader(LeafStoredFieldLoader delegate, BinaryDocValues docValues) {
+            this.delegate = delegate;
+            this.docValues = docValues;
+        }
+
+        @Override
+        public void advanceTo(int doc) throws IOException {
+            delegate.advanceTo(doc);
+            if (docValues.advanceExact(doc)) {
+                BytesRef bv = docValues.binaryValue();
+                source = new BytesArray(bv.bytes, bv.offset, bv.length);
+            } else {
+                source = null;
+            }
+        }
+
+        @Override
+        public BytesReference source() {
+            return source;
+        }
+
+        @Override
+        public String id() {
+            return delegate.id();
+        }
+
+        @Override
+        public String routing() {
+            return delegate.routing();
+        }
+
+        @Override
+        public Map<String, List<Object>> storedFields() {
+            return delegate.storedFields();
         }
     }
 

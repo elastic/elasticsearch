@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -115,7 +116,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     );
 
     private static final SourceFieldMapper COLUMNAR_STORED = new SourceFieldMapper(
-        Mode.SYNTHETIC,
+        Mode.COLUMNAR_STORED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -420,7 +421,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (enabled.explicit() || mode == null) {
             return enabled.value();
         }
-        return mode == Mode.STORED;
+        return mode == Mode.STORED || mode == Mode.COLUMNAR_STORED;
     }
 
     public boolean enabled() {
@@ -476,7 +477,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        if (mode != Mode.COLUMNAR_STORED || stored() == false) {
+        if (mode != Mode.COLUMNAR_STORED) {
             return;
         }
         List<LuceneDocument> docs = context.luceneDocumentsInShardIndexOrder();
@@ -500,7 +501,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 try (var b = new XContentBuilder(context.sourceToParse().source().xContentType().xContent(), new ByteArrayOutputStream())) {
                     sourceLeafLoader.write(storedFieldLoader, docId, b);
                     final BytesRef ref = BytesReference.bytes(b).toBytesRef();
-                    context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+                    context.doc().add(new BinaryDocValuesField(NAME, ref));
                 }
             }
         }

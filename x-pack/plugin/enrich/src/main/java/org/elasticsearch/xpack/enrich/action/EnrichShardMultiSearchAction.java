@@ -6,12 +6,16 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -31,6 +35,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -43,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -264,8 +270,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             }
                             return context.getFieldType(field);
                         });
+                        BytesReference visitorSource = visitor.source();
+                        if (visitorSource == null) {
+                            visitorSource = readSourceFromDocValues(searcher.getIndexReader().leaves(), scoreDoc.doc);
+                        }
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
-                        hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
+                        hit.sourceRef(filterSource(fetchSourceContext, visitorSource));
                         hits[j] = hit;
                     }
                     items[i] = new MultiSearchResponse.Item(createSearchResponse(topDocs, hits), null);
@@ -299,6 +309,23 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         );
         builder.copyCurrentStructure(sourceParser);
         return BytesReference.bytes(builder);
+    }
+
+    /**
+     * Reads {@code _source} from binary doc values for a given global doc ID. Used as a fallback when
+     * the stored {@code _source} field is absent (e.g. {@code index.mapping.source.mode: columnar_stored}).
+     * A fresh {@link BinaryDocValues} iterator is obtained for each call to handle non-monotonic doc access.
+     */
+    private static BytesReference readSourceFromDocValues(List<LeafReaderContext> leaves, int globalDocId) throws IOException {
+        int leafIndex = ReaderUtil.subIndex(globalDocId, leaves);
+        LeafReaderContext leaf = leaves.get(leafIndex);
+        int segmentDocId = globalDocId - leaf.docBase;
+        BinaryDocValues bdv = leaf.reader().getBinaryDocValues(SourceFieldMapper.NAME);
+        if (bdv != null && bdv.advanceExact(segmentDocId)) {
+            BytesRef bv = bdv.binaryValue();
+            return new BytesArray(bv.bytes, bv.offset, bv.length);
+        }
+        return null;
     }
 
     private static SearchResponse createSearchResponse(TopDocs topDocs, SearchHit[] hits) {

@@ -9,19 +9,23 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -197,6 +201,51 @@ public class StoredFieldLoaderTests extends ESTestCase {
                 var leafLoader = loader.getLoader(reader.leaves().getFirst(), new int[] { 0 });
                 leafLoader.advanceTo(0);
                 storedFieldsTest.accept(leafLoader.storedFields());
+            }
+        }
+    }
+
+    /**
+     * Verifies that when a segment contains a binary doc values field named {@code _source}
+     * (as written by {@code columnar_stored} source mode), {@link StoredFieldLoader} reads
+     * source bytes from doc values rather than stored fields.
+     */
+    public void testBinaryDocValuesSource() throws IOException {
+        byte[] sourceBytes = "{\"kwd\":\"hello\"}".getBytes(StandardCharsets.UTF_8);
+        Document doc = new Document();
+        doc.add(new BinaryDocValuesField(SourceFieldMapper.NAME, new BytesRef(sourceBytes)));
+
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            iw.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
+                LeafStoredFieldLoader leafLoader = loader.getLoader(reader.leaves().getFirst(), null);
+                leafLoader.advanceTo(0);
+                BytesReference source = leafLoader.source();
+                assertNotNull("source should be populated from binary doc values", source);
+                assertArrayEquals(sourceBytes, BytesReference.toBytes(source));
+            }
+        }
+    }
+
+    /**
+     * Verifies that when a segment only has a stored {@code _source} field (normal stored source
+     * mode, no binary doc values), the stored field is returned as before.
+     */
+    public void testStoredSourceWithNoBinaryDocValues() throws IOException {
+        byte[] sourceBytes = "{\"kwd\":\"world\"}".getBytes(StandardCharsets.UTF_8);
+        Document doc = new Document();
+        doc.add(new StoredField(SourceFieldMapper.NAME, new BytesRef(sourceBytes)));
+
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            iw.addDocument(doc);
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
+                LeafStoredFieldLoader leafLoader = loader.getLoader(reader.leaves().getFirst(), null);
+                leafLoader.advanceTo(0);
+                BytesReference source = leafLoader.source();
+                assertNotNull("source should be populated from stored field", source);
+                assertArrayEquals(sourceBytes, BytesReference.toBytes(source));
             }
         }
     }

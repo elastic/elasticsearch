@@ -10,11 +10,14 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.Assertions;
@@ -261,9 +264,16 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             setNextSyntheticFieldsReader(leaf);
             leaf.reader().storedFields().document(segmentDocID, fields);
         }
-        final BytesReference source = fields.source() != null && fields.source().length() > 0
+        BytesReference source = fields.source() != null && fields.source().length() > 0
             ? addSyntheticFields(Source.fromBytes(fields.source()), segmentDocID).internalSourceRef()
             : fields.source();
+        if (source == null || source.length() == 0) {
+            BinaryDocValues bdv = leaf.reader().getBinaryDocValues(SourceFieldMapper.NAME);
+            if (bdv != null && bdv.advanceExact(segmentDocID)) {
+                BytesRef bv = bdv.binaryValue();
+                source = new BytesArray(bv.bytes, bv.offset, bv.length);
+            }
+        }
 
         String routing;
         if (ordinalToRoutingLookup != null) {

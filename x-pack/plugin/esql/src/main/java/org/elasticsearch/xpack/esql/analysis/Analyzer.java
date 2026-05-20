@@ -449,6 +449,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     attribute = new UnsupportedAttribute(source, name, uef);
                 } else if (t instanceof InvalidMappedTsField imtf) {
                     // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
+                    // The original types don't matter. We pass a custom error message, anyway, which will fail the query in the verifier.
                     var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
                     attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
                 } else {

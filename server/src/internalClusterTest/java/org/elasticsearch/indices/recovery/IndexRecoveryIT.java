@@ -1719,7 +1719,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         allowRecoveryToCompleteLatch.countDown();
         assertBusy(() -> {
             for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
-                assertThat(recoveryService.numberOfOngoingRecoveries(), equalTo(0));
+                assertThat(recoveryService.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
             }
         });
         assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(0));

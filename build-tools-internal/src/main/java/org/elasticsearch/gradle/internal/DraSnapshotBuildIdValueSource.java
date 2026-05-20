@@ -1,0 +1,166 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.gradle.internal;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.ValueSource;
+import org.gradle.api.provider.ValueSourceParameters;
+
+import java.io.File;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
+/**
+ * Resolves the DRA (Distribution Release Artifacts) snapshot build ID for a BWC branch and validates
+ * that the snapshot was built from the same commit as the local remote tracking reference.
+ *
+ * <p>Returns the DRA build ID (e.g. {@code "9.4.2-abc12345"}) when a matching snapshot is found,
+ * or an empty string when no match exists or when DRA resolution is disabled.
+ *
+ * <p>DRA resolution is opt-in: set system property {@code tests.bwc.dra.enabled=true} to enable.
+ * Without that property all calls return an empty string immediately with no network activity,
+ * keeping local development builds unaffected.
+ */
+public abstract class DraSnapshotBuildIdValueSource implements ValueSource<String, DraSnapshotBuildIdValueSource.Params> {
+
+    public interface Params extends ValueSourceParameters {
+        /** BWC version string, e.g. {@code "9.4.2"}. */
+        Property<String> getVersion();
+
+        /** BWC branch name, e.g. {@code "9.4"}. */
+        Property<String> getBranch();
+
+        /** Root directory of the main git checkout, used to read remote tracking refs without forking a process. */
+        Property<File> getRootProjectDir();
+
+        /** Git remote name, e.g. {@code "elastic"}. */
+        Property<String> getRemote();
+
+        /** Gate flag: when {@code false} (the default) return {@code ""} immediately with no network I/O. */
+        Property<Boolean> getDraEnabled();
+
+        /**
+         * Optional abbreviated commit hash supplied via {@code -Dtests.bwc.dra.hash.{branch}}.
+         * When set the DRA build ID is constructed directly as {@code {version}-{hash}}
+         * (e.g. {@code 9.4.2-1a738181}) and its existence is verified against the manifest
+         * endpoint — the "latest" lookup and remote-tracking ref comparison are both skipped.
+         * This lets you pin to a specific DRA snapshot even after the branch tip has moved.
+         */
+        Property<String> getHashOverride();
+
+        /**
+         * Base URL for all DRA API and artifact requests.  Defaults to the real DRA server
+         * ({@code https://artifacts-snapshot.elastic.co}).  Override via
+         * {@code -Dtests.bwc.dra.base.url} in tests to redirect calls to a local mock server.
+         */
+        Property<String> getBaseUrl();
+    }
+
+    @Override
+    public String obtain() {
+        if (getParameters().getDraEnabled().get() == false) {
+            return "";
+        }
+        try {
+            String version = getParameters().getVersion().get();
+            String branch = getParameters().getBranch().get();
+            String baseUrl = getParameters().getBaseUrl().get();
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+
+            String hashOverride = getParameters().getHashOverride().getOrElse("");
+            if (hashOverride.isEmpty() == false) {
+                // Build ID is deterministic: {version}-{hash}. Skip the "latest" lookup and
+                // commit comparison — just verify the specific build exists in DRA.
+                return resolveByHash(client, baseUrl, version, hashOverride);
+            }
+
+            return resolveByLatest(
+                client,
+                new ObjectMapper(),
+                baseUrl,
+                version,
+                branch,
+                getParameters().getRootProjectDir().get(),
+                getParameters().getRemote().get()
+            );
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static String resolveByHash(HttpClient client, String baseUrl, String version, String hash) throws Exception {
+        String buildId = version + "-" + hash;
+        String manifestUrl = baseUrl + "/elasticsearch/" + buildId + "/manifest-" + version + "-SNAPSHOT.json";
+        HttpResponse<String> response = client.send(
+            HttpRequest.newBuilder().uri(URI.create(manifestUrl)).timeout(Duration.ofSeconds(30)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+        return response.statusCode() == 200 ? buildId : "";
+    }
+
+    private static String resolveByLatest(
+        HttpClient client,
+        ObjectMapper mapper,
+        String baseUrl,
+        String version,
+        String branch,
+        File rootProjectDir,
+        String remote
+    ) throws Exception {
+        String branchTipHash = GitInfo.remoteRefRevision(rootProjectDir, remote, branch);
+        if (branchTipHash == null) {
+            return "";
+        }
+
+        String latestUrl = baseUrl + "/elasticsearch/latest/" + branch + ".json";
+        HttpResponse<String> latestResponse = client.send(
+            HttpRequest.newBuilder().uri(URI.create(latestUrl)).timeout(Duration.ofSeconds(30)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+        if (latestResponse.statusCode() != 200) {
+            return "";
+        }
+
+        JsonNode latestJson = mapper.readTree(latestResponse.body());
+        String buildId = latestJson.path("build_id").asText("");
+        if (buildId.isEmpty()) {
+            return "";
+        }
+
+        int lastDash = buildId.lastIndexOf('-');
+        if (lastDash < 0 || buildId.substring(0, lastDash).equals(version) == false) {
+            return "";
+        }
+
+        String manifestUrl = baseUrl + "/elasticsearch/" + buildId + "/manifest-" + version + "-SNAPSHOT.json";
+        HttpResponse<String> manifestResponse = client.send(
+            HttpRequest.newBuilder().uri(URI.create(manifestUrl)).timeout(Duration.ofSeconds(30)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+        if (manifestResponse.statusCode() != 200) {
+            return "";
+        }
+
+        JsonNode manifestJson = mapper.readTree(manifestResponse.body());
+        String draCommit = manifestJson.path("projects").path("elasticsearch").path("commit").asText("");
+        if (draCommit.isEmpty()) {
+            return "";
+        }
+
+        return branchTipHash.equals(draCommit) ? buildId : "";
+    }
+}

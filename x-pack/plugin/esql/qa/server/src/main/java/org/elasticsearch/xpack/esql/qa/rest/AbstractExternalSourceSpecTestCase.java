@@ -432,6 +432,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String MULTIFILE_SUFFIX = "_multifile";
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
+    /**
+     * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
+     * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
+     * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
+     * warning; under STRICT it still throws.
+     */
+    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
     /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
     private static final String HIVE_SUFFIX = "_hive";
 
@@ -443,7 +450,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
+        if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
+            relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {

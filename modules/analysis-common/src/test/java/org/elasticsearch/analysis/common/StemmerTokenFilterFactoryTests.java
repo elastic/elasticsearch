@@ -151,7 +151,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        assertCriticalWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
+        assertWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
     }
 
     public void testLovinsDeprecation() throws IOException {
@@ -164,6 +164,6 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        assertCriticalWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
+        assertWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
     }
 }

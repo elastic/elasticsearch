@@ -18,13 +18,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByPaginatedSearchActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -43,7 +44,7 @@ import static org.mockito.Mockito.when;
 /**
  * Reindex tests for picking ids.
  */
-public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<ReindexRequest, BulkByScrollResponse> {
+public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTestCase<ReindexRequest, BulkByScrollResponse> {
     public void testEmptyStateCopiesId() throws Exception {
         final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
         assertThat(action(projectState).buildRequest(doc()).getId(), equalTo(doc().getId()));
@@ -86,7 +87,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
         expectThrows(
             XContentParseException.class,
@@ -122,7 +125,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             null,
             randomTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
         expectThrows(
             UncheckedIOException.class,
@@ -195,7 +200,9 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             listener(),
             randomBoolean() ? null : Version.CURRENT,
             randomPositiveTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
     }
 }

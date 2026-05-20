@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
@@ -114,12 +113,12 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         var extractedServiceAccountJson = extractOptionalSecureString(
             newSecrets,
             SERVICE_ACCOUNT_JSON,
-            SERVICE_SETTINGS,
+            ModelSecrets.SECRET_SETTINGS,
             validationException
         );
         validationException.throwIfValidationErrorsExist();
 
-        if (extractedServiceAccountJson == null) {
+        if (extractedServiceAccountJson == null || extractedServiceAccountJson.equals(serviceAccountJson)) {
             return this;
         }
         return new GoogleVertexAiSecretSettings(extractedServiceAccountJson);

@@ -15,7 +15,9 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 
@@ -143,7 +145,7 @@ public class HttpServerSemConvAttributesTests extends ESTestCase {
 
     public void testExtractServerAddress_fromLocalSocket() {
         FakeRestRequest req = requestWithHeaders(Map.of());
-        HttpChannel channel = localAddressChannel(new InetSocketAddress("192.168.0.1", 9200));
+        HttpChannel channel = localAddressChannel(new InetSocketAddress(addr192_168_0_1(), 9200));
         String addr = HttpServerSemConvAttributes.extractServerAddress(req, channel, null);
         assertThat(addr, equalTo("192.168.0.1"));
     }
@@ -178,7 +180,7 @@ public class HttpServerSemConvAttributesTests extends ESTestCase {
 
     public void testExtractServerPort_fromLocalSocket() {
         FakeRestRequest req = requestWithHeaders(Map.of());
-        HttpChannel channel = localAddressChannel(new InetSocketAddress("192.168.0.1", 9200));
+        HttpChannel channel = localAddressChannel(new InetSocketAddress(addr192_168_0_1(), 9200));
         Integer port = HttpServerSemConvAttributes.extractServerPort(req, channel, null);
         assertThat(port, equalTo(9200));
     }
@@ -193,6 +195,14 @@ public class HttpServerSemConvAttributesTests extends ESTestCase {
 
     private FakeRestRequest requestWithHeaders(Map<String, List<String>> headers) {
         return new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).build();
+    }
+
+    private static InetAddress addr192_168_0_1() {
+        try {
+            return InetAddress.getByAddress(new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
+        } catch (UnknownHostException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static HttpChannel localAddressChannel(InetSocketAddress local) {

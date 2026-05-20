@@ -44,6 +44,14 @@ public record JitConstantFixedArgument(TypeName type, String name, boolean inclu
     implements
         Argument {
 
+    public JitConstantFixedArgument {
+        if (scope != Fixed.Scope.SINGLETON) {
+            throw new IllegalArgumentException(
+                "@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ", scope: " + scope + ")"
+            );
+        }
+    }
+
     @Override
     public boolean isJitConstant() {
         return true;

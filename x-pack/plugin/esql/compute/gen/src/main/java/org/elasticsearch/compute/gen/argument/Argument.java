@@ -41,9 +41,6 @@ public interface Argument {
         if (fixed != null) {
             boolean releasable = Types.extendsSuper(types, v.asType(), CodegenConstants.RELEASABLE_FQN);
             if (fixed.jitConstant()) {
-                if (fixed.scope() != Fixed.Scope.SINGLETON) {
-                    throw new IllegalArgumentException("@Fixed(jitConstant=true) requires SINGLETON scope (parameter: " + name + ")");
-                }
                 return new JitConstantFixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);
             }
             return new FixedArgument(type, name, fixed.includeInToString(), fixed.scope(), releasable);

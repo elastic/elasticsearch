@@ -7,6 +7,7 @@ applies_to:
   serverless: unavailable
 products:
   - id: elasticsearch
+description: Run a single ES|QL query across multiple Elasticsearch clusters. Covers role and user setup, query syntax, cross-cluster metadata, and enrich and skip-unavailable behavior.
 ---
 
 
@@ -24,6 +25,7 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 * For full {{ccs}} capabilities, the local and remote clusters must be on the same [subscription level](https://www.elastic.co/subscriptions).
 * The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
 * The remote clusters must be connected using **API key authentication**. For setup instructions across all deployment types, refer to [Add remote clusters using API key authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md).
+  
   To verify which security model is in use, run `GET _remote/info`. With API key authentication, the response includes a `"cluster_credentials"` key.
 * For supported version pairings, see [Supported {{ccs}} configurations](docs-content://explore-analyze/cross-cluster-search.md#ccs-supported-configurations).
 
@@ -63,14 +65,14 @@ POST /_security/role/remote1
 ```
 
 1. The `cross_cluster_search` cluster privilege is required for the *local* cluster.
-2. Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to *only* search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
+2. Typically, users have permissions to read both local and remote indices. However, for cases where the role is intended to *only* search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
 3. The indices allowed read access to the remote cluster. The configured [cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) must also allow this index to be read.
 4. The `read_cross_cluster` privilege is always required when using {{esql}} across clusters with the API key based security model.
-5. The remote clusters to which these privileges apply. This remote cluster must be configured with a [cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and connected to the remote cluster before the remote index can be queried. Verify connection using the [Remote cluster info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-remote-info) API.
+5. The remote clusters to which these privileges apply. This remote cluster must be configured with a [cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and connected to the local cluster before the remote index can be queried. Verify connection using the [Remote cluster info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-remote-info) API.
 6. Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the remote cluster. The `remote_cluster` security privilege was introduced in version **8.15.0**.
 
 
-You will then need a user or API key with the permissions you just created. The following example API call creates a user with the `remote1` role.
+You then need a user or API key with the permissions you just created. The following example API call creates a user with the `remote1` role.
 
 ```console
 POST /_security/user/remote_user
@@ -81,13 +83,6 @@ POST /_security/user/remote_user
 ```
 
 All cross-cluster requests from the local cluster are bound by the cross-cluster API key’s privileges, which are controlled by the remote cluster’s administrator.
-
-::::{tip}
-Cross-cluster API keys created in versions prior to 8.15.0 will need to be replaced or updated to add the new permissions required for {{esql}} with ENRICH.
-
-::::
-
-
 
 ## Query across multiple clusters [ccq-from]
 
@@ -118,7 +113,7 @@ FROM *:my-index-000001
 
 ## Cross-cluster metadata [ccq-cluster-details]
 
-Using the `"include_ccs_metadata": true` option, users can request that ES|QL {{ccs}} responses include metadata about the search on each cluster (when the response format is JSON). Here we show an example using the async search endpoint. {{ccs-cap}} metadata is also present in the synchronous search endpoint response when requested. If the search returns partial results and there are partial shard or remote cluster failures, `_clusters` metadata containing the failures will be included in the response regardless of the `include_ccs_metadata` parameter.
+Using the `"include_ccs_metadata": true` option, users can request that ES|QL {{ccs}} responses include metadata about the search on each cluster (when the response format is JSON). Here we show an example using the async search endpoint. {{ccs-cap}} metadata is also present in the synchronous search endpoint response when requested. If the search returns partial results and there are partial shard or remote cluster failures, `_clusters` metadata containing the failures is included in the response regardless of the `include_ccs_metadata` parameter.
 
 ```console
 POST /_query/async?format=json
@@ -285,14 +280,11 @@ For more on partial results and how cluster status is determined when failures o
 
 ## Enrich across clusters [ccq-enrich]
 
-Enrich in {{esql}} across clusters operates similarly to [local enrich](commands/enrich.md). If the enrich policy and its enrich indices are consistent across all clusters, simply write the enrich command as you would without remote clusters. In this default mode, {{esql}} can execute the enrich command on either the local cluster or the remote clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that the policy exists with consistent data on both the local cluster and the remote clusters is critical for ES|QL to produce a consistent query result.
+Enrich in {{esql}} across clusters operates similarly to [local enrich](commands/enrich.md). If the enrich policy and its enrich indices are consistent across all clusters, write the enrich command as you would without remote clusters. In this default mode, {{esql}} can execute the enrich command on either the local cluster or the remote clusters, aiming to minimize computation or inter-cluster data transfer. Ensuring that the policy exists with consistent data on both the local cluster and the remote clusters is critical for ES|QL to produce a consistent query result.
 
 ::::{tip}
-```{applies_to}
-stack: ga 8.15+
-```
 
-Cross-cluster API keys created in versions prior to 8.15 will need to be replaced or updated to use the new required permissions for {{esql}} cross-cluster enrich with the API key based security model. Refer to the example in the [API key authentication](#esql-ccs-security-model-api-key) section.
+Cross-cluster API keys created in versions prior to 8.15 must be replaced or updated to use the new required permissions for {{esql}} cross-cluster enrich with the API key based security model. Refer to the example in the [](#esql-ccs-security-model-api-key) section.
 
 ::::
 
@@ -316,7 +308,7 @@ FROM cluster_one:my-index-000001,cluster_two:my-index-000001
 
 ### Enrich with coordinator mode [esql-enrich-coordinator]
 
-{{esql}} provides the enrich `_coordinator` mode to force {{esql}} to execute the enrich command on the local cluster. This mode should be used when the enrich policy is not available on the remote clusters or maintaining consistency of enrich indices across clusters is challenging.
+{{esql}} provides the enrich `_coordinator` mode to force {{esql}} to execute the enrich command on the local cluster. Use this mode when the enrich policy is not available on the remote clusters or maintaining consistency of enrich indices across clusters is challenging.
 
 ```esql
 FROM my-index-000001,cluster_one:my-index-000001
@@ -358,7 +350,7 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 
 ### Multiple enrich commands [esql-multi-enrich]
 
-You can include multiple enrich commands in the same query with different modes. {{esql}} will attempt to execute them accordingly. For example, this query performs two enrich commands, first with the `hosts` policy on any cluster and then with the `vendors` policy on the local cluster.
+You can include multiple enrich commands in the same query with different modes. {{esql}} attempts to execute them accordingly. For example, this query performs two enrich commands, first with the `hosts` policy on any cluster and then with the `vendors` policy on the local cluster.
 
 ```esql
 FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
@@ -407,10 +399,10 @@ Remote clusters are configured with the `skip_unavailable: true` setting by defa
 * The remote cluster does not have the requested index, or it is not accessible due to security settings.
 * An error happened while processing the query on the remote cluster.
 
-The `partial` status means the remote query either has errors or was interrupted by an explicit user action, but some data may be returned.
+The `partial` status means the remote query either has errors or was interrupted by an explicit user action, but some data can be returned.
 
-Queries will still fail when `skip_unavailable` is set to `true`, if none of the specified indices exist. For example, the
-following queries will fail:
+Queries still fail when `skip_unavailable` is set to `true`, if none of the specified indices exist. For example, the
+following queries fail:
 
 ```esql
 FROM cluster_one:missing-index | LIMIT 10
@@ -419,10 +411,8 @@ FROM cluster_one:missing-index*,cluster_two:missing-index | LIMIT 10
 ```
 :::
 
-:::{applies-item} stack: ga =9.0
-If a remote cluster disconnects from the querying cluster, {{ccs}} for {{esql}} will set it to `skipped`
-and continue the query with other clusters, unless the remote cluster's `skip_unavailable` setting is set to `false`,
-in which case the query will fail.
+:::{applies-item} stack: ga =9.1
+If a remote cluster disconnects from the querying cluster, {{ccs}} for {{esql}} sets it to `skipped` and continue the query with other clusters, unless the remote cluster's `skip_unavailable` setting is set to `false`, in which case the query fails.
 :::
 
 ::::

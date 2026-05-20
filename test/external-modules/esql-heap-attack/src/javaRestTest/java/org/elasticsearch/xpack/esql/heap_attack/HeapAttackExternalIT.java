@@ -21,12 +21,14 @@ import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalFixtures.Compression;
 import org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalFixtures.Format;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 
@@ -67,9 +69,11 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      *  with {@code /{bucket}/{basePath}/}, where the fixture sets basePath = WAREHOUSE. */
     private static final String KEY_PREFIX = WAREHOUSE + "/heap-attack-external";
 
-    /** Hard cap on rows generated in the test JVM regardless of cluster heap, to keep the test-JVM
-     *  payload byte[] tractable (a 4&nbsp;G test heap can comfortably hold one ~300&nbsp;MB payload
-     *  plus framework overhead). Set well above what's needed to trip a 512&nbsp;MB-cluster breaker. */
+    /** Hard cap on rows generated in the test JVM regardless of cluster heap. With the cluster's
+     *  request-breaker pinned to 50% of a 512&nbsp;MB heap (~256&nbsp;MB) and STATS hash entries
+     *  costing ~64&nbsp;bytes apiece, ~5&nbsp;M distinct keys is already past the budget; 30&nbsp;M
+     *  rows gives the {@link #assertCircuitBreaks} retry-with-scaling loop room to land in trip
+     *  territory on the first attempt for every scenario. */
     private static final int MAX_ROWS = 30_000_000;
 
     /** Detected at test start from {@code _nodes/stats}; the min across nodes. */
@@ -85,6 +89,22 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         assumeFalse("FIPS mode requires security enabled; this suite uses plain HTTP S3 fixtures", inFipsJvm());
         assumeTrue("EXTERNAL command required; skipping in release build", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         ensureHeapBudgetDiscovered();
+    }
+
+    /**
+     * Clear blobs left in the in-memory S3 fixture by this test method. Without this the fixture
+     * accumulates hundreds of MB of payloads across the test class (one per attempt × scenario)
+     * and the test JVM eventually OOMs while generating the next payload.
+     */
+    @After
+    public void clearTestBlobs() {
+        String prefix = "/" + BUCKET + "/" + KEY_PREFIX + "/" + getTestName() + "/";
+        Iterator<String> it = handler().blobs().keySet().iterator();
+        while (it.hasNext()) {
+            if (it.next().startsWith(prefix)) {
+                it.remove();
+            }
+        }
     }
 
     /**
@@ -144,15 +164,15 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      * payload-generation problem is solved.
      */
 
-    /*
-     * Scenario 2: many-rows STATS BY high-cardinality key blows the hash table.
-     *
-     * Parquet variants are intentionally omitted here: a first run revealed that, with the
-     * current parquet reader + STATS interaction, this attack causes the cluster node to OOM
-     * rather than trip the request breaker (a real protection gap, not a test issue). Re-add
-     * the Parquet stats scenarios once the reader-side accounting catches the per-row-group
-     * decode pressure.
-     */
+    // Scenario 2: many-rows STATS BY high-cardinality key blows the hash table.
+
+    public void testStatsBlowupParquet() throws IOException {
+        runStatsBlowup(Format.PARQUET, Compression.NONE);
+    }
+
+    public void testStatsBlowupParquetZstd() throws IOException {
+        runStatsBlowup(Format.PARQUET, Compression.ZSTD);
+    }
 
     public void testStatsBlowupNdjson() throws IOException {
         runStatsBlowup(Format.NDJSON, Compression.NONE);
@@ -176,12 +196,15 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // upper bound at MAX_ROWS to keep the test-JVM byte[] payload tractable.
         int baseDistinctKeys = (int) Math.min(MAX_ROWS / 4, clusterHeapMax / 64L * 2);
         int baseRowCount = baseDistinctKeys * 4;
+        // Same key across attempts so the fixture's blob map holds at most one payload per test
+        // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
+        String key = scenarioKey("statsblowup", format, compression);
         assertCircuitBreaks(attempt -> {
             int distinctKeys = (int) Math.min(MAX_ROWS / 4, (long) baseDistinctKeys * attempt);
             int rowCount = (int) Math.min(MAX_ROWS, (long) baseRowCount * attempt);
-            String key = uniqueKey("statsblowup", format, compression, attempt);
             byte[] payload = HeapAttackExternalFixtures.maybeCompress(
-                HeapAttackExternalFixtures.manyRows(format, rowCount, distinctKeys),
+                HeapAttackExternalFixtures.manyRows(format, rowCount, distinctKeys, compression),
+                format,
                 compression
             );
             S3FixtureUtils.addBlobToFixture(handler(), key, payload);
@@ -204,17 +227,15 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         return S3_FIXTURE.getHandler();
     }
 
-    private String uniqueKey(String scenario, Format format, Compression compression, int attempt) {
+    private String scenarioKey(String scenario, Format format, Compression compression) {
         return String.format(
             Locale.ROOT,
-            "%s/%s/%s-%s-a%d.%s%s",
+            "%s/%s/%s-%s%s",
             KEY_PREFIX,
             getTestName(),
             scenario,
             format.extension,
-            attempt,
-            format.extension,
-            compression.extension
+            HeapAttackExternalFixtures.fileExtension(format, compression)
         );
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.ConstantDynamic;
 import org.objectweb.asm.Handle;
@@ -445,7 +447,12 @@ public final class JitConstantSpinner {
             : primitive == double.class ? Opcodes.DRETURN
             : primitive == float.class ? Opcodes.FRETURN
             : Opcodes.IRETURN;
-        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, getterDesc, null, null);
+        MethodVisitor m = guard(
+            cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, getterDesc, null, null),
+            methodName,
+            spunInternal,
+            baseInternal
+        );
         m.visitCode();
         m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, fieldName, typeDescriptor);
         m.visitInsn(returnOp);
@@ -481,7 +488,12 @@ public final class JitConstantSpinner {
         );
         ConstantDynamic condy = new ConstantDynamic("_", typeDescriptor, classDataBoot);
 
-        MethodVisitor clinit = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        MethodVisitor clinit = guard(
+            cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null),
+            "<clinit>",
+            spunInternal,
+            baseInternal
+        );
         clinit.visitCode();
         clinit.visitLdcInsn(condy);
         clinit.visitFieldInsn(Opcodes.PUTSTATIC, spunInternal, fieldName, typeDescriptor);
@@ -493,7 +505,12 @@ public final class JitConstantSpinner {
 
         // protected final <T> <methodName>() { return CONST_<NAME>; }
         String getterDesc = "()" + typeDescriptor;
-        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, getterDesc, null, null);
+        MethodVisitor m = guard(
+            cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, methodName, getterDesc, null, null),
+            methodName,
+            spunInternal,
+            baseInternal
+        );
         m.visitCode();
         m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, fieldName, typeDescriptor);
         m.visitInsn(Opcodes.ARETURN);
@@ -505,6 +522,7 @@ public final class JitConstantSpinner {
     }
 
     private static void emitCtors(ClassWriter cw, Class<?> base, String baseInternal) {
+        String spunInternal = baseInternal + "$Spun";
         // Reproduce every public base ctor with a chained super call. The base classes
         // we spin against are always codegen-emitted abstract evaluators with public ctors.
         for (var ctor : base.getConstructors()) {
@@ -512,7 +530,12 @@ public final class JitConstantSpinner {
             if (java.lang.reflect.Modifier.isPrivate(mods)) continue;
             Class<?>[] paramTypes = ctor.getParameterTypes();
             String descriptor = methodDescriptor(paramTypes, void.class);
-            MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", descriptor, null, null);
+            MethodVisitor mv = guard(
+                cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", descriptor, null, null),
+                "<init>",
+                spunInternal,
+                baseInternal
+            );
             mv.visitCode();
             mv.visitVarInsn(Opcodes.ALOAD, 0);
             int slot = 1;
@@ -542,6 +565,11 @@ public final class JitConstantSpinner {
     }
 
     private static Class<?> defineHidden(Class<?> base, byte[] bytecode, Object classData) {
+        // Note: bytecode-shape drift is caught at *emission* time by the GuardingMethodVisitor
+        // wrap (see {@link #guard}); each visit* call asserts the opcode is in the narrow allowlist
+        // before it is written. No re-parse of the byte[] is needed at this point. The static
+        // {@link #verifyEmittedShape(byte[], Class)} method exists for tests that hand-craft
+        // a malformed byte[] outside the emit path; production never calls it.
         try {
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(base, MethodHandles.lookup());
             if (classData == null) {
@@ -551,6 +579,155 @@ public final class JitConstantSpinner {
             }
         } catch (IllegalAccessException e) {
             throw new IllegalStateException("Cannot spin hidden subclass of " + base.getName(), e);
+        }
+    }
+
+    /**
+     * Wrap an emit-time {@link MethodVisitor} so every {@code visit*} call is checked against
+     * the narrow opcode allowlist before being passed through. The spinner emits, per spun class,
+     * exactly: one mirror of each public base ctor (ALOAD this, *LOAD params, INVOKESPECIAL super.&lt;init&gt;,
+     * RETURN); one constant-returning accessor (GETSTATIC field, *RETURN); and for reference constants
+     * one &lt;clinit&gt; (LDC condy, PUTSTATIC, RETURN). Anything else is emitter drift — caught here at the
+     * moment the offending {@code visit*} is called, without re-parsing the byte[]. The exception
+     * propagates out of {@code spinOrCache}'s {@code computeIfAbsent} into the existing
+     * {@code RuntimeException} catch, which routes the caller to the codegen Fallback. No crash,
+     * no wrong answer, just no folding for that constant.
+     */
+    private static MethodVisitor guard(MethodVisitor delegate, String methodName, String spunInternal, String expectedSuperInternal) {
+        return new GuardingMethodVisitor(delegate, methodName, spunInternal, expectedSuperInternal);
+    }
+
+    /**
+     * Test-only entry point that runs the same allowlist over a hand-crafted byte[]. Production
+     * never calls this — emit-time wrapping via {@link #guard} is the active check.
+     */
+    static void verifyEmittedShape(byte[] bytecode, Class<?> declaredSuper) {
+        final String expectedSuperInternal = Type.getInternalName(declaredSuper);
+        final String[] spunInternalRef = new String[1];
+        new ClassReader(bytecode).accept(new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+                if (expectedSuperInternal.equals(superName) == false) {
+                    throw new IllegalStateException(
+                        "emitter drift: spun class super [" + superName + "] != expected [" + expectedSuperInternal + "]"
+                    );
+                }
+                spunInternalRef[0] = name;
+            }
+
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                // Feed the same guard, but with a no-op delegate (we're just checking, not re-emitting).
+                return new GuardingMethodVisitor(new MethodVisitor(Opcodes.ASM9) {}, name, spunInternalRef[0], expectedSuperInternal);
+            }
+        }, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+    }
+
+    /** Inline opcode-allowlist verifier; wraps a real {@link MethodVisitor} or a no-op for testing. */
+    private static final class GuardingMethodVisitor extends MethodVisitor {
+        private final String mName;
+        private final String spunInternal;
+        private final String expectedSuperInternal;
+
+        GuardingMethodVisitor(MethodVisitor delegate, String methodName, String spunInternal, String expectedSuperInternal) {
+            super(Opcodes.ASM9, delegate);
+            this.mName = methodName;
+            this.spunInternal = spunInternal;
+            this.expectedSuperInternal = expectedSuperInternal;
+        }
+
+        @Override
+        public void visitInsn(int opcode) {
+            switch (opcode) {
+                case Opcodes.RETURN, Opcodes.IRETURN, Opcodes.LRETURN, Opcodes.FRETURN, Opcodes.DRETURN, Opcodes.ARETURN -> super.visitInsn(
+                    opcode
+                );
+                default -> throw drift("unexpected opcode " + opcode);
+            }
+        }
+
+        @Override
+        public void visitVarInsn(int opcode, int var) {
+            switch (opcode) {
+                case Opcodes.ALOAD, Opcodes.ILOAD, Opcodes.LLOAD, Opcodes.FLOAD, Opcodes.DLOAD -> super.visitVarInsn(opcode, var);
+                default -> throw drift("unexpected var-insn opcode " + opcode);
+            }
+        }
+
+        @Override
+        public void visitFieldInsn(int opcode, String owner, String fName, String fDesc) {
+            if (owner.equals(spunInternal) == false) {
+                throw drift("field op on foreign owner [" + owner + "]");
+            }
+            if (opcode == Opcodes.GETSTATIC || (opcode == Opcodes.PUTSTATIC && "<clinit>".equals(mName))) {
+                super.visitFieldInsn(opcode, owner, fName, fDesc);
+                return;
+            }
+            throw drift("unexpected field-insn opcode " + opcode);
+        }
+
+        @Override
+        public void visitMethodInsn(int opcode, String owner, String mn, String md, boolean iface) {
+            if (opcode == Opcodes.INVOKESPECIAL && expectedSuperInternal.equals(owner) && "<init>".equals(mn)) {
+                super.visitMethodInsn(opcode, owner, mn, md, iface);
+                return;
+            }
+            throw drift("unexpected method-insn opcode=" + opcode + " owner=" + owner + " name=" + mn);
+        }
+
+        @Override
+        public void visitLdcInsn(Object cst) {
+            if ("<clinit>".equals(mName) && cst instanceof ConstantDynamic) {
+                super.visitLdcInsn(cst);
+                return;
+            }
+            throw drift("unexpected LDC of " + cst.getClass().getSimpleName());
+        }
+
+        @Override
+        public void visitIntInsn(int opcode, int operand) {
+            throw drift("unexpected int-insn opcode " + opcode);
+        }
+
+        @Override
+        public void visitTypeInsn(int opcode, String type) {
+            throw drift("unexpected type-insn opcode " + opcode);
+        }
+
+        @Override
+        public void visitJumpInsn(int opcode, org.objectweb.asm.Label l) {
+            throw drift("unexpected jump-insn opcode " + opcode);
+        }
+
+        @Override
+        public void visitIincInsn(int var, int incr) {
+            throw drift("unexpected IINC");
+        }
+
+        @Override
+        public void visitInvokeDynamicInsn(String n, String d, Handle b, Object... a) {
+            throw drift("unexpected INVOKEDYNAMIC");
+        }
+
+        @Override
+        public void visitMultiANewArrayInsn(String d, int dims) {
+            throw drift("unexpected MULTIANEWARRAY");
+        }
+
+        @Override
+        public void visitTableSwitchInsn(int min, int max, org.objectweb.asm.Label dflt, org.objectweb.asm.Label... labels) {
+            throw drift("unexpected TABLESWITCH");
+        }
+
+        @Override
+        public void visitLookupSwitchInsn(org.objectweb.asm.Label dflt, int[] keys, org.objectweb.asm.Label[] labels) {
+            throw drift("unexpected LOOKUPSWITCH");
+        }
+
+        private IllegalStateException drift(String what) {
+            return new IllegalStateException(
+                "JitConstantSpinner emitter drift in spun [" + spunInternal + "] method [" + mName + "]: " + what
+            );
         }
     }
 

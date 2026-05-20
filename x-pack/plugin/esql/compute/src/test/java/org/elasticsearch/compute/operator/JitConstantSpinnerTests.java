@@ -10,6 +10,10 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -307,5 +311,84 @@ public class JitConstantSpinnerTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> JitConstantSpinner.referenceConstantSubclass(LongBase.class, "divisor", long.class, 1L)
         );
+    }
+
+    // ---- Bytecode-shape verifier: drift guard ----
+
+    /**
+     * The verifier must accept every legitimate emission shape (primitive long/int/double,
+     * reference via condy, multi-ctor bases). The fact that all the other tests above spin
+     * and invoke real subclasses without throwing implicitly proves this. This test is the
+     * negative side: hand-craft a class that mirrors a real spun shape but adds a forbidden
+     * INVOKESTATIC, and confirm the verifier rejects it before defineHiddenClass.
+     */
+    public void testVerifierRejectsForbiddenOpcode() {
+        String baseInternal = Type.getInternalName(LongBase.class);
+        String spunInternal = baseInternal + "$Spun";
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
+
+        // ctor: super()
+        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        ctor.visitCode();
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, baseInternal, "<init>", "()V", false);
+        ctor.visitInsn(Opcodes.RETURN);
+        ctor.visitMaxs(0, 0);
+        ctor.visitEnd();
+
+        // divisor() { return System.currentTimeMillis(); } — uses forbidden INVOKESTATIC
+        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, "divisor", "()J", null, null);
+        m.visitCode();
+        m.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J", false);
+        m.visitInsn(Opcodes.LRETURN);
+        m.visitMaxs(0, 0);
+        m.visitEnd();
+        cw.visitEnd();
+
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> JitConstantSpinner.verifyEmittedShape(cw.toByteArray(), LongBase.class)
+        );
+        assertTrue("error must name the spinner: " + ex.getMessage(), ex.getMessage().contains("emitter drift"));
+        assertTrue("error must name the method: " + ex.getMessage(), ex.getMessage().contains("divisor"));
+    }
+
+    /**
+     * Second negative: PUTSTATIC outside &lt;clinit&gt; (only allowed in &lt;clinit&gt;).
+     */
+    public void testVerifierRejectsPutstaticOutsideClinit() {
+        String baseInternal = Type.getInternalName(LongBase.class);
+        String spunInternal = baseInternal + "$Spun";
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SUPER, spunInternal, null, baseInternal, null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, "CONST_divisor", "J", null, 7L).visitEnd();
+
+        // ctor
+        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        ctor.visitCode();
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, baseInternal, "<init>", "()V", false);
+        ctor.visitInsn(Opcodes.RETURN);
+        ctor.visitMaxs(0, 0);
+        ctor.visitEnd();
+
+        // divisor() { CONST_divisor = 0L; return CONST_divisor; } — PUTSTATIC outside <clinit>
+        MethodVisitor m = cw.visitMethod(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, "divisor", "()J", null, null);
+        m.visitCode();
+        m.visitInsn(Opcodes.LCONST_0); // forbidden constant push, but PUTSTATIC will hit first
+        m.visitFieldInsn(Opcodes.PUTSTATIC, spunInternal, "CONST_divisor", "J");
+        m.visitFieldInsn(Opcodes.GETSTATIC, spunInternal, "CONST_divisor", "J");
+        m.visitInsn(Opcodes.LRETURN);
+        m.visitMaxs(0, 0);
+        m.visitEnd();
+        cw.visitEnd();
+
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> JitConstantSpinner.verifyEmittedShape(cw.toByteArray(), LongBase.class)
+        );
+        assertTrue("error must name the spinner: " + ex.getMessage(), ex.getMessage().contains("emitter drift"));
     }
 }

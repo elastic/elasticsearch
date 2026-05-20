@@ -242,7 +242,7 @@ public class Reindexer {
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
-            listenerWithRelocations(task, request, relocationResponseListenerWithMetrics(reindexMetrics), listener),
+            listenerWithRelocations(task, request, relocationResponseLoggingListener(task), listener),
             reindexMetrics,
             task,
             request
@@ -612,18 +612,22 @@ public class Reindexer {
         });
     }
 
-    /** Listener to call on a relocation response to record metrics. Visible for testing. */
-    static ActionListener<ResumeBulkByScrollResponse> relocationResponseListenerWithMetrics(@Nullable final ReindexMetrics metrics) {
-        return ActionListener.assertOnce(
-            metrics == null ? ActionListener.noop() : ActionListener.wrap(resp -> metrics.recordRelocationSuccess(), e -> {
-                if (e instanceof TaskCancelledException) {
-                    // Failure metrics should represent genuine failures, task cancellation is expected from user operation,
-                    // so skipping emitting metric
-                    return;
-                }
-                metrics.recordRelocationFailure(e);
-            })
-        );
+    /// Listener to log the outcome of a relocation on the **source** node. These logs are used for dashboards.
+    ///
+    /// We log instead of emitting a metric because the source is being shut down (SIGTERM is what triggered the
+    /// relocation), and the metrics agent stops publishing on SIGTERM — so any source-side metric would be dropped.
+    ///
+    /// Visible for testing.
+    static ActionListener<ResumeBulkByScrollResponse> relocationResponseLoggingListener(final BulkByPaginatedSearchTask task) {
+        return ActionListener.assertOnce(ActionListener.wrap(resp -> {
+            logger.info("reindex task [{}] relocation succeeded on source node", task.getId());
+        }, e -> {
+            if (e instanceof TaskCancelledException) {
+                // task cancellation exception is expected from user operation, should not count as a failure
+                return;
+            }
+            logger.warn("reindex task [{}] relocation failed on source node", task.getId(), e);
+        }));
     }
 
     /**
@@ -657,13 +661,14 @@ public class Reindexer {
         }
         final boolean isRemote = request.getRemoteInfo() != null;
         final ReindexMetrics.SlicingMode slicingMode = ReindexMetrics.resolveSlicingMode(request);
+        final boolean relocated = task.isRelocatedTask();
         return new ActionListener<>() {
             private void recordDuration() {
                 // handles relocations
                 long elapsedTimeSeconds = TimeUnit.MILLISECONDS.toSeconds(
                     currentTimeMillisSupplier.getAsLong() - task.relocationOrigin().originalStartTimeMillis()
                 );
-                metrics.recordTookTime(elapsedTimeSeconds, isRemote, slicingMode);
+                metrics.recordTookTime(elapsedTimeSeconds, isRemote, slicingMode, relocated);
             }
 
             @Override
@@ -689,9 +694,9 @@ public class Reindexer {
                         .findFirst();
                     if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
                         Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
-                        metrics.recordFailure(isRemote, slicingMode, e);
+                        metrics.recordFailure(isRemote, slicingMode, relocated, e);
                     } else {
-                        metrics.recordSuccess(isRemote, slicingMode);
+                        metrics.recordSuccess(isRemote, slicingMode, relocated);
                     }
                     listener.onResponse(bulkByScrollResponse);
                 } finally {
@@ -702,7 +707,7 @@ public class Reindexer {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    metrics.recordFailure(isRemote, slicingMode, e);
+                    metrics.recordFailure(isRemote, slicingMode, relocated, e);
                     listener.onFailure(e);
                 } finally {
                     recordDuration();
@@ -751,6 +756,8 @@ public class Reindexer {
             try {
                 sourceTaskResult = task.result(clusterService.localNode(), new TaskRelocatedException());
             } catch (IOException e) {
+                // Relocation never made it to the destination; notify the logging listener so the failure is recorded
+                onRelocationResponseListener.onFailure(e);
                 l.onFailure(e);
                 return;
             }

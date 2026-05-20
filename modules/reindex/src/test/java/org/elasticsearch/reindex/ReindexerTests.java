@@ -12,7 +12,6 @@ package org.elasticsearch.reindex;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -116,6 +115,8 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
+import static org.apache.logging.log4j.Level.INFO;
+import static org.apache.logging.log4j.Level.WARN;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
@@ -124,7 +125,6 @@ import static org.elasticsearch.test.ActionListenerUtils.neverCalledListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -153,9 +153,10 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics).recordSuccess(eq(false), any());
-        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        // relocated boolean is driven by task.isRelocatedTask(); existing helpers use a random origin so accept any value here
+        verify(metrics).recordSuccess(eq(false), any(), anyBoolean());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), anyBoolean(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsFailure() {
@@ -168,9 +169,9 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onFailure(exception);
 
         verify(listener).onFailure(exception);
-        verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(eq(false), any(), eq(exception));
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics, never()).recordSuccess(anyBoolean(), any(), anyBoolean());
+        verify(metrics).recordFailure(eq(false), any(), anyBoolean(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsBulkFailure() {
@@ -188,9 +189,9 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(eq(false), any(), eq(exception));
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics, never()).recordSuccess(anyBoolean(), any(), anyBoolean());
+        verify(metrics).recordFailure(eq(false), any(), anyBoolean(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsSearchFailure() {
@@ -208,9 +209,9 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(eq(false), any(), eq(exception));
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics, never()).recordSuccess(anyBoolean(), any(), anyBoolean());
+        verify(metrics).recordFailure(eq(false), any(), anyBoolean(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsSkipsSliceWorker() {
@@ -236,8 +237,8 @@ public class ReindexerTests extends ESTestCase {
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
-        verify(metrics).recordSuccess(eq(false), any());
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics).recordSuccess(eq(false), any(), anyBoolean());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsSkipsMetricsWhenRelocating() {
@@ -270,7 +271,8 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         final ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
-        verify(metrics).recordTookTime(captor.capture(), eq(false), any());
+        // origin set => task.isRelocatedTask() is true, so relocated=true must propagate
+        verify(metrics).recordTookTime(captor.capture(), eq(false), any(), eq(true));
         assertThat(captor.getValue(), equalTo(expectedElapsedSeconds));
     }
 
@@ -288,7 +290,8 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         final ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
-        verify(metrics).recordTookTime(captor.capture(), eq(false), any());
+        // origin null => task.isRelocatedTask() is false, so relocated=false must propagate
+        verify(metrics).recordTookTime(captor.capture(), eq(false), any(), eq(false));
         assertThat(captor.getValue(), equalTo(expectedElapsedSeconds));
     }
 
@@ -426,51 +429,106 @@ public class ReindexerTests extends ESTestCase {
         assertThat(exception.getMetadata("es.relocated_task_id"), equalTo(List.of("target-node:123")));
     }
 
-    public void testRelocationListenerIsNoopWithoutMetrics() {
-        final var listener = Reindexer.relocationResponseListenerWithMetrics(null);
-        assertThat(listener.toString(), is(equalTo("NoopActionListener")));
-    }
-
-    public void testRelocationListenerRecordsSuccessMetric() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+    public void testRelocationLoggingListenerLogsSuccess() {
+        // Dashboards depend on this exact WARN/INFO wording;
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
         final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
-        listener.onResponse(response);
-        verify(metrics).recordRelocationSuccess();
-        verifyNoMoreInteractions(metrics);
+
+        try (var mockLog = MockLog.capture(Reindexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "relocation succeeded info",
+                    Reindexer.class.getCanonicalName(),
+                    INFO,
+                    "reindex task [" + task.getId() + "] relocation succeeded on source node"
+                )
+            );
+            // Failure log must not fire on the success path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no failure log on success",
+                    Reindexer.class.getCanonicalName(),
+                    WARN,
+                    "*relocation failed*"
+                )
+            );
+            listener.onResponse(response);
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
-    public void testRelocationListenerRecordsFailureMetric() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+    public void testRelocationLoggingListenerLogsFailure() {
+        // Dashboards depend on this exact WARN wording;
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
         final Exception e = new IllegalStateException(randomAlphaOfLength(5));
-        listener.onFailure(e);
-        verify(metrics).recordRelocationFailure(e);
-        verifyNoMoreInteractions(metrics);
+
+        try (var mockLog = MockLog.capture(Reindexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    "relocation failed warn",
+                    Reindexer.class.getCanonicalName(),
+                    WARN,
+                    "reindex task [" + task.getId() + "] relocation failed on source node",
+                    IllegalStateException.class,
+                    e.getMessage()
+                )
+            );
+            // Success log must not fire on the failure path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no success log on failure",
+                    Reindexer.class.getCanonicalName(),
+                    INFO,
+                    "*relocation succeeded*"
+                )
+            );
+            listener.onFailure(e);
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
-    public void testRelocationListenerDoesNotRecordFailureMetricForTaskCancelledException() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
-        listener.onFailure(new TaskCancelledException("task cancelled before relocation handoff could begin"));
-        verifyNoMoreInteractions(metrics);
+    public void testRelocationLoggingListenerDoesNotLogForTaskCancelledException() {
+        // Cancellation is expected user action, not a relocation failure — neither the warn nor the info should fire.
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+
+        try (var mockLog = MockLog.capture(Reindexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no warn for cancellation",
+                    Reindexer.class.getCanonicalName(),
+                    WARN,
+                    "*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no info for cancellation",
+                    Reindexer.class.getCanonicalName(),
+                    INFO,
+                    "*relocation succeeded*"
+                )
+            );
+            listener.onFailure(new TaskCancelledException("task cancelled before relocation could begin"));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
-    public void testRelocationListenerCalledForBothSuccessAndFailureFails() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+    public void testRelocationLoggingListenerCalledForBothSuccessAndFailureFails() {
+        // assertOnce wrapping still applies: calling both onResponse and onFailure must throw.
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseLoggingListener(task);
         final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
         final Exception e = new IllegalStateException(randomAlphaOfLength(5));
         if (randomBoolean()) {
             listener.onResponse(response);
             assertThrows(AssertionError.class, () -> listener.onFailure(e));
-            verify(metrics).recordRelocationSuccess();
         } else {
             listener.onFailure(e);
             assertThrows(AssertionError.class, () -> listener.onResponse(response));
-            verify(metrics).recordRelocationFailure(e);
         }
-        verifyNoMoreInteractions(metrics);
     }
 
     public void testListenerWithRelocationsSendsSourceTaskResultInResumeRequest() {
@@ -1189,7 +1247,7 @@ public class ReindexerTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "Failed to close remote PIT should be logged",
                     Reindexer.class.getCanonicalName(),
-                    Level.WARN,
+                    WARN,
                     "Failed to close remote PIT"
                 )
             );
@@ -1229,7 +1287,7 @@ public class ReindexerTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "Failed to close remote PIT (rejected) should be logged",
                     Reindexer.class.getCanonicalName(),
-                    Level.WARN,
+                    WARN,
                     "Failed to close remote PIT (rejected)"
                 )
             );
@@ -1376,7 +1434,7 @@ public class ReindexerTests extends ESTestCase {
                     new MockLog.SeenEventExpectation(
                         "Failed to close local PIT should be logged",
                         Reindexer.class.getCanonicalName(),
-                        Level.WARN,
+                        WARN,
                         "Failed to close local PIT"
                     )
                 );
@@ -2627,7 +2685,7 @@ public class ReindexerTests extends ESTestCase {
             new MockLog.SeenEventExpectation(
                 "Failed to close RestClient after version lookup should be logged",
                 Reindexer.class.getCanonicalName(),
-                Level.WARN,
+                WARN,
                 "Failed to close RestClient after version lookup"
             )
         );

@@ -256,7 +256,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, slices, shards);
 
         // Assert nodeA recorded success metrics for the relocated reindex
-        assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices);
+        assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices, true);
 
         // assert all documents have been reindexed
         assertExpectedNumberOfDocumentsInDestinationIndex();
@@ -563,7 +563,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        assertOnlyRelocationReindexMetricsOnNode(nodeName);
+        assertNoReindexMetricsOnSourceNode(nodeName);
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
@@ -905,27 +905,24 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             .orElseThrow();
     }
 
-    private void assertOnlyRelocationReindexMetricsOnNode(final String nodeName) {
+    private void assertNoReindexMetricsOnSourceNode(final String nodeName) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         assertThat(plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER), is(empty()));
         assertThat(plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM), is(empty()));
         assertThat(
-            "relocation started metric should not be updated on the node the reindex moved from " + nodeName,
-            plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_STARTED_COUNTER),
+            "relocation metric should not be updated on the source node [" + nodeName + "]",
+            plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER),
             is(empty())
-        );
-        final var relocationCounter = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
-        assertThat("relocation metric updated", relocationCounter.size(), equalTo(1));
-        assertThat("relocation metric updated", relocationCounter.getFirst().getLong(), equalTo(1L));
-        assertThat(
-            "relocation metric was successful",
-            relocationCounter.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE),
-            is(nullValue())
         );
     }
 
-    private void assertReindexSuccessMetricsOnNode(final String nodeName, final boolean isRemote, final int slices) {
+    private void assertReindexSuccessMetricsOnNode(
+        final String nodeName,
+        final boolean isRemote,
+        final int slices,
+        final boolean relocated
+    ) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         final List<Measurement> completions = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
@@ -933,20 +930,12 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertNull(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
         final String expectedSource = isRemote ? ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE : ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
         assertThat(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
-        SlicingMode slicingMode = null;
-        if (slices == 0) {
-            slicingMode = SlicingMode.AUTO;
-        } else if (slices == 1) {
-            slicingMode = SlicingMode.NONE;
-        } else if (slices > 1) {
-            slicingMode = SlicingMode.FIXED;
-        } else {
-            fail("invalid slices value: " + slices);
-        }
+        final SlicingMode slicingMode = slicingModeFromSliceCount(slices);
         assertThat(
             completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
+        assertThat(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(relocated));
         final List<Measurement> durations = plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
         assertThat(durations.size(), equalTo(1));
         final Measurement duration = durations.getFirst();
@@ -956,11 +945,36 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
-        final var relocationStartedCounter = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_STARTED_COUNTER);
-        assertThat(relocationStartedCounter.size(), equalTo(1));
-        assertThat(relocationStartedCounter.getFirst().getLong(), equalTo(1L));
-        assertThat(relocationStartedCounter.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE), is(nullValue()));
-        assertThat("no relocation metric", plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER).size(), equalTo(0));
+        assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(relocated));
+        // Relocation counter is destination-only; expected when relocated=true (this node is the destination), absent otherwise.
+        final List<Measurement> relocations = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
+        if (relocated) {
+            assertThat(relocations.size(), equalTo(1));
+            assertThat(relocations.getFirst().getLong(), equalTo(1L));
+            assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE), is(nullValue()));
+            assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+            assertThat(
+                relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
+                equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
+            );
+            // schema uniformity: every reindex metric carries the relocated attribute, always true on this counter
+            assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
+        } else {
+            assertThat(relocations, is(empty()));
+        }
+    }
+
+    private static SlicingMode slicingModeFromSliceCount(final int slices) {
+        if (slices == 0) {
+            return SlicingMode.AUTO;
+        } else if (slices == 1) {
+            return SlicingMode.NONE;
+        } else if (slices > 1) {
+            return SlicingMode.FIXED;
+        } else {
+            fail("invalid slices value: " + slices);
+            return null;
+        }
     }
 
     private void assertExpectedNumberOfDocumentsInDestinationIndex() throws IOException {

@@ -83,7 +83,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public enum Mode {
         DISABLED,
         STORED,
-        SYNTHETIC
+        SYNTHETIC,
+        COLUMNAR_STORED
     }
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
@@ -91,7 +92,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
-        false,
         false,
         false
     );
@@ -102,7 +102,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
         false,
-        false,
         false
     );
 
@@ -112,6 +111,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
         false,
+        false
+    );
+
+    private static final SourceFieldMapper COLUMNAR_STORED = new SourceFieldMapper(
+        Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
         false,
         false
     );
@@ -121,7 +128,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
-        false,
         false,
         false
     );
@@ -178,8 +184,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final boolean supportsNonDefaultParameterValues;
         private final boolean sourceModeIsNoop;
 
-        private boolean useColumnarSource;
-
         public Builder(
             IndexMode indexMode,
             final Settings settings,
@@ -207,16 +211,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 .setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
                 // don't emit if `enabled` is configured
                 .setSerializerCheck((includeDefaults, isConfigured, value) -> serializeMode && value != null);
-            this.useColumnarSource = IndexSettings.COLUMNAR_SOURCE_SETTING.get(settings);
         }
 
         public Builder setSynthetic() {
             this.mode.setValue(Mode.SYNTHETIC);
-            return this;
-        }
-
-        public Builder setUseColumnarSource(boolean useColumnarSource) {
-            this.useColumnarSource = useColumnarSource;
             return this;
         }
 
@@ -226,7 +224,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         private boolean isDefault() {
-            return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty() && useColumnarSource == false;
+            return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
         }
 
         @Override
@@ -286,8 +284,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     includes.getValue().toArray(Strings.EMPTY_ARRAY),
                     excludes.getValue().toArray(Strings.EMPTY_ARRAY),
                     serializeMode,
-                    sourceModeIsNoop,
-                    useColumnarSource
+                    sourceModeIsNoop
                 );
             }
             if (indexMode != null) {
@@ -325,6 +322,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case SYNTHETIC -> SYNTHETIC;
             case STORED -> STORED;
             case DISABLED -> DISABLED;
+            case COLUMNAR_STORED -> COLUMNAR_STORED;
         };
     }
 
@@ -391,7 +389,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
     private final SourceFilter sourceFilter;
-    private final boolean useColumnarSource;
 
     private SourceFieldMapper(
         Mode mode,
@@ -399,8 +396,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         String[] includes,
         String[] excludes,
         boolean serializeMode,
-        boolean sourceModeIsNoop,
-        boolean useColumnarSource
+        boolean sourceModeIsNoop
     ) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         this.mode = mode;
@@ -411,7 +407,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.complete = stored() && sourceFilter == null;
         this.serializeMode = serializeMode;
         this.sourceModeIsNoop = sourceModeIsNoop;
-        this.useColumnarSource = useColumnarSource;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -450,6 +445,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
+        final boolean useColumnarSource = mode == Mode.COLUMNAR_STORED;
 
         if (adaptedStoredSource != null && useColumnarSource == false) {
             final BytesRef ref = adaptedStoredSource.toBytesRef();
@@ -480,7 +476,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        if (useColumnarSource == false || stored() == false) {
+        if (mode != Mode.COLUMNAR_STORED || stored() == false) {
             return;
         }
         List<LuceneDocument> docs = context.luceneDocumentsInShardIndexOrder();
@@ -593,7 +589,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode).setUseColumnarSource(useColumnarSource);
+        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode);
         b.fallbackMode = this.mode;
         b.init(this);
         return b;

@@ -36,7 +36,7 @@ You cannot change the `type` component of a data stream with the `reroute` proce
 When a `reroute` processor executes, it immediately stops processing the current pipeline:
 
 - All subsequent processors in the current pipeline are skipped, including the final pipeline
-- If the current pipeline is called from a [Pipeline processor](/reference/enrich-processor/pipeline-processor.md), the calling pipeline is also skipped
+- If the current pipeline is called from a [Pipeline processor](/reference/ingest-processor/pipeline-processor.md), the calling pipeline is also skipped
 - Only one `reroute` processor can execute per document, allowing you to define mutually exclusive routing conditions similar to if-else logic
 
 ## Document processing after rerouting [reroute-document-processing]

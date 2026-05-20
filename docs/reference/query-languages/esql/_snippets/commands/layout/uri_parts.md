@@ -29,7 +29,7 @@ URI_PARTS prefix = expression
 The `URI_PARTS` command parses a URI string and extracts its components into new columns.
 The new columns are prefixed with the specified `prefix` followed by a dot (`.`).
 
-This command is the query-time equivalent of the [URI parts ingest processor](/reference/enrich-processor/uri-parts-processor.md).
+This command is the query-time equivalent of the [URI parts ingest processor](/reference/ingest-processor/uri-parts-processor.md).
 
 The following columns are created:
 

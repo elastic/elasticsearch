@@ -34,7 +34,7 @@ field value as-is. In such a case, `target_field` will be updated with the uncon
 
 :::{tip}
  If conversions other than those provided by this processor are required, the
-[`script`](/reference/enrich-processor/script-processor.md) processor may be used to implement the desired behavior.
+[`script`](/reference/ingest-processor/script-processor.md) processor may be used to implement the desired behavior.
 
 The performance of the `script` processor should be as good or better than the `convert` processor.
 :::

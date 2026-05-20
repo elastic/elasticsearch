@@ -21,6 +21,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.NodeShutdownTestUtils;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -98,6 +100,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(StatelessMockRepositoryPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         plugins.add(ShutdownPlugin.class);
+        plugins.add(InternalSettingsPlugin.class);
         return List.copyOf(plugins);
     }
 
@@ -107,12 +110,16 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     public void testStatelessSnapshotReadsFromObjectStore() throws IOException {
+        // Create the node and index with disabled background refresh, flush and merge
+        // so that we get expected number and layout for generated commits.
         final var indexNodeName = startMasterAndIndexNode(
-            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+            Settings.builder()
+                .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .build()
         );
-
         final String indexName = randomIdentifier();
-        createIndex(indexName, 1, 0);
+        createIndex(indexName, indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build());
         indexAndMaybeFlush(indexName);
 
         final var repoName = randomIdentifier();
@@ -167,7 +174,8 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         assertFalse(snapshotReadSeen.get());
 
         // Verify the snapshots should have expected deduplication, i.e. the later snapshot should reference files from the earlier
-        // ones without re-creating them.
+        // ones without re-creating them. Note this assumes no merge happens between snapshots which is true in this test since it is
+        // disabled when creating the index earlier.
         final var repositoriesService = internalCluster().getInstance(RepositoriesService.class, indexNodeName);
         final var repositoryData = safeAwait(
             (ActionListener<RepositoryData> l) -> repositoriesService.getRepositoryData(ProjectId.DEFAULT, repoName, l)

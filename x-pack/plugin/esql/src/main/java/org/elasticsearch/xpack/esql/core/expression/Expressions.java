@@ -40,9 +40,19 @@ public final class Expressions {
      * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
      * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      * <p>
-     * Exception: a {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is instead
-     * converted to an {@link UnsupportedAttribute} via
-     * {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a clear user-facing error.
+     * Exceptions to the {@link ReferenceAttribute} conversion:
+     * <ul>
+     *   <li>A {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is converted
+     *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
+     *   clear user-facing error.</li>
+     *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
+     *   "virtual column" identity must survive operators that re-class their output (e.g. {@code Fork.refreshedOutput})
+     *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
+     *   {@code _file.*} from the default top-level projection) and the predicate-pushdown helpers
+     *   ({@code PushdownPredicates#isVirtualColumn}) test this subtype to decide whether an attribute is
+     *   a virtual column or a real data column. Erasing the type would silently leak {@code _file.*}
+     *   into default output and would also re-enable predicate pushdown on virtual columns past a Fork.</li>
+     * </ul>
      */
     public static List<Attribute> toReferenceAttributesPreservingIds(
         List<? extends NamedExpression> named,
@@ -62,6 +72,14 @@ public final class Expressions {
             Attribute refAttr = switch (exp) {
                 case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.flagTypeConflicts();
                 case ReferenceAttribute ra -> ra.withId(id);
+                case ExternalMetadataAttribute xa -> new ExternalMetadataAttribute(
+                    xa.source(),
+                    xa.name(),
+                    xa.dataType(),
+                    xa.nullable(),
+                    id,
+                    xa.synthetic()
+                );
                 default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
             };
             list.add(refAttr);

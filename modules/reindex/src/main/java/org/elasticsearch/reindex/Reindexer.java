@@ -941,7 +941,7 @@ public class Reindexer {
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByPaginatedSearchAction<ReindexRequest, TransportReindexAction> {
         /**
          * Transformer for the {@code _id} of the destination index used to
          * normalize {@code _id}s landing in the index.

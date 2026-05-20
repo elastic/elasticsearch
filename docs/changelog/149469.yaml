@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 149126
+ - 149127
+ - 149352
+pr: 149469
+summary: Fix Windows glob path resolution in spec tests
+type: bug

@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * and read-write op that may be one of 'noop' or 'none' (legacy), 'index', 'delete' or null
  */
 public class UpdateMetadata extends Metadata {
-    // AbstractAsyncBulkByScrollAction.OpType uses 'noop' rather than 'none', so unify on 'noop' but allow 'none' in
+    // AbstractAsyncBulkByPaginatedSearchAction.OpType uses 'noop' rather than 'none', so unify on 'noop' but allow 'none' in
     // the ctx map
     protected static final String LEGACY_NOOP_STRING = "none";
 

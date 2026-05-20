@@ -81,6 +81,14 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         assertThat(newSettings, is(expectedSettings));
     }
 
+    public void testNewSecretSettings_SameApiKey_DoesNotChangeSettings() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
+        assertThat(
+            initialSettings.newSecretSettings(new HashMap<>(Map.of(API_KEY, initialSettings.apiKey().toString()))),
+            sameInstance(initialSettings)
+        );
+    }
+
     public void testNewSecretSettingsEntraId() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var entraId = randomSecureStringOfLength(15);
@@ -90,6 +98,14 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         );
 
         assertThat(newSettings, is(expectedSettings));
+    }
+
+    public void testNewSecretSettings_SameEntraId_DoesNotChangeSettings() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
+        assertThat(
+            initialSettings.newSecretSettings(new HashMap<>(Map.of(ENTRA_ID, initialSettings.entraId().toString()))),
+            sameInstance(initialSettings)
+        );
     }
 
     public void testNewSecretSettings_BothApiKeyAndEntraId_ThrowsError() {

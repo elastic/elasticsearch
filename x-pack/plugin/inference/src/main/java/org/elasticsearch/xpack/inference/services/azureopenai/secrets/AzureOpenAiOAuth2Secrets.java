@@ -116,7 +116,11 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
         }
         validationException.throwIfValidationErrorsExist();
 
-        var mergedClientSecret = updatedClientSecret != null ? updatedClientSecret : getClientSecret();
-        return new AzureOpenAiOAuth2Secrets(mergedClientSecret);
+        // updatedClientSecret is non-null here: the parent's all-null short-circuit handles the empty update,
+        // and any non-null updatedApiKey / updatedEntraId would have failed validation above.
+        if (Objects.equals(updatedClientSecret, getClientSecret())) {
+            return this;
+        }
+        return new AzureOpenAiOAuth2Secrets(updatedClientSecret);
     }
 }

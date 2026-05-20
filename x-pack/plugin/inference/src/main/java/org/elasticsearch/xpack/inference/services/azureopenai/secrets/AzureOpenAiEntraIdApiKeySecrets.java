@@ -106,13 +106,18 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
         }
         validationException.throwIfValidationErrorsExist();
 
-        var mergedApiKey = updatedApiKey != null ? updatedApiKey : apiKey;
-        var mergedEntraId = updatedEntraId != null ? updatedEntraId : entraId;
+        // Exactly one of updatedApiKey / updatedEntraId is non-null here; the parent's all-null short-circuit and the
+        // mutual-exclusion validation above guarantee it. Objects.equals against a null existing field naturally returns
+        // false, so a mode switch always falls through to a fresh instance.
         if (updatedApiKey != null) {
-            mergedEntraId = null;
-        } else if (updatedEntraId != null) {
-            mergedApiKey = null;
+            if (Objects.equals(updatedApiKey, apiKey)) {
+                return this;
+            }
+            return new AzureOpenAiEntraIdApiKeySecrets(updatedApiKey, null);
         }
-        return new AzureOpenAiEntraIdApiKeySecrets(mergedApiKey, mergedEntraId);
+        if (Objects.equals(updatedEntraId, entraId)) {
+            return this;
+        }
+        return new AzureOpenAiEntraIdApiKeySecrets(null, updatedEntraId);
     }
 }

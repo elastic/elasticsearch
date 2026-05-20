@@ -53,6 +53,14 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         assertThat(newSettings, is(expectedSettings));
     }
 
+    public void testNewSecretSettings_SameClientSecret_DoesNotChangeSettings() {
+        var initialSettings = createRandom();
+        assertThat(
+            initialSettings.newSecretSettings(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, initialSettings.getClientSecret().toString()))),
+            sameInstance(initialSettings)
+        );
+    }
+
     public void testNewSecretSettings_ApiKey_ThrowsError() {
         var initialSettings = createRandom();
         var thrownException = expectThrows(

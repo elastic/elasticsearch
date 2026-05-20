@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
@@ -71,6 +72,11 @@ public class Elasticsearch93Lucene104Codec extends CodecService.DeduplicateField
         this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
+    }
+
+    @Override
+    public final PointsFormat pointsFormat() {
+        return Elasticsearch900AdaptivePointsFormat.INSTANCE;
     }
 
     @Override

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeE
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -254,7 +255,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
             new InsertFromAggregateMetricDouble(),
-            new TimeSeriesGroupByAll(),
+            new ResolveImplicitTimeSeriesIdentityGrouping(),
             new ResolveUnionTypesInUnionAll(),
             new ResolveUnmapped()
         ),
@@ -544,7 +545,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileList());
+            return new ExternalRelation(
+                plan.source(),
+                tablePath,
+                metadata,
+                metadata.schema(),
+                resolvedSource.fileList(),
+                resolvedSource.schemaMap()
+            );
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -1493,13 +1501,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
         }
 
+        // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
+        // or implicit projections — users must request them by name. Identification is type-based
+        // through the {@link VirtualAttribute} marker so future virtual attributes opt in by
+        // class hierarchy rather than name convention.
+        private static <T extends NamedExpression> List<T> excludeExternalMetadata(List<T> attributes) {
+            List<T> filtered = new ArrayList<>(attributes.size());
+            for (T attr : attributes) {
+                if (attr instanceof VirtualAttribute == false) {
+                    filtered.add(attr);
+                }
+            }
+            return filtered;
+        }
+
         private static List<NamedExpression> keepResolver(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections;
             // start with projections
 
             // no projection specified or just *
             if (projections.isEmpty() || (projections.size() == 1 && projections.getFirst() instanceof UnresolvedStar)) {
-                resolvedProjections = new ArrayList<>(childOutput);
+                // Widen List<Attribute> to List<NamedExpression> via copy; safe because every
+                // Attribute is a NamedExpression and the result is a fresh, mutable list.
+                resolvedProjections = new ArrayList<>(excludeExternalMetadata(childOutput));
             }
             // otherwise resolve them
             else {
@@ -1508,7 +1532,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final List<Attribute> resolved;
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
-                        resolved = childOutput;
+                        resolved = excludeExternalMetadata(childOutput);
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         resolved = resolveAgainstList(up, childOutput);
@@ -1546,6 +1570,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static List<NamedExpression> dropResolver(List<NamedExpression> removals, List<Attribute> childOutput) {
+            // DROP must operate over the full childOutput — including any external metadata
+            // (`_file.*`, partition columns) the user already pulled in via KEEP — so it can
+            // remove a data column without silently stripping previously-kept virtual columns.
+            // Wildcard / default-output filtering is handled in keepResolver and
+            // planWithoutSyntheticAttributes, not here.
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
             for (NamedExpression ne : removals) {
@@ -2621,6 +2650,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Attribute attr : output) {
                 // Do not let the synthetic union type field attributes end up in the final output.
                 if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
+                    continue;
+                }
+                // Virtual columns (today: _file.*) are hidden from default output.
+                // Users add them explicitly via KEEP _file.path, etc.
+                if (attr instanceof VirtualAttribute) {
                     continue;
                 }
                 newOutput.add(attr);

@@ -11,8 +11,17 @@ package org.elasticsearch.gradle.internal
 
 import spock.lang.Unroll
 
+import com.github.tomakehurst.wiremock.WireMockServer
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import static com.github.tomakehurst.wiremock.client.WireMock.get
+import static com.github.tomakehurst.wiremock.client.WireMock.head
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
@@ -78,6 +87,114 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         "8.4.0"       | "linux"
     }
 
+    def "downloads distribution from DRA snapshot when hash matches"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def shortHash = "abc12345"
+        def buildId = "${bwcVersion}-${shortHash}"
+        def manifestPath = "/elasticsearch/${buildId}/manifest-${bwcVersion}-SNAPSHOT.json"
+        def artifactPath = "/elasticsearch/${buildId}/downloads/elasticsearch/" +
+            "elasticsearch-${bwcVersion}-SNAPSHOT-darwin-x86_64.tar.gz"
+
+        def wireMock = new WireMockServer(0)
+        wireMock.start()
+        try {
+            wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(manifestPath))
+                .willReturn(aResponse().withStatus(200).withBody("{}")))
+            wireMock.stubFor(head(urlEqualTo(artifactPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(artifactPath))
+                .willReturn(aResponse().withStatus(200)
+                    .withBody(minimalElasticsearchTarGz("${bwcVersion}-SNAPSHOT"))))
+
+            buildFile << """
+                allprojects { p ->
+                    p.repositories.all { repo ->
+                        if (repo.name.startsWith("dra-bwc-elasticsearch-")) {
+                            repo.setUrl('${wireMock.baseUrl()}')
+                            allowInsecureProtocol = true
+                        }
+                    }
+                }
+            """
+
+            when:
+            def result = gradleRunner(
+                ":distribution:bwc:major1:buildBwcDarwinTar",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin",
+                "-Dtests.bwc.dra.enabled=true",
+                "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
+                "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+            ).build()
+
+            then: "DRA Copy task succeeds"
+            result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+            and: "no nested Gradle build was triggered"
+            result.output.contains("extractedAssemble") == false
+
+            and: "the DRA log message names the snapshot build ID"
+            result.output.contains("DRA snapshot ${buildId}")
+
+            and: "the distribution directory was created at the expected path"
+            file("cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
+                "distribution/archives/darwin-tar/build/install/" +
+                "elasticsearch-${bwcVersion}-SNAPSHOT").exists()
+        } finally {
+            wireMock.stop()
+        }
+    }
+
+    def "falls back to local gradle build when DRA is disabled"() {
+        when:
+        def result = gradleRunner(":distribution:bwc:major1:buildBwcDarwinTar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dbwc.dist.version=8.4.0-SNAPSHOT")
+            .build()
+        then:
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "local nested build was triggered"
+        assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+    }
+
+    def "falls back to local gradle build when DRA manifest returns 404"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def shortHash = "notexist"
+        def buildId = "${bwcVersion}-${shortHash}"
+        def manifestPath = "/elasticsearch/${buildId}/manifest-${bwcVersion}-SNAPSHOT.json"
+
+        def wireMock = new WireMockServer(0)
+        wireMock.start()
+        try {
+            wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(404)))
+            wireMock.stubFor(get(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(404)))
+
+            when:
+            def result = gradleRunner(
+                ":distribution:bwc:major1:buildBwcDarwinTar",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin",
+                "-Dbwc.dist.version=8.4.0-SNAPSHOT",
+                "-Dtests.bwc.dra.enabled=true",
+                "-Dtests.bwc.dra.hash.8.x=${shortHash}",
+                "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+            ).build()
+
+            then: "task succeeds via local build fallback"
+            result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+            and: "local nested build was used, not DRA"
+            assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+        } finally {
+            wireMock.stop()
+        }
+    }
+
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
         setup:
         buildFile << """
@@ -116,5 +233,41 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
                         "distribution/archives/darwin-tar/build/install")
         result.output.contains("nested folder /distribution/bwc/major1/build/bwc/checkout-8.x/" +
                         "distribution/archives/darwin-tar/build/install/elasticsearch-8.4.0-SNAPSHOT")
+    }
+
+    /**
+     * Creates a minimal tar.gz that {@link org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform}
+     * can extract.  The archive contains a single top-level directory {@code elasticsearch-{version}/} with one
+     * executable file inside, matching the real distribution layout well enough to satisfy the
+     * {@code expectedOutputFile.exists()} check in the DRA Copy task.
+     */
+    private static byte[] minimalElasticsearchTarGz(String version) {
+        def baos = new ByteArrayOutputStream()
+        def gzos = new GzipCompressorOutputStream(baos)
+        def taos = new TarArchiveOutputStream(gzos)
+        taos.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+
+        def addDir = { String name ->
+            def entry = new TarArchiveEntry(name)
+            entry.setMode(0755)
+            taos.putArchiveEntry(entry)
+            taos.closeArchiveEntry()
+        }
+        def addFile = { String name, byte[] content ->
+            def entry = new TarArchiveEntry(name)
+            entry.setSize(content.length)
+            entry.setMode(0755)
+            taos.putArchiveEntry(entry)
+            taos.write(content)
+            taos.closeArchiveEntry()
+        }
+
+        addDir("elasticsearch-${version}/")
+        addDir("elasticsearch-${version}/bin/")
+        addFile("elasticsearch-${version}/bin/elasticsearch", "#!/bin/sh\n".bytes)
+
+        taos.finish()
+        gzos.close()
+        return baos.toByteArray()
     }
 }

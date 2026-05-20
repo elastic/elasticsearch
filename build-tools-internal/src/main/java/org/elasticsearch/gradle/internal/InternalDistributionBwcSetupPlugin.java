@@ -12,17 +12,23 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -51,6 +57,8 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
  * and configure them to build various versions here.
  */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
+
+    static final Attribute<Boolean> BWC_DISTRIBUTION_ATTRIBUTE = Attribute.of("bwc-distribution", Boolean.class);
 
     private final ObjectFactory objectFactory;
     private ProviderFactory providerFactory;
@@ -153,11 +161,56 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 checkoutDir,
                 isCi
             );
-        BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
+        InternalBwcGitPlugin bwcGitPlugin = project.getPlugins().apply(InternalBwcGitPlugin.class);
+        BwcGitExtension gitExtension = bwcGitPlugin.getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
+
+        // Register artifact types and transforms for DRA archive unpacking (idempotent).
+        project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
+        project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, spec -> {
+            spec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, "tar.gz").attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.parameters(p -> {});
+        });
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, spec -> {
+            spec.getFrom()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.parameters(p -> {});
+        });
+
+        // Set the git extension properties before creating the DRA provider, so the provider's
+        // ValueSource parameters receive proper lazy Provider<String> values.
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));
         gitExtension.setBwcBranch(versionInfoProvider.map(info -> info.branch()));
         gitExtension.getCheckoutDir().set(checkoutDir);
+
+        Provider<String> remote = providerFactory.systemProperty("bwc.remote").orElse("elastic");
+        Provider<String> draBaseUrl = providerFactory.systemProperty("tests.bwc.dra.base.url")
+            .orElse("https://artifacts-snapshot.elastic.co");
+        Provider<String> draBuildId = providerFactory.of(DraSnapshotBuildIdValueSource.class, spec -> {
+            spec.getParameters().getVersion().set(versionInfoProvider.map(info -> info.version().toString()));
+            Provider<String> branch = versionInfoProvider.map(info -> info.branch());
+            spec.getParameters().getBranch().set(branch);
+            spec.getParameters().getRootProjectDir().set(project.getRootProject().getLayout().getProjectDirectory().getAsFile());
+            spec.getParameters().getRemote().set(remote);
+            spec.getParameters()
+                .getDraEnabled()
+                .set(providerFactory.systemProperty("tests.bwc.dra.enabled").map(Boolean::parseBoolean).orElse(false));
+            // -Dtests.bwc.dra.hash.{branch} overrides the local remote-tracking ref lookup,
+            // allowing the DRA fast path on stale or absent refs.
+            spec.getParameters()
+                .getHashOverride()
+                .set(branch.flatMap(b -> providerFactory.systemProperty("tests.bwc.dra.hash." + b)).orElse(""));
+            spec.getParameters().getBaseUrl().set(draBaseUrl);
+        });
+        bwcGitPlugin.configureDraBuildId(draBuildId);
 
         // we want basic lifecycle tasks like `clean` here.
         project.getPlugins().apply(LifecycleBasePlugin.class);
@@ -193,7 +246,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 distributionProject.projectPath,
                 distributionProject.expectedBuildArtifact,
                 buildBwcTaskProvider,
-                distributionProject.getAssembleTaskName()
+                distributionProject.getAssembleTaskName(),
+                draBuildId,
+                distributionProject.gradleClassifier,
+                distributionProject.extension,
+                draBaseUrl
             );
 
             registerBwcDistributionArtifacts(project, distributionProject);
@@ -216,7 +273,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             jdbcProjectDir,
             jdbcProjectArtifact,
             buildBwcTaskProvider,
-            "assemble"
+            "assemble",
+            draBuildId,
+            "",
+            "jar",
+            draBaseUrl
         );
 
         // for versions before 8.7.0, we do not need to set up stable API bwc
@@ -250,7 +311,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 "libs/" + stableApiProject.getName(),
                 stableAnalysisPluginProjectArtifact,
                 buildBwcTaskProvider,
-                "assemble"
+                "assemble",
+                draBuildId,
+                "",
+                "jar",
+                draBaseUrl
             );
         }
     }
@@ -370,38 +435,180 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String projectPath,
         DistributionProjectArtifact projectArtifact,
         TaskProvider<Task> bwcTaskProvider,
-        String assembleTaskName
+        String assembleTaskName,
+        Provider<String> draBuildId,
+        String gradleClassifier,
+        String extension,
+        Provider<String> draBaseUrl
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
-        bwcSetupExtension.bwcTask(bwcTaskName, c -> {
-            boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
-            boolean isReleaseBuild = System.getProperty("tests.bwc.snapshot", "true").equals("false");
-            File expectedOutputFile = useNativeExpanded
-                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + (isReleaseBuild ? "" : "-SNAPSHOT"))
-                : projectArtifact.distFile;
-            c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
-            if (useNativeExpanded) {
-                c.getOutputs().dir(expectedOutputFile);
-            } else {
-                c.getOutputs().files(expectedOutputFile);
-            }
-            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
-            c.getArgs().add("-p");
-            c.getArgs().add(projectPath);
-            c.getArgs().add(assembleTaskName);
-            if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
-                c.getArgs().add("--build-cache");
-            }
-            File rootDir = project.getRootDir();
-            c.doLast(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    if (expectedOutputFile.exists() == false) {
-                        Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());
-                        final String message = "Building %s didn't generate expected artifact [%s]. The working branch may be "
-                            + "out-of-date - try merging in the latest upstream changes to the branch.";
-                        throw new InvalidUserDataException(message.formatted(bwcVersion.get(), relativeOutputPath));
+        boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
+        boolean isReleaseBuild = System.getProperty("tests.bwc.snapshot", "true").equals("false");
+        File expectedOutputFile = useNativeExpanded
+            ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + (isReleaseBuild ? "" : "-SNAPSHOT"))
+            : projectArtifact.distFile;
+
+        boolean isDistributionArchive = projectPath.startsWith("distribution/");
+        // Evaluate the DRA build ID at configuration time. When tests.bwc.dra.enabled is not set
+        // (the default), the ValueSource returns "" immediately with no network activity.
+        String buildId = draBuildId.get();
+        boolean useDra = buildId.isEmpty() == false && isDistributionArchive;
+
+        if (useDra) {
+            createDraBwcTask(
+                project,
+                bwcTaskName,
+                buildId,
+                draBaseUrl.get(),
+                bwcVersion,
+                projectName,
+                projectArtifact,
+                gradleClassifier,
+                extension,
+                useNativeExpanded,
+                expectedOutputFile,
+                buildParams,
+                bwcTaskProvider
+            );
+        } else {
+            // Evaluate tests.bwc.dra.enabled at configuration time so the boolean is captured
+            // in the doFirst action rather than the Project instance (which is not CC-serializable).
+            boolean draEnabled = project.getProviders().systemProperty("tests.bwc.dra.enabled").map(Boolean::parseBoolean).getOrElse(false);
+            bwcSetupExtension.bwcTask(bwcTaskName, c -> {
+                c.doFirst(task -> {
+                    if (isDistributionArchive) {
+                        if (draEnabled) {
+                            task.getLogger()
+                                .lifecycle(
+                                    "BWC [{}]: building distribution [{}] from source"
+                                        + " — DRA snapshot commit did not match local remote-tracking ref (or was unreachable)",
+                                    bwcVersion.get(),
+                                    projectName
+                                );
+                        } else {
+                            task.getLogger()
+                                .lifecycle(
+                                    "BWC [{}]: building distribution [{}] from source"
+                                        + " — set -Dtests.bwc.dra.enabled=true to use a pre-built DRA snapshot when the commit matches",
+                                    bwcVersion.get(),
+                                    projectName
+                                );
+                        }
+                    } else {
+                        task.getLogger().lifecycle("BWC [{}]: building [{}] from source", bwcVersion.get(), projectName);
                     }
+                });
+                c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
+                if (useNativeExpanded) {
+                    c.getOutputs().dir(expectedOutputFile);
+                } else {
+                    c.getOutputs().files(expectedOutputFile);
+                }
+                c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+                c.getArgs().add("-p");
+                c.getArgs().add(projectPath);
+                c.getArgs().add(assembleTaskName);
+                if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
+                    c.getArgs().add("--build-cache");
+                }
+                File rootDir = project.getRootDir();
+                c.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        if (expectedOutputFile.exists() == false) {
+                            Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());
+                            final String message = "Building %s didn't generate expected artifact [%s]. The working branch may be "
+                                + "out-of-date - try merging in the latest upstream changes to the branch.";
+                            throw new InvalidUserDataException(message.formatted(bwcVersion.get(), relativeOutputPath));
+                        }
+                    }
+                });
+            });
+            bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
+        }
+    }
+
+    private static void createDraBwcTask(
+        Project project,
+        String bwcTaskName,
+        String buildId,
+        String draBaseUrl,
+        Provider<Version> bwcVersion,
+        String projectName,
+        DistributionProjectArtifact projectArtifact,
+        String gradleClassifier,
+        String extension,
+        boolean useNativeExpanded,
+        File expectedOutputFile,
+        BuildParameterExtension buildParams,
+        TaskProvider<Task> bwcTaskProvider
+    ) {
+        // Configure the DRA Ivy repository for this specific BWC version and build.
+        String repoName = "dra-bwc-elasticsearch-" + bwcVersion.get() + "-" + projectName;
+        if (project.getRepositories().findByName(repoName) == null) {
+            project.getRepositories().ivy(repo -> {
+                repo.setName(repoName);
+                repo.setUrl(draBaseUrl);
+                repo.patternLayout(p -> {
+                    if (gradleClassifier.isEmpty()) {
+                        p.artifact("/elasticsearch/" + buildId + "/downloads/elasticsearch/[module]-[revision].[ext]");
+                    } else {
+                        p.artifact("/elasticsearch/" + buildId + "/downloads/elasticsearch/[module]-[revision]-[classifier].[ext]");
+                    }
+                });
+                repo.metadataSources(s -> s.artifact());
+                repo.content(c -> c.includeVersionByRegex("org.elasticsearch", "elasticsearch", ".*-SNAPSHOT"));
+            });
+        }
+
+        // Resolvable configuration: requests directory type for archives that support expansion,
+        // or the raw artifact type for packages (deb, rpm) and older archives.
+        String draConfigName = "draResolvable-" + bwcVersion.get() + "-" + projectName;
+        Configuration draConfig = project.getConfigurations().create(draConfigName);
+        draConfig.setCanBeResolved(true);
+        draConfig.setCanBeConsumed(false);
+        draConfig.getAttributes().attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+        if (useNativeExpanded) {
+            draConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        } else {
+            draConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, extension);
+        }
+
+        String versionString = bwcVersion.get() + "-SNAPSHOT";
+        String dependencyNotation = gradleClassifier.isEmpty()
+            ? "org.elasticsearch:elasticsearch:" + versionString + "@" + extension
+            : "org.elasticsearch:elasticsearch:" + versionString + ":" + gradleClassifier + "@" + extension;
+        project.getDependencies().add(draConfigName, dependencyNotation);
+
+        // Copy task that places the resolved (and optionally unpacked) artifact at the expected path.
+        File rootDir = project.getRootDir();
+        project.getTasks().register(bwcTaskName, Copy.class, t -> {
+            t.doFirst(
+                task -> task.getLogger()
+                    .lifecycle(
+                        "BWC [{}]: downloading pre-built distribution [{}] from DRA snapshot {} — skipping source build",
+                        bwcVersion.get(),
+                        projectName,
+                        buildId
+                    )
+            );
+            t.dependsOn("writeDraRefspec");
+            t.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
+            t.from(draConfig);
+            if (useNativeExpanded) {
+                t.into(projectArtifact.expandedDistDir);
+                t.getOutputs().dir(expectedOutputFile);
+            } else {
+                t.into(projectArtifact.distFile.getParentFile());
+                t.getOutputs().files(projectArtifact.distFile);
+            }
+            t.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+            t.doLast(task -> {
+                if (expectedOutputFile.exists() == false) {
+                    Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());
+                    throw new InvalidUserDataException(
+                        "Downloading %s from DRA didn't produce expected artifact [%s].".formatted(bwcVersion.get(), relativeOutputPath)
+                    );
                 }
             });
         });
@@ -416,6 +623,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         final String name;
         final File checkoutDir;
         final String projectPath;
+        /** Classifier without the leading {@code -}, suitable for use in a Gradle dependency notation. */
+        final String gradleClassifier;
+        final String extension;
 
         /**
          * can be removed once we don't build 7.10 anymore
@@ -431,6 +641,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             this.name = name;
             this.checkoutDir = checkoutDir;
             this.projectPath = baseDir + "/" + name;
+            this.gradleClassifier = classifier.isEmpty() ? "" : classifier.substring(1);
+            this.extension = extension;
             this.expandedDistDirSupport = version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"));
             this.extractedAssembleSupported = version.onOrAfter("7.11.0") && (name.endsWith("zip") || name.endsWith("tar"));
             this.expectedBuildArtifact = new DistributionProjectArtifact(

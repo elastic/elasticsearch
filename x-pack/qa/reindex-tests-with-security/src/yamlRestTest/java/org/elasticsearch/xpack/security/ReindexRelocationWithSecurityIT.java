@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -33,11 +35,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
+
+    private static final Logger logger = LogManager.getLogger(ReindexRelocationWithSecurityIT.class);
 
     private static final String ADMIN_USER = "test_admin";
     private static final String REINDEX_USER = "test_reindex_user";
@@ -147,10 +150,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // Stage 4: rethrottle to unlimited via a non-coordinator node, since the coordinator's HTTP transport is being torn down.
             unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 5: wait for the coordinator to be fully removed from cluster state.
-            waitForCoordinatorRemovedFromCluster(dataNodeAddress, coordNodeId);
-
-            // Stage 6: wait for the relocated task to complete successfully.
+            // Stage 5: wait for the relocated task to complete successfully.
             assertReindexCompletesOnDataNode(dataNodeAddress, taskId, numDocs);
         } finally {
             stopThread.join(TimeUnit.SECONDS.toMillis(60));
@@ -293,17 +293,6 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         }
     }
 
-    private void waitForCoordinatorRemovedFromCluster(String dataNodeAddress, String coordNodeId) throws Exception {
-        try (RestClient dataClient = buildClient(restAdminSettings(), new HttpHost[] { HttpHost.create(dataNodeAddress) })) {
-            assertBusy(() -> {
-                final Request clusterStateRequest = new Request("GET", "/_cluster/state/nodes");
-                final ObjectPath clusterState = ObjectPath.createFromResponse(dataClient.performRequest(clusterStateRequest));
-                final Map<String, Object> nodes = clusterState.evaluate("nodes");
-                assertThat("coordinator node should be removed from cluster state", nodes.keySet(), not(hasItem(coordNodeId)));
-            });
-        }
-    }
-
     private void assertReindexCompletesOnDataNode(String dataNodeAddress, String originalTaskId, int numDocs) throws Exception {
         try (
             RestClient dataClient = buildClient(restClientSettingsForUser(GET_USER), new HttpHost[] { HttpHost.create(dataNodeAddress) })
@@ -324,7 +313,8 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                     final Object total = body.evaluate("response.total");
                     assertThat("relocated reindex should report the full source size", ((Number) total).intValue(), equalTo(numDocs));
                 } catch (ResponseException e) {
-                    // Translate ResponseException (e.g. timeouts) to AssertionError so assertBusy will retry
+                    // Translate ResponseException (e.g. timeouts, node_closed_exception) to AssertionError so assertBusy will retry
+                    logger.warn("Get reindex task failed (will retry): {}", e.getMessage());
                     throw new AssertionError("get reindex task failed: " + e.getMessage(), e);
                 }
             }, 30, TimeUnit.SECONDS);

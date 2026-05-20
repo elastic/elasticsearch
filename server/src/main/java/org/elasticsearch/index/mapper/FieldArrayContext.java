@@ -137,33 +137,30 @@ public class FieldArrayContext {
         boolean multiValue
     ) {
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
-        if (context.isSourceSynthetic()
-            && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
-            && hasDocValues
+
+        if (context.isSourceSynthetic() && hasDocValues
+        // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
             && isStored == false
+            // Skip nested docs - we don't have per-nested-doc offset tracking
             && context.isInNestedContext() == false
+            // Skip copy_to and multi fields, supporting that requires more work. copy_to usage is rare in metrics and logging use cases.
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
             && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain)) {
-            // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
-            // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
-            // logging use cases
 
-            // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
-            // (if field is stored then there is no point of doing this)
-            return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
-        } else if (context.isSourceSynthetic()
-            && multiValue
-            && isColumnar
-            && hasDocValues
-            && isStored == false
-            && context.isInNestedContext() == false) {
-                // Columnar multi-value path: ordering preservation is implicit on every eligible field, so we don't require
-                // source_keep_mode=ARRAYS, copy_to to be empty, or multi-fields to be empty.
+            // source_keep_mode = ARRAYS path
+            if (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS) {
                 return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
-            } else {
-                return null;
             }
+
+            // multi_value = true + columnar mode path
+            if (multiValue && isColumnar) {
+                return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
+            }
+        }
+
+        // Otherwise, offsets won't be recorded
+        return null;
     }
 
     private static boolean indexVersionSupportStoringArraysNatively(

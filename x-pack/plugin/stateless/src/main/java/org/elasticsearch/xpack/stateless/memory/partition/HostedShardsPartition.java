@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.memory.partition;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.RatioValue;
 
 import java.util.OptionalLong;
 
@@ -28,19 +29,17 @@ import java.util.OptionalLong;
 public class HostedShardsPartition implements MemoryPartition {
 
     public static final String NAME = "hosted_shards";
-    public static final double DEFAULT_FRACTION = 0.30;
-    public static final Setting<Double> FRACTION_SETTING = Setting.doubleSetting(
+    public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
         "memory_metrics.partition.hosted_shards.fraction",
-        DEFAULT_FRACTION,
-        0.001,
-        1.0,
+        "30%",
+        RatioValue::parseRatioValue,
         Setting.Property.NodeScope
     );
 
     private final double fraction;
 
     public HostedShardsPartition(ClusterSettings clusterSettings) {
-        this.fraction = clusterSettings.get(FRACTION_SETTING);
+        this.fraction = clusterSettings.get(FRACTION_SETTING).getAsRatio();
     }
 
     @Override

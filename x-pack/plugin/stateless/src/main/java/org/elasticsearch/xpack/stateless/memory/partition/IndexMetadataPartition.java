@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.memory.partition;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 
 import java.util.OptionalLong;
@@ -21,19 +22,17 @@ import java.util.OptionalLong;
 public class IndexMetadataPartition implements MemoryPartition {
 
     public static final String NAME = "index_metadata";
-    public static final double DEFAULT_FRACTION = 0.10;
-    public static final Setting<Double> FRACTION_SETTING = Setting.doubleSetting(
+    public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
         "memory_metrics.partition.index_metadata.fraction",
-        DEFAULT_FRACTION,
-        0.001,
-        1.0,
+        "10%",
+        RatioValue::parseRatioValue,
         Setting.Property.NodeScope
     );
 
     private final double fraction;
 
     public IndexMetadataPartition(ClusterSettings clusterSettings) {
-        this.fraction = clusterSettings.get(FRACTION_SETTING);
+        this.fraction = clusterSettings.get(FRACTION_SETTING).getAsRatio();
     }
 
     @Override

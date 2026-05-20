@@ -68,8 +68,8 @@ public class PartitionBasedIndexingMemoryLimits implements IndexingMemoryLimits 
     /** Constructs limits from the partition fraction settings present in {@code settings}. */
     public static PartitionBasedIndexingMemoryLimits fromSettings(org.elasticsearch.common.settings.Settings settings) {
         return new PartitionBasedIndexingMemoryLimits(
-            IndexingPressurePartition.FRACTION_SETTING.get(settings),
-            IndexBuffersPartition.FRACTION_SETTING.get(settings),
+            IndexingPressurePartition.FRACTION_SETTING.get(settings).getAsRatio(),
+            IndexBuffersPartition.FRACTION_SETTING.get(settings).getAsRatio(),
             IndexingPressure.MAX_OPERATION_SIZE.get(settings).getBytes()
         );
     }

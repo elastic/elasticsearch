@@ -1228,39 +1228,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
                     }
                     return commitRef;
                 };
-                final var wrappedConfig = new EngineConfig(
-                    engineConfig.getShardId(),
-                    engineConfig.getThreadPool(),
-                    engineConfig.getThreadPoolMergeExecutorService(),
-                    engineConfig.getIndexSettings(),
-                    engineConfig.getWarmer(),
-                    engineConfig.getStore(),
-                    engineConfig.getMergePolicy(),
-                    engineConfig.getAnalyzer(),
-                    engineConfig.getSimilarity(),
-                    engineConfig.getCodecProvider(),
-                    engineConfig.getEventListener(),
-                    engineConfig.getQueryCache(),
-                    engineConfig.getQueryCachingPolicy(),
-                    engineConfig.getTranslogConfig(),
-                    engineConfig.getFlushMergesAfter(),
-                    engineConfig.getExternalRefreshListener(),
-                    engineConfig.getInternalRefreshListener(),
-                    engineConfig.getIndexSort(),
-                    engineConfig.getCircuitBreakerService(),
-                    engineConfig.getGlobalCheckpointSupplier(),
-                    engineConfig.retentionLeasesSupplier(),
-                    engineConfig.getPrimaryTermSupplier(),
-                    wrappedCommitSupplier,
-                    engineConfig.getLeafSorter(),
-                    engineConfig.getRelativeTimeInNanosSupplier(),
-                    engineConfig.getIndexCommitListener(),
-                    engineConfig.isPromotableToPrimary(),
-                    engineConfig.getMapperService(),
-                    engineConfig.getEngineResetLock(),
-                    engineConfig.getMergeMetrics(),
-                    engineConfig.getIndexDeletionPolicyWrapper()
-                );
+                final var wrappedConfig = EngineConfig.builder(engineConfig).snapshotCommitSupplier(wrappedCommitSupplier).build();
                 return factory.newReadWriteEngine(wrappedConfig);
             });
         }

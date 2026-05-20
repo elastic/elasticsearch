@@ -14,6 +14,7 @@ import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -129,10 +130,14 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         runner.document(Map.of("field", value));
         runner.fieldName("field");
 
-        var mapping = new Mapping(
-            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", fieldType, "ignore_malformed", "true")))),
-            Map.of("field", Map.of("type", fieldType, "ignore_malformed", "true"))
-        );
+        var fieldMapping = new HashMap<String, Object>();
+        fieldMapping.put("type", fieldType);
+        fieldMapping.put("ignore_malformed", "true");
+        if (fieldType.equals(FieldType.SCALED_FLOAT.toString())) {
+            fieldMapping.put("scaling_factor", "1");
+        }
+
+        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 

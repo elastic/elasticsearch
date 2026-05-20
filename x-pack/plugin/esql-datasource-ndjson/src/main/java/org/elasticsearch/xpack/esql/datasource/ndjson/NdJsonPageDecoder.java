@@ -93,6 +93,11 @@ public class NdJsonPageDecoder implements Closeable {
     private long totalRowCount;
     private long errorCount;
 
+    /** Number of malformed records observed during decoding (lenient policies swallow these). */
+    long errorCount() {
+        return errorCount;
+    }
+
     /**
      * Lazily allocated for {@link #decodePageLenient} only; reused across rows within this decoder
      * (avoids per-row {@code new Block.Builder[n]}).

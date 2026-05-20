@@ -832,6 +832,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // upstream caller has built a FormatReadContext with an explicit policy. The planner
         // path always sets context.errorPolicy() explicitly.
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
+        // Whole-file read iff this is the first split (offset 0, header consumed) AND the file
+        // isn't being parallel-sliced into record-aligned chunks AND this split also covers the
+        // tail of the file. Only iterators that drain a whole file from offset 0 to natural EOF
+        // qualify to populate ExternalRowCountCache.
+        boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         return new CsvBatchIterator(
             reader,
             stream,
@@ -839,7 +844,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.batchSize(),
             effectiveSchema,
             effective,
-            object.path().toString()
+            object.path().toString(),
+            wholeFileRead ? object : null
         );
     }
 
@@ -1415,6 +1421,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private long errorCount = 0;
         private long totalRowCount = 0;
         private String lastFieldError;
+        /**
+         * Non-null iff this iterator reads from offset 0 of a single non-parallel-sliced file. Used
+         * as the {@link ExternalRowCountCache} write target on natural EOF + zero-error close.
+         */
+        private final StorageObject cacheableObject;
+        /** Cumulative emitted-row count, populated via {@link #next()} ramp. */
+        private long rowsEmittedForCache = 0;
+        /** Set true when {@link #hasNext()} returns false from natural exhaustion (not via {@link #close()} or exception). */
+        private boolean naturallyExhausted = false;
 
         CsvBatchIterator(
             BufferedReader reader,
@@ -1423,7 +1438,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int batchSize,
             List<Attribute> preResolvedSchema,
             ErrorPolicy errorPolicy,
-            String sourceLocation
+            String sourceLocation,
+            StorageObject cacheableObject
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -1439,6 +1455,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.cacheableObject = cacheableObject;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1459,7 +1476,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             try {
                 nextPage = readNextBatch();
-                return nextPage != null;
+                if (nextPage == null) {
+                    naturallyExhausted = true;
+                    return false;
+                }
+                return true;
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read CSV batch", e);
             }
@@ -1472,7 +1493,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             Page result = nextPage;
             nextPage = null;
+            rowsEmittedForCache += result.getPositionCount();
             return result;
+        }
+
+        @Override
+        public long errorsObserved() {
+            return errorCount;
         }
 
         @Override
@@ -1491,6 +1518,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         totalRowCount,
                         errorPolicy.mode()
                     );
+                }
+                // Data-driven cache write: write only when this iterator was eligible (whole-file
+                // read from offset 0), drained naturally to EOF, and observed zero parse errors.
+                // Equivalent across FAIL_FAST and SKIP_ROW for clean files; for files with errors,
+                // the write is suppressed under either policy, never serving a stale or
+                // policy-tagged count.
+                if (cacheableObject != null && naturallyExhausted && errorCount == 0) {
+                    ExternalRowCountCache.put(cacheableObject, rowsEmittedForCache);
                 }
                 reader.close();
                 stream.close();

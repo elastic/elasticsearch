@@ -23,7 +23,10 @@ import java.time.Instant;
 import java.util.OptionalLong;
 import java.util.UUID;
 
-/** NDJSON parallel of {@code CsvRowCountMetadataLookupTests}. */
+/**
+ * NDJSON parallel of {@code CsvRowCountMetadataLookupTests}. Lookup half of B'; the write half
+ * (capture-on-close) is covered by {@code NdJsonRowCountCaptureTests}.
+ */
 public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
 
     private BlockFactory blockFactory;

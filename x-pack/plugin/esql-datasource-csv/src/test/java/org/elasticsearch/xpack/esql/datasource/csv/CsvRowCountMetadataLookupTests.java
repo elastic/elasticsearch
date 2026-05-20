@@ -26,8 +26,8 @@ import java.util.UUID;
 
 /**
  * Verifies {@code CsvFormatReader.metadata()} publishes {@link SourceStatistics#rowCount()} when —
- * and only when — {@link ExternalRowCountCache} has an entry for the file. This is the lookup half
- * of B'; the execution-side cache write (the capture hook) is a follow-up.
+ * and only when — {@link ExternalRowCountCache} has an entry for the file. Lookup half of B'; the
+ * write half (capture-on-close) is covered by {@code CsvRowCountCaptureTests}.
  */
 public class CsvRowCountMetadataLookupTests extends ESTestCase {
 

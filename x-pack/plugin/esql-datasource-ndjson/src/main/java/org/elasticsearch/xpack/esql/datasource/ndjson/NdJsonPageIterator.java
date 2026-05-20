@@ -15,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -43,6 +44,14 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private long rowsEmitted;
     private boolean endOfFile = false;
     private Page nextPage;
+    /**
+     * Non-null iff this iterator was opened on a whole-file read (first split, no parallel
+     * slicing). Used as the {@link ExternalRowCountCache} write target on natural EOF + zero
+     * errors close. Null disables the cache write entirely.
+     */
+    private final StorageObject cacheableObject;
+    /** True only when the decoder returned a natural EOF (not when {@code rowLimit} truncated). */
+    private boolean naturallyExhausted = false;
 
     /**
      * Storage objects up to this size are eagerly slurped into a {@code byte[]} so the decoder can
@@ -61,9 +70,11 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         boolean skipFirstLine,
         boolean trimLastPartialLine,
         List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        StorageObject cacheableObject
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        this.cacheableObject = cacheableObject;
         String sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
@@ -140,6 +151,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             nextPage = pageDecoder.decodePage();
             if (nextPage == null) {
                 endOfFile = true;
+                naturallyExhausted = true;
                 return false;
             }
             if (rowLimit != FormatReader.NO_LIMIT) {
@@ -178,7 +190,19 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     }
 
     @Override
+    public long errorsObserved() {
+        return pageDecoder.errorCount();
+    }
+
+    @Override
     public void close() throws IOException {
+        // Data-driven cache write: whole-file read, natural EOF, zero parse errors. Equivalent
+        // across FAIL_FAST and SKIP_ROW for clean files; suppressed under either policy on
+        // malformed files. Run before closing the decoder so {@link NdJsonPageDecoder#errorCount}
+        // is still readable.
+        if (cacheableObject != null && naturallyExhausted && pageDecoder.errorCount() == 0) {
+            ExternalRowCountCache.put(cacheableObject, rowsEmitted);
+        }
         IOUtils.close(pageDecoder);
     }
 

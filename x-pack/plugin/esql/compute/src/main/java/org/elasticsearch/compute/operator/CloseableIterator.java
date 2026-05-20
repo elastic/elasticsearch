@@ -30,4 +30,16 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
     default SubscribableListener<Void> waitForReady() {
         return SubscribableListener.newSucceeded(null);
     }
+
+    /**
+     * Number of malformed records observed during iteration that were not surfaced as exceptions
+     * (typically because the active error policy is a "skip" mode). Used by callers as a
+     * data-driven gate when deciding whether the iterator's emitted row count is the source's
+     * intrinsic row count — only zero-error executions cache.
+     * <p>
+     * Returns {@code 0} by default; iterators that count per-row errors should override.
+     */
+    default long errorsObserved() {
+        return 0L;
+    }
 }

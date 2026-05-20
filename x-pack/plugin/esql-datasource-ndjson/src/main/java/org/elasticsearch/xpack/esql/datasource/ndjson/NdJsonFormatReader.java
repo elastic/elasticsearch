@@ -343,6 +343,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
+        // Whole-file read iff this is the first split (no leading-line skip) AND the file isn't
+        // being parallel-sliced AND extends through the last split (no trailing trim). Only iterators
+        // that drain a whole file from offset 0 to natural EOF qualify to populate ExternalRowCountCache.
+        boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
@@ -352,7 +356,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             skipFirstLine,
             trimLastPartialLine,
             effectiveSchema,
-            errorPolicy
+            errorPolicy,
+            wholeFileRead ? object : null
         );
     }
 

@@ -65,7 +65,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(IdFieldMapper.Mode.DEFAULT);
+    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DEFAULT);
     static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
 
     /**
@@ -73,11 +73,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
      */
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<IdFieldMapper.Mode> mode = new Parameter<>(
+        private final Parameter<Mode> mode = new Parameter<>(
             "mode",
             false,
-            () -> IdFieldMapper.Mode.DEFAULT,
-            (n, c, o) -> IdFieldMapper.Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
+            () -> Mode.DEFAULT,
+            (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
             m -> ((ProvidedIdFieldMapper) m).mode,
             (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
             v -> v.toString().toLowerCase(Locale.ROOT)
@@ -113,6 +113,19 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         public String contentType() {
             return CONTENT_TYPE;
         }
+    }
+
+    /**
+     * Controls how the {@code _id} field is stored and retrieved.
+     * <ul>
+     *   <li>{@link #DEFAULT} – current behaviour: stored as a stored field with an inverted index.</li>
+     *   <li>{@link #COLUMNAR} – columnar behaviour: stored as sorted doc values with an inverted index,
+     *       no stored field. Intended for use with the columnar index mode.</li>
+     * </ul>
+     */
+    public enum Mode {
+        DEFAULT,
+        COLUMNAR
     }
 
     static final class IdFieldType extends AbstractIdFieldType {
@@ -285,20 +298,20 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
     }
 
-    private final IdFieldMapper.Mode mode;
+    private final Mode mode;
 
     public ProvidedIdFieldMapper() {
-        this(IdFieldMapper.Mode.DEFAULT);
+        this(Mode.DEFAULT);
     }
 
-    public ProvidedIdFieldMapper(IdFieldMapper.Mode mode) {
+    public ProvidedIdFieldMapper(Mode mode) {
         super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
         this.mode = mode;
     }
 
     @Override
     public boolean isColumnarMode() {
-        return mode == IdFieldMapper.Mode.COLUMNAR;
+        return mode == Mode.COLUMNAR;
     }
 
     @Override
@@ -314,7 +327,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             throw new IllegalStateException("_id should have been set on the coordinating node");
         }
         context.id(context.sourceToParse().id());
-        if (mode == IdFieldMapper.Mode.COLUMNAR) {
+        if (mode == Mode.COLUMNAR) {
             context.doc().add(columnarIdField(context.id()));
         } else {
             context.doc().add(standardIdField(context.id()));
@@ -323,7 +336,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
-        if (mode == IdFieldMapper.Mode.COLUMNAR) {
+        if (mode == Mode.COLUMNAR) {
             // Nested child documents are in the same Lucene updateDocuments batch as the root document.
             // Lucene requires all documents in a batch to have a consistent field schema, so nested
             // children must also carry the sorted doc values field for _id.

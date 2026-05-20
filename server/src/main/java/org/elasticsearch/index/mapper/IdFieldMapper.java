@@ -34,19 +34,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
-    /**
-     * Controls how the {@code _id} field is stored and retrieved.
-     * <ul>
-     *   <li>{@link #DEFAULT} – current behaviour: stored as a stored field with an inverted index.</li>
-     *   <li>{@link #COLUMNAR} – columnar behaviour: stored as sorted doc values with an inverted index,
-     *       no stored field. Intended for use with the columnar index mode.</li>
-     * </ul>
-     */
-    public enum Mode {
-        DEFAULT,
-        COLUMNAR
-    }
-
     public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
         var indexMode = mappingParserContext.getIndexSettings().getMode();
         if (indexMode == IndexMode.TIME_SERIES) {

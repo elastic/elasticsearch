@@ -29,6 +29,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -87,6 +88,7 @@ public final class ShardBatchIndexer {
      * corresponding row in the batch using an {@link EirfRowXContentParser}.
      */
     static void performBatchIndexOnPrimary(
+        final Task task,
         final BulkItemRequest[] items,
         final EirfBatch batch,
         final BulkPrimaryExecutionContext context,

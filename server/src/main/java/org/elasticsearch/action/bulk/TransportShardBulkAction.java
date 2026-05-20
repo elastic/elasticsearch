@@ -196,6 +196,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         long startBatchTime = System.nanoTime();
         if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
             ShardBatchIndexer.performBatchIndexOnPrimary(
+                task,
                 request.items(),
                 request.getBulkShardBatch().getEirfBatch(),
                 context,

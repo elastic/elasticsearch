@@ -428,7 +428,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     // Number of int/float-width parts when loading BYTE_SPECIES bytes and casting to FLOAT_SPECIES/INTEGER_SPECIES.
     // BYTE_SPECIES.length() / FLOAT_SPECIES.length() — always 4 on all platforms:
-    //   128-bit: 16 bytes / 4 floats = 4, 256-bit: 32 bytes / 8 floats = 4, 512-bit: 64 bytes / 16 floats = 4.
+    // 128-bit: 16 bytes / 4 floats = 4, 256-bit: 32 bytes / 8 floats = 4, 512-bit: 64 bytes / 16 floats = 4.
     private static final int BYTE_TO_FLOAT_PARTS = BYTE_SPECIES.length() / FLOAT_SPECIES.length();
 
     @Override

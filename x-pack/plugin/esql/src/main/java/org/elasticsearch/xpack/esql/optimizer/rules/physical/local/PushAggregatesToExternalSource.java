@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -201,7 +202,9 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (target.foldable()) {
                 return stats.rowCount();
             }
-            if (target instanceof Attribute ref) {
+            // Virtual columns are not present in the split's column stats; refuse the pushdown
+            // here even if a format-level gate happens to let one through (defense in depth).
+            if (target instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 long nc = stats.columnNullCount(ref.name());
                 if (nc >= 0) {
                     return stats.rowCount() - nc;
@@ -212,7 +215,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (min.hasFilter()) {
                 return null;
             }
-            if (min.field() instanceof Attribute ref) {
+            if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 return stats.columnMin(ref.name());
             }
             return null;
@@ -220,7 +223,7 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             if (max.hasFilter()) {
                 return null;
             }
-            if (max.field() instanceof Attribute ref) {
+            if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
                 return stats.columnMax(ref.name());
             }
             return null;

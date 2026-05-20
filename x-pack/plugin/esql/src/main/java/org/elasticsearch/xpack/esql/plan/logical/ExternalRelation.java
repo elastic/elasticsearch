@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -200,21 +201,21 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * Returns the pre-enrichment Unified schema — the data-only view that {@link SchemaReconciliation}
      * built the per-file {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s against. The
      * post-enrichment {@code metadata.schema()} includes partition attributes appended by
-     * {@code ExternalSourceResolver#enrichSchemaWithPartitionColumns}, which is wider than the
-     * mapping. Seeding {@code ExternalSourceExec.unifiedSchema} from the wider view causes
-     * {@code ColumnMapping.pruneToPerFileQuery} to read past {@code index.length} when the
-     * optimizer also prunes the projection.
+     * {@code ExternalSourceResolver#enrichSchemaWithPartitionColumns} and {@code _file.*}
+     * virtual columns appended by {@code enrichSchemaWithFileMetadataColumns}; both are wider
+     * than the per-file mapping. Seeding {@code ExternalSourceExec.unifiedSchema} from the
+     * wider view causes {@code ColumnMapping.pruneToPerFileQuery} to read past
+     * {@code index.length} when the optimizer also prunes the projection.
      */
     private List<Attribute> dataOnlyUnifiedSchema() {
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
-        if (partitionInfo == null || partitionInfo.isEmpty()) {
-            return metadata.schema();
-        }
-        Set<String> partitionNames = partitionInfo.partitionColumns().keySet();
-        if (partitionNames.isEmpty()) {
-            return metadata.schema();
-        }
-        return metadata.schema().stream().filter(a -> partitionNames.contains(a.name()) == false).toList();
+        Set<String> partitionNames = partitionInfo != null && partitionInfo.isEmpty() == false
+            ? partitionInfo.partitionColumns().keySet()
+            : Set.of();
+        return metadata.schema()
+            .stream()
+            .filter(a -> a instanceof VirtualAttribute == false && partitionNames.contains(a.name()) == false)
+            .toList();
     }
 
     @Override

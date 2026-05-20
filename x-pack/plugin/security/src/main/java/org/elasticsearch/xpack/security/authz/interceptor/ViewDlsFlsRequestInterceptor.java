@@ -26,8 +26,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 /**
- * An interceptor which checks if the requested View has any DLS or FLS permissions applied.
- * If so, then the request is rejected, because Views are not compatible with DLS or FLS.
+ * An interceptor which checks if the requested views or datasets have any DLS or FLS permissions applied.
+ * If so, then the request is rejected, because views and datasets are not compatible with DLS or FLS.
  */
 public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
     private static final Logger logger = LogManager.getLogger(ViewDlsFlsRequestInterceptor.class);
@@ -51,8 +51,9 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
 
             final ProjectMetadata projectMetadata = projectMetadataSupplier.get();
             List<String> requestedViews = Arrays.stream(indicesRequest.indices()).filter(projectMetadata::hasView).toList();
+            List<String> requestedDatasets = Arrays.stream(indicesRequest.indices()).filter(projectMetadata::hasDataset).toList();
 
-            if (requestedViews.isEmpty() == false) {
+            if (requestedViews.isEmpty() == false || requestedDatasets.isEmpty() == false) {
                 final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
                 if (indicesAccessControl != null) {
                     List<String> viewsWithDlsOrFls = requestedViews.stream().filter(view -> {
@@ -62,9 +63,21 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
                                 || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
                     }).toList();
 
-                    if (viewsWithDlsOrFls.isEmpty() == false) {
-                        logger.debug("User [{}] requested views with DLS or FLS: {}", requestInfo.getAuthentication(), viewsWithDlsOrFls);
-                        ElasticsearchSecurityException dlsFlsException = getDlsFlsException(viewsWithDlsOrFls);
+                    List<String> datasetsWithDlsOrFls = requestedDatasets.stream().filter(dataset -> {
+                        var indexAccessControl = indicesAccessControl.getIndexPermissions(dataset);
+                        return indexAccessControl != null
+                            && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                                || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
+                    }).toList();
+
+                    if (viewsWithDlsOrFls.isEmpty() == false || datasetsWithDlsOrFls.isEmpty() == false) {
+                        logger.debug(
+                            "User [{}] requested views or datasets with DLS or FLS: views={} datasets={}",
+                            requestInfo.getAuthentication(),
+                            viewsWithDlsOrFls,
+                            datasetsWithDlsOrFls
+                        );
+                        ElasticsearchSecurityException dlsFlsException = getDlsFlsException(viewsWithDlsOrFls, datasetsWithDlsOrFls);
                         return SubscribableListener.newFailed(dlsFlsException);
                     }
                 }
@@ -74,7 +87,8 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
     }
 
     private boolean isInterceptorApplicable(IndicesRequest indicesRequest, String action) {
-        return indicesRequest.indicesOptions().indexAbstractionOptions().resolveViews()
+        var indexAbstractionOptions = indicesRequest.indicesOptions().indexAbstractionOptions();
+        return (indexAbstractionOptions.resolveViews() || indexAbstractionOptions.resolveDatasets())
             && TransportActionProxy.isProxyAction(action) == false
             && indicesRequest.indices() != null
             // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency
@@ -82,14 +96,19 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
             && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext);
     }
 
-    private static ElasticsearchSecurityException getDlsFlsException(List<String> viewsWithDlsOrFls) {
+    private static ElasticsearchSecurityException getDlsFlsException(List<String> viewsWithDlsOrFls, List<String> datasetsWithDlsOrFls) {
         ElasticsearchSecurityException dlsFlsException = new ElasticsearchSecurityException(
-            "Views with document or field level security restrictions are not supported."
-                + " Remove DLS/FLS restrictions from the affected views in the role definition,"
-                + " or exclude the views from the request.",
+            "Views and datasets with document or field level security restrictions are not supported."
+                + " Remove DLS/FLS restrictions from the affected views or datasets in the role definition,"
+                + " or exclude them from the request.",
             RestStatus.FORBIDDEN
         );
-        dlsFlsException.addMetadata("es.views_with_dls_or_fls", viewsWithDlsOrFls);
+        if (viewsWithDlsOrFls.isEmpty() == false) {
+            dlsFlsException.addMetadata("es.views_with_dls_or_fls", viewsWithDlsOrFls);
+        }
+        if (datasetsWithDlsOrFls.isEmpty() == false) {
+            dlsFlsException.addMetadata("es.datasets_with_dls_or_fls", datasetsWithDlsOrFls);
+        }
         return dlsFlsException;
     }
 }

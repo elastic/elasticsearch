@@ -392,19 +392,21 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyNoModelRegistryMutations();
     }
 
-    public void testMasterOperation_UnknownTaskSetting_AllowedWhenParserUsedForTaskSettings() {
+    public void testMasterOperation_UnknownTaskSetting_ThrowsWhenParserUsedForTaskSettings() {
         when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = mock(TaskSettings.class);
+        var parserException = new ElasticsearchStatusException(
+            Strings.format("unknown field [%s]", UNKNOWN_SETTING_KEY),
+            RestStatus.BAD_REQUEST
+        );
+        when(taskSettings.updatedTaskSettings(anyMap())).thenThrow(parserException);
+        var model = createMockedModel(mock(ServiceSettings.class), taskSettings, null);
+
         mockGetModelWithSecretsToReturnUnparsedModel(
             new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
-        GoogleVertexAiEmbeddingsModel model = createModel();
-        mockParsePersistedConfigWithSecretsToReturnModel(model);
-        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(model);
-        mockModelRegistryGetModelToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
-        );
         when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
 
         var listener = callMasterOperationWithRequestBody("""
@@ -415,8 +417,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             }
             """);
 
-        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
-        assertThat(response.getModel(), is(model.getConfigurations()));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception, sameInstance(parserException));
         verifyNoModelRegistryMutations();
     }
 
@@ -629,7 +631,11 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
     }
 
-    public void testValidateConsumedUpdateSettings_UnknownTaskSetting_AllowedWhenParserUsed() {
+    /**
+     * Parser-based services do not remove task settings keys from the request map, so this method must not require an
+     * empty map. Unknown fields are rejected later by the task settings parser in {@link TaskSettings#updatedTaskSettings}.
+     */
+    public void testValidateConsumedUpdateSettings_DoesNotEnforceTaskSettingsMapEmptyWhenParserUsed() {
         when(service.usesParserForTaskSettings()).thenReturn(true);
         var taskSettings = new HashMap<String, Object>();
         taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);

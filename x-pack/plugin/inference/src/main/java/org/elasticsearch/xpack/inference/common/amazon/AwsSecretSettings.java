@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.common.amazon;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -115,19 +116,33 @@ public class AwsSecretSettings implements SecretSettings {
     }
 
     @Override
-    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+    public AwsSecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         var validationException = new ValidationException();
         var extractedAccessKey = extractOptionalSecureString(newSecrets, ACCESS_KEY_FIELD, SERVICE_SETTINGS, validationException);
         var extractedSecretKey = extractOptionalSecureString(newSecrets, SECRET_KEY_FIELD, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
-        if (extractedAccessKey == null && extractedSecretKey == null) {
+        // AWS credentials must be rotated as a pair; no-op when both halves are absent or both already match the existing values.
+        if ((extractedAccessKey == null && extractedSecretKey == null)
+            || (Objects.equals(extractedAccessKey, accessKey) && Objects.equals(extractedSecretKey, secretKey))) {
             return this;
         }
-        return new AwsSecretSettings(
-            extractedAccessKey != null ? extractedAccessKey : accessKey,
-            extractedSecretKey != null ? extractedSecretKey : secretKey
-        );
+
+        if (extractedAccessKey == null || extractedSecretKey == null) {
+            var missingField = extractedAccessKey == null ? ACCESS_KEY_FIELD : SECRET_KEY_FIELD;
+            validationException.addValidationError(
+                Strings.format(
+                    "[%s] [%s] and [%s] must be updated together; missing: [%s]",
+                    SERVICE_SETTINGS,
+                    ACCESS_KEY_FIELD,
+                    SECRET_KEY_FIELD,
+                    missingField
+                )
+            );
+        }
+        validationException.throwIfValidationErrorsExist();
+
+        return new AwsSecretSettings(extractedAccessKey, extractedSecretKey);
     }
 
     public SecureString accessKey() {

@@ -630,7 +630,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns} (the
-     * post-projection, pre-injector channel layout); {@code -1} when the column is absent.
+     * post-projection, pre-virtual-column channel layout); {@code -1} when the column is absent.
      * Used by deferred-extraction wiring to know which channel the encoder must rewrite.
      */
     private static int rowPositionChannelIndex(List<String> projectedColumns) {
@@ -1747,7 +1747,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } else {
             asyncMode = "sync-wrapper";
         }
-        return "AsyncExternalSourceOperator["
+        return "ExternalDataSourceOperator["
             + "storage="
             + storageProvider.getClass().getSimpleName()
             + ", format="

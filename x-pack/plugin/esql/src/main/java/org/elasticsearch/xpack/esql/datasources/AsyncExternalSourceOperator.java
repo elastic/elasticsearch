@@ -102,7 +102,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public String toString() {
-        return "AsyncExternalSourceOperator";
+        // Profile display name. The class keeps the implementation-detail `Async` prefix to mirror
+        // the AsyncOperator inheritance, but the public-facing profile output drops it so the
+        // observable operator name reads cleanly to users.
+        return "ExternalDataSourceOperator";
     }
 
     @Override

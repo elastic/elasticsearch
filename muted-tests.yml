@@ -226,8 +226,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147654
-- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
-  method: test {csv-spec:external-basic.* [LOCAL]}
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147655
@@ -497,12 +495,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardMovedAway
   issue: https://github.com/elastic/elasticsearch/issues/149083
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
-  method: test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/149126
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
-  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/149127
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/149130
@@ -581,9 +573,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/149350
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
-  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/149352
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testDynamicStringMappingWithoutAutoTextSubfield
   issue: https://github.com/elastic/elasticsearch/issues/149374
@@ -599,3 +588,14 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   method: testStatsBlowupCsv
   issue: https://github.com/elastic/elasticsearch/issues/149444
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
+  methods:
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zst/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zstd/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz/LOCAL]}
+    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149481
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipeWithPruning [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149482

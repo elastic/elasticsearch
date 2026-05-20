@@ -1674,6 +1674,12 @@ public final class EsqlTestUtils {
         mainFrom = mainFromCommandWithMetadata.get(0).strip();
         // if there is metadata, we need to add it back later
         String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
+        // Subqueries whose outer command is ROW (rather than FROM) still contain commas as part of ROW
+        // syntax — those must never be interpreted as UNION-of-sources legs nor rewritten into a FROM.
+        // Example: ROW emp_no = 99999, languages = 99
+        if (startsWithRowCommand(mainFrom)) {
+            return query;
+        }
         // the main from command could be a comma separated list of index patterns, and subqueries
         List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
         List<String> transformed = new ArrayList<>();
@@ -1705,6 +1711,14 @@ public final class EsqlTestUtils {
 
         LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
         return testQuery;
+    }
+
+    /**
+     * True when the clause begins with ROW as a keyword (case-insensitive) followed by whitespace.
+     */
+    private static boolean startsWithRowCommand(String mainFromClause) {
+        String c = mainFromClause.strip();
+        return c.length() >= 4 && c.substring(0, 3).equalsIgnoreCase("row") && Character.isWhitespace(c.charAt(3));
     }
 
     /**

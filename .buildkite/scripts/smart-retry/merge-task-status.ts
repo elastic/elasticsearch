@@ -9,8 +9,8 @@
  */
 import { existsSync } from "node:fs";
 
-import { normalizeTaskStatus, wrapTaskStatus } from "./smart-retry";
-import type { TaskStatusReport, MultiRunTaskStatus } from "./types";
+import { normalizeTaskStatus, wrapTaskStatus } from "./smart-retry.ts";
+import type { TaskStatusReport, MultiRunTaskStatus } from "./types.ts";
 
 const currentPath = process.argv[2];
 const previousPath = process.argv[3];

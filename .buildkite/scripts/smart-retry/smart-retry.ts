@@ -8,7 +8,7 @@ import type {
   BuildkiteBuildJson,
   TaskEntry,
   TestEntry,
-} from "./types";
+} from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Multi-run helpers
@@ -90,7 +90,10 @@ export function mergeRuns(multi: MultiRunTaskStatus): TaskStatusReport {
   return {
     tasks: [...taskMap.values()].sort((a, b) => a.path.localeCompare(b.path)),
     tests: [...testMap.values()].sort(
-      (a, b) => a.taskPath.localeCompare(b.taskPath) || a.className.localeCompare(b.className) || a.methodName.localeCompare(b.methodName)
+      (a, b) =>
+        a.taskPath.localeCompare(b.taskPath) ||
+        a.className.localeCompare(b.className) ||
+        a.methodName.localeCompare(b.methodName),
     ),
     cancelled,
   };
@@ -140,8 +143,10 @@ export function transformTaskStatus(report: TaskStatusReport, testseed: string):
 
   const successfulTaskSet = new Set(
     report.tasks
-      .filter((t) => SUCCESSFUL_OUTCOMES.has(t.outcome) && !failedTaskPaths.has(t.path) && !tasksWithTestFailures.has(t.path))
-      .map((t) => t.path)
+      .filter(
+        (t) => SUCCESSFUL_OUTCOMES.has(t.outcome) && !failedTaskPaths.has(t.path) && !tasksWithTestFailures.has(t.path),
+      )
+      .map((t) => t.path),
   );
   const successfulTasks = [...successfulTaskSet].sort();
 
@@ -177,7 +182,11 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
     metadata: { "smart-retry-status": "failed", "smart-retry-details": details },
   });
 
-  const buildJson = await deps.fetchBuildJson(env.buildkiteApiToken, env.buildkitePipelineSlug, env.buildkiteBuildNumber);
+  const buildJson = await deps.fetchBuildJson(
+    env.buildkiteApiToken,
+    env.buildkitePipelineSlug,
+    env.buildkiteBuildNumber,
+  );
   if (!buildJson) {
     return fail("Buildkite API request failed");
   }
@@ -249,7 +258,7 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
 export function resolveOriginJobId(
   buildJson: BuildkiteBuildJson,
   currentJobId: string,
-  explicitOriginJobId?: string
+  explicitOriginJobId?: string,
 ): string | null {
   if (explicitOriginJobId && explicitOriginJobId !== "null") {
     return explicitOriginJobId;
@@ -263,4 +272,3 @@ export function resolveOriginJobName(buildJson: BuildkiteBuildJson, originJobId:
   const job = buildJson.jobs.find((j) => j.id === originJobId);
   return job?.name && job.name !== "null" ? job.name : "previous attempt";
 }
-

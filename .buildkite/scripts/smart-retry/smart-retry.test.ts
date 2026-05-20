@@ -8,14 +8,14 @@ import {
   mergeRuns,
   normalizeTaskStatus,
   wrapTaskStatus,
-} from "./smart-retry";
+} from "./smart-retry.ts";
 import type {
   TaskStatusReport,
   MultiRunTaskStatus,
   SmartRetryEnv,
   SmartRetryDeps,
   BuildkiteBuildJson,
-} from "./types";
+} from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -65,7 +65,7 @@ function makeDeps(overrides: Partial<SmartRetryDeps> = {}): SmartRetryDeps {
             { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
             { taskPath: ":modules:test", className: "org.es.BarTest", methodName: "testBar", result: "SUCCESS" },
           ],
-        })
+        }),
       ),
     ...overrides,
   };
@@ -100,7 +100,7 @@ describe("transformTaskStatus", () => {
           { taskPath: ":modules:test", className: "org.es.BarTest", methodName: "testBar", result: "SUCCESS" },
         ],
       }),
-      "ABC123"
+      "ABC123",
     );
 
     expect(result.successfulTasks).toEqual([":modules:test", ":server:test"]);
@@ -118,7 +118,7 @@ describe("transformTaskStatus", () => {
           { taskPath: ":server:test", className: "org.es.BarTest", methodName: "testBaz", result: "SUCCESS" },
         ],
       }),
-      ""
+      "",
     );
 
     expect(result.successfulTasks).toEqual([]);
@@ -139,7 +139,7 @@ describe("transformTaskStatus", () => {
           { taskPath: ":modules:test", className: "org.es.BarTest", methodName: "testBar", result: "SUCCESS" },
         ],
       }),
-      ""
+      "",
     );
 
     expect(result.successfulTasks).toEqual([":modules:test"]);
@@ -164,7 +164,7 @@ describe("transformTaskStatus", () => {
           { taskPath: ":modules:test", className: "org.es.ModTest", methodName: "testMod", result: "SUCCESS" },
         ],
       }),
-      "SEED42"
+      "SEED42",
     );
 
     expect(result.successfulTasks).toEqual([":modules:test"]);
@@ -184,7 +184,7 @@ describe("transformTaskStatus", () => {
           { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBaz", result: "SUCCESS" },
         ],
       }),
-      ""
+      "",
     );
 
     expect(result.successfulTests).toEqual({
@@ -201,7 +201,7 @@ describe("transformTaskStatus", () => {
           { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SUCCESS" },
         ],
       }),
-      ""
+      "",
     );
 
     expect(result.successfulTasks).toEqual([":server:test"]);
@@ -217,7 +217,7 @@ describe("transformTaskStatus", () => {
         ],
         tests: [],
       }),
-      ""
+      "",
     );
 
     expect(result.successfulTasks).toEqual([":a:test", ":b:test"]);
@@ -234,7 +234,7 @@ describe("transformTaskStatus", () => {
         ],
         tests: [],
       }),
-      ""
+      "",
     );
 
     expect(result.successfulTasks).toEqual([":c:test"]);
@@ -250,7 +250,7 @@ describe("transformTaskStatus", () => {
           { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SUCCESS" },
         ],
       }),
-      ""
+      "",
     );
 
     expect(result.successfulTasks).toEqual([]);
@@ -279,7 +279,7 @@ describe("normalizeTaskStatus", () => {
   test("passes through an already multi-run object unchanged", () => {
     const multi = makeMultiRun(
       makeReport({ tasks: [{ path: ":a:test", outcome: "SUCCESS" }] }),
-      makeReport({ tasks: [{ path: ":b:test", outcome: "FAILED" }] })
+      makeReport({ tasks: [{ path: ":b:test", outcome: "FAILED" }] }),
     );
 
     const result = normalizeTaskStatus(multi);
@@ -304,9 +304,7 @@ describe("wrapTaskStatus", () => {
   });
 
   test("appends current run after previous runs", () => {
-    const prev = makeMultiRun(
-      makeReport({ tasks: [{ path: ":a:test", outcome: "FAILED" }] })
-    );
+    const prev = makeMultiRun(makeReport({ tasks: [{ path: ":a:test", outcome: "FAILED" }] }));
     const current = makeReport({ tasks: [{ path: ":a:test", outcome: "SUCCESS" }] });
 
     const result = wrapTaskStatus(current, prev);
@@ -319,7 +317,7 @@ describe("wrapTaskStatus", () => {
   test("preserves multiple previous runs and appends current", () => {
     const prev = makeMultiRun(
       makeReport({ tasks: [{ path: ":a:test", outcome: "FAILED" }] }),
-      makeReport({ tasks: [{ path: ":a:test", outcome: "FAILED" }] })
+      makeReport({ tasks: [{ path: ":a:test", outcome: "FAILED" }] }),
     );
     const current = makeReport({ tasks: [{ path: ":a:test", outcome: "SUCCESS" }] });
 
@@ -357,8 +355,8 @@ describe("mergeRuns", () => {
     const result = mergeRuns(
       makeMultiRun(
         makeReport({ tasks: [{ path: ":server:test", outcome: "SUCCESS" }] }),
-        makeReport({ tasks: [{ path: ":server:test", outcome: "SKIPPED" }] })
-      )
+        makeReport({ tasks: [{ path: ":server:test", outcome: "SKIPPED" }] }),
+      ),
     );
 
     expect(result.tasks).toHaveLength(1);
@@ -369,8 +367,8 @@ describe("mergeRuns", () => {
     const result = mergeRuns(
       makeMultiRun(
         makeReport({ tasks: [{ path: ":server:test", outcome: "SUCCESS" }] }),
-        makeReport({ tasks: [{ path: ":server:test", outcome: "NOT_RUN" }] })
-      )
+        makeReport({ tasks: [{ path: ":server:test", outcome: "NOT_RUN" }] }),
+      ),
     );
 
     expect(result.tasks[0].outcome).toBe("SUCCESS");
@@ -380,8 +378,8 @@ describe("mergeRuns", () => {
     const result = mergeRuns(
       makeMultiRun(
         makeReport({ tasks: [{ path: ":server:test", outcome: "FAILED" }] }),
-        makeReport({ tasks: [{ path: ":server:test", outcome: "SUCCESS" }] })
-      )
+        makeReport({ tasks: [{ path: ":server:test", outcome: "SUCCESS" }] }),
+      ),
     );
 
     expect(result.tasks[0].outcome).toBe("SUCCESS");
@@ -391,16 +389,16 @@ describe("mergeRuns", () => {
     const result1 = mergeRuns(
       makeMultiRun(
         makeReport({ tasks: [{ path: ":a:test", outcome: "UP_TO_DATE" }] }),
-        makeReport({ tasks: [{ path: ":a:test", outcome: "SKIPPED" }] })
-      )
+        makeReport({ tasks: [{ path: ":a:test", outcome: "SKIPPED" }] }),
+      ),
     );
     expect(result1.tasks[0].outcome).toBe("UP_TO_DATE");
 
     const result2 = mergeRuns(
       makeMultiRun(
         makeReport({ tasks: [{ path: ":a:test", outcome: "FROM_CACHE" }] }),
-        makeReport({ tasks: [{ path: ":a:test", outcome: "NOT_RUN" }] })
-      )
+        makeReport({ tasks: [{ path: ":a:test", outcome: "NOT_RUN" }] }),
+      ),
     );
     expect(result2.tasks[0].outcome).toBe("FROM_CACHE");
   });
@@ -409,8 +407,8 @@ describe("mergeRuns", () => {
     const result = mergeRuns(
       makeMultiRun(
         makeReport({ tasks: [{ path: ":a:test", outcome: "INTERRUPTED" }] }),
-        makeReport({ tasks: [{ path: ":a:test", outcome: "FAILED" }] })
-      )
+        makeReport({ tasks: [{ path: ":a:test", outcome: "FAILED" }] }),
+      ),
     );
     expect(result.tasks[0].outcome).toBe("FAILED");
   });
@@ -419,8 +417,8 @@ describe("mergeRuns", () => {
     const result = mergeRuns(
       makeMultiRun(
         makeReport({ tasks: [{ path: ":a:test", outcome: "SUCCESS" }] }),
-        makeReport({ tasks: [{ path: ":b:test", outcome: "FAILED" }] })
-      )
+        makeReport({ tasks: [{ path: ":b:test", outcome: "FAILED" }] }),
+      ),
     );
 
     expect(result.tasks).toHaveLength(2);
@@ -435,8 +433,8 @@ describe("mergeRuns", () => {
         }),
         makeReport({
           tests: [{ taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "SUCCESS" }],
-        })
-      )
+        }),
+      ),
     );
 
     expect(result.tests).toHaveLength(1);
@@ -451,8 +449,8 @@ describe("mergeRuns", () => {
         }),
         makeReport({
           tests: [{ taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" }],
-        })
-      )
+        }),
+      ),
     );
 
     expect(result.tests[0].result).toBe("FAILURE");
@@ -466,8 +464,8 @@ describe("mergeRuns", () => {
         }),
         makeReport({
           tests: [{ taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "SUCCESS" }],
-        })
-      )
+        }),
+      ),
     );
 
     expect(result.tests[0].result).toBe("SUCCESS");
@@ -481,8 +479,8 @@ describe("mergeRuns", () => {
         }),
         makeReport({
           tests: [{ taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "FAILURE" }],
-        })
-      )
+        }),
+      ),
     );
 
     expect(result.tests).toHaveLength(2);
@@ -493,20 +491,10 @@ describe("mergeRuns", () => {
   });
 
   test("cancelled flag comes from the last run", () => {
-    const result = mergeRuns(
-      makeMultiRun(
-        makeReport({ cancelled: true }),
-        makeReport({ cancelled: false })
-      )
-    );
+    const result = mergeRuns(makeMultiRun(makeReport({ cancelled: true }), makeReport({ cancelled: false })));
     expect(result.cancelled).toBe(false);
 
-    const result2 = mergeRuns(
-      makeMultiRun(
-        makeReport({ cancelled: false }),
-        makeReport({ cancelled: true })
-      )
-    );
+    const result2 = mergeRuns(makeMultiRun(makeReport({ cancelled: false }), makeReport({ cancelled: true })));
     expect(result2.cancelled).toBe(true);
   });
 
@@ -538,8 +526,8 @@ describe("mergeRuns", () => {
             { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testA", result: "SUCCESS" },
             { taskPath: ":plugins:test", className: "org.es.BarTest", methodName: "testC", result: "FAILURE" },
           ],
-        })
-      )
+        }),
+      ),
     );
 
     // :server:test upgraded to SUCCESS
@@ -611,10 +599,7 @@ describe("resolveOriginJobName", () => {
 
 describe("runSmartRetry", () => {
   test("fails when Buildkite API returns null", async () => {
-    const result = await runSmartRetry(
-      makeEnv(),
-      makeDeps({ fetchBuildJson: async () => null })
-    );
+    const result = await runSmartRetry(makeEnv(), makeDeps({ fetchBuildJson: async () => null }));
 
     expect(result.status).toBe("failed");
     expect(result.details).toBe("Buildkite API request failed");
@@ -627,7 +612,7 @@ describe("runSmartRetry", () => {
     const build = makeBuildJson({ jobs: [{ id: "orphan-job" }] });
     const result = await runSmartRetry(
       makeEnv({ buildkiteJobId: "orphan-job" }),
-      makeDeps({ fetchBuildJson: async () => build })
+      makeDeps({ fetchBuildJson: async () => build }),
     );
 
     expect(result.status).toBe("failed");
@@ -635,10 +620,7 @@ describe("runSmartRetry", () => {
   });
 
   test("fails when artifact download returns null", async () => {
-    const result = await runSmartRetry(
-      makeEnv(),
-      makeDeps({ downloadArtifact: async () => null })
-    );
+    const result = await runSmartRetry(makeEnv(), makeDeps({ downloadArtifact: async () => null }));
 
     expect(result.status).toBe("failed");
     expect(result.details).toBe("Failed to download task-status artifact");
@@ -655,9 +637,9 @@ describe("runSmartRetry", () => {
               tests: [
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.status).toBe("disabled");
@@ -678,9 +660,9 @@ describe("runSmartRetry", () => {
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SUCCESS" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.status).toBe("enabled");
@@ -706,9 +688,9 @@ describe("runSmartRetry", () => {
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
                 { taskPath: ":modules:test", className: "org.es.BarTest", methodName: "testBar", result: "SUCCESS" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.status).toBe("enabled");
@@ -741,10 +723,10 @@ describe("runSmartRetry", () => {
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
                 { taskPath: ":modules:test", className: "org.es.BarTest", methodName: "testBar", result: "SUCCESS" },
               ],
-            })
+            }),
           );
         },
-      })
+      }),
     );
 
     expect(downloadedFromJobId).toBe("explicit-origin");
@@ -765,9 +747,9 @@ describe("runSmartRetry", () => {
               tests: [
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.failedTestHistory!.testseed).toBe("");
@@ -792,9 +774,9 @@ describe("runSmartRetry", () => {
               tests: [
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.annotation).toContain("[previous attempt]");
@@ -824,9 +806,9 @@ describe("runSmartRetry", () => {
               tests: [
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testA", result: "SUCCESS" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.status).toBe("enabled");
@@ -853,9 +835,9 @@ describe("runSmartRetry", () => {
               tests: [
                 { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testA", result: "SUCCESS" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.status).toBe("enabled");
@@ -886,9 +868,9 @@ describe("runSmartRetry", () => {
               tests: [
                 { taskPath: ":plugins:test", className: "org.es.BarTest", methodName: "testB", result: "FAILURE" },
               ],
-            })
+            }),
           ),
-      })
+      }),
     );
 
     expect(result.status).toBe("enabled");

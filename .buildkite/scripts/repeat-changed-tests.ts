@@ -3,7 +3,7 @@ import { execSync } from "child_process";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../..`);
 
 const AGENTS = {
   provider: "gcp",
@@ -214,11 +214,7 @@ export interface UnmuteDetectionResult {
   unlocated: MutedEntry[];
 }
 
-export function findUnmutedTests(
-  oldYamlText: string,
-  newYamlText: string,
-  repoFiles: string[]
-): UnmuteDetectionResult {
+export function findUnmutedTests(oldYamlText: string, newYamlText: string, repoFiles: string[]): UnmuteDetectionResult {
   const before = parseMutedEntries(oldYamlText);
   const after = parseMutedEntries(newYamlText);
   const unmuted = diffMutedEntries(before, after);
@@ -393,7 +389,7 @@ function tasksWithFilters(
   batch: ClassifiedTest[],
   taskName: string,
   toFilter: (t: ClassifiedTest) => string,
-  perTaskSuffix?: string
+  perTaskSuffix?: string,
 ): string {
   const byTask = new Map<string, string[]>();
   for (const t of batch) {
@@ -530,15 +526,15 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
 export function resolveMergeBaseTarget(
   targetBranch: string,
   run: CommandRunner = (command, options) => execSync(command, options),
-  projectRoot: string = PROJECT_ROOT
+  projectRoot: string = PROJECT_ROOT,
 ): string {
   try {
     run(`git rev-parse --verify ${targetBranch}^{commit}`, { cwd: projectRoot, stdio: "ignore" });
     return targetBranch;
   } catch {
-  // Some target branches aren't present in the local checkout: ghstack synthetic
-  // refs (gh/<user>/<n>/base) and serverless patch branches (patch/<name>). Fetch
-  // the ref and use FETCH_HEAD so we don't depend on origin/<branch> naming.
+    // Some target branches aren't present in the local checkout: ghstack synthetic
+    // refs (gh/<user>/<n>/base) and serverless patch branches (patch/<name>). Fetch
+    // the ref and use FETCH_HEAD so we don't depend on origin/<branch> naming.
     run(`git fetch --no-tags origin ${targetBranch}`, { cwd: projectRoot, stdio: "inherit" });
     return "FETCH_HEAD";
   }
@@ -555,7 +551,9 @@ function main() {
   console.log(`Merge base: ${mergeBase}`);
 
   console.log("Getting changed files...");
-  const changedFilesOutput = execSync(`git diff --diff-filter=d --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
+  const changedFilesOutput = execSync(`git diff --diff-filter=d --name-only ${mergeBase}`, { cwd: PROJECT_ROOT })
+    .toString()
+    .trim();
   const changedFiles = changedFilesOutput
     .split("\n")
     .map((f) => f.trim())
@@ -569,16 +567,16 @@ function main() {
   const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT);
   console.log(`Found ${unmuted.located.length} unmuted tests`);
   if (unmuted.unlocated.length > 0) {
-    console.log(
-      `Skipping ${unmuted.unlocated.length} unmuted tests whose class files no longer exist:`
-    );
+    console.log(`Skipping ${unmuted.unlocated.length} unmuted tests whose class files no longer exist:`);
     for (const e of unmuted.unlocated) {
       console.log(`  - ${e.className}${e.method !== undefined ? "." + e.method : ""}`);
     }
   }
 
   let tests = dedupeTests([...changedTests, ...unmuted.located]);
-  console.log(`Total tests to run: ${tests.length} (${changedTests.length} changed, ${unmuted.located.length} unmuted)`);
+  console.log(
+    `Total tests to run: ${tests.length} (${changedTests.length} changed, ${unmuted.located.length} unmuted)`,
+  );
 
   if (tests.length === 0) {
     console.log("No test changes or unmutes detected");
@@ -586,7 +584,7 @@ function main() {
       try {
         execSync(
           `buildkite-agent annotate "No test changes or unmutes detected" --style "info" --context "repeat-changed-tests"`,
-          { cwd: PROJECT_ROOT, stdio: "inherit" }
+          { cwd: PROJECT_ROOT, stdio: "inherit" },
         );
       } catch {
         // Ignore annotation failures
@@ -601,7 +599,7 @@ function main() {
       try {
         execSync(
           `buildkite-agent annotate "Warning: ${tests.length} test files to re-run (${changedTests.length} changed, ${unmuted.located.length} unmuted). This may take a while." --style "warning" --context "repeat-changed-tests"`,
-          { cwd: PROJECT_ROOT, stdio: "inherit" }
+          { cwd: PROJECT_ROOT, stdio: "inherit" },
         );
       } catch {
         // Ignore annotation failures

@@ -3,8 +3,8 @@ import { readFileSync, readdirSync } from "fs";
 import { basename, resolve } from "path";
 import { execSync } from "child_process";
 
-import { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
-import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
+import type { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types.ts";
+import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions.ts";
 
 // Auto-retry configuration for PR pipelines.
 // - exit_status "-1": Agent/infrastructure failures (2 retries)
@@ -24,7 +24,7 @@ const AUTO_RETRY_CONFIG: BuildkiteRetry = {
   },
 };
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../..`);
 
 const getArray = (strOrArray: string | string[] | undefined): string[] => {
   if (typeof strOrArray === "undefined") {

@@ -5,6 +5,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.8.0",
     "vitest": "^3.2.1"
   },

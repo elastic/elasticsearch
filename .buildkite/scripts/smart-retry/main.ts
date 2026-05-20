@@ -1,5 +1,5 @@
-import { runSmartRetry, normalizeTaskStatus } from "./smart-retry";
-import type { SmartRetryEnv, SmartRetryDeps, BuildkiteBuildJson, MultiRunTaskStatus } from "./types";
+import { runSmartRetry, normalizeTaskStatus } from "./smart-retry.ts";
+import type { SmartRetryEnv, SmartRetryDeps, BuildkiteBuildJson, MultiRunTaskStatus } from "./types.ts";
 
 const env: SmartRetryEnv = {
   buildkiteApiToken: process.env.BUILDKITE_API_TOKEN ?? "",
@@ -29,7 +29,15 @@ const deps: SmartRetryDeps = {
 
   downloadArtifact: async (originJobId) => {
     try {
-      const dl = Bun.spawnSync(["buildkite-agent", "artifact", "download", "task-status.json.gz", ".", "--step", originJobId]);
+      const dl = Bun.spawnSync([
+        "buildkite-agent",
+        "artifact",
+        "download",
+        "task-status.json.gz",
+        ".",
+        "--step",
+        originJobId,
+      ]);
       if (dl.exitCode !== 0) return null;
 
       const gz = Bun.spawnSync(["gunzip", "-f", "task-status.json.gz"]);

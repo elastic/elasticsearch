@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -304,6 +305,22 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * When set to a value other than the Unix epoch, overrides the reference time passed to
+     * {@link WarmingRatioProvider#getWarmingRatio} instead of using {@link ThreadPool#absoluteTimeInMillis()}.
+     * The value must be an ISO-8601 datetime string (e.g. {@code "2026-05-20T11:00:00.000Z"}).
+     * {@link Instant#EPOCH} (the default) means use real wall-clock time.
+     * This allows operators to pin the warming ratio calculation to a fixed point in time, which is useful for offline pre-warming
+     * scenarios where the logical "now" should reflect a known data timestamp rather than the node's current clock.
+     */
+    public static final Setting<Instant> SEARCH_OFFLINE_WARMING_REFERENCE_TIME_OVERRIDE_SETTING = Setting.dateSetting(
+        SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".reference_time_override",
+        Instant.EPOCH,
+        v -> {},
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<ByteSizeValue> UPLOAD_PREWARM_MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "stateless.blob_cache_warming.upload_prewarm_max_size",
         ByteSizeValue.ofMb(16),
@@ -345,6 +362,7 @@ public class SharedBlobCacheWarmingService {
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
+    private volatile Instant referenceTimeOverride;
 
     public SharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
@@ -417,6 +435,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownShareFactor = value
+        );
+        clusterSettings.initializeAndWatch(
+            SEARCH_OFFLINE_WARMING_REFERENCE_TIME_OVERRIDE_SETTING,
+            value -> this.referenceTimeOverride = value
         );
     }
 
@@ -867,7 +889,9 @@ public class SharedBlobCacheWarmingService {
     }
 
     public ByteRange byteRangeToWarmForCC(ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC) {
-        final double warmingRatio = calculateWarmingRatioFromCompoundCommit(referencedCC, threadPool.absoluteTimeInMillis());
+        final Instant override = referenceTimeOverride;
+        final long nowMillis = override.equals(Instant.EPOCH) == false ? override.toEpochMilli() : threadPool.absoluteTimeInMillis();
+        final double warmingRatio = calculateWarmingRatioFromCompoundCommit(referencedCC, nowMillis);
         assert warmingRatio >= 0.0;
         if (warmingRatio <= 0) {
             return ByteRange.EMPTY;

@@ -16,6 +16,7 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -110,7 +111,14 @@ public class S3HttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return Strings.format("%s://localhost:%d", tlsCertificate == null ? "http" : "https", server.getAddress().getPort());
+        return Strings.format(
+            "%s://%s:%d",
+            tlsCertificate == null ? "http" : "https",
+            tlsCertificate == null
+                ? InetAddresses.toUriString(server.getAddress().getAddress())
+                : server.getAddress().getAddress().getHostName(),
+            server.getAddress().getPort()
+        );
     }
 
     public void stop(int delay) {

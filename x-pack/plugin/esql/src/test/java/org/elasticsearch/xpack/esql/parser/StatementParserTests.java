@@ -888,9 +888,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testWildcardPatternWithReservedPrefixChar() {
         List<String> commands = new ArrayList<>();
         commands.add("FROM");
-        if (Build.current().isSnapshot()) {
-            commands.add("TS");
-        }
         for (String command : commands) {
             assertStringAsIndexPattern("*_logs", command + " *_logs");
             assertStringAsIndexPattern("*+logs", command + " *+logs");

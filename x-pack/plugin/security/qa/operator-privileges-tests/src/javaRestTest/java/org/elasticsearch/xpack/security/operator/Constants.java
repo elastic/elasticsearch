@@ -604,7 +604,6 @@ public class Constants {
         "indices:data/read/esql/async/stop",
         "indices:data/read/esql/resolve_fields",
         "indices:data/read/esql/resolve_views",
-        "indices:data/read/esql/has_origin_project_target",
         "indices:data/read/esql/search_shards",
         "indices:data/read/explain",
         "indices:data/read/field_caps",

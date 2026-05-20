@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -125,6 +126,16 @@ public class Scalb extends EsqlScalarFunction {
         return NumericUtils.asFiniteNumber(Math.scalb(d, Math.toIntExact(scaleFactor)));
     }
 
+    @Evaluator(extraName = "ConstantInt", warnExceptions = { ArithmeticException.class })
+    static double processConstantInt(double d, @Fixed int scaleFactor) {
+        return NumericUtils.asFiniteNumber(Math.scalb(d, scaleFactor));
+    }
+
+    @Evaluator(extraName = "ConstantLong", warnExceptions = { ArithmeticException.class })
+    static double processConstantLong(double d, @Fixed long scaleFactor) {
+        return NumericUtils.asFiniteNumber(Math.scalb(d, Math.toIntExact(scaleFactor)));
+    }
+
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
         return new Scalb(source(), newChildren.get(0), newChildren.get(1));
@@ -151,6 +162,23 @@ public class Scalb extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dEval = Cast.cast(source(), d.dataType(), DataType.DOUBLE, toEvaluator.apply(d));
+        if (scaleFactor.foldable()) {
+            return switch (scaleFactor.dataType()) {
+                case DataType.INTEGER -> new ScalbConstantIntEvaluator.Factory(
+                    source(),
+                    dEval,
+                    (Integer) (scaleFactor.fold(toEvaluator.foldCtx()))
+                );
+                case DataType.LONG -> new ScalbConstantLongEvaluator.Factory(
+                    source(),
+                    dEval,
+                    (Long) (scaleFactor.fold(toEvaluator.foldCtx()))
+                );
+                case DataType type -> throw new IllegalStateException(
+                    Strings.format("Invalid type for scaleFactor: %s, should be int or long.", type)
+                );
+            };
+        }
         var scaleFactorEval = toEvaluator.apply(scaleFactor);
         return switch (scaleFactor.dataType()) {
             case DataType.INTEGER -> new ScalbIntEvaluator.Factory(source(), dEval, scaleFactorEval);

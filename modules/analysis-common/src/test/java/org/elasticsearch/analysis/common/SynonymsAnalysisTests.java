@@ -64,8 +64,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
     @After
     public void cleanup() {
         threadPool.shutdownNow();
-        IOUtils.closeWhileHandlingException(indexAnalyzers);
-        indexAnalyzers = null;
     }
 
     public void testSynonymsAnalysis() throws IOException {

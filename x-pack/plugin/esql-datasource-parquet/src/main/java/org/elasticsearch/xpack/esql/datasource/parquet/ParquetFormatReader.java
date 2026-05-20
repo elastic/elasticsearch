@@ -25,6 +25,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
+import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -57,7 +59,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -72,6 +73,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -351,7 +353,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // midpoint falls in the range, which would make getFooter() unusable for other
                 // splits. The underlying FooterByteCache ensures the tail bytes are fetched from
                 // storage only once on the first parse.
-                return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), adapter.newStream());
+                //
+                // Note: this variant of readFooter doesn't close the stream.
+                try (SeekableInputStream stream = adapter.newStream()) {
+                    return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
+                }
             });
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
@@ -417,7 +423,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
@@ -577,7 +583,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // it emits any other column. Pushed filters, late materialization, page skipping, and
         // row-group skipping all stay on — each surviving row carries its identity, and the
         // matching extractor binds those identities back to the file's full footer.
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
         ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
         return buildIterator(
             object,
@@ -605,6 +611,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     @Override
+    public boolean supportsWholeFileCompression() {
+        return false;
+    }
+
+    @Override
     public String formatName() {
         return FormatNameResolver.FORMAT_PARQUET;
     }
@@ -621,7 +632,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -754,7 +765,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // (computed against the full footer) and emits identities that the matching extractor
         // resolves against the same full footer — independent of which split owns each row group.
 
-        ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
+        ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(
+            object,
+            rangeEnd - rangeStart,
+            blockFactory.arrowAllocator()
+        );
         ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
         // Footer resolution order:
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
@@ -882,6 +897,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
                 ? resolvedAttributes
                 : convertParquetSchemaToAttributes(parquetSchema);
+
+            // Count-only fast path: when the planner asks for zero data columns (e.g. a query
+            // that only references {@code _file.*} virtual columns or a bare {@code COUNT(*)}
+            // atop the source) and no pushdown is active on this file, walk the row group
+            // metadata and emit row-count-only pages instead of building a column iterator over
+            // the entire file schema. Skipped when any predicate path is active (record filter,
+            // FilterPredicate, or {@link ParquetPushedExpressions}) so we keep the row-group
+            // pruning and YES-conjunct re-evaluation the column iterator performs - in those
+            // cases the leak is plugged at the consumer side by
+            // {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator} releasing
+            // any surplus blocks the legacy "empty projection -> full schema" fallback emits.
+            if (projectedColumns != null
+                && projectedColumns.isEmpty()
+                && filterPredicate == null
+                && pushedExpressions == null
+                && FilterCompat.isFilteringRequired(recordFilter) == false) {
+                return new ParquetCountOnlyIterator(reader, batchSize, rowLimit);
+            }
             List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
 
             MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
@@ -1624,12 +1657,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private Block readBooleanColumn(ColumnReader cr, int maxDef, int rows) {
-            boolean[] values = new boolean[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean[] values = UninitializedArrays.newBooleanArray(rows);
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getBoolean();
@@ -1639,22 +1672,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (noNulls) {
                 return blockFactory.newBooleanArrayVector(values, rows).asBlock();
             }
-            return blockFactory.newBooleanArrayBlock(
-                values,
-                rows,
-                null,
-                ParquetColumnDecoding.toBitSet(isNull, rows),
-                Block.MvOrdering.UNORDERED
-            );
+            return blockFactory.newBooleanArrayBlock(values, rows, null, isNull, Block.MvOrdering.UNORDERED);
         }
 
         private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
-            int[] values = new int[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            int[] values = UninitializedArrays.newIntArray(rows);
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getInteger();
@@ -1664,48 +1691,42 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (noNulls) {
                 return blockFactory.newIntArrayVector(values, rows).asBlock();
             }
-            return blockFactory.newIntArrayBlock(
-                values,
-                rows,
-                null,
-                ParquetColumnDecoding.toBitSet(isNull, rows),
-                Block.MvOrdering.UNORDERED
-            );
+            return blockFactory.newIntArrayBlock(values, rows, null, isNull, Block.MvOrdering.UNORDERED);
         }
 
         /**
          * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
          */
         private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = new long[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            long[] values = UninitializedArrays.newLongArray(rows);
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getInteger();
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = new long[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            long[] values = UninitializedArrays.newLongArray(rows);
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getLong();
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readDoubleColumn(ColumnReader cr, ColumnInfo info, int rows) {
@@ -1716,29 +1737,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
                 return readFloat16Column(cr, info.maxDefLevel(), rows);
             }
-            double[] values = new double[rows];
-            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
+            double[] values = UninitializedArrays.newDoubleArray(rows);
+            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
             for (int i = 0; i < rows; i++) {
                 if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = isFloat ? cr.getFloat() : cr.getDouble();
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
-            double[] values = new double[rows];
-            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
+            double[] values = UninitializedArrays.newDoubleArray(rows);
+            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     BigInteger unscaled = switch (info.parquetType()) {
@@ -1751,16 +1772,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readFloat16Column(ColumnReader cr, int maxDef, int rows) {
-            double[] values = new double[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            double[] values = UninitializedArrays.newDoubleArray(rows);
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     byte[] bytes = cr.getBinary().getBytes();
@@ -1769,7 +1790,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows, long byteHint) {
@@ -1797,13 +1818,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT96) {
                 return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
             }
-            long[] values = new long[rows];
-            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
+            long[] values = UninitializedArrays.newLongArray(rows);
+            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
             for (int i = 0; i < rows; i++) {
                 if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else if (isDate) {
                     values[i] = cr.getInteger() * MILLIS_PER_DAY;
@@ -1813,7 +1834,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         /**
@@ -1821,12 +1842,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
          * to epoch milliseconds.
          */
         private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = new long[rows];
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            long[] values = UninitializedArrays.newLongArray(rows);
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     Binary bin = cr.getBinary();
@@ -1838,7 +1859,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         @Override

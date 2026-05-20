@@ -8,11 +8,9 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,36 +22,39 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * Wraps a format reader's page iterator to adapt file-local schema to the unified schema.
- * <p>
- * For each page produced by the delegate iterator, this adapter:
- * <ul>
- *   <li>Reorders columns to match the unified schema ordering</li>
- *   <li>Inserts constant NULL blocks for columns missing from this file</li>
- *   <li>Casts blocks to the unified type where safe widening was applied</li>
- * </ul>
- * <p>
- * This keeps format readers simple — they read only the columns their file has —
- * and centralizes NULL-filling and type-casting in one place.
+ * Wraps a format reader's page iterator and runs each page through a {@link ColumnMapping}
+ * so the file's local-schema pages emerge in the query's output shape. {@link ColumnMapping}
+ * owns the null-filling and casting; this iterator drives the loop and (when configured)
+ * appends a synthetic {@code _rowPosition} block in the trailing slot so deferred extraction
+ * continues to work after schema reconciliation.
+ *
+ * <h2>{@link BlockFactory} threading contract</h2>
+ * This iterator runs on the producer side of {@link AsyncExternalSourceBuffer} (the generic /
+ * external-source pool thread that drains pages from the format reader), <em>not</em> on the
+ * driver thread that later consumes them. Callers must therefore pass a {@link BlockFactory}
+ * that is safe to use off-driver — typically the node-level (root) factory wired via
+ * {@link AsyncExternalSourceOperatorFactory.Builder#producerBlockFactory(BlockFactory)} — so the
+ * null-fill and cast allocations are charged to the global request circuit breaker. Passing a
+ * driver-local factory backed by {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
+ * trips its single-thread assertion in debug builds and races with the driver loop's
+ * reserved-bytes accounting in production (assertions stripped); see
+ * {@link VirtualColumnIterator} for the same contract on the {@code _file.*} path.
  *
  * <h2>{@link ColumnExtractorProducer} forwarding</h2>
  * The adapter unconditionally declares the {@link ColumnExtractorProducer} capability and forwards
  * {@link #createColumnExtractor()} / {@link #setExtractorId(int)} to its delegate. Whether those
  * calls actually succeed depends on the delegate: a non-producer delegate makes
  * {@code instanceof ColumnExtractorProducer} a necessary-but-not-sufficient guard at consumer
- * sites — the dispatch into the delegate fails loud (see {@link #innerProducer()}). Today the only
+ * sites — the dispatch into the delegate fails loud (see {@link #innerProducer()}). The only
  * consumer is the deferred-extraction wiring in
  * {@code AsyncExternalSourceOperatorFactory#wrapWithEncoderIfNeeded}, which only reaches this
  * iterator when the factory has already arranged for {@code _rowPosition} (and therefore a
- * producer-capable delegate) on the read path; the unconditional declaration lets the dispatch
- * site stay a single {@code instanceof} check rather than threading a capability flag through the
- * adapter constructor.
+ * producer-capable delegate) on the read path.
  */
 final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
 
     private final CloseableIterator<Page> delegate;
-    private final List<Attribute> unifiedSchema;
-    private final SchemaReconciliation.ColumnMapping mapping;
+    private final ColumnMapping mapping;
     private final BlockFactory blockFactory;
     /**
      * Index in the delegate's input page of the synthetic
@@ -62,38 +63,58 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
      * page so deferred extraction continues to work after schema reconciliation.
      */
     private final int rowPositionInputIndex;
+    /**
+     * File-side ES|QL type per reader-emitted block, in reader-natural (projected) order, or
+     * {@code null} when no caller cares to disambiguate. Used exclusively by
+     * {@link ColumnMapping#mapPage(Page, BlockFactory, DataType[])} to tell apart
+     * {@code LongBlock} sources (DATETIME / DATE_NANOS / LONG share one block class) when
+     * casting to KEYWORD.
+     */
+    @Nullable
+    private final DataType[] perFileColumnTypes;
 
     SchemaAdaptingIterator(
         CloseableIterator<Page> delegate,
-        List<Attribute> unifiedSchema,
-        SchemaReconciliation.ColumnMapping mapping,
+        List<Attribute> outputSchema,
+        ColumnMapping mapping,
         BlockFactory blockFactory
     ) {
-        this(delegate, unifiedSchema, mapping, blockFactory, -1);
+        this(delegate, outputSchema, mapping, blockFactory, -1, null);
     }
 
     SchemaAdaptingIterator(
         CloseableIterator<Page> delegate,
-        List<Attribute> unifiedSchema,
-        SchemaReconciliation.ColumnMapping mapping,
+        List<Attribute> outputSchema,
+        ColumnMapping mapping,
         BlockFactory blockFactory,
         int rowPositionInputIndex
     ) {
-        if (unifiedSchema.size() != mapping.columnCount()) {
+        this(delegate, outputSchema, mapping, blockFactory, rowPositionInputIndex, null);
+    }
+
+    SchemaAdaptingIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> outputSchema,
+        ColumnMapping mapping,
+        BlockFactory blockFactory,
+        int rowPositionInputIndex,
+        @Nullable DataType[] perFileColumnTypes
+    ) {
+        if (outputSchema.size() != mapping.width()) {
             throw new IllegalArgumentException(
-                "Schema size ["
-                    + unifiedSchema.size()
-                    + "] does not match mapping column count ["
-                    + mapping.columnCount()
-                    + "]; callers must pass only data columns"
-                    + " (use attributes.subList(0, mapping.columnCount()) to exclude partition columns)"
+                "output schema size ["
+                    + outputSchema.size()
+                    + "] does not match mapping width ["
+                    + mapping.width()
+                    + "]; callers must narrow attributes to data columns only"
+                    + " (exclude partition columns before constructing this iterator)"
             );
         }
         this.delegate = delegate;
-        this.unifiedSchema = unifiedSchema;
         this.mapping = mapping;
         this.blockFactory = blockFactory;
         this.rowPositionInputIndex = rowPositionInputIndex;
+        this.perFileColumnTypes = perFileColumnTypes;
     }
 
     @Override
@@ -108,36 +129,29 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         }
         Page filePage = delegate.next();
         try {
-            int positions = filePage.getPositionCount();
-            int unifiedSize = unifiedSchema.size();
-            int outputSize = unifiedSize + (rowPositionInputIndex >= 0 ? 1 : 0);
-
-            Block[] unifiedBlocks = new Block[outputSize];
+            Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes);
+            if (rowPositionInputIndex < 0) {
+                return schemaAdapted;
+            }
+            // Extend the schema-adapted page with the row-position block in the trailing slot.
+            int width = schemaAdapted.getBlockCount();
+            Block[] withRowPos = new Block[width + 1];
             try {
-                for (int i = 0; i < unifiedSize; i++) {
-                    int localIndex = mapping.localIndex(i);
-                    if (localIndex == -1) {
-                        unifiedBlocks[i] = blockFactory.newConstantNullBlock(positions);
-                    } else {
-                        Block block = filePage.getBlock(localIndex);
-                        DataType castTo = mapping.cast(i);
-                        if (castTo != null) {
-                            unifiedBlocks[i] = castBlock(block, castTo, positions);
-                        } else {
-                            block.incRef();
-                            unifiedBlocks[i] = block;
-                        }
-                    }
+                for (int i = 0; i < width; i++) {
+                    Block b = schemaAdapted.getBlock(i);
+                    b.incRef();
+                    withRowPos[i] = b;
                 }
-                if (rowPositionInputIndex >= 0) {
-                    Block rowPos = filePage.getBlock(rowPositionInputIndex);
-                    rowPos.incRef();
-                    unifiedBlocks[unifiedSize] = rowPos;
-                }
-                return new Page(positions, unifiedBlocks);
+                Block rowPos = filePage.getBlock(rowPositionInputIndex);
+                rowPos.incRef();
+                withRowPos[width] = rowPos;
+                int positions = schemaAdapted.getPositionCount();
+                schemaAdapted.releaseBlocks();
+                return new Page(positions, withRowPos);
             } catch (Exception e) {
-                Releasables.closeExpectNoException(unifiedBlocks);
-                throw new RuntimeException("Failed to adapt page to unified schema", e);
+                Releasables.closeExpectNoException(withRowPos);
+                schemaAdapted.releaseBlocks();
+                throw new RuntimeException("Failed to adapt page", e);
             }
         } finally {
             filePage.releaseBlocks();
@@ -175,84 +189,6 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
             delegate.close();
         } catch (Exception e) {
             throw new RuntimeException("Failed to close delegate iterator", e);
-        }
-    }
-
-    private Block castBlock(Block source, DataType targetType, int positions) {
-        if (source instanceof IntBlock intBlock) {
-            if (targetType == DataType.LONG) {
-                return castIntToLong(intBlock, positions);
-            } else if (targetType == DataType.DOUBLE) {
-                return castIntToDouble(intBlock, positions);
-            }
-        } else if (source instanceof LongBlock longBlock && targetType == DataType.DATE_NANOS) {
-            return castDatetimeToDateNanos(longBlock, positions);
-        }
-        throw new UnsupportedOperationException(
-            "Unsupported block cast: " + source.getClass().getSimpleName() + " → " + targetType.typeName()
-        );
-    }
-
-    private Block castIntToLong(IntBlock intBlock, int positions) {
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = intBlock.getValueCount(pos);
-                if (intBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendLong(intBlock.getInt(intBlock.getFirstValueIndex(pos)));
-                } else {
-                    int firstIdx = intBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(intBlock.getInt(firstIdx + v));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    private Block castIntToDouble(IntBlock intBlock, int positions) {
-        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = intBlock.getValueCount(pos);
-                if (intBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendDouble(intBlock.getInt(intBlock.getFirstValueIndex(pos)));
-                } else {
-                    int firstIdx = intBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendDouble(intBlock.getInt(firstIdx + v));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
-        }
-    }
-
-    private Block castDatetimeToDateNanos(LongBlock longBlock, int positions) {
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
-            for (int pos = 0; pos < positions; pos++) {
-                int count = longBlock.getValueCount(pos);
-                if (longBlock.isNull(pos) || count == 0) {
-                    builder.appendNull();
-                } else if (count == 1) {
-                    builder.appendLong(longBlock.getLong(longBlock.getFirstValueIndex(pos)) * 1_000_000L);
-                } else {
-                    int firstIdx = longBlock.getFirstValueIndex(pos);
-                    builder.beginPositionEntry();
-                    for (int v = 0; v < count; v++) {
-                        builder.appendLong(longBlock.getLong(firstIdx + v) * 1_000_000L);
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.build();
         }
     }
 }

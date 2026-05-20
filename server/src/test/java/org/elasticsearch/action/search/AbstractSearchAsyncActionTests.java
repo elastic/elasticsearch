@@ -37,6 +37,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.Transport;
@@ -319,11 +320,20 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
-                results.add(
-                    new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
-                        new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
-                    )
+                SearchPhaseResult result;
+                SearchShardTarget shardTarget = new SearchShardTarget(
+                    searchContextIdForNode.getNode(),
+                    shardId,
+                    searchContextIdForNode.getClusterAlias()
                 );
+                if (frequently()) {
+                    result = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(shardTarget);
+                } else {
+                    result = QuerySearchResult.nullInstance();
+                    result.setShardIndex(shardId.id());
+                    result.setSearchShardTarget(shardTarget);
+                }
+                results.add(result);
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
@@ -349,10 +359,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 // only swap node for ids there have a non-null node id, i.e. those that didn't fail when opening a PIT
                 if ((shardId.equals(mustSwap) || randomBoolean()) && searchContextIdForNode.getNode() != null) {
                     // swap to a different node
-                    PhaseResult otherNode = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
-                        new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias())
-                    );
-                    results.add(otherNode);
+                    SearchPhaseResult result;
+                    SearchShardTarget otherNode = new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias());
+                    if (frequently()) {
+                        result = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(otherNode);
+                    } else {
+                        result = QuerySearchResult.nullInstance();
+                        result.setShardIndex(shardId.id());
+                        result.setSearchShardTarget(otherNode);
+                    }
+                    results.add(result);
                     shardsWithSwappedNodes.add(shardId);
                 } else {
                     results.add(

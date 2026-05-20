@@ -477,6 +477,61 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             it: either move the SORT after it, or add a LIMIT after the SORT"""));
     }
 
+    /**
+     * Renaming the sort key between an unbounded SORT and an MV_EXPAND used to make ReorderLimitProjectAndOrderBy lift the OrderBy
+     * above the renaming Project, leaving the OrderBy with a dangling reference to the dropped column and tripping the
+     * "optimized incorrectly" optimizer verifier.
+     * <p>
+     * The proper "unbounded SORT" message should be reported instead.
+     * <p>
+     * Same root cause as the DROP variant in <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+     */
+    public void testDanglingOrderByInInlineStatsWithRenamedSortKey() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
+
+        var err = error(testAnalyzer.query("""
+            ROW a = 1
+            | SORT a DESC
+            | RENAME a AS b
+            | MV_EXPAND b
+            | INLINE STATS c = count(*)
+            """));
+
+        assertThat(err, is("""
+            2:3: Unbounded SORT not supported yet [SORT a DESC] please add a LIMIT
+            line 4:3: MV_EXPAND [MV_EXPAND b] cannot yet have an unbounded SORT [SORT a DESC] before it: either move the SORT after \
+            it, or add a LIMIT after the SORT
+            line 5:3: INLINE STATS [INLINE STATS c = count(*)] cannot yet have an unbounded SORT [SORT a DESC] before it: either move \
+            the SORT after it, or add a LIMIT after the SORT"""));
+    }
+
+    /**
+     * Dropping the sort key with a DROP between an unbounded SORT and an MV_EXPAND used to make ReorderLimitProjectAndOrderBy lift
+     * the OrderBy above the dropping Project, tripping the "optimized incorrectly" optimizer verifier.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+     */
+    public void testDanglingOrderByInInlineStatsWithDroppedSortKey() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
+
+        var err = error(testAnalyzer.query("""
+            ROW x = "a b"
+            | DISSECT x "%{y}"
+            | SORT y
+            | DROP y
+            | MV_EXPAND x
+            | INLINE STATS c = count(*)
+            """));
+
+        assertThat(err, is("""
+            3:3: Unbounded SORT not supported yet [SORT y] please add a LIMIT
+            line 5:3: MV_EXPAND [MV_EXPAND x] cannot yet have an unbounded SORT [SORT y] before it: either move the SORT after it, \
+            or add a LIMIT after the SORT
+            line 6:3: INLINE STATS [INLINE STATS c = count(*)] cannot yet have an unbounded SORT [SORT y] before it: either move \
+            the SORT after it, or add a LIMIT after the SORT"""));
+    }
+
     public void testEnrichRemoteRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 

@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -183,11 +184,7 @@ public class ExternalSourceResolver {
             String formatType = detectFormatType(storagePath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                SourceMetadata meta = resolveSingleSource(path, config);
-                Map<String, Object> enrichedMeta = meta.statistics()
-                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
-                    .orElse(meta.sourceMetadata());
-                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+                return SchemaCacheEntry.from(resolveSingleSource(path, config));
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
@@ -197,12 +194,17 @@ public class ExternalSourceResolver {
             object = provider.newObject(storagePath);
         }
 
+        // Capture the raw file schema before enriching with virtual columns: schemaMap describes
+        // the physical schema each reader actually sees, not the user-facing projection.
+        List<Attribute> fileSchema = extMetadata.schema();
+        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
+
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
         );
         // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, extMetadata.schema());
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -227,6 +229,7 @@ public class ExternalSourceResolver {
         StorageProvider provider = resolveProvider(storagePath, config);
 
         FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
+        boolean cacheable = isCacheable(provider);
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
@@ -237,10 +240,8 @@ public class ExternalSourceResolver {
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
-            return resolveMultiFileWithReconciliation(raw, config, schemaResolution);
+            return resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable);
         }
-
-        boolean cacheable = isCacheable(provider);
 
         FileList listing;
         if (cacheable) {
@@ -272,11 +273,7 @@ public class ExternalSourceResolver {
             String formatType = detectFormatType(anchorPath);
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
-                Map<String, Object> enrichedMeta = meta.statistics()
-                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
-                    .orElse(meta.sourceMetadata());
-                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+                return SchemaCacheEntry.from(resolveSingleSource(anchorPath.toString(), config));
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
@@ -348,7 +345,7 @@ public class ExternalSourceResolver {
             }
         }
 
-        // Capture pre-enrichment schema: partition columns are injected by VirtualColumnInjector
+        // Capture pre-enrichment schema: partition columns are added by VirtualColumnIterator
         // at read time, so per-file readSchema must NOT include them.
         List<Attribute> dataOnlySchema = extMetadata.schema();
 
@@ -356,6 +353,8 @@ public class ExternalSourceResolver {
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
+
+        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
 
         // FFW: every file's readSchema is the anchor's data-only schema, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
@@ -469,10 +468,11 @@ public class ExternalSourceResolver {
     private ExternalSourceResolution.ResolvedSource resolveMultiFileWithReconciliation(
         FileList fileList,
         Map<String, Object> config,
-        FormatReader.SchemaResolution schemaResolution
+        FormatReader.SchemaResolution schemaResolution,
+        boolean cacheable
     ) throws Exception {
         long startNanos = System.nanoTime();
-        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileList, config);
+        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileList, config, cacheable);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
 
         LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
@@ -487,42 +487,63 @@ public class ExternalSourceResolver {
 
         List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
         SourceMetadata firstMeta = allMetadata.get(firstFile);
+        // Aggregate from the per-file metadata already fetched by readAllFileMetadata —
+        // no second cache or storage hit per file.
         Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
         ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
+
+        // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
+        // marking is gated on fileCount > 1 (single-file globs have no "other file" missing stats).
+        extMetadata = enrichWithFileCount(extMetadata, fileList.fileCount());
+        if (aggregatedStats == null && fileList.fileCount() > 1) {
+            extMetadata = markStatsAsPartial(extMetadata);
+        }
 
         PartitionMetadata partitionMetadata = fileList.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
+        extMetadata = enrichSchemaWithFileMetadataColumns(extMetadata);
+
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap);
     }
 
-    /**
-     * Reads metadata from all files in parallel with bounded concurrency.
-     * Delegates to {@link BoundedParallelGather} which handles semaphore backpressure,
-     * fast-fail on error, and result ordering.
-     */
-    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config) throws Exception {
+    /** Per-file metadata, in parallel. When {@code cacheable} is true, each resolve goes through
+     *  the schema cache (keyed on path + mtime) so warm queries against the same paths hit cache. */
+    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config, boolean cacheable)
+        throws Exception {
         int fileCount = fileList.fileCount();
-        List<StoragePath> paths = new ArrayList<>(fileCount);
+        List<Integer> indices = new ArrayList<>(fileCount);
         for (int i = 0; i < fileCount; i++) {
-            paths.add(fileList.path(i));
+            indices.add(i);
         }
 
-        List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(
-            paths,
-            filePath -> Map.entry(filePath, resolveSingleSource(filePath.toString(), config)),
-            MAX_PARALLEL_METADATA_READS,
-            executor
-        );
+        List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(indices, i -> {
+            StoragePath filePath = fileList.path(i);
+            SourceMetadata meta = cacheable
+                ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
+                : resolveSingleSource(filePath.toString(), config);
+            return Map.entry(filePath, meta);
+        }, MAX_PARALLEL_METADATA_READS, executor);
 
         Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
         for (Map.Entry<StoragePath, SourceMetadata> entry : entries) {
             result.put(entry.getKey(), entry.getValue());
         }
         return result;
+    }
+
+    /** Cache-aware single-file resolve. Mirrors the FFW path — exceptions propagate (no catch). */
+    private SourceMetadata cachedResolveSingleSource(StoragePath filePath, long mtime, Map<String, Object> config) throws Exception {
+        String formatType = detectFormatType(filePath);
+        SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
+        SchemaCacheEntry entry = cacheService.getOrComputeSchema(
+            schemaKey,
+            k -> SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config))
+        );
+        return buildMetadataFromCache(entry, entry.toAttributes(), config);
     }
 
     /**
@@ -532,15 +553,19 @@ public class ExternalSourceResolver {
      * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
      */
     @Nullable
-    private static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
+    static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         for (SourceMetadata meta : allMetadata) {
-            if (meta.statistics().isEmpty()) {
+            // Cached entries embed stats in sourceMetadata(); uncached entries use typed statistics().
+            Map<String, Object> base = meta.sourceMetadata();
+            if (base != null && base.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)) {
+                perFileFlatStats.add(base);
+            } else if (meta.statistics().isPresent()) {
+                perFileFlatStats.add(SourceStatisticsSerializer.embedStatistics(base, meta.statistics().get()));
+            } else {
                 // At least one file has no statistics — cannot produce accurate global stats.
                 return null;
             }
-            Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), meta.statistics().get());
-            perFileFlatStats.add(flat);
         }
         return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats);
     }
@@ -591,11 +616,7 @@ public class ExternalSourceResolver {
             SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
             try {
                 SchemaCacheEntry entry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
-                    Map<String, Object> enrichedMeta = meta.statistics()
-                        .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
-                        .orElse(meta.sourceMetadata());
-                    return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+                    return SchemaCacheEntry.from(resolveSingleSource(filePath.toString(), config));
                 });
                 Map<String, Object> fileMeta = entry.safeMetadata();
                 if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
@@ -747,6 +768,40 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Returns a wrapper that delegates everything to {@code metadata} except {@code schema()},
+     * which is replaced by the provided schema. Used by the schema-enrichment helpers so each
+     * caller doesn't have to spell out a fresh anonymous {@link ExternalSourceMetadata}.
+     */
+    private static ExternalSourceMetadata withSchema(ExternalSourceMetadata metadata, List<Attribute> newSchema) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return newSchema;
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
+    }
+
+    /**
      * Returns a wrapper that delegates everything to {@code metadata} except {@code sourceMetadata()},
      * which is enriched with the given extra entries.
      */
@@ -807,37 +862,35 @@ public class ExternalSourceResolver {
         for (Map.Entry<String, DataType> entry : partitionColumns.entrySet()) {
             String name = entry.getKey();
             DataType type = entry.getValue();
-            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, true));
+            // synthetic=false: partition columns are user-addressable (referenceable in WHERE, STATS BY, EVAL, ...).
+            // Marking them synthetic causes AnalyzerRules.maybeResolveAgainstList to skip them during name resolution
+            // and produces "Unknown column [X], did you mean [X]?" errors.
+            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
         }
 
-        List<Attribute> finalSchema = List.copyOf(enrichedSchema);
+        return withSchema(metadata, List.copyOf(enrichedSchema));
+    }
 
-        return new ExternalSourceMetadata() {
-            @Override
-            public String location() {
-                return metadata.location();
-            }
+    static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
+        List<Attribute> originalSchema = metadata.schema();
+        Set<String> existingNames = new LinkedHashSet<>();
+        for (Attribute attr : originalSchema) {
+            existingNames.add(attr.name());
+        }
 
-            @Override
-            public List<Attribute> schema() {
-                return finalSchema;
+        List<Attribute> enrichedSchema = new ArrayList<>(originalSchema);
+        for (Map.Entry<String, DataType> entry : FileMetadataColumns.COLUMNS.entrySet()) {
+            String name = entry.getKey();
+            if (existingNames.contains(name) == false) {
+                enrichedSchema.add(new ExternalMetadataAttribute(Source.EMPTY, name, entry.getValue()));
             }
+        }
 
-            @Override
-            public String sourceType() {
-                return metadata.sourceType();
-            }
+        if (enrichedSchema.size() == originalSchema.size()) {
+            return metadata;
+        }
 
-            @Override
-            public Map<String, Object> sourceMetadata() {
-                return metadata.sourceMetadata();
-            }
-
-            @Override
-            public Map<String, Object> config() {
-                return metadata.config();
-            }
-        };
+        return withSchema(metadata, List.copyOf(enrichedSchema));
     }
 
     /**

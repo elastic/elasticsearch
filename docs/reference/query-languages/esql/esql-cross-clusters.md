@@ -34,7 +34,7 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 * {{ccs-cap}} requires different security privileges on the local cluster and remote cluster. See [Configure roles and users](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#remote-clusters-privileges-api-key) and [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
 
 
-## API key authentication [esql-ccs-security-model-api-key]
+## Configure user and role
 
 {{esql}} uses [API key authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md) for {{ccs}}. Follow the steps on that page for the full setup instructions, including how to add remote clusters. This page contains only the information specific to {{esql}}.
 

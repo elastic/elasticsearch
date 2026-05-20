@@ -22,7 +22,7 @@ IP_LOCATION prefix = expression [WITH { option = value [, ...] }]
 ## WITH options
 
 `database_file`
-:   The name of the IP location database to use. Default: `GeoLite2-City.mmdb`. Supported databases include GeoLite2 and GeoIP2 variants (City, Country, ASN) as well as IPinfo databases. To use a custom database, register it via the [IP geolocation database configuration API](/reference/elasticsearch/rest-apis/ip-location-database-configuration-apis.md) first.
+:   The name of the IP location database to use. Default: `GeoLite2-City.mmdb`. Supported databases include GeoLite2 and GeoIP2 variants (City, Country, ASN) as well as IPinfo databases. To use a custom database, register it via the [Create or update IP geolocation database configuration](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-put-ip-location-database) API first.
 
 `properties`
 :   List of database property names to include in the output. Each value maps to one output column. Default: the database's default property set (for GeoLite2-City: `country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `location`). Pass `[]` to produce zero output columns. Pass a subset to reduce the output schema.

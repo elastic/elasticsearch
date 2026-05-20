@@ -1,6 +1,0 @@
-area: Distributed
-issues:
- - 149285
-pr: 149440
-summary: Fix `testReindexRelocatesWhenCoordinatorShutsDown`
-type: bug

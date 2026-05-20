@@ -20,8 +20,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.BitSet;
-
 /**
  * Shared Parquet decode helpers used by both the baseline {@code ParquetColumnIterator}
  * and {@link OptimizedParquetColumnIterator}. Centralises list-column decoding,
@@ -99,18 +97,6 @@ final class ParquetColumnDecoding {
                 cr.consume();
             }
         }
-    }
-
-    // ---- Null bitmap helper ----
-
-    static BitSet toBitSet(boolean[] isNull, int length) {
-        BitSet bits = new BitSet(length);
-        for (int i = 0; i < length; i++) {
-            if (isNull[i]) {
-                bits.set(i);
-            }
-        }
-        return bits;
     }
 
     // ---- List column reading ----

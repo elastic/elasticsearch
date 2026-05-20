@@ -44,7 +44,7 @@ public class EsIndexGenerator {
         int size = ESTestCase.between(0, 10);
         Map<String, EsField> result = new HashMap<>(size);
         while (result.size() < size) {
-            result.put(randomIdentifier(), EsFieldTests.randomAnyEsField(1));
+            result.put(randomIdentifier(), EsFieldTests.randomSerializableEsField(1));
         }
         return result;
     }

@@ -32,6 +32,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         booleans(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         bytesRefs(cases, "mv_count", "MvCount", t -> DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         doubles(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        flattened(cases, "mv_count", "MvCount", t -> DataType.INTEGER, (size, values) -> equalTo(size));
         ints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         longs(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         unsignedLongs(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));

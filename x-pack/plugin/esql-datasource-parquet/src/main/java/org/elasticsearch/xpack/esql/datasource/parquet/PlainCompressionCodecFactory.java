@@ -17,6 +17,7 @@ import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
@@ -155,16 +156,35 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     }
 
     /**
-     * Snappy decompressor. The JNI {@code Snappy.uncompress(ByteBuffer, ByteBuffer)} requires both
-     * buffers to be direct; heap buffers fall back to the byte-array path. The JNI call returns the
-     * number of decompressed bytes written but does not advance the output buffer position, so we
-     * advance it manually.
+     * Snappy decompressor. Two JNI overloads are used depending on input shape:
+     * <ul>
+     *   <li>{@code Snappy.uncompress(byte[], int, int, byte[], int)} when the compressed input is
+     *       backed by a Java heap array (the common case for the prefetch path: column chunks
+     *       arrive as {@link ByteBuffer#wrap(byte[], int, int)}-style {@code BytesInput}s).</li>
+     *   <li>{@code Snappy.uncompress(ByteBuffer, ByteBuffer)} when both input and output are
+     *       direct buffers — the only case where the JNI binding can avoid a copy.</li>
+     * </ul>
+     * The JNI call returns the number of decompressed bytes written but does not advance the
+     * output buffer position; we advance it manually for the {@code ByteBuffer} overload.
      */
     private static class SnappyBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
-            Snappy.uncompress(bytes.toByteArray(), 0, (int) bytes.size(), out, 0);
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
+            // Fast path: avoid BytesInput.toByteArray() for byte-array- or heap-buffer-backed inputs
+            // (the hot path for S3-prefetched column chunks). The default toByteArray() for those
+            // BytesInput subtypes funnels bytes through a sized ByteArrayOutputStream, adding one
+            // allocation and one System.arraycopy that the JNI Snappy binding does not need.
+            ByteBuffer input = bytes.toByteBuffer();
+            if (input.hasArray()) {
+                Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);
+            } else {
+                // Off-heap inputs (rare on this path) fall back to a single byte[] copy via
+                // toByteArray(). The byte[] overload is preferred over the ByteBuffer overload
+                // because the latter would also need to copy into a direct output buffer.
+                byte[] in = bytes.toByteArray();
+                Snappy.uncompress(in, 0, in.length, out, 0);
+            }
             return BytesInput.from(out);
         }
 
@@ -190,7 +210,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     private static class GzipBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             try (GZIPInputStream gis = new GZIPInputStream(bytes.toInputStream())) {
                 int off = 0;
                 while (off < decompressedSize) {
@@ -221,7 +241,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     private static class ZstdBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             try {
                 Zstd.decompress(out, bytes.toByteArray());
             } catch (RuntimeException e) {
@@ -260,7 +280,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] in = bytes.toByteArray();
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             lz4.decompress(in, 0, in.length, out, 0, decompressedSize);
             return BytesInput.from(out);
         }
@@ -353,7 +373,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput compress(BytesInput bytes) throws IOException {
             byte[] in = bytes.toByteArray();
-            byte[] out = new byte[lz4.maxCompressedLength(in.length)];
+            byte[] out = UninitializedArrays.newByteArray(lz4.maxCompressedLength(in.length));
             int compressedLen = lz4.compress(in, 0, in.length, out, 0, out.length);
             return BytesInput.from(out, 0, compressedLen);
         }

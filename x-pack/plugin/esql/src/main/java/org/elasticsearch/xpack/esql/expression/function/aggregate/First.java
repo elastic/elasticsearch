@@ -201,7 +201,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "date",
             "ip",
             "string",
-            "numeric except unsigned_long or counter types"
+            "numeric except counter types"
         ).and(
             isType(
                 sort,

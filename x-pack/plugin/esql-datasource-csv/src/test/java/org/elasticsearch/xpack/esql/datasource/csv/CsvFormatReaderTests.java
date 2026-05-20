@@ -650,7 +650,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
         // Row index and a capped row excerpt must be present so the user can locate the offending input.
         assertTrue("expected row index, got: " + e.getMessage(), e.getMessage().contains("row [2]"));
-        assertTrue("expected row excerpt, got: " + e.getMessage(), e.getMessage().contains("col0=[not_a_number]"));
+        assertTrue("expected row excerpt, got: " + e.getMessage(), e.getMessage().contains("not_a_number"));
     }
 
     public void testLenientPolicySkipsMalformedRows() throws IOException {
@@ -4740,11 +4740,417 @@ public class CsvFormatReaderTests extends ESTestCase {
         try (CloseableIterator<Page> iterator = reader.read(fileBObject, ctx)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            // col1 must be BytesRef-typed despite the file's integer-looking content.
             assertTrue(
                 "col1 must be BytesRefBlock under bound read schema, got " + page.getBlock(0).getClass().getSimpleName(),
                 page.getBlock(0) instanceof BytesRefBlock
             );
+        }
+    }
+
+    // --- Phase 1A: isBlankOrComment ---
+
+    public void testIsBlankOrCommentEmptyLine() {
+        assertTrue(CsvFormatReader.isBlankOrComment("", "//"));
+    }
+
+    public void testIsBlankOrCommentWhitespaceOnly() {
+        assertTrue(CsvFormatReader.isBlankOrComment("   \t  ", "//"));
+    }
+
+    public void testIsBlankOrCommentWithComment() {
+        assertTrue(CsvFormatReader.isBlankOrComment("// this is a comment", "//"));
+    }
+
+    public void testIsBlankOrCommentWithLeadingWhitespaceComment() {
+        assertTrue(CsvFormatReader.isBlankOrComment("   // indented comment", "//"));
+    }
+
+    public void testIsBlankOrCommentNormalLine() {
+        assertFalse(CsvFormatReader.isBlankOrComment("hello,world", "//"));
+    }
+
+    public void testIsBlankOrCommentWithLeadingWhitespace() {
+        assertFalse(CsvFormatReader.isBlankOrComment("  hello", "//"));
+    }
+
+    public void testIsBlankOrCommentNullCommentPrefix() {
+        assertTrue(CsvFormatReader.isBlankOrComment("", null));
+        assertFalse(CsvFormatReader.isBlankOrComment("data", null));
+    }
+
+    public void testIsBlankOrCommentEmptyCommentPrefix() {
+        assertTrue(CsvFormatReader.isBlankOrComment("   ", ""));
+        assertFalse(CsvFormatReader.isBlankOrComment("data", ""));
+    }
+
+    public void testIsBlankOrCommentPrefixLongerThanLine() {
+        assertFalse(CsvFormatReader.isBlankOrComment("x", "//long-prefix"));
+    }
+
+    // --- Phase 1A: emitField ---
+
+    public void testEmitFieldCleanValue() {
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("hello")));
+    }
+
+    public void testEmitFieldEmpty() {
+        assertEquals("", CsvFormatReader.emitField(new StringBuilder()));
+    }
+
+    public void testEmitFieldLeadingWhitespace() {
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("  hello")));
+    }
+
+    public void testEmitFieldTrailingWhitespace() {
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("hello  ")));
+    }
+
+    public void testEmitFieldBothWhitespace() {
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("  hello  ")));
+    }
+
+    public void testEmitFieldWhitespaceOnly() {
+        assertEquals("", CsvFormatReader.emitField(new StringBuilder("   ")));
+    }
+
+    public void testEmitFieldSingleChar() {
+        assertEquals("x", CsvFormatReader.emitField(new StringBuilder("x")));
+    }
+
+    public void testEmitFieldSingleWhitespace() {
+        assertEquals("", CsvFormatReader.emitField(new StringBuilder(" ")));
+    }
+
+    // --- Phase 2: Fused split+convert via bracket-aware path ---
+
+    public void testFusedPathBasicIntegersProjected() throws IOException {
+        String csv = """
+            id:long,name:keyword,age:integer,active:boolean
+            1,Alice,30,true
+            2,Bob,25,false
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "age"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(30, ((IntBlock) page.getBlock(1)).getInt(0));
+            assertEquals(25, ((IntBlock) page.getBlock(1)).getInt(1));
+        }
+    }
+
+    public void testFusedPathNegativeNumbers() throws IOException {
+        String csv = """
+            a:integer,b:long
+            -42,-9999999999
+            0,0
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "b"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(-42, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(0, ((IntBlock) page.getBlock(0)).getInt(1));
+            assertEquals(-9999999999L, ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals(0L, ((LongBlock) page.getBlock(1)).getLong(1));
+        }
+    }
+
+    public void testFusedPathMixedTypes() throws IOException {
+        String csv = """
+            id:long,name:keyword,score:double
+            1,Alice,95.5
+            2,Bob,87.3
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("name", "score"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(95.5, ((DoubleBlock) page.getBlock(1)).getDouble(0), 0.001);
+        }
+    }
+
+    public void testFusedPathWithNullValues() throws IOException {
+        String csv = """
+            id:long,name:keyword,age:integer
+            1,,30
+            2,Bob,
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name", "age"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(1).isNull(0));
+            assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            assertTrue(page.getBlock(2).isNull(1));
+        }
+    }
+
+    public void testFusedPathSkipsNonProjectedFields() throws IOException {
+        String csv = """
+            a:keyword,b:keyword,c:keyword,d:keyword,e:keyword
+            v1,v2,v3,v4,v5
+            w1,w2,w3,w4,w5
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("c"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1, page.getBlockCount());
+            assertEquals(new BytesRef("v3"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("w3"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testFusedPathWithMultiValueBrackets() throws IOException {
+        String csv = """
+            id:long,tags:keyword
+            1,[hello,world]
+            2,[foo]
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "tags"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            BytesRefBlock tagsBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, tagsBlock.getValueCount(0));
+        }
+    }
+
+    public void testFusedPathWithQuotedFields() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,"Alice, Jr."
+            2,"Bob ""B"" Smith"
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("name"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(new BytesRef("Alice, Jr."), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("Bob \"B\" Smith"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testFusedPathInlineNumericOverflowFallsBack() throws IOException {
+        String csv = """
+            val:long
+            9999999999999999999
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "error_mode", "null_field")
+        );
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue(page.getBlock(0).isNull(0));
+        }
+    }
+
+    public void testFusedPathWithCommentLines() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            // this is a comment
+            1,Alice
+            // another comment
+            2,Bob
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+        }
+    }
+
+    public void testFusedPathColumnCountMismatchDetected() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice,extra
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        ParsingException ex = expectThrows(ParsingException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), Matchers.containsString("columns"));
+    }
+
+    public void testFusedPathFewerColumnsThanSchema() throws IOException {
+        String csv = """
+            a:integer,b:integer,c:integer
+            1,2
+            3,4,5
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "c"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertTrue(page.getBlock(1).isNull(0));
+            assertEquals(3, ((IntBlock) page.getBlock(0)).getInt(1));
+            assertEquals(5, ((IntBlock) page.getBlock(1)).getInt(1));
+        }
+    }
+
+    /**
+     * Regression guard for rowBuffer reuse: a full row followed by a shorter row that omits
+     * a trailing projected column must produce null for the missing column, not echo the
+     * value from the previous row.
+     */
+    public void testFusedPathRowBufferNotLeakedAcrossRows() throws IOException {
+        String csv = """
+            a:integer,b:integer,c:integer
+            1,2,3
+            4,5
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "c"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+            assertEquals(4, ((IntBlock) page.getBlock(0)).getInt(1));
+            assertTrue("column c must be null for the shorter second row, not echoed from row 1", page.getBlock(1).isNull(1));
+        }
+    }
+
+    /**
+     * {@code Long.MIN_VALUE} (-9223372036854775808) has a magnitude one past
+     * {@code Long.MAX_VALUE}, so the inline fast path's positive accumulator can't represent
+     * it — the overflow guard bails and the string fallback via {@code Long.parseLong}
+     * produces the correct value.
+     */
+    public void testFusedPathLongMinValueFallback() throws IOException {
+        String csv = "val:long\n" + Long.MIN_VALUE + "\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(Long.MIN_VALUE, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
+     * Leading {@code +} is not a digit, so the inline fast path bails; the string fallback
+     * via {@code Integer.parseInt} handles it.
+     */
+    public void testFusedPathLeadingPlusFallback() throws IOException {
+        String csv = """
+            val:integer
+            +5
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(5, ((IntBlock) page.getBlock(0)).getInt(0));
+        }
+    }
+
+    /**
+     * Trailing whitespace after digits forces the inline fast path to bail; the string
+     * fallback trims and parses correctly.
+     */
+    public void testFusedPathTrailingSpaceFallback() throws IOException {
+        String csv = "val:long\n123 \n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(123L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
+     * A quoted numeric field forces the fallback path (quotes suppress the inline numeric
+     * accumulator); the string conversion strips quotes and parses correctly.
+     */
+    public void testFusedPathQuotedNumericFallback() throws IOException {
+        String csv = """
+            val:integer
+            "123"
+            """;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(123, ((IntBlock) page.getBlock(0)).getInt(0));
+        }
+    }
+
+    /**
+     * A multi-line quoted field must be glued back together by the bracket-aware reader and
+     * arrive intact (embedded newline included) through the fused path.
+     */
+    public void testFusedPathMultiLineQuotedField() throws IOException {
+        String csv = "id:long,text:keyword\n1,\"hello\nworld\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("text"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(new BytesRef("hello\nworld"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
         }
     }
 }

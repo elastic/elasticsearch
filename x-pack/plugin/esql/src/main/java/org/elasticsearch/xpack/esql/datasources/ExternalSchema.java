@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -31,14 +33,19 @@ public final class ExternalSchema implements Iterable<Attribute> {
 
     /**
      * Returns the data-attribute view of {@code attributes} as an {@link ExternalSchema}: the
-     * input list with {@link MetadataAttribute} instances filtered out, relative order preserved.
-     * Used by external-source operator factories on the data node to derive the data-only schema
-     * once at construction rather than re-slicing per page.
+     * input list with virtual columns filtered out (relative order preserved). Used by
+     * external-source operator factories on the data node to derive the data-only schema once at
+     * construction rather than re-slicing per page; virtual columns ({@link MetadataAttribute}
+     * for ES document metadata, any {@link VirtualAttribute} for engine-synthesized columns like
+     * {@code _file.*}) are appended on the producer thread by {@code VirtualColumnIterator} and
+     * must not appear in the data-channel layout the format reader sees. Hive-style partition
+     * columns are real {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}s
+     * here and pass through; their projection stripping happens at the projection seam by name.
      */
     public static ExternalSchema dataAttributesOf(List<Attribute> attributes) {
         List<Attribute> data = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
-            if (attr instanceof MetadataAttribute == false) {
+            if (PushdownPredicates.isVirtualColumn(attr) == false) {
                 data.add(attr);
             }
         }

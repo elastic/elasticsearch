@@ -33,7 +33,7 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Tracks the state of sliced subtasks and provides unified status information for a sliced BulkByPaginatedSearchRequest.
  */
-public class LeaderBulkByScrollTaskState {
+public class LeaderBulkByPaginatedSearchTaskState {
 
     private final BulkByPaginatedSearchTask task;
 
@@ -59,7 +59,7 @@ public class LeaderBulkByScrollTaskState {
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
-    public LeaderBulkByScrollTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
+    public LeaderBulkByPaginatedSearchTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);

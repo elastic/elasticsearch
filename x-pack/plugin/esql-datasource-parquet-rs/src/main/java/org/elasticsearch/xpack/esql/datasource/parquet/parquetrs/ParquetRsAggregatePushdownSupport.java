@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -59,15 +60,19 @@ public class ParquetRsAggregatePushdownSupport implements AggregatePushdownSuppo
             }
             Expression field = count.field();
             // COUNT(*) and COUNT(<literal>) -> total row count.
-            // COUNT(<attribute>) -> rowCount - nullCount.
-            // Anything else (e.g. COUNT(a + b)) cannot be answered from file stats.
-            return field.foldable() || field instanceof Attribute;
+            // COUNT(<attribute>) -> rowCount - nullCount, requires a real column with stats.
+            // Virtual columns (engine-synthesized _file.* / ES metadata) have no parquet column
+            // to source nullCount from and must fall through to normal execution.
+            if (field.foldable()) {
+                return true;
+            }
+            return field instanceof Attribute && PushdownPredicates.isVirtualColumn(field) == false;
         }
         if (agg instanceof Min min) {
-            return min.hasFilter() == false && min.field() instanceof Attribute;
+            return min.hasFilter() == false && min.field() instanceof Attribute && PushdownPredicates.isVirtualColumn(min.field()) == false;
         }
         if (agg instanceof Max max) {
-            return max.hasFilter() == false && max.field() instanceof Attribute;
+            return max.hasFilter() == false && max.field() instanceof Attribute && PushdownPredicates.isVirtualColumn(max.field()) == false;
         }
         return false;
     }

@@ -203,7 +203,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testBatchIndexOnPrimaryDuplicateUidsTriggersEarlyReturn() throws Exception {
+    public void testBatchIndexOnPrimaryDuplicateUids() throws Exception {
         IndexShard shard = newMappedPrimaryShard();
 
         BulkItemRequest[] items = new BulkItemRequest[] {
@@ -218,8 +218,16 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             future.actionGet();
         }
 
-        // Early return means context still has items to process (falls back to sequential)
-        assertTrue(context.hasMoreOperationsToExecute());
+        // Both operations complete: duplicate UIDs are split across sub-batches, so the second
+        // overwrites the first rather than triggering a fallback to the sequential path.
+        assertFalse(context.hasMoreOperationsToExecute());
+        assertFalse(items[0].getPrimaryResponse().isFailed());
+        assertFalse(items[1].getPrimaryResponse().isFailed());
+
+        shard.refresh("test");
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(1));
+        }
 
         closeShards(shard);
     }

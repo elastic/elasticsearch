@@ -877,3 +877,323 @@ emp_no:integer |first_name:keyword
 10095          |Hilari
 10100          |Hironobu
 ;
+
+// The optimizer rewrites TO_UPPER(first_name) LIKE "GEOR*" into a case-insensitive
+// WildcardLike over first_name (see ReplaceStringCasingWithInsensitiveRegexMatch).
+// The stored values are "Georgi" / "Georgy" (mixed case), so the test only passes if
+// the case-insensitive bit is honored end-to-end. Pushdown implementations that ignore
+// caseInsensitive() will return zero rows and fail this test.
+operatorLikeCaseInsensitiveAfterToUpper
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name
+| WHERE TO_UPPER(first_name) LIKE "GEOR*"
+| SORT emp_no
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;
+
+
+// ===== File metadata virtual columns (_file.*) =====
+// All _file.* columns are always-on virtual columns added during schema resolution.
+// Values depend on storage backend so tests use predicates and aggregations.
+
+// -- Projection: verify all _file.* columns are populated --
+
+fileMetadataProjectAllColumns
+required_capability: external_source_file_metadata_columns
+
+// Verify _file.size is non-null and positive (proves injection works)
+EXTERNAL "{{employees}}"
+| STATS min_size = MIN(`_file.size`)
+| WHERE min_size > 0
+| STATS count = COUNT(*);
+
+count:long
+1
+;
+
+fileMetadataProjectSizeIsConsistent
+required_capability: external_source_file_metadata_columns
+
+// Single file: min and max size should be equal (every row from same file)
+EXTERNAL "{{employees}}"
+| STATS min_size = MIN(`_file.size`), max_size = MAX(`_file.size`)
+| WHERE min_size == max_size
+| STATS count = COUNT(*);
+
+count:long
+1
+;
+
+fileMetadataProjectModifiedIsConsistent
+required_capability: external_source_file_metadata_columns
+
+// Single file: all rows should have the same modification timestamp
+EXTERNAL "{{employees}}"
+| STATS distinct_modified = COUNT_DISTINCT(`_file.modified`);
+
+distinct_modified:long
+1
+;
+
+fileMetadataProjectDistinctFileCount
+required_capability: external_source_file_metadata_columns
+
+// Single file: exactly one distinct file name, path, and directory
+EXTERNAL "{{employees}}"
+| STATS names = COUNT_DISTINCT(`_file.name`), paths = COUNT_DISTINCT(`_file.path`), dirs = COUNT_DISTINCT(`_file.directory`);
+
+names:long | paths:long | dirs:long
+1          | 1          | 1
+;
+
+// -- Filtering: WHERE on _file.* columns with various operators --
+
+fileMetadataFilterSizeGt
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees}}"
+| WHERE `_file.size` > 0
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataFilterSizeGte
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees}}"
+| WHERE `_file.size` >= 1
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataFilterSizeExcludesAll
+required_capability: external_source_file_metadata_columns
+
+// Filter that excludes the file: no file is larger than 100 GB
+EXTERNAL "{{employees}}"
+| WHERE `_file.size` > 107374182400
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+fileMetadataFilterModifiedGt
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees}}"
+| WHERE `_file.modified` > "2000-01-01T00:00:00.000Z"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataFilterModifiedLt
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees}}"
+| WHERE `_file.modified` < "2099-01-01T00:00:00.000Z"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataFilterModifiedRange
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees}}"
+| WHERE `_file.modified` > "2000-01-01T00:00:00.000Z" AND `_file.modified` < "2099-01-01T00:00:00.000Z"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataFilterModifiedExcludesAll
+required_capability: external_source_file_metadata_columns
+
+// Filter that excludes: no file was modified before year 2000
+EXTERNAL "{{employees}}"
+| WHERE `_file.modified` < "2000-01-01T00:00:00.000Z"
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+fileMetadataFilterPathLike
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees}}"
+| WHERE `_file.path` LIKE "*employees*"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataFilterNameLike
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees}}"
+| WHERE `_file.name` LIKE "*employees*"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataFilterNameExcludesAll
+required_capability: external_source_file_metadata_columns
+
+// Filter that excludes: no file is named "nonexistent"
+EXTERNAL "{{employees}}"
+| WHERE `_file.name` LIKE "*nonexistent*"
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+// -- IN operator on _file.* columns --
+// Same code path as the comparison operators, but exercises PartitionFilterHintExtractor.extractFromIn
+// and GlobExpander.evaluate{Timestamp,Long,String}'s IN branch. For the single-file resolve, the hints
+// are not used at listing time and the predicate runs at execution time over the constant blocks
+// produced by VirtualColumnInjector — both paths must yield the same result.
+
+fileMetadataFilterModifiedInExcludesAll
+required_capability: external_source_file_metadata_columns
+
+// IN list does not contain the file's mtime — excludes everything.
+EXTERNAL "{{employees}}"
+| WHERE `_file.modified` IN ("2000-01-01T00:00:00.000Z", "1999-12-31T00:00:00.000Z")
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+fileMetadataFilterSizeInExcludesAll
+required_capability: external_source_file_metadata_columns
+
+// File is non-empty, so an IN list containing only 0 excludes everything.
+EXTERNAL "{{employees}}"
+| WHERE `_file.size` IN (0)
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+fileMetadataFilterNameInExcludesAll
+required_capability: external_source_file_metadata_columns
+
+// IN against _file.name with values that do not match the file's name — excludes everything.
+EXTERNAL "{{employees}}"
+| WHERE `_file.name` IN ("does-not-exist-1.parquet", "does-not-exist-2.parquet")
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+fileMetadataFilterPathInExcludesAll
+required_capability: external_source_file_metadata_columns
+
+// IN against _file.path with values that do not match the file's path — excludes everything.
+EXTERNAL "{{employees}}"
+| WHERE `_file.path` IN ("/does/not/exist", "/also/missing")
+| STATS count = COUNT(*);
+
+count:long
+0
+;
+
+fileMetadataFilterModifiedInMatchesAny
+required_capability: external_source_file_metadata_columns
+
+// Positive IN case: the file's mtime is in (0 .. now), so combining a recent-time IN list with
+// a `_file.modified > epoch` gate matches every row (validates the IN evaluator runs without error
+// and that the disjunction short-circuits correctly on the constant block).
+EXTERNAL "{{employees}}"
+| WHERE `_file.modified` > "1970-01-01T00:00:00.000Z" OR `_file.modified` IN ("2000-01-01T00:00:00.000Z")
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+// -- Mixed: combine _file.* with data columns --
+
+fileMetadataWithDataFilter
+required_capability: external_source_file_metadata_columns
+
+// Mix file metadata with data columns — verify both are usable together
+EXTERNAL "{{employees}}"
+| WHERE `_file.size` > 0 AND salary > 60000
+| STATS count = COUNT(*)
+| WHERE count > 0
+| STATS total = COUNT(*);
+
+total:long
+1
+;
+
+fileMetadataGroupByFileWithStats
+required_capability: external_source_file_metadata_columns
+
+// Group by file name — single file, all 100 rows in one group
+EXTERNAL "{{employees}}"
+| STATS count = COUNT(*), min_salary = MIN(salary), max_salary = MAX(salary) BY `_file.name`
+| STATS groups = COUNT(*), total = SUM(count);
+
+groups:long | total:long
+1           | 100
+;
+
+// -- Wildcard / pattern interaction with virtual columns --
+// `KEEP *` and implicit projections do NOT expand virtual `_file.*` columns: users must request
+// them by name or via an explicit pattern. `KEEP _file*` *does* match through pattern resolution
+// (ExternalMetadataAttribute.synthetic == false), so the user can opt in pattern-style.
+
+fileMetadataWildcardKeepExcludesVirtualColumns
+required_capability: external_source_file_metadata_columns
+
+// `KEEP *` should expand to data columns only — referencing _file.size after must fail to
+// resolve, but here we demonstrate the negative path indirectly: a successful query that
+// drops _file.* through the wildcard still has 100 rows and the data columns are present.
+EXTERNAL "{{employees}}"
+| KEEP *
+| WHERE salary > 0
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+fileMetadataKeepExplicitPatternMatches
+required_capability: external_source_file_metadata_columns
+
+// `KEEP _file*` is an explicit name pattern; ExternalMetadataAttribute is non-synthetic so the
+// pattern resolver matches every _file.* virtual column. Following the KEEP, only those columns
+// are in scope, so a STATS over them succeeds.
+EXTERNAL "{{employees}}"
+| KEEP _file*
+| STATS distinct_paths = COUNT_DISTINCT(`_file.path`);
+
+distinct_paths:long
+1
+;
+

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
@@ -196,6 +197,16 @@ public class CsvSchemaInferrerTests extends ESTestCase {
 
         assertEquals("name", schema.get(0).name());
         assertEquals("age", schema.get(1).name());
+    }
+
+    public void testInferredAttributesAreNullable() {
+        String[] cols = { "name", "age" };
+        List<String[]> rows = List.of(new String[] { "Alice", "30" }, new String[] { "Bob", "25" });
+        List<Attribute> schema = CsvSchemaInferrer.inferSchema(cols, rows);
+
+        for (Attribute attr : schema) {
+            assertEquals(Nullability.TRUE, attr.nullable());
+        }
     }
 
     public void testSynthesizeColumnNames() {

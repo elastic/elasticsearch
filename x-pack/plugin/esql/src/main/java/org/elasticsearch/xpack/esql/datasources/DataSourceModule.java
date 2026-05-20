@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -105,7 +106,7 @@ public final class DataSourceModule implements Closeable {
                     }
 
                     @Override
-                    public StorageProvider create(Settings s, Map<String, Object> config) {
+                    public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -117,7 +118,7 @@ public final class DataSourceModule implements Closeable {
                                     + "] but storageProviders() did not return it"
                             );
                         }
-                        return real.create(s, config);
+                        return real.createTrackingConsumedKeys(s, config);
                     }
                 };
                 storageProviderRegistry.registerFactory(scheme, delegating);
@@ -180,12 +181,15 @@ public final class DataSourceModule implements Closeable {
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
+        // Pass the node-level (root) BlockFactory so VirtualColumnIterator allocations route
+        // through the global request circuit breaker rather than the driver-local breaker.
         FileSourceFactory fileFallback = new FileSourceFactory(
             storageProviderRegistry,
             formatReaderRegistry,
             codecRegistry,
             settings,
-            executor
+            executor,
+            blockFactory
         );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
@@ -334,6 +338,11 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
+        }
+
+        @Override
         public Connector open(Map<String, Object> config) {
             return resolveDelegate().open(config);
         }
@@ -426,6 +435,11 @@ public final class DataSourceModule implements Closeable {
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
             return resolveDelegate().resolveMetadata(location, config);
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
         }
 
         @Override

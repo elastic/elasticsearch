@@ -342,6 +342,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
@@ -357,6 +358,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         replicatedSettings.add(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
+        replicatedSettings.add(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             // removed settings have no effect, they are only there for BWC

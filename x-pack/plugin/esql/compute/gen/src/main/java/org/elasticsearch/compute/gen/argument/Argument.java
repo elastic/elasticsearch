@@ -137,10 +137,18 @@ public interface Argument {
     void declareField(TypeSpec.Builder builder);
 
     /**
-     * Optionally declare an abstract accessor method on the evaluator. Used by
-     * {@code @Fixed(jitConstant=true)} parameters to expose a value that the
-     * spinner-generated subclass will override with a JIT-time constant. Default
-     * is a no-op.
+     * Add an abstract accessor method on the generated evaluator class for this argument's
+     * value (typically {@code protected abstract T name()}).
+     *
+     * <p>Only {@link JitConstantFixedArgument} overrides this. Its parameter intentionally
+     * has no instance field on the evaluator — the accessor is the seam that the
+     * spinner-generated hidden subclass overrides to return the JIT-baked constant, and
+     * that the {@code Standard} subclass overrides to return a regular instance field.
+     *
+     * <p>The default no-op is the correct behavior for every other argument kind: their
+     * values live on regular instance fields declared by {@link #declareField}, and the
+     * per-row code reads them as {@code this.name} directly. No accessor method is needed
+     * or wanted — adding one would be unused dead code on the evaluator.
      */
     default void declareAbstractAccessor(TypeSpec.Builder builder) {}
 

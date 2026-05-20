@@ -77,7 +77,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public enum Mode {
         DISABLED,
         STORED,
-        SYNTHETIC
+        SYNTHETIC,
+        COLUMNAR_STORED
     }
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
@@ -100,6 +101,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private static final SourceFieldMapper SYNTHETIC = new SourceFieldMapper(
         Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        false,
+        false
+    );
+
+    private static final SourceFieldMapper COLUMNAR_STORED = new SourceFieldMapper(
+        Mode.COLUMNAR_STORED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -306,6 +316,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case SYNTHETIC -> SYNTHETIC;
             case STORED -> STORED;
             case DISABLED -> DISABLED;
+            case COLUMNAR_STORED -> COLUMNAR_STORED;
         };
     }
 

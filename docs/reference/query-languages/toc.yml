@@ -135,6 +135,7 @@ toc:
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
                   - file: esql/commands/ts-info.md
+                  - file: esql/commands/ts_collapse.md
                   - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md

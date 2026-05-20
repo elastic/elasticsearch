@@ -277,6 +277,7 @@ public class CsvIT extends ESTestCase {
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
                 .toList();
             testCase.assertWarnings(false).assertWarnings(warnings, null);
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
@@ -375,7 +376,7 @@ public class CsvIT extends ESTestCase {
 
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName)) {
+        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> views.maybeLoad(name, view));
         } else {
             views.unloadAll();

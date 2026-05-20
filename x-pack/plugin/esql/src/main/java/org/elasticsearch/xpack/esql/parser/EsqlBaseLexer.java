@@ -28,7 +28,7 @@ public class EsqlBaseLexer extends LexerConfig {
     LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, ENRICH=5, DEV_EXPLAIN=6, 
     COMPLETION=7, DISSECT=8, EVAL=9, GROK=10, LIMIT=11, RERANK=12, ROW=13, 
     SAMPLE=14, SORT=15, STATS=16, WHERE=17, URI_PARTS=18, METRICS_INFO=19, 
-    REGISTERED_DOMAIN=20, TS_INFO=21, USER_AGENT=22, IP_LOCATION=23, FROM=24, 
+    REGISTERED_DOMAIN=20, TS_INFO=21, USER_AGENT=22, TS_COLLAPSE=23, FROM=24, 
     TS=25, DEV_EXTERNAL=26, FORK=27, FUSE=28, INLINE=29, INLINESTATS=30, JOIN_LOOKUP=31, 
     DEV_JOIN_FULL=32, DEV_JOIN_LEFT=33, DEV_JOIN_RIGHT=34, DEV_LOOKUP=35, 
     MMR=36, MV_EXPAND=37, DROP=38, KEEP=39, DEV_INSIST=40, PROMQL=41, RENAME=42, 
@@ -85,7 +85,7 @@ public class EsqlBaseLexer extends LexerConfig {
       "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "ENRICH", 
       "DEV_EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", "RERANK", 
       "ROW", "SAMPLE", "SORT", "STATS", "WHERE", "URI_PARTS", "METRICS_INFO", 
-      "REGISTERED_DOMAIN", "TS_INFO", "USER_AGENT", "IP_LOCATION", "FROM", 
+      "REGISTERED_DOMAIN", "TS_INFO", "USER_AGENT", "TS_COLLAPSE", "FROM", 
       "TS", "DEV_EXTERNAL", "FORK", "FUSE", "INLINE", "INLINESTATS", "IN_EXPRESSION_INIT", 
       "JOIN_LOOKUP", "DEV_JOIN_FULL", "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", 
       "MMR", "MV_EXPAND", "DROP", "KEEP", "DEV_INSIST", "PROMQL", "RENAME", 
@@ -174,7 +174,7 @@ public class EsqlBaseLexer extends LexerConfig {
       null, null, null, null, "'change_point'", "'enrich'", null, "'completion'", 
       "'dissect'", "'eval'", "'grok'", "'limit'", "'rerank'", "'row'", "'sample'", 
       "'sort'", null, "'where'", "'uri_parts'", "'metrics_info'", "'registered_domain'", 
-      "'ts_info'", "'user_agent'", "'ip_location'", "'from'", "'ts'", null, 
+      "'ts_info'", "'user_agent'", "'ts_collapse'", "'from'", "'ts'", null, 
       "'fork'", "'fuse'", "'inline'", "'inlinestats'", "'lookup'", null, null, 
       null, null, "'mmr'", "'mv_expand'", "'drop'", "'keep'", null, "'promql'", 
       "'rename'", "'set'", "'show'", null, null, null, null, null, null, null, 
@@ -198,7 +198,7 @@ public class EsqlBaseLexer extends LexerConfig {
       null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "ENRICH", 
       "DEV_EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", "RERANK", 
       "ROW", "SAMPLE", "SORT", "STATS", "WHERE", "URI_PARTS", "METRICS_INFO", 
-      "REGISTERED_DOMAIN", "TS_INFO", "USER_AGENT", "IP_LOCATION", "FROM", 
+      "REGISTERED_DOMAIN", "TS_INFO", "USER_AGENT", "TS_COLLAPSE", "FROM", 
       "TS", "DEV_EXTERNAL", "FORK", "FUSE", "INLINE", "INLINESTATS", "JOIN_LOOKUP", 
       "DEV_JOIN_FULL", "DEV_JOIN_LEFT", "DEV_JOIN_RIGHT", "DEV_LOOKUP", "MMR", 
       "MV_EXPAND", "DROP", "KEEP", "DEV_INSIST", "PROMQL", "RENAME", "SET", 
@@ -1354,12 +1354,12 @@ public class EsqlBaseLexer extends LexerConfig {
     "\u03c0\u03c1\u0007\u0006\u0000\u0000\u03c1\u03c2\u0007\u0007\u0000\u0000"+
     "\u03c2\u03c3\u0007\u0005\u0000\u0000\u03c3\u03c4\u0007\u000b\u0000\u0000"+
     "\u03c4\u03c5\u0001\u0000\u0000\u0000\u03c5\u03c6\u0006\u0015\u0004\u0000"+
-    "\u03c6@\u0001\u0000\u0000\u0000\u03c7\u03c8\u0007\n\u0000\u0000\u03c8"+
-    "\u03c9\u0007\b\u0000\u0000\u03c9\u03ca\u0005_\u0000\u0000\u03ca\u03cb"+
-    "\u0007\u000e\u0000\u0000\u03cb\u03cc\u0007\t\u0000\u0000\u03cc\u03cd\u0007"+
-    "\u0002\u0000\u0000\u03cd\u03ce\u0007\u0004\u0000\u0000\u03ce\u03cf\u0007"+
-    "\u000b\u0000\u0000\u03cf\u03d0\u0007\n\u0000\u0000\u03d0\u03d1\u0007\t"+
-    "\u0000\u0000\u03d1\u03d2\u0007\u0005\u0000\u0000\u03d2\u03d3\u0001\u0000"+
+    "\u03c6@\u0001\u0000\u0000\u0000\u03c7\u03c8\u0007\u000b\u0000\u0000\u03c8"+
+    "\u03c9\u0007\u0011\u0000\u0000\u03c9\u03ca\u0005_\u0000\u0000\u03ca\u03cb"+
+    "\u0007\u0002\u0000\u0000\u03cb\u03cc\u0007\t\u0000\u0000\u03cc\u03cd\u0007"+
+    "\u000e\u0000\u0000\u03cd\u03ce\u0007\u000e\u0000\u0000\u03ce\u03cf\u0007"+
+    "\u0004\u0000\u0000\u03cf\u03d0\u0007\b\u0000\u0000\u03d0\u03d1\u0007\u0011"+
+    "\u0000\u0000\u03d1\u03d2\u0007\u0007\u0000\u0000\u03d2\u03d3\u0001\u0000"+
     "\u0000\u0000\u03d3\u03d4\u0006\u0016\u0004\u0000\u03d4B\u0001\u0000\u0000"+
     "\u0000\u03d5\u03d6\u0007\u0016\u0000\u0000\u03d6\u03d7\u0007\f\u0000\u0000"+
     "\u03d7\u03d8\u0007\t\u0000\u0000\u03d8\u03d9\u0007\u000f\u0000\u0000\u03d9"+

@@ -74,6 +74,7 @@ processingCommand
     | registeredDomainCommand
     | tsInfoCommand
     | userAgentCommand
+    | tsCollapseCommand
     | ipLocationCommand
     | mmrCommand
     // in development
@@ -369,6 +370,10 @@ metricsInfoCommand
 
 tsInfoCommand
     : TS_INFO
+    ;
+
+tsCollapseCommand
+    : TS_COLLAPSE
     ;
 
 //

@@ -84,12 +84,16 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(950L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
-    public void testCountFieldWithoutNullCountNotPushed() {
+    public void testCountFieldWithoutColumnEntriesPushedAsImplicitNullCount() {
+        // Under the "implicit nulls" contract, a metadata map with rowCount but no
+        // _stats.columns.age.* entries means the column is absent from this scope:
+        // columnNullCount("age") returns rowCount and COUNT(age) resolves to 0.
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
         var agg = aggregateExec(externalSource(metadata), countFieldAlias(AGE));
 
-        as(applyRule(agg), AggregateExec.class);
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(0L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
     }
 
     public void testMinPushedDown() {

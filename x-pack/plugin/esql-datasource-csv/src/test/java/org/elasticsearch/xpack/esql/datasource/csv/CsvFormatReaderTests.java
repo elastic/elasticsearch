@@ -42,9 +42,11 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
@@ -1652,6 +1654,93 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
 
         assertEquals(5, rowCount);
+    }
+
+    public void testQuotedFieldWithLoneCrPreserved() throws IOException {
+        // The \r inside "b\rc" is a real 0x0D byte — it must be preserved verbatim, not converted to \n.
+        String csv = "id:keyword,val:keyword,end:keyword\n\"a\",\"b\rc\",\"d\"\n\"e\",\"f\",\"g\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+
+            BytesRefBlock valBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("b\rc"), valBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("f"), valBlock.getBytesRef(1, new BytesRef()));
+
+            BytesRefBlock endBlock = (BytesRefBlock) page.getBlock(2);
+            assertEquals(new BytesRef("d"), endBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("g"), endBlock.getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testQuotedFieldWithCrLfInsidePreserved() throws IOException {
+        // Embedded \r\n inside a quoted field must be preserved as field content, not treated as line terminator.
+        String csv = "a:keyword,b:keyword\n\"hello\r\nworld\",\"x\"\n\"y\",\"z\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+
+            BytesRefBlock aBlock = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("hello\r\nworld"), aBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("y"), aBlock.getBytesRef(1, new BytesRef()));
+
+            BytesRefBlock bBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("x"), bBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("z"), bBlock.getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testReadCsvRecordLoneCrOutsideQuotesTerminatesRecord() throws IOException {
+        BufferedReader br = new BufferedReader(new StringReader("abc\rdef\n"));
+        assertEquals("abc", CsvFormatReader.readCsvRecord(br, '"', ',', false));
+        assertEquals("def", CsvFormatReader.readCsvRecord(br, '"', ',', false));
+        assertNull(CsvFormatReader.readCsvRecord(br, '"', ',', false));
+    }
+
+    public void testReadCsvRecordLoneCrInsideQuotesPreserved() throws IOException {
+        BufferedReader br = new BufferedReader(new StringReader("\"a\rb\",c\n"));
+        assertEquals("\"a\rb\",c", CsvFormatReader.readCsvRecord(br, '"', ',', false));
+        assertNull(CsvFormatReader.readCsvRecord(br, '"', ',', false));
+    }
+
+    public void testReadCsvRecordCrLfOutsideQuotesTerminates() throws IOException {
+        BufferedReader br = new BufferedReader(new StringReader("abc\r\ndef\r\n"));
+        assertEquals("abc", CsvFormatReader.readCsvRecord(br, '"', ',', false));
+        assertEquals("def", CsvFormatReader.readCsvRecord(br, '"', ',', false));
+        assertNull(CsvFormatReader.readCsvRecord(br, '"', ',', false));
+    }
+
+    public void testReadCsvRecordCrLfInsideQuotesPreserved() throws IOException {
+        BufferedReader br = new BufferedReader(new StringReader("\"a\r\nb\",c\n"));
+        assertEquals("\"a\r\nb\",c", CsvFormatReader.readCsvRecord(br, '"', ',', false));
+        assertNull(CsvFormatReader.readCsvRecord(br, '"', ',', false));
+    }
+
+    public void testReadCsvRecordEofMidRecord() throws IOException {
+        BufferedReader br = new BufferedReader(new StringReader("abc"));
+        assertEquals("abc", CsvFormatReader.readCsvRecord(br, '"', ',', false));
+        assertNull(CsvFormatReader.readCsvRecord(br, '"', ',', false));
+    }
+
+    public void testReadCsvRecordEofEmptyReturnsNull() throws IOException {
+        BufferedReader br = new BufferedReader(new StringReader(""));
+        assertNull(CsvFormatReader.readCsvRecord(br, '"', ',', false));
+    }
+
+    public void testReadCsvRecordBracketAwarePreservesCrInBrackets() throws IOException {
+        BufferedReader br = new BufferedReader(new StringReader("[a\rb],c\n"));
+        assertEquals("[a\rb],c", CsvFormatReader.readCsvRecord(br, '"', ',', true));
+        assertNull(CsvFormatReader.readCsvRecord(br, '"', ',', true));
     }
 
     public void testWithConfigMultipleOptions() throws IOException {

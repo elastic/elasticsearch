@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class InvalidMappedTsFieldTests extends AbstractEsFieldTypeTests<InvalidMappedTsField> {
 
@@ -21,7 +22,7 @@ public class InvalidMappedTsFieldTests extends AbstractEsFieldTypeTests<InvalidM
         String name = randomAlphaOfLength(4);
         List<String> roles = randomSubsetOf(2, "dimension", "metric");
         Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        return new InvalidMappedTsField(name, roles.get(0), roles.get(1), new HashMap<>(properties));
+        return new InvalidMappedTsField(name, roles.get(0), roles.get(1), new TreeMap<>(properties));
     }
 
     @Override
@@ -33,7 +34,7 @@ public class InvalidMappedTsFieldTests extends AbstractEsFieldTypeTests<InvalidM
     protected InvalidMappedTsField copyInstance(InvalidMappedTsField instance, TransportVersion version) {
         // writeContent throws UnsupportedOperationException; copy directly without going through the wire.
         List<String> roles = instance.getRoles();
-        return new InvalidMappedTsField(instance.getName(), roles.get(0), roles.get(1), new HashMap<>(instance.getProperties()));
+        return new InvalidMappedTsField(instance.getName(), roles.get(0), roles.get(1), new TreeMap<>(instance.getProperties()));
     }
 
     @Override

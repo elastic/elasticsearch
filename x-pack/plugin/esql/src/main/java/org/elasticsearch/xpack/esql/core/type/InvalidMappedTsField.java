@@ -7,12 +7,8 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,8 +31,6 @@ import java.util.Objects;
  * <p>
  * {@link #writeContent(StreamOutput)} deliberately throws {@link UnsupportedOperationException}: serializing an
  * {@link InvalidMappedTsField} is a programming error because these objects must never be sent to data nodes.
- * The {@link StreamInput} constructor is kept solely for backward-compatibility deserialization of any data
- * written before this restriction was enforced.
  */
 public class InvalidMappedTsField extends EsField {
 
@@ -49,25 +43,9 @@ public class InvalidMappedTsField extends EsField {
         this.role2 = role2;
     }
 
-    protected InvalidMappedTsField(StreamInput in) throws IOException {
-        this(
-            ((PlanStreamInput) in).readCachedString(),
-            in.readString(),
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, EsField::readFrom)
-        );
-    }
-
     @Override
     public void writeContent(StreamOutput out) {
-        throw new UnsupportedOperationException(
-            "InvalidMappedTsField must be converted to UnsupportedEsField by mappingAsAttributes before the plan is serialized"
-        );
-    }
-
-    @Override
-    public String getWriteableName(TransportVersion transportVersion) {
-        return "InvalidMappedTsField";
+        throw new UnsupportedOperationException("InvalidMappedTsField must never leave the coordinator");
     }
 
     /**

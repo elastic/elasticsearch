@@ -527,7 +527,7 @@ mvContains
 required_capability: flattened_datatype
 required_capability: fn_mv_contains_flattened
 
-FROM flattened_mv_contains
+FROM flattened_many
 | EVAL c = MV_CONTAINS(flat_a, flat_c)
 | KEEP id, c
 | SORT id
@@ -546,7 +546,7 @@ required_capability: flattened_datatype
 required_capability: fn_mv_contains_flattened
 required_capability: fn_mv_append_flattened
 
-FROM flattened_mv_contains
+FROM flattened_many
 | EVAL c = MV_CONTAINS(MV_APPEND(flat_a, flat_b), flat_c)
 | KEEP id, c
 | SORT id
@@ -564,7 +564,7 @@ mvContainsNull
 required_capability: flattened_datatype
 required_capability: fn_mv_contains_flattened
 
-FROM flattened_mv_contains
+FROM flattened_many
 | WHERE id == 4
 | EVAL superset_null = MV_CONTAINS(flat_a, flat_c), subset_null = MV_CONTAINS(flat_c, flat_a)
 | KEEP id, superset_null, subset_null
@@ -578,7 +578,7 @@ mvIntersects
 required_capability: flattened_datatype
 required_capability: fn_mv_intersects_flattened
 
-FROM flattened_mv_contains
+FROM flattened_many
 | EVAL c = MV_INTERSECTS(flat_a, flat_c)
 | KEEP id, c
 | SORT id
@@ -597,7 +597,7 @@ required_capability: flattened_datatype
 required_capability: fn_mv_intersects_flattened
 required_capability: fn_mv_append_flattened
 
-FROM flattened_mv_contains
+FROM flattened_many
 | EVAL c = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), flat_c)
 | KEEP id, c
 | SORT id
@@ -615,7 +615,7 @@ mvIntersectsNull
 required_capability: flattened_datatype
 required_capability: fn_mv_intersects_flattened
 
-FROM flattened_mv_contains
+FROM flattened_many
 | WHERE id == 4
 | EVAL left_null = MV_INTERSECTS(flat_a, flat_c), right_null = MV_INTERSECTS(flat_c, flat_a)
 | KEEP id, left_null, right_null
@@ -623,6 +623,43 @@ FROM flattened_mv_contains
 
 id:integer | left_null:boolean | right_null:boolean
 4          | false             | false
+;
+
+mvIntersection
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+
+FROM flattened_many
+| EVAL intersection = MV_INTERSECTION(flat_a, flat_c)
+| KEEP id, intersection
+| SORT id
+;
+
+id:integer | intersection:flattened
+1          | "{""k"":""v1""}"
+2          | null
+3          | null
+4          | null
+5          | "{""k"":""same""}"
+;
+
+// MV_INTERSECTION returns the shared values; on row 3 (v1, v2, v3 all distinct),
+// [v1,v2] ∩ [v2,v3] = {v2}, showing it returns the actual overlap rather than a boolean.
+mvIntersectionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL intersection = MV_INTERSECTION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, intersection
+;
+
+id:integer | intersection:flattened
+3          | "{""k"":""v2""}"
 ;
 
 // MV_CONTAINS requires *all* subset values to be present; MV_INTERSECTS only requires *any*.
@@ -634,7 +671,7 @@ required_capability: fn_mv_contains_flattened
 required_capability: fn_mv_intersects_flattened
 required_capability: fn_mv_append_flattened
 
-FROM flattened_mv_contains
+FROM flattened_many
 | EVAL
     contains = MV_CONTAINS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c)),
     intersects = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))

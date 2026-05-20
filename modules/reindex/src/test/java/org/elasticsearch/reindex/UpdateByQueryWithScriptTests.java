@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<
+public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
     UpdateByQueryRequest,
     BulkByScrollResponse> {
 

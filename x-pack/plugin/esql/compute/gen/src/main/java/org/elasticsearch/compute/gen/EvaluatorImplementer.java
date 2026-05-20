@@ -11,6 +11,7 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
@@ -109,9 +110,12 @@ public class EvaluatorImplementer {
         processFunction.args.forEach(a -> a.declareField(builder));
         processFunction.args.forEach(a -> a.declareAbstractAccessor(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
+
+        MethodSpec parentCtor = ctor();
 
         if (hasJitConstant) {
-            builder.addType(standard());
+            builder.addType(standard(parentCtor));
             // pathLabel() default; the Standard subclass overrides it, the spun subclass
             // inherits this default. Read by toString() to make spun vs Standard visible
             // in ESQL PROFILE output without any class-name string matching.
@@ -124,9 +128,7 @@ public class EvaluatorImplementer {
             );
         }
 
-        builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
-
-        builder.addMethod(ctor());
+        builder.addMethod(parentCtor);
         builder.addMethod(eval());
         builder.addMethod(processFunction.baseRamBytesUsed());
 
@@ -316,7 +318,7 @@ public class EvaluatorImplementer {
      * correctly. Named {@code Standard} because this is the deliberate non-JIT path for
      * low-cardinality constants, not a failure-mode standard.
      */
-    private TypeSpec standard() {
+    private TypeSpec standard(MethodSpec parentCtor) {
         JitConstantFixedArgument jit = processFunction.args.stream()
             .filter(Argument::isJitConstant)
             .map(a -> (JitConstantFixedArgument) a)
@@ -338,28 +340,20 @@ public class EvaluatorImplementer {
         // Instance field for the jit constant.
         builder.addField(jit.type(), jit.name(), Modifier.PRIVATE, Modifier.FINAL);
 
-        // Constructor mirrors the abstract base's ctor + adds the jit param.
-        // We use the same signal factoryGet uses to determine "is this arg a ctor param":
-        // non-null factoryInvocation. BuilderArgument returns null, so it's excluded
-        // (it's a process-method param, not a ctor param).
+        // Constructor mirrors the abstract base's ctor exactly, and inserts the jit
+        // parameter just before driverContext. We read the parent ctor's parameter
+        // list rather than asking each Argument to re-describe its ctor shape —
+        // implementCtor already declared the same parameters when the parent ctor
+        // was built, so the answer is already encoded there.
         MethodSpec.Builder ctor = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         List<String> superArgs = new ArrayList<>();
-        ctor.addParameter(SOURCE, "source");
-        superArgs.add("source");
-        MethodSpec.Builder probe = MethodSpec.constructorBuilder();
-        for (Argument a : processFunction.args) {
-            if (a.isJitConstant()) {
-                continue;
+        for (ParameterSpec p : parentCtor.parameters) {
+            if (p.name.equals("driverContext")) {
+                ctor.addParameter(jit.type(), jit.name());
             }
-            if (a.factoryInvocation(probe) == null) {
-                continue;
-            }
-            a.declareCtorParam(ctor);
-            superArgs.add(a.name());
+            ctor.addParameter(p);
+            superArgs.add(p.name);
         }
-        ctor.addParameter(jit.type(), jit.name());
-        ctor.addParameter(DRIVER_CONTEXT, "driverContext");
-        superArgs.add("driverContext");
         ctor.addStatement("super($L)", String.join(", ", superArgs));
         ctor.addStatement("this.$L = $L", jit.name(), jit.name());
         builder.addMethod(ctor.build());

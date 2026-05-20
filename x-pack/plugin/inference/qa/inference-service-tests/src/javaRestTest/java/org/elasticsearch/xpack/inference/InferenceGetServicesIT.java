@@ -198,6 +198,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "ai21",
+                    "anthropic",
                     "azureopenai",
                     "fireworksai",
                     "llama",

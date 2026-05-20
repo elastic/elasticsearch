@@ -449,7 +449,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.stepAttr(),
             ctx.optimizerContext().configuration()
         );
-        Expression function = scalarFunction.buildEsqlFunction(promqlCtx);
+        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            scalarFunction.functionName(),
+            scalarFunction.source(),
+            null,
+            promqlCtx,
+            List.of()
+        );
 
         return new TranslationResult(currentPlan, function);
     }

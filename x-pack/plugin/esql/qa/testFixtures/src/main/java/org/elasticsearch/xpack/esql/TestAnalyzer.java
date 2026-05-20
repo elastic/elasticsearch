@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -74,7 +73,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-    private PromqlFunctionRegistry promqlFunctionRegistry = EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<IndexPattern, IndexResolution> lenientResolution = new HashMap<>();
@@ -786,7 +784,6 @@ public class TestAnalyzer {
         return new AnalyzerContext(
             configuration,
             functionRegistry,
-            promqlFunctionRegistry,
             null,
             indexResolutions,
             lookupResolution,

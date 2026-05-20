@@ -47,17 +47,15 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
 
     @Override
     protected LogicalPlan rule(PromqlCommand promql, AnalyzerContext context) {
-        PromqlFunctionRegistry registry = context.promqlFunctionRegistry();
-        LogicalPlan resolved = promql.promqlPlan()
-            .transformUp(UnresolvedPromqlFunction.class, unresolved -> resolveFunction(unresolved, registry));
+        LogicalPlan resolved = promql.promqlPlan().transformUp(UnresolvedPromqlFunction.class, ResolvePromqlFunctions::resolveFunction);
         return promql.withPromqlPlan(resolved);
     }
 
-    static LogicalPlan resolveFunction(UnresolvedPromqlFunction unresolved, PromqlFunctionRegistry registry) {
+    static LogicalPlan resolveFunction(UnresolvedPromqlFunction unresolved) {
         String name = unresolved.functionName();
 
-        PromqlFunctionDefinition metadata = registry.functionMetadata(name);
-        if (registry.isNotImplemented(name)) {
+        PromqlFunctionDefinition metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
+        if (PromqlFunctionRegistry.INSTANCE.isNotImplemented(name)) {
             throw new VerificationException(List.of(Failure.fail(unresolved, "Function [{}] is not yet implemented", name)));
         }
         if (metadata == null) {
@@ -142,7 +140,7 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
             case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, metadata, extraParams);
             case SCALAR_CONVERSION -> new ScalarConversionFunction(unresolved.source(), child, metadata, extraParams);
             case SCALAR, TIME_EXTRACTION -> child == null
-                ? new ScalarFunction(unresolved.source(), metadata)
+                ? new ScalarFunction(unresolved.source(), name)
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))

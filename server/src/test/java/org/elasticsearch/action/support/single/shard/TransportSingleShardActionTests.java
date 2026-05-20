@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -195,6 +196,33 @@ public class TransportSingleShardActionTests extends ESTestCase {
         assertThat(response, isA(TestResponse.class));
     }
 
+    public void testBadRequestExceptionSkipsRetry() throws Exception {
+        final AtomicInteger sendCount = new AtomicInteger();
+        doAnswer(invocation -> {
+            sendCount.incrementAndGet();
+            final ActionListenerResponseHandler<TestResponse> listener = invocation.getArgument(3);
+            listener.handleException(
+                new RemoteTransportException(
+                    "bad",
+                    new QueryShardException(new ShardId("index", INDEX_UUID_NA_VALUE, 0).getIndex(), "unsupported query", null)
+                )
+            );
+            return null;
+        }).when(transportService).sendRequest(any(), any(), any(), ArgumentMatchers.<ActionListenerResponseHandler<TestResponse>>any());
+
+        final var action = new TestTransportSingleShardActionTwoCopies<TestRequest>(
+            threadPool,
+            clusterService,
+            transportService,
+            projectResolver
+        );
+        final var result = new PlainActionFuture<TestResponse>();
+        action.execute(null, new TestRequest().index("index"), result);
+
+        assertThrows(QueryShardException.class, () -> result.actionGet(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS));
+        assertEquals(1, sendCount.get());
+    }
+
     public void testStaleRequestExceptionIsBubbledUpForNonRetryableRequest() throws Exception {
         // throw stale, then succeed
         doAnswer(invocation -> {
@@ -309,6 +337,26 @@ public class TransportSingleShardActionTests extends ESTestCase {
         protected ShardsIterator shards(ProjectState state, TransportSingleShardAction<TRequest, TestResponse>.InternalRequest request) {
             final var shardRouting = shardRoutingBuilder("index", 0, "node", true, ShardRoutingState.STARTED).build();
             return new PlainShardsIterator(List.of(shardRouting));
+        }
+    }
+
+    static class TestTransportSingleShardActionTwoCopies<TRequest extends SingleShardRequest<TRequest>> extends
+        TestTransportSingleShardAction<TRequest> {
+
+        TestTransportSingleShardActionTwoCopies(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ProjectResolver projectResolver
+        ) {
+            super(threadPool, clusterService, transportService, projectResolver);
+        }
+
+        @Override
+        protected ShardsIterator shards(ProjectState state, TransportSingleShardAction<TRequest, TestResponse>.InternalRequest request) {
+            final var primary = shardRoutingBuilder("index", 0, "node", true, ShardRoutingState.STARTED).build();
+            final var replica = shardRoutingBuilder("index", 0, "node", false, ShardRoutingState.STARTED).build();
+            return new PlainShardsIterator(List.of(primary, replica));
         }
     }
 }

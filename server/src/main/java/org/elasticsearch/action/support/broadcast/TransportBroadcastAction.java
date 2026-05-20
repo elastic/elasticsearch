@@ -222,7 +222,7 @@ public abstract class TransportBroadcastAction<
             // will work (it will just override it...)
             setFailure(shardIt, shardIndex, e);
             ShardRouting nextShard = shardIt.nextOrNull();
-            if (nextShard != null) {
+            if (nextShard != null && TransportActions.isRetriableShardLevelException(e)) {
                 if (e != null) {
                     if (logger.isTraceEnabled()) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {

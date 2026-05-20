@@ -16,6 +16,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 
 public class TransportActions {
 
@@ -27,6 +28,22 @@ public class TransportActions {
             || actual instanceof NoShardAvailableActionException
             || actual instanceof UnavailableShardsException
             || actual instanceof AlreadyClosedException);
+    }
+
+    /**
+     * Returns {@code false} if the exception signals a deterministic failure that will reproduce identically on every shard copy, making a
+     * retry on a different replica pointless. Returns {@code true} for transient shard-availability failures where a different replica may
+     * succeed.
+     * <p>
+     * Shard-not-available exceptions (see {@link #isShardNotAvailableException}) are always considered retriable regardless of their HTTP
+     * status. All other {@link RestStatus#BAD_REQUEST} exceptions are treated as non-retriable: whether caused by a malformed request, a
+     * canceled task, or a closed index, every shard copy will fail in the same way.
+     */
+    public static boolean isRetriableShardLevelException(Throwable e) {
+        if (isShardNotAvailableException(e)) {
+            return true;
+        }
+        return ExceptionsHelper.status(e) != RestStatus.BAD_REQUEST;
     }
 
     /**

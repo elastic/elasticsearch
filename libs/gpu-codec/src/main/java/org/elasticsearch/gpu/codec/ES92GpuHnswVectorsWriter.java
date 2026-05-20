@@ -580,7 +580,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         int countOnLevel0 = graph.size();
         int[] scratch = new int[graph.maxConn() * 2];
         for (int level = 0; level < graph.numLevels(); level++) {
-            NodesIterator nodesOnLevel = graph.getNodesOnLevel(level);
+            NodesIterator nodesOnLevel = graph.getSortedNodes(level);
             int nodeOffsetId = 0;
             while (nodesOnLevel.hasNext()) {
                 NeighborArray neighbors = graph.getNeighbors(level, nodesOnLevel.next());

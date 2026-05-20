@@ -44,9 +44,10 @@ import java.util.zip.GZIPOutputStream;
  *   <li>{@code PrefetchedPageReader} explicitly calls the {@code decompress(ByteBuffer, int,
  *       ByteBuffer, int)} overload with both sides guaranteed direct: S3-prefetched column chunks
  *       arrive as heap-backed {@code byte[]} (the S3 client writes into a byte array), so
- *       {@code PrefetchedPageReader} copies the input to a direct buffer before decompressing.
- *       This ensures the direct-to-direct JNI path is always taken, avoiding
- *       {@code GetPrimitiveArrayCritical} pinning end-to-end.</li>
+ *       {@link ColumnChunkPrefetcher} promotes each fetched range from heap to a direct
+ *       {@link java.nio.ByteBuffer} once at fetch time. Page slices derived from that direct
+ *       buffer are already direct when they reach {@code PrefetchedPageReader}, so the
+ *       direct-to-direct JNI path is always taken with no per-page copy.</li>
  *   <li>Parquet-MR's {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer} overload only
  *       when the allocator is direct and {@code useOffHeapDecryptBuffer} is enabled; because we
  *       use {@code DirectByteBufferAllocator}, this path also takes the direct-to-direct fast

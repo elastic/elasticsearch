@@ -185,15 +185,15 @@ final class PrefetchedPageReader implements PageReader {
 
     /**
      * Decompresses {@code compressed} into a direct {@link ByteBuffer}, then wraps the result
-     * as a {@link BytesInput}. Both the input and output sides are guaranteed to be direct so
-     * each codec takes its direct-to-direct JNI fast path (Zstd: {@code decompressDirectByteBuffer};
-     * Snappy: {@code Snappy.uncompress(ByteBuffer, ByteBuffer)}), avoiding
+     * as a {@link BytesInput}. Both the input and output sides are direct so each codec takes its
+     * direct-to-direct JNI fast path (Zstd: {@code decompressDirectByteBuffer}; Snappy:
+     * {@code Snappy.uncompress(ByteBuffer, ByteBuffer)}), avoiding
      * {@code GetPrimitiveArrayCritical} JNI pinning and the G1GC evacuation failures it causes.
      *
-     * <p>S3-prefetched column chunks arrive as heap-backed {@code BytesInput.from(byte[])} (the
-     * S3 client writes into a {@code byte[]}), so the input side requires an explicit copy to a
-     * direct buffer. The copy adds one allocation and one bulk memory transfer, but that cost is
-     * far smaller than the cost of a G1GC evacuation failure caused by the pinned heap region.
+     * <p>For the prefetched path, {@link ColumnChunkPrefetcher} promotes each S3 response buffer
+     * from heap to direct once at fetch time (one copy per coalesced range), so page slices
+     * derived from it are already direct and the conditional copy below is a no-op. The copy
+     * remains as a safety net for the non-prefetched sync fallback path.
      */
     private BytesInput decompressToDirectBuffer(BytesInput compressed, int decompressedSize) throws IOException {
         ByteBuffer input = compressed.toByteBuffer();

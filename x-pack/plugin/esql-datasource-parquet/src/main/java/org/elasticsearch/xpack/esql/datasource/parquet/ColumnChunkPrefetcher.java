@@ -85,7 +85,10 @@ final class ColumnChunkPrefetcher {
             NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
             for (var entry : fetched.entrySet()) {
                 CoalescedRangeReader.ByteRange range = entry.getKey();
-                prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), entry.getValue()));
+                prefetched.put(
+                    range.offset(),
+                    new PrefetchedChunk(range.offset(), range.length(), promoteToDirectIfNeeded(entry.getValue()))
+                );
             }
             result.complete(prefetched);
         } catch (Exception e) {
@@ -129,7 +132,10 @@ final class ColumnChunkPrefetcher {
                     NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
                     for (var entry : fetched.entrySet()) {
                         CoalescedRangeReader.ByteRange range = entry.getKey();
-                        prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), entry.getValue()));
+                        prefetched.put(
+                            range.offset(),
+                            new PrefetchedChunk(range.offset(), range.length(), promoteToDirectIfNeeded(entry.getValue()))
+                        );
                     }
                     result.complete(prefetched);
                 }
@@ -305,7 +311,10 @@ final class ColumnChunkPrefetcher {
             NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
             for (var entry : fetched.entrySet()) {
                 CoalescedRangeReader.ByteRange range = entry.getKey();
-                prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), entry.getValue()));
+                prefetched.put(
+                    range.offset(),
+                    new PrefetchedChunk(range.offset(), range.length(), promoteToDirectIfNeeded(entry.getValue()))
+                );
             }
             result.complete(prefetched);
         } catch (Exception e) {
@@ -353,7 +362,10 @@ final class ColumnChunkPrefetcher {
                     NavigableMap<Long, PrefetchedChunk> prefetched = new TreeMap<>();
                     for (var entry : fetched.entrySet()) {
                         CoalescedRangeReader.ByteRange range = entry.getKey();
-                        prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), entry.getValue()));
+                        prefetched.put(
+                            range.offset(),
+                            new PrefetchedChunk(range.offset(), range.length(), promoteToDirectIfNeeded(entry.getValue()))
+                        );
                     }
                     result.complete(prefetched);
                 }
@@ -365,6 +377,22 @@ final class ColumnChunkPrefetcher {
             }
         );
         return result;
+    }
+
+    /**
+     * Promotes a heap {@link ByteBuffer} to a direct buffer so that downstream JNI decompressors
+     * (Zstd, Snappy) can take their direct-to-direct fast path, avoiding
+     * {@code GetPrimitiveArrayCritical} pinning that causes G1GC evacuation failures. When the
+     * buffer is already direct (e.g., a local-file storage path allocates direct), this is a no-op.
+     */
+    private static ByteBuffer promoteToDirectIfNeeded(ByteBuffer buffer) {
+        if (buffer.isDirect()) {
+            return buffer;
+        }
+        ByteBuffer direct = ByteBuffer.allocateDirect(buffer.remaining());
+        direct.put(buffer);
+        direct.flip();
+        return direct;
     }
 
     /**

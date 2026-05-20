@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -187,6 +188,81 @@ public class HivePartitionDetectorTests extends ESTestCase {
 
         PartitionMetadata result = detector.detect(files, Map.of("irrelevant", "value"));
         assertFalse(result.isEmpty());
+    }
+
+    public void testHiveDefaultPartitionAlone() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+        // month has only the Hive null sentinel; with no concrete values it should still be parseable as INTEGER
+        // and the per-file value should be null, not the literal sentinel string.
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
+
+        Map<String, Object> partitions = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/file.parquet"));
+        assertEquals(2024, partitions.get("year"));
+        assertNull(partitions.get("month"));
+    }
+
+    public void testHiveDefaultPartitionMixedWithIntegers() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/month=06/f1.parquet"),
+            entry("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
+
+        Map<String, Object> p1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/year=2024/month=06/f1.parquet"));
+        assertEquals(6, p1.get("month"));
+
+        Map<String, Object> p2 = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet"));
+        assertNull(p2.get("month"));
+    }
+
+    public void testHiveDefaultPartitionMixedWithStrings() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/region=us-east/f1.parquet"),
+            entry("s3://bucket/data/region=__HIVE_DEFAULT_PARTITION__/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("region"));
+
+        Map<String, Object> p1 = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/region=us-east/f1.parquet"));
+        assertEquals("us-east", p1.get("region"));
+
+        Map<String, Object> p2 = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/region=__HIVE_DEFAULT_PARTITION__/f2.parquet"));
+        assertNull(p2.get("region"));
+    }
+
+    public void testInferTypeSkipsNullsInteger() {
+        assertEquals(DataType.INTEGER, HivePartitionDetector.inferType(Arrays.asList("1", null, "2")));
+    }
+
+    public void testInferTypeSkipsNullsDouble() {
+        assertEquals(DataType.DOUBLE, HivePartitionDetector.inferType(Arrays.asList("1.5", null, "2.7")));
+    }
+
+    public void testInferTypeSkipsNullsBoolean() {
+        assertEquals(DataType.BOOLEAN, HivePartitionDetector.inferType(Arrays.asList("true", null, "false")));
+    }
+
+    public void testCastValueNullReturnsNull() {
+        assertNull(HivePartitionDetector.castValue(null, DataType.INTEGER));
+        assertNull(HivePartitionDetector.castValue(null, DataType.LONG));
+        assertNull(HivePartitionDetector.castValue(null, DataType.DOUBLE));
+        assertNull(HivePartitionDetector.castValue(null, DataType.BOOLEAN));
+        assertNull(HivePartitionDetector.castValue(null, DataType.KEYWORD));
     }
 
     private static StorageEntry entry(String path) {

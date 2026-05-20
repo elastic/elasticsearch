@@ -191,6 +191,13 @@ class DLMFrozenTransitionExecutor {
                 if (ExceptionsHelper.unwrap(ex, InterruptedException.class) != null || Thread.currentThread().isInterrupted()) {
                     Thread.currentThread().interrupt();
                     logger.debug("Transition for index [{}] was interrupted, skipping error recording", indexName);
+                }
+                if (DLMConvertToFrozen.isTransientMasterFailoverException(ex)) {
+                    logger.debug(
+                        "Transient master-failover exception during frozen transition for index [{}], will retry on next tick",
+                        indexName,
+                        ex
+                    );
                 } else {
                     errorStore.recordAndLogError(
                         task.getProjectId(),

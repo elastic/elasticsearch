@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -181,12 +182,14 @@ public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Runnable cancellationCheck = (searcher instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
             return new ConstantScoreWeight(this, boost) {
 
                 @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                     final FilterScript leafScript = filterScript.newInstance(new DocValuesDocReader(lookup, context));
+                    leafScript._setCancellationCheck(cancellationCheck);
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override

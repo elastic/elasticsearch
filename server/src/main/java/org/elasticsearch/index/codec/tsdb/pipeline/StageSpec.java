@@ -54,6 +54,34 @@ public sealed interface StageSpec {
         }
     }
 
+    /**
+     * Segmented delta encoding for piecewise-monotonic sequences: delta-encodes each
+     * monotonic sub-run separated by direction flips, accepting up to {@code kMax}
+     * flips per block.
+     *
+     * <p>{@code kMax} is an encode-time threshold only and is not persisted in the wire
+     * format. The decoder reads the actual per-block flip count from stage metadata, so
+     * it does not need to know the encoder's cap.
+     *
+     * @param kMax the maximum number of direction flips accepted per block; must be at least one
+     */
+    record SplitDeltaStage(int kMax) implements TransformSpec {
+
+        /** Default cap on direction flips per block. */
+        public static final int DEFAULT_K_MAX = 16;
+
+        public SplitDeltaStage {
+            if (kMax < 1) {
+                throw new IllegalArgumentException("kMax must be at least 1, got: " + kMax);
+            }
+        }
+
+        @Override
+        public StageId stageId() {
+            return StageId.SPLIT_DELTA_STAGE;
+        }
+    }
+
     /** Bit-packing payload: packs values using the minimum number of bits. */
     record BitPackPayload() implements PayloadSpec {
         @Override

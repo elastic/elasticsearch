@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.pushdown;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 
 /**
  * Shape decomposition for {@code WildcardLike} patterns of the affix-contains family:

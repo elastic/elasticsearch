@@ -126,7 +126,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @SuppressWarnings("this-escape")
-    ContextIndexSearcher(
+    private ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
         QueryCache queryCache,
@@ -148,7 +148,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             maximumNumberOfSlices,
             minimumDocsPerSlice,
             DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? new AtomicLong() : null,
-            new BytesReadHolder()
+            DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? new BytesReadHolder() : BytesReadHolder.NOOP
         );
     }
 
@@ -187,23 +187,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * in the ctor, when calling super
      */
     private static final class BytesReadHolder {
-        private volatile LongSupplier threadBytesRead;
-        private volatile LongConsumer bytesReadSink;
+        private static final BytesReadHolder NOOP = new BytesReadHolder();
+        private static final LongSupplier EMPTY_SUPPLIER = () -> 0L;
+        private static final LongConsumer EMPTY_CONSUMER = _ -> {};
+
+        private volatile LongSupplier threadBytesRead = EMPTY_SUPPLIER;
+        private volatile LongConsumer bytesReadSink = EMPTY_CONSUMER;
     }
 
     private static Executor wrapExecutor(Executor executor, AtomicLong workerDirectoryBytesRead, BytesReadHolder bytesReadHolder) {
-        if (executor == null || workerDirectoryBytesRead == null) {
+        boolean isDirectoryMetricsFeatureEnabled = DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
+        if (executor == null || isDirectoryMetricsFeatureEnabled == false) {
             return executor;
         }
         return r -> executor.execute(() -> {
             final LongSupplier threadBytesRead = bytesReadHolder.threadBytesRead;
-            final long before = threadBytesRead == null ? -1 : threadBytesRead.getAsLong();
+            final long before = threadBytesRead.getAsLong();
             try {
                 r.run();
             } finally {
-                if (before >= 0) {
-                    workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
-                }
+                workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
             }
         });
     }
@@ -243,26 +246,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return workerDirectoryBytesRead.get();
         }
         return 0;
-    }
-
-    /**
-     * Flushes the accumulated worker-thread bytes-read counter into the configured caller-thread sink
-     * and resets the counter. Called by {@link #search(Query, CollectorManager)} so that each search
-     * call is self-contained: by the time it returns, worker contributions are already folded into the
-     * calling thread's store metrics.
-     */
-    private void drainWorkerBytesToCallerSink() {
-        if (workerDirectoryBytesRead == null) {
-            return;
-        }
-        final LongConsumer sink = bytesReadHolder.bytesReadSink;
-        if (sink == null) {
-            return;
-        }
-        final long bytes = workerDirectoryBytesRead.getAndSet(0L);
-        if (bytes != 0L) {
-            sink.accept(bytes);
-        }
     }
 
     @Override
@@ -512,7 +495,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } finally {
             // fold worker-thread bytes into the caller-thread's store metrics before returning,
             // so SearchService's directory metrics delta picks them up
-            drainWorkerBytesToCallerSink();
+            bytesReadHolder.bytesReadSink.accept(this.getWorkerDirectoryBytesRead());
         }
     }
 

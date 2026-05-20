@@ -229,16 +229,20 @@ export const generatePipelines = (
   return finalPipelines;
 };
 
+const shellQuote = (value: string): string => `'${value.replace(/'/g, `'\\''`)}'`;
+
 export function resolveMergeBaseTarget(
   targetBranch: string,
   run: CommandRunner = (command, options) => execSync(command, options),
   projectRoot: string = PROJECT_ROOT
 ): string {
+  const quotedTargetBranch = shellQuote(targetBranch);
+
   try {
-    run(`git rev-parse --verify ${targetBranch}^{commit}`, { cwd: projectRoot, stdio: "ignore" });
+    run(`git rev-parse --verify ${quotedTargetBranch}^{commit}`, { cwd: projectRoot, stdio: "ignore" });
     return targetBranch;
   } catch {
-    run(`git fetch --no-tags origin ${targetBranch}`, { cwd: projectRoot, stdio: "inherit" });
+    run(`git fetch --no-tags origin ${quotedTargetBranch}`, { cwd: projectRoot, stdio: "inherit" });
     return "FETCH_HEAD";
   }
 }

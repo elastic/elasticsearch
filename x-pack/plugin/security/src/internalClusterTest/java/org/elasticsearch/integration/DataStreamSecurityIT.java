@@ -443,7 +443,9 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
             addBackException.getMessage(),
             containsString(
                 "action [indices:admin/data_stream/modify] is unauthorized for user [ds_only_user] with effective roles "
-                    + "[ds_only_role] on indices [" + indexToRemove.getName() + "]"
+                    + "[ds_only_role] on indices ["
+                    + indexToRemove.getName()
+                    + "]"
             )
         );
     }

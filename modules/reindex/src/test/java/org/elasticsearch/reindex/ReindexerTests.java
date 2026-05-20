@@ -496,12 +496,7 @@ public class ReindexerTests extends ESTestCase {
 
         try (var mockLog = MockLog.capture(Reindexer.class)) {
             mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "no warn for cancellation",
-                    Reindexer.class.getCanonicalName(),
-                    WARN,
-                    "*"
-                )
+                new MockLog.UnseenEventExpectation("no warn for cancellation", Reindexer.class.getCanonicalName(), WARN, "*")
             );
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(

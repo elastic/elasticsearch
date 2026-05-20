@@ -87,6 +87,7 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.IndexingMemoryLimits;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -109,6 +110,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
+import org.elasticsearch.plugins.IndexingMemoryPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -179,6 +181,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.memory.HeapMemoryUsagePublisher;
 import org.elasticsearch.xpack.stateless.memory.IndexingTierPartitionMetrics;
+import org.elasticsearch.xpack.stateless.memory.PartitionBasedIndexingMemoryLimits;
 import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import org.elasticsearch.xpack.stateless.memory.TransportPublishHeapMemoryMetrics;
@@ -267,6 +270,7 @@ public class StatelessPlugin extends Plugin
         ClusterCoordinationPlugin,
         ExtensiblePlugin,
         HealthPlugin,
+        IndexingMemoryPlugin,
         PersistentTaskPlugin {
 
     private static final Logger logger = LogManager.getLogger(StatelessPlugin.class);
@@ -1108,6 +1112,11 @@ public class StatelessPlugin extends Plugin
 
     public StatelessMemoryMetricsService getStatelessMemoryMetricsService() {
         return Objects.requireNonNull(statelessMemoryMetricsService.get());
+    }
+
+    @Override
+    public IndexingMemoryLimits getIndexingMemoryLimits(Settings settings) {
+        return PartitionBasedIndexingMemoryLimits.fromSettings(settings);
     }
 
     public IndicesService getIndicesService() {

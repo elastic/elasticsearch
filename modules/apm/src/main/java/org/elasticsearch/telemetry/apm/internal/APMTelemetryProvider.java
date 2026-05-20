@@ -12,15 +12,19 @@ package org.elasticsearch.telemetry.apm.internal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.APMHttpServerInstrumentation;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
+    private final APMHttpServerInstrumentation apmHttpServerInstrumentation;
 
     public APMTelemetryProvider(Settings settings) {
         apmTracer = new APMTracer(settings);
         apmMeterService = new APMMeterService(settings);
+        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
     }
 
     @Override
@@ -35,6 +39,11 @@ public class APMTelemetryProvider implements TelemetryProvider {
     @Override
     public APMMeterRegistry getMeterRegistry() {
         return apmMeterService.getMeterRegistry();
+    }
+
+    @Override
+    public HttpServerInstrumentation getHttpServerInstrumentation() {
+        return apmHttpServerInstrumentation;
     }
 
     @Override

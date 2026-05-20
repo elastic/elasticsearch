@@ -25,6 +25,7 @@ dependencies {
     exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-sender-okhttp'
   }
   implementation "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry:${otelInstrumentationVersion}"
+  implementation "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:${otelInstrumentationVersion}"
 
   implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"

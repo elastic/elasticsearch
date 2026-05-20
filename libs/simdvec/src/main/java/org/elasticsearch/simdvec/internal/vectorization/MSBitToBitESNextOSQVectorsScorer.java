@@ -425,8 +425,8 @@ final class MSBitToBitESNextOSQVectorsScorer extends MemorySegmentES940OSQVector
                     }
                 } else {
                     res = res.add(1f).mul(0.5f).max(0);
-                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                     res.intoArray(scores, i);
+                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                 }
             }
         }

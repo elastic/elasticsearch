@@ -529,7 +529,8 @@ public class HierarchicalKMeans {
 
         // Reservoir-sample sampleSize vector indices, deterministic with seed 42.
         int[] sample = new int[sampleSize];
-        for (int i = 0; i < sampleSize; i++) sample[i] = i;
+        for (int i = 0; i < sampleSize; i++)
+            sample[i] = i;
         for (int i = sampleSize; i < n; i++) {
             int j = random.nextInt(i + 1);
             if (j < sampleSize) sample[j] = i;
@@ -557,7 +558,9 @@ public class HierarchicalKMeans {
             double total = 0;
             for (int s = 0; s < sampleSize; s++) {
                 int nid = nearestId[s];
-                double w = (clusterSizes != null && nid >= 0 && nid < existing.length) ? (double) clusterSizes[nid] * minDist[s] : minDist[s];
+                double w = (clusterSizes != null && nid >= 0 && nid < existing.length)
+                    ? (double) clusterSizes[nid] * minDist[s]
+                    : minDist[s];
                 total += w;
             }
 

@@ -179,8 +179,10 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected IndexSettings defaultSettings;
     protected String codecName;
+
     protected Path primaryTranslogDir;
     protected Path replicaTranslogDir;
+
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
     protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;

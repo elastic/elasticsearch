@@ -207,12 +207,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Stats partial / file-count flag tests =====
 
     /**
-     * When no file reports statistics and there is more than one file, FFW reads the anchor's
-     * (empty) stats and then explicitly marks the result partial because the other files'
-     * stats are unknown. The reconciliation path's {@code aggregateFileStatistics} returns
-     * {@code null} on missing per-file stats and the resolver falls back to the anchor's
-     * (empty) stats without setting any partial-flag; this test pins that divergence so a
-     * future "always flag partial" alignment change shows up here.
+     * Invariant: every schema-resolution mode marks stats as partial when at least one file
+     * lacks statistics. {@code STATS_PARTIAL} is what tells downstream operators that aggregated
+     * stats are incomplete and must not be trusted for shortcuts like {@code canSkipSplitDiscovery}.
+     * Parameterized over {@link #MULTI_FILE_STRATEGIES} so any future {@code SchemaResolution}
+     * value inherits the invariant by construction.
      */
     public void testMultiFileStatsPartialFlagPerStrategy() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
@@ -233,18 +232,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             Object partial = resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL);
-            if (strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                assertEquals("[FFW] STATS_PARTIAL must be true when only the anchor's stats are known", Boolean.TRUE, partial);
-            } else {
-                assertNull("[" + strategy + "] reconciliation path does not currently set STATS_PARTIAL", partial);
-            }
+            assertEquals("[" + strategy + "] STATS_PARTIAL must be true when not every file reports statistics", Boolean.TRUE, partial);
         }
     }
 
     /**
-     * STATS_FILE_COUNT is FFW-only: {@code enrichWithFileCount} runs on the FFW fast path and
-     * stamps the count of discovered files into the source metadata. The reconciliation path
-     * (UNION_BY_NAME / STRICT) does not currently populate it. This test pins both branches.
+     * Invariant: every schema-resolution mode stamps {@code STATS_FILE_COUNT} into the resolved
+     * source metadata. {@code ComputeService#canSkipSplitDiscovery} reads this field to short-circuit
+     * aggregate pushdown (COUNT/MIN/MAX) without scanning row groups; missing it forces Phase-2
+     * split discovery to run even when the answer is in metadata. Parameterized over
+     * {@link #MULTI_FILE_STRATEGIES} so any new mode inherits the invariant by construction.
      */
     public void testMultiFileFileCountPerStrategy() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
@@ -270,11 +267,53 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             Object fileCount = resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_FILE_COUNT);
-            if (strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                assertEquals("[FFW] STATS_FILE_COUNT must equal the number of discovered files", 3L, fileCount);
-            } else {
-                assertNull("[" + strategy + "] reconciliation path does not currently set STATS_FILE_COUNT", fileCount);
-            }
+            assertEquals("[" + strategy + "] STATS_FILE_COUNT must equal the number of discovered files", 3L, fileCount);
+        }
+    }
+
+    /**
+     * FFW resolution must populate schemaMap with one identity-mapped FileSchemaInfo entry per
+     * discovered file, each carrying the anchor schema verbatim. Closest-layer assertion that the
+     * planner's per-file pinning is wired correctly: this is what {@code FileSplitProvider} reads
+     * to bake {@code FileSplit.readSchema} for every split, which in turn pins the reader.
+     */
+    public void testFirstFileWinsPopulatesSchemaMapForEveryFile() throws Exception {
+        List<Attribute> anchorSchema = List.of(attr("col0", DataType.KEYWORD), attr("col1", DataType.INTEGER));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/b.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.INTEGER)));
+        schemasByPath.put("s3://bucket/data/c.parquet", List.of(attr("col0", DataType.INTEGER), attr("col1", DataType.KEYWORD)));
+
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            ),
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertEquals("schemaMap must have one entry per matched file", 3, schemaMap.size());
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
+            assertEquals(
+                "every FFW per-file entry carries the anchor schema verbatim, regardless of the file's own inference",
+                anchorSchema,
+                e.getValue().fileSchema().attributes()
+            );
+            ColumnMapping mapping = e.getValue().mapping();
+            assertNotNull("FFW entries carry an identity ColumnMapping", mapping);
+            assertTrue("FFW per-file mapping is identity", mapping.isIdentity());
+            assertEquals(
+                "identity mapping matches anchor schema width",
+                new ColumnMapping(identityIndex(anchorSchema.size()), null),
+                mapping
+            );
         }
     }
 
@@ -326,16 +365,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     assertEquals(
                         "[FFW] " + e.getKey() + ": entry must carry the anchor schema verbatim",
                         anchorSchema,
-                        e.getValue().fileSchema()
+                        e.getValue().fileSchema().attributes()
                     );
-                    SchemaReconciliation.ColumnMapping mapping = e.getValue().mapping();
+                    ColumnMapping mapping = e.getValue().mapping();
                     assertNotNull("[FFW] " + e.getKey() + ": ColumnMapping must be set", mapping);
                     assertEquals(
                         "[FFW] " + e.getKey() + ": identity mapping length matches anchor schema width",
                         anchorSchema.size(),
-                        mapping.columnCount()
+                        mapping.width()
                     );
-                    for (int i = 0; i < mapping.columnCount(); i++) {
+                    for (int i = 0; i < mapping.width(); i++) {
                         assertEquals("[FFW] " + e.getKey() + ": localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
                         assertNull("[FFW] " + e.getKey() + ": no casts at position " + i, mapping.cast(i));
                     }
@@ -373,17 +412,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     assertEquals(
                         "[" + strategy + "] " + pathStr + ": fileSchema must equal the file's own schema",
                         expectedFileSchemas.get(pathStr),
-                        e.getValue().fileSchema()
+                        e.getValue().fileSchema().attributes()
                     );
-                    SchemaReconciliation.ColumnMapping mapping = e.getValue().mapping();
+                    ColumnMapping mapping = e.getValue().mapping();
                     assertNotNull("[" + strategy + "] " + pathStr + ": ColumnMapping must be set", mapping);
                     int[] expected = expectedLocalIndices.get(pathStr);
                     assertEquals(
                         "[" + strategy + "] " + pathStr + ": mapping width = unified schema width",
                         unifiedSchema.size(),
-                        mapping.columnCount()
+                        mapping.width()
                     );
-                    for (int i = 0; i < mapping.columnCount(); i++) {
+                    for (int i = 0; i < mapping.width(); i++) {
                         assertEquals("[" + strategy + "] " + pathStr + ": localIndex(" + i + ")", expected[i], mapping.localIndex(i));
                         // No type drift in this fixture → no casts under UBN.
                         assertNull("[" + strategy + "] " + pathStr + ": no casts at position " + i, mapping.cast(i));
@@ -423,12 +462,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * When every file provides per-file row counts, both code paths must produce the same
-     * aggregated row count (sum across files) and must not flag the stats as partial.
-     * <p>
-     * STATS_FILE_COUNT differs by design: only the FFW path runs {@code enrichWithFileCount};
-     * the reconciliation path does not currently populate it. This test pins that divergence
-     * explicitly so a future change that aligns the paths shows up here.
+     * When every file provides per-file row counts, every code path must produce the same
+     * aggregated row count (sum across files), must not flag the stats as partial, and must
+     * stamp {@code STATS_FILE_COUNT}. The cross-mode {@code STATS_FILE_COUNT} invariant is
+     * pinned separately by {@link #testMultiFileFileCountPerStrategy}; here we assert all
+     * three (row count + not-partial + file count) together for the stats-available case.
      */
     public void testMultiFileAggregatesRowCountAcrossStrategiesWhenStatsAvailable() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
@@ -466,19 +504,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 "[" + strategy + "] STATS_PARTIAL must be absent when every file has stats",
                 meta.get(SourceStatisticsSerializer.STATS_PARTIAL)
             );
-            // STATS_FILE_COUNT is FFW-only today; the reconciliation path does not enrich it.
-            if (strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                assertEquals(
-                    "[FFW] enrichWithFileCount must populate STATS_FILE_COUNT",
-                    3L,
-                    meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT)
-                );
-            } else {
-                assertNull(
-                    "[" + strategy + "] reconciliation path does not currently set STATS_FILE_COUNT",
-                    meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT)
-                );
-            }
+            assertEquals(
+                "[" + strategy + "] enrichWithFileCount must populate STATS_FILE_COUNT",
+                3L,
+                meta.get(SourceStatisticsSerializer.STATS_FILE_COUNT)
+            );
         }
     }
 
@@ -566,17 +596,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
         assertEquals("single-file schemaMap must have exactly one entry", 1, schemaMap.size());
         SchemaReconciliation.FileSchemaInfo info = schemaMap.values().iterator().next();
-        assertEquals("fileSchema must equal metadata schema verbatim", schema, info.fileSchema());
-        SchemaReconciliation.ColumnMapping mapping = info.mapping();
+        assertEquals("fileSchema must equal metadata schema verbatim", schema, info.fileSchema().attributes());
+        ColumnMapping mapping = info.mapping();
         assertNotNull("single-file entry carries an identity ColumnMapping", mapping);
-        assertEquals("identity mapping length matches schema width", schema.size(), mapping.columnCount());
-        for (int i = 0; i < mapping.columnCount(); i++) {
-            assertEquals("identity mapping localIndex(" + i + ") = " + i, i, mapping.localIndex(i));
-            assertNull("identity mapping has no casts at position " + i, mapping.cast(i));
-        }
+        assertTrue("single-file mapping is identity", mapping.isIdentity());
+        assertEquals("identity mapping matches schema width", new ColumnMapping(identityIndex(schema.size()), null), mapping);
     }
 
-    // ===== Schema type preservation =====
+    // ===== ExternalSchema type preservation =====
 
     public void testSchemaTypesPreserved() throws Exception {
         List<Attribute> schema = List.of(
@@ -804,8 +831,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // Partition columns are ReferenceAttributes, not FieldAttributes
         assertThat(schema.get(2), instanceOf(ReferenceAttribute.class));
         assertThat(schema.get(3), instanceOf(ReferenceAttribute.class));
-        assertTrue(schema.get(2).synthetic());
-        assertTrue(schema.get(3).synthetic());
+        // Partition columns are user-addressable, so they must NOT be synthetic; otherwise
+        // AnalyzerRules.maybeResolveAgainstList skips them during name resolution.
+        assertFalse(schema.get(2).synthetic());
+        assertFalse(schema.get(3).synthetic());
     }
 
     public void testSchemaWithFieldAttributeFailsValidation() throws Exception {
@@ -882,8 +911,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
-        // The listing/schema cache is only exercised on the FIRST_FILE_WINS fast path; multi-file
-        // reconciliation strategies read every file's metadata directly and bypass the cache.
+        // FFW-specific assertions of listing-cache + anchor-schema-cache reuse.
+        // The cross-mode cache invariant (every SchemaResolution strategy hits the cache on
+        // warm resolves) is covered separately by testMultiFileCacheReducesSchemaLoaderCallsPerStrategy.
         Map<String, Map<String, Object>> pathConfigs = Map.of(
             "s3://bucket/data/*.parquet",
             new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
@@ -918,6 +948,260 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 countingProvider.schemaCallCount.get()
             );
         }
+    }
+
+    /**
+     * Invariant: every schema-resolution mode must consult the schema cache on the per-file
+     * resolve. A second resolve of the same glob across the same paths must add zero schema-loader
+     * calls. Parameterized over {@link #MULTI_FILE_STRATEGIES} so any new mode inherits the
+     * invariant by construction; the bug fixed by this PR (UNION_BY_NAME default flip in
+     * elastic/elasticsearch#149176) was that the reconciliation path bypassed the schema cache,
+     * so every warm multi-file query re-read N footers from storage.
+     */
+    public void testMultiFileCacheReducesSchemaLoaderCallsPerStrategy() throws Exception {
+        Settings cacheSettings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+            List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+            Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+            schemasByPath.put("s3://bucket/data/a.parquet", schema);
+            schemasByPath.put("s3://bucket/data/b.parquet", schema);
+            schemasByPath.put("s3://bucket/data/c.parquet", schema);
+
+            List<StorageEntry> listing = List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            );
+
+            CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+
+            Map<String, Map<String, Object>> pathConfigs = Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(strategy)));
+
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+                ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+                PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
+                ExternalSourceResolution res1 = f1.actionGet();
+                assertNotNull("[" + strategy + "] first resolve must produce a source", res1.resolvedSource("s3://bucket/data/*.parquet"));
+                int schemaCallsAfterFirst = countingProvider.schemaCallCount.get();
+                assertTrue("[" + strategy + "] schema loader must be invoked on first resolve", schemaCallsAfterFirst > 0);
+
+                PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
+                ExternalSourceResolution res2 = f2.actionGet();
+                assertNotNull("[" + strategy + "] second resolve must produce a source", res2.resolvedSource("s3://bucket/data/*.parquet"));
+
+                assertEquals(
+                    "[" + strategy + "] schema loader must not be called again on second resolve (cache hit invariant)",
+                    schemaCallsAfterFirst,
+                    countingProvider.schemaCallCount.get()
+                );
+            }
+        }
+    }
+
+    public void testAggregateFileStatisticsAcceptsCachedAndUncachedShapes() {
+        long uncachedRowCount = 42L;
+        long cachedRowCount = 58L;
+
+        SourceMetadata uncached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/uncached.parquet";
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.of(statsOf(uncachedRowCount));
+            }
+        };
+
+        Map<String, Object> cachedFlatStats = SourceStatisticsSerializer.embedStatistics(Map.of(), statsOf(cachedRowCount));
+        SourceMetadata cached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/cached.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return cachedFlatStats;
+            }
+        };
+
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        assertNotNull(merged);
+        assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+
+        SourceMetadata missing = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/missing.parquet";
+            }
+        };
+        assertNull(ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached, missing)));
+    }
+
+    private static SourceStatistics statsOf(long rowCount) {
+        return new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(rowCount);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.empty();
+            }
+        };
+    }
+
+    public void testAggregateFileStatisticsMergesColumnStatsAcrossShapes() {
+        String col = "eventDate";
+        long uncachedRowCount = 100L;
+        long cachedRowCount = 200L;
+        long uncachedNullCount = 5L;
+        long cachedNullCount = 3L;
+        long uncachedMin = 10L;
+        long uncachedMax = 100L;
+        long cachedMin = 50L;
+        long cachedMax = 200L;
+
+        SourceStatistics uncachedStats = statsWithColumn(uncachedRowCount, col, uncachedNullCount, uncachedMin, uncachedMax);
+        SourceMetadata uncached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/uncached.parquet";
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.of(uncachedStats);
+            }
+        };
+
+        Map<String, Object> cachedFlatStats = SourceStatisticsSerializer.embedStatistics(
+            Map.of(),
+            statsWithColumn(cachedRowCount, col, cachedNullCount, cachedMin, cachedMax)
+        );
+        SourceMetadata cached = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return List.of();
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/cached.parquet";
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return cachedFlatStats;
+            }
+        };
+
+        Map<String, Object> merged = ExternalSourceResolver.aggregateFileStatistics(List.of(uncached, cached));
+        assertNotNull(merged);
+        assertEquals(uncachedRowCount + cachedRowCount, ((Number) merged.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals(
+            uncachedNullCount + cachedNullCount,
+            ((Number) merged.get(SourceStatisticsSerializer.columnNullCountKey(col))).longValue()
+        );
+        assertEquals(uncachedMin, ((Number) merged.get(SourceStatisticsSerializer.columnMinKey(col))).longValue());
+        assertEquals(cachedMax, ((Number) merged.get(SourceStatisticsSerializer.columnMaxKey(col))).longValue());
+    }
+
+    private static SourceStatistics statsWithColumn(long rowCount, String columnName, long nullCount, long min, long max) {
+        SourceStatistics.ColumnStatistics colStats = new SourceStatistics.ColumnStatistics() {
+            @Override
+            public OptionalLong nullCount() {
+                return OptionalLong.of(nullCount);
+            }
+
+            @Override
+            public OptionalLong distinctCount() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public Optional<Object> minValue() {
+                return Optional.of(min);
+            }
+
+            @Override
+            public Optional<Object> maxValue() {
+                return Optional.of(max);
+            }
+        };
+        return new SourceStatistics() {
+            @Override
+            public OptionalLong rowCount() {
+                return OptionalLong.of(rowCount);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public Optional<Map<String, ColumnStatistics>> columnStatistics() {
+                return Optional.of(Map.of(columnName, colStats));
+            }
+        };
     }
 
     public void testSingleFileSchemaCacheHitAfterMiss() throws Exception {
@@ -1068,6 +1352,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private static int[] identityIndex(int size) {
+        int[] idx = new int[size];
+        for (int i = 0; i < size; i++) {
+            idx[i] = i;
+        }
+        return idx;
     }
 
     private static StorageEntry entry(String path, long length) {

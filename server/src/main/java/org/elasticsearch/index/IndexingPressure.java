@@ -141,6 +141,13 @@ public class IndexingPressure implements IndexingPressureMonitor {
         this.primaryLimit = limits.primaryLimitBytes();
         this.replicaLimit = limits.replicaLimitBytes();
         this.operationLimit = limits.operationLimitBytes();
+        logger.debug(
+            "Indexing pressure limits: coordinating={}, primary={}, replica={}, operation={}",
+            ByteSizeValue.ofBytes(coordinatingLimit),
+            ByteSizeValue.ofBytes(primaryLimit),
+            ByteSizeValue.ofBytes(replicaLimit),
+            ByteSizeValue.ofBytes(operationLimit)
+        );
     }
 
     public IndexingPressure(Settings settings) {

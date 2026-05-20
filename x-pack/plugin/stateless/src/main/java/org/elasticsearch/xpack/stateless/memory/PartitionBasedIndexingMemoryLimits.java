@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.memory;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndexingMemoryLimits;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -26,8 +23,6 @@ import org.elasticsearch.xpack.stateless.memory.partition.IndexingPressurePartit
  * settings-based value, as it is also used as the autoscaling signal denominator.
  */
 public class PartitionBasedIndexingMemoryLimits implements IndexingMemoryLimits {
-
-    private static final Logger logger = LogManager.getLogger(PartitionBasedIndexingMemoryLimits.class);
 
     private final long coordinatingLimitBytes;
     private final long primaryLimitBytes;
@@ -54,14 +49,6 @@ public class PartitionBasedIndexingMemoryLimits implements IndexingMemoryLimits 
             org/elasticsearch/indices/IndexingMemoryController.java:402)
          */
         this.indexBufferBytes = (long) (heapMaxBytes * indexBuffersFraction) * 2 / 3;
-        logger.info(
-            "Indexing limits: coordinating={}, primary={}, replica={}, operation={}, buffers={}",
-            ByteSizeValue.ofBytes(coordinatingLimitBytes),
-            ByteSizeValue.ofBytes(primaryLimitBytes),
-            ByteSizeValue.ofBytes(replicaLimitBytes),
-            ByteSizeValue.ofBytes(operationLimitBytes),
-            ByteSizeValue.ofBytes(indexBufferBytes)
-        );
     }
 
     @Override

@@ -212,7 +212,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, testTaskType));
                 assertThat(
                     e.getMessage(),
-                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
+                    containsString("The [service_settings.model_id] field is required for the Cohere V2 API.")
                 );
             }
 
@@ -313,7 +313,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, testTaskType));
                 assertThat(
                     e.getMessage(),
-                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
+                    containsString("The [service_settings.model_id] field is required for the Cohere V2 API.")
                 );
             }
 
@@ -397,7 +397,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 var e = expectThrows(ResponseException.class, () -> put(upgradedClusterNoModel, jsonBody, TaskType.COMPLETION));
                 assertThat(
                     e.getMessage(),
-                    containsString("Validation Failed: 1: The [service_settings.model_id] field is required for the Cohere V2 API.")
+                    containsString("The [service_settings.model_id] field is required for the Cohere V2 API.")
                 );
             }
 

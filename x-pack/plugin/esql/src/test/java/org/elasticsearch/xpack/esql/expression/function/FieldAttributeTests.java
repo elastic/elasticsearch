@@ -22,7 +22,9 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
         String parentName = maxDepth == 0 || randomBoolean() ? null : randomAlphaOfLength(3);
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
-        EsField field = onlyRepresentable ? randomRepresentableEsField(maxDepth) : AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
+        EsField field = onlyRepresentable
+            ? randomRepresentableEsField(maxDepth)
+            : AbstractEsFieldTypeTests.randomSerializableEsField(maxDepth);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, new NameId(), synthetic);
@@ -31,7 +33,7 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
     private static EsField randomRepresentableEsField(int maxDepth) {
         return randomValueOtherThanMany(
             f -> false == DataType.isRepresentable(f.getDataType()),
-            () -> AbstractEsFieldTypeTests.randomAnyEsField(maxDepth)
+            () -> AbstractEsFieldTypeTests.randomSerializableEsField(maxDepth)
         );
     }
 
@@ -54,7 +56,7 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
             case 0 -> parentName = randomValueOtherThan(parentName, () -> randomBoolean() ? null : randomAlphaOfLength(2));
             case 1 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 2 -> name = randomAlphaOfLength(name.length() + 1);
-            case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));
+            case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomSerializableEsField(3));
             case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 5 -> id = new NameId();
             case 6 -> synthetic = false == synthetic;

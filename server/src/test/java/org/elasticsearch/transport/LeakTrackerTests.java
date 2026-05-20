@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
@@ -57,15 +58,11 @@ public class LeakTrackerTests extends ESTestCase {
     }
 
     @SuppressWarnings("resource")
-    public void testWillLogErrorWhenTrackedObjectIsNotClosed() throws Exception {
-        // Let it go out of scope without closing
+    public void testWillDetectLeakWithAssertNoLeaks() {
+        var window = LeakTracker.newWindow();
         trackedObjectLifecycle.createAndTrack(reachabilityChecker);
-        reachabilityChecker.ensureUnreachable();
-        assertBusy(ESTestCase::assertLeakDetected);
-        // The GC-based mechanism fired above. The intentional leak is still in the synchronous
-        // collector — drain it so @After's verifyNoOutstandingLeakTrackerLeaks doesn't double-report.
-        LeakTracker.clearTestLeakCollector();
-        LeakTracker.installTestLeakCollector();
+        expectThrows(AssertionError.class, window::assertNoLeaks);
+        // window.assertNoLeaks() drained the leaked resource, so @After will not double-report.
     }
 
     public void testWillNotLogErrorWhenTrackedObjectIsClosed() throws IOException {
@@ -94,7 +91,7 @@ public class LeakTrackerTests extends ESTestCase {
         @Override
         public Closeable createAndTrack(ReachabilityChecker reachabilityChecker) {
             final Object object = reachabilityChecker.register(new Object());
-            final LeakTracker.Leak leak = LeakTracker.INSTANCE.track(object);
+            final Releasable leak = LeakTracker.track(object);
             return () -> {
                 logger.info("This log line retains a reference to {}", object);
                 leak.close();
@@ -103,7 +100,7 @@ public class LeakTrackerTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return "LeakTracker.INSTANCE.track(Object)";
+            return "LeakTracker.track(Object)";
         }
     }
 

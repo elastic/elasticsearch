@@ -44,15 +44,12 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
     }
 
     public void testFreshCollectorAfterClearIsEmpty() {
-        LeakTracker.clearTestLeakCollector();
-        LeakTracker.installTestLeakCollector();
-        try {
-            SearchHit hit = new SearchHit(0);
-            assertTrue(hit.decRef());
-            LeakTracker.verifyNoLeaksAndClear();
-        } finally {
-            LeakTracker.clearTestLeakCollector();
-        }
+        var rc = LeakTracker.wrap(new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {}
+        });
+        assertTrue(rc.decRef());
+        // After decRef(), the TrackedResource is removed from activeTrackers; @After verifies no leaks.
     }
 
     private static final class UnclosedWrapFixture extends ESTestCase {
@@ -64,10 +61,9 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
             });
             try {
                 after();
-                expectThrows(AssertionError.class, LeakTracker::verifyNoLeaksAndClear);
+                expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
             } finally {
                 rc.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC
-                LeakTracker.clearTestLeakCollector();
             }
         }
 
@@ -79,12 +75,11 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
             });
             try {
                 after();
-                AssertionError e = expectThrows(AssertionError.class, LeakTracker::verifyNoLeaksAndClear);
+                AssertionError e = expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
                 assertThat(e.getMessage(), containsString("Leaked resources"));
                 assertThat(e.getMessage(), containsString("Created at:"));
             } finally {
                 rc.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC
-                LeakTracker.clearTestLeakCollector();
             }
         }
     }
@@ -97,11 +92,10 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
             SearchHit hit = new SearchHit(0);
             try {
                 after();
-                AssertionError e = expectThrows(AssertionError.class, LeakTracker::verifyNoLeaksAndClear);
+                AssertionError e = expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
                 assertThat(e.getMessage(), containsString("Leaked resources"));
             } finally {
                 hit.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC
-                LeakTracker.clearTestLeakCollector();
             }
         }
     }

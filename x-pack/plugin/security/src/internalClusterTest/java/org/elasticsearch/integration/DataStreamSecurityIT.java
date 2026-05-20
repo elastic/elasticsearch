@@ -371,6 +371,84 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
     }
 
     /**
+     * Verifies that a user with only data stream privileges (no direct backing index privileges)
+     * can still remove a backing index from the data stream.
+     */
+    public void testRemoveBackingIndexSucceedsWithDataStreamPrivilegeOnly() throws Exception {
+        final var adminClient = client().filterWithHeader(
+            Map.of(
+                BASIC_AUTH_HEADER,
+                basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+            )
+        );
+        final var dsOnlyClient = client().filterWithHeader(
+            Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue(DS_ONLY_USER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING))
+        );
+
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("ds-one-remove-template");
+        putTemplateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("ds-one"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(Template.builder().mappings(new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}")))
+                .build()
+        );
+        assertAcked(adminClient.execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
+        assertAcked(
+            adminClient.execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "ds-one")
+            ).actionGet()
+        );
+        assertAcked(adminClient.admin().indices().rolloverIndex(new RolloverRequest("ds-one", null)).actionGet());
+
+        ClusterState stateBefore = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        List<Index> indicesBefore = stateBefore.getMetadata().getProject().dataStreams().get("ds-one").getIndices();
+        assertThat(indicesBefore, hasSize(2));
+        Index indexToRemove = indicesBefore.get(0);
+        Index indexToRetain = indicesBefore.get(1);
+
+        // ds_only_user has manage privilege on ds-one but not on its backing indices (.ds-ds-one-*);
+        // removing a backing index should succeed because it only requires data stream privilege
+        assertAcked(
+            dsOnlyClient.execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    List.of(DataStreamAction.removeBackingIndex("ds-one", indexToRemove.getName()))
+                )
+            ).actionGet()
+        );
+
+        ClusterState stateAfter = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        List<Index> indicesAfter = stateAfter.getMetadata().getProject().dataStreams().get("ds-one").getIndices();
+        assertThat(indicesAfter, hasSize(1));
+        assertThat(indicesAfter.get(0).getName(), equalTo(indexToRetain.getName()));
+        assertThat(indicesAfter.get(0).getUUID(), equalTo(indexToRetain.getUUID()));
+
+        // adding the removed index back requires direct index privilege on the backing index (.ds-ds-one-*),
+        // which ds_only_user lacks — so this must be rejected
+        ElasticsearchSecurityException addBackException = expectThrows(ElasticsearchSecurityException.class, () -> {
+            dsOnlyClient.execute(
+                ModifyDataStreamsAction.INSTANCE,
+                new ModifyDataStreamsAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    List.of(DataStreamAction.addBackingIndex("ds-one", indexToRemove.getName()))
+                )
+            ).actionGet();
+        });
+        assertThat(
+            addBackException.getMessage(),
+            containsString(
+                "action [indices:admin/data_stream/modify] is unauthorized for user [ds_only_user] with effective roles "
+                    + "[ds_only_role] on indices [" + indexToRemove.getName() + "]"
+            )
+        );
+    }
+
+    /**
      * Verifies that modifying a data stream also requires privileges on the index being added.
      * A user with privileges only on a data stream cannot add an arbitrary index they lack access to.
      */

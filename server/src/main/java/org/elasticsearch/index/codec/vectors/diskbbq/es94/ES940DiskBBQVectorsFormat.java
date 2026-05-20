@@ -110,17 +110,6 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
                 ESVectorUtil.transposeHalfByte(quantized, destination);
             }
         },
-        ONE_BIT_1BIT_QUERY(5, (byte) 1, (byte) 1) {
-            @Override
-            public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packAsBinary(quantized, destination);
-            }
-
-            @Override
-            public void packQuery(int[] quantized, byte[] destination) {
-                ESVectorUtil.packAsBinary(quantized, destination);
-            }
-        },
         TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
@@ -329,9 +318,6 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         public static QuantEncoding fromDocAndQueryBits(byte docBits, byte queryBits) {
             return switch (docBits) {
                 case 1 -> {
-                    if (queryBits == 1) {
-                        yield ONE_BIT_1BIT_QUERY;
-                    }
                     if (queryBits == 4) {
                         yield ONE_BIT_4BIT_QUERY;
                     }

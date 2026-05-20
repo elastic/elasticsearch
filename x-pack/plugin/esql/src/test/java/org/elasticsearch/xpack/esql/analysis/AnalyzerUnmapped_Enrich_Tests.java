@@ -31,9 +31,7 @@ public class AnalyzerUnmapped_Enrich_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_mappedKey_unmappedFieldAfter_loadedAsKeyword() {
-        // The ENRICH match key is mapped (via EVAL). A field referenced downstream of the ENRICH
-        // that is absent from all mappings is loaded from primary _source as KEYWORD.
-        // load() is orthogonal to ENRICH — this mirrors the equivalent LOOKUP JOIN case.
+        // load() is orthogonal to ENRICH — downstream unmapped fields still get PUK treatment.
         var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .statement(
                 setUnmappedLoad("FROM test | EVAL language_code = languages | ENRICH languages ON language_code | EVAL x = does_not_exist")
@@ -43,8 +41,7 @@ public class AnalyzerUnmapped_Enrich_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_unmappedKey_loadedAsKeyword_succeeds() {
-        // language_code is absent from the primary employees mapping.
-        // load() promotes it to KEYWORD from _source; MATCH-type enrich policy accepts keyword match fields.
+        // load() promotes absent key to KEYWORD; MATCH-type enrich policy accepts keyword fields.
         var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .statement(setUnmappedLoad("FROM test | ENRICH languages ON language_code | KEEP emp_no, language_name"));
         var languageName = plan.output().stream().filter(a -> "language_name".equals(a.name())).findFirst().orElseThrow();
@@ -62,13 +59,8 @@ public class AnalyzerUnmapped_Enrich_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testNullify_unmappedKey_nullifiedMatchField_analysisSucceeds() {
-        // language_code is absent from the primary mapping.
-        // nullify() adds it to the EsRelation with NULL type; resolveEnrich() finds the NULL-typed
-        // attribute and skips the type-validation branch (gated on dataType != NULL), so analysis
-        // succeeds. At runtime the match key is always null → ENRICH produces no matches.
-        //
-        // Contrast: testLoad_unmappedKey_loadedAsKeyword_succeeds — same mapping, load promotes
-        // language_code to KEYWORD from _source, MATCH policy accepts it, and the join produces data.
+        // nullify() sets key type to NULL; resolveEnrich() skips type-validation for NULL-typed keys.
+        // Analysis succeeds, but the key is always null at runtime → ENRICH produces no matches.
         var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .statement(setUnmappedNullify("FROM test | ENRICH languages ON language_code | KEEP emp_no, language_name"));
         var languageName = plan.output().stream().filter(a -> "language_name".equals(a.name())).findFirst().orElseThrow();

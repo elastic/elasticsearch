@@ -32,7 +32,6 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     // -------------------------------------------------------------------------
 
     public void testLoad_mapped_mapped_succeeds() {
-        // EVAL creates language_code in the primary output; KEEP + join proceed normally.
         test().addLanguagesLookup()
             .statement(
                 setUnmappedLoad(
@@ -42,7 +41,6 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_mapped_unmapped_rightSideError() {
-        // emp_no is mapped in primary; languages_lookup has no emp_no — KEEP does not help the right side.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedLoad("FROM test | KEEP emp_no | LOOKUP JOIN languages_lookup ON emp_no"),
@@ -51,10 +49,7 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_unmapped_mapped_pukFires_succeeds() {
-        // message is absent from the primary but present in message_lookup.
-        // KEEP places message at the Project node before the join resolves the lookup output.
-        // load() fires at that Project, adds message as PUK from primary _source.
-        // The join then proceeds and the key type in the output is KEYWORD.
+        // KEEP forces load() to fire at the Project node before the join — message becomes PUK (KEYWORD).
         assumeTrue(
             "requires optional_fields_load_with_lookup_join",
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.isEnabled()
@@ -66,8 +61,7 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_unmapped_unmapped_rightSideError() {
-        // load() fires at KEEP and adds does_not_exist as PUK on the primary side.
-        // The lookup has no does_not_exist field and load() skips LOOKUP EsRelations → right side error.
+        // load() rescues left at KEEP; right side has no such field → error.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedLoad("FROM test | KEEP does_not_exist | LOOKUP JOIN languages_lookup ON does_not_exist"),
@@ -80,7 +74,6 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     // -------------------------------------------------------------------------
 
     public void testNullify_mapped_mapped_succeeds() {
-        // Same outcome as the load counterpart — key is mapped, KEEP + join work regardless of mode.
         test().addLanguagesLookup()
             .statement(
                 setUnmappedNullify(
@@ -90,7 +83,6 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testNullify_mapped_unmapped_rightSideError() {
-        // Same outcome as load counterpart — right side missing regardless of mode.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedNullify("FROM test | KEEP emp_no | LOOKUP JOIN languages_lookup ON emp_no"),
@@ -99,21 +91,14 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testNullify_unmapped_mapped_nullifiedKey_succeeds() {
-        // language_code is absent from primary. The KEEP places it in the Project node *before* the
-        // join; the nullify pass inserts Eval(language_code = NULL) at that point, making the field
-        // available. Analysis succeeds, but the join key is null so no rows match at runtime.
-        //
-        // Contrast 1: WITHOUT KEEP (Cat 1 test), the same combo errors with "Unknown column in left
-        // side of join" — the nullify pass doesn't fire because there's no Project above the join.
-        // Contrast 2: testLoad_unmapped_mapped_pukFires_succeeds — same mapping, load fires PUK so
-        // the key is KEYWORD and the join actually produces data.
+        // KEEP places the key at a Project before the join; nullify fires there → key = NULL.
+        // Analysis succeeds but no rows match at runtime (contrast with load which uses PUK).
         test().addLanguagesLookup()
             .statement(setUnmappedNullify("FROM test | KEEP language_code | LOOKUP JOIN languages_lookup ON language_code"));
     }
 
     public void testNullify_unmapped_unmapped_error() {
-        // nullify fires at KEEP and inserts Eval(does_not_exist = NULL), resolving the left side.
-        // The lookup has no does_not_exist field — right side errors.
+        // nullify resolves left at KEEP; right side has no such field → error.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedNullify("FROM test | KEEP does_not_exist | LOOKUP JOIN languages_lookup ON does_not_exist"),

@@ -33,7 +33,6 @@ public class AnalyzerUnmapped_JoinKey_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testNullify_mapped_unmapped_rightSideError() {
-        // emp_no is in the primary employees mapping; languages_lookup has no emp_no field.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON emp_no"),
@@ -42,14 +41,12 @@ public class AnalyzerUnmapped_JoinKey_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testNullify_unmapped_mapped_succeeds() {
-        // language_code is NOT in the primary employees mapping; it IS in languages_lookup.
-        // nullify mode nullifies the left key → NULL join key → no matches from lookup, but query succeeds.
+        // nullify inserts NULL for the left key → join succeeds but produces no matches at runtime.
         test().addLanguagesLookup().statement(setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"));
     }
 
     public void testNullify_unmapped_unmapped_rightSideError() {
-        // does_not_exist is absent from both the primary and the lookup.
-        // The right side is checked first and produces the error.
+        // right side is checked first → errors even though left is also unmapped.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON does_not_exist"),
@@ -67,7 +64,7 @@ public class AnalyzerUnmapped_JoinKey_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_mapped_unmapped_rightSideError() {
-        // emp_no is in primary; load() skips LOOKUP EsRelations so the right side is never rescued.
+        // load() skips LOOKUP EsRelations — right side is never rescued.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedLoad("FROM test | LOOKUP JOIN languages_lookup ON emp_no"),
@@ -76,9 +73,7 @@ public class AnalyzerUnmapped_JoinKey_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_unmapped_mapped_typeMismatch_error() {
-        // language_code is absent from the primary mapping but present in languages_lookup as INTEGER.
-        // load() adds it to the primary as PotentiallyUnmappedKeywordEsField (always keyword),
-        // producing a type mismatch with the INTEGER field in the lookup index.
+        // load() always promotes unmapped keys to KEYWORD; lookup key is INTEGER → type mismatch.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedLoad("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
@@ -89,14 +84,13 @@ public class AnalyzerUnmapped_JoinKey_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_unmapped_mapped_keywordMatch_succeeds() {
-        // language_code is absent from the primary mapping but present in keyword_languages_lookup as KEYWORD.
-        // load() adds it to the primary as PotentiallyUnmappedKeywordEsField (keyword) — types match, join succeeds.
+        // load() promotes unmapped key to KEYWORD; lookup key is also KEYWORD → types match.
         test().addLookupIndex("keyword_languages_lookup", keywordLanguagesLookup())
             .statement(setUnmappedLoad("FROM test | LOOKUP JOIN keyword_languages_lookup ON language_code"));
     }
 
     public void testLoad_unmapped_unmapped_rightSideError() {
-        // load() adds does_not_exist to the primary (PUK), but skips the LOOKUP EsRelation.
+        // load() rescues left but skips LOOKUP EsRelations → right still errors.
         test().addLanguagesLookup()
             .statementError(
                 setUnmappedLoad("FROM test | LOOKUP JOIN languages_lookup ON does_not_exist"),

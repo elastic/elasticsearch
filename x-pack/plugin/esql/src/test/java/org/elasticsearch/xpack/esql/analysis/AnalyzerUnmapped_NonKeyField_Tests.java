@@ -59,15 +59,13 @@ public class AnalyzerUnmapped_NonKeyField_Tests extends AnalyzerUnmappedTestBase
     }
 
     public void testNullify_inNeither_absentFromOutput() {
-        // totally_absent: not in primary, not in lookup — must not appear in the join output.
-        // No KEEP: KEEP totally_absent would error because nullify() can't inject NULL above the join boundary.
+        // No KEEP: nullify() can't inject NULL above the join boundary — KEEP would error.
         var plan = test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields()).statement(BASE_QUERY);
         assertFalse(plan.output().stream().anyMatch(a -> "totally_absent".equals(a.name())));
     }
 
     public void testNullify_inNeither_keepErrors() {
-        // KEEP totally_absent errors — nullify() resolves fields inside the primary EsRelation scope,
-        // but can't inject NULL for a field referenced above the join boundary.
+        // nullify() can't inject NULL above the join boundary.
         test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
             .statementError(BASE_QUERY + " | KEEP totally_absent", containsString("Unknown column [totally_absent]"));
     }
@@ -101,8 +99,7 @@ public class AnalyzerUnmapped_NonKeyField_Tests extends AnalyzerUnmappedTestBase
     }
 
     public void testLoad_inNeither_loadedAsKeyword() {
-        // does_not_exist: absent from primary and lookup. load() adds it to the primary EsRelation
-        // as a PotentiallyUnmappedKeywordEsField; it flows through the join and resolves as KEYWORD.
+        // absent from all indexes — load() injects PUK into primary; flows through join as KEYWORD.
         var plan = test().addLanguagesLookup()
             .statement(
                 setUnmappedLoad(

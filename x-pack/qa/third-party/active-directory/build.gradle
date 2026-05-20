@@ -28,4 +28,5 @@ tasks.named("forbiddenPatterns").configure {
 tasks.named("test").configure {
   include '**/*IT.class'
   include '**/*Tests.class'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }

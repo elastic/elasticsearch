@@ -23,6 +23,11 @@ import java.util.Optional;
 
 public interface VectorScorerFactory {
 
+    /**
+     * {@code true} if this factory uses native code anywhere.
+     */
+    boolean usesNative();
+
     /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
     ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 

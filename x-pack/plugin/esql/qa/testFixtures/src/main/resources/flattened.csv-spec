@@ -226,18 +226,273 @@ c:long
 11
 ;
 
-values dupe
+mvAppend
 required_capability: flattened_datatype
-required_capability: flattened_datatype_sorted_keys
-required_capability: fn_values_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
 
 FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:02:48.461Z" OR @timestamp == "2020-01-01T11:38:54.751Z"
-| STATS v = VALUES(resource.attributes)
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL appended = MV_APPEND(attributes, resource.attributes)
+| KEEP @timestamp, appended
 ;
 
-v:flattened
-"{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+@timestamp:date          | appended:flattened
+2020-01-01T00:00:00.000Z | "[{""host.name"":""equal-host""}, {""host.name"":""equal-host""}]"
+;
+
+mvAppendNull
+required_capability: flattened_datatype
+required_capability: fn_mv_append_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL appended = MV_APPEND(attributes, resource.attributes)
+| KEEP @timestamp, appended
+;
+
+@timestamp:date          | appended:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvCount
+required_capability: flattened_datatype
+required_capability: fn_mv_count_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL c = MV_COUNT(attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:integer
+2020-01-01T00:00:00.000Z | 1
+;
+
+mvCountMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_count_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL c = MV_COUNT(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:integer
+2020-01-01T00:00:00.000Z | 2
+;
+
+mvCountNull
+required_capability: flattened_datatype
+required_capability: fn_mv_count_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL c = MV_COUNT(resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:integer
+2020-01-01T00:04:00.000Z | null
+;
+
+mvDedupe
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL d = MV_DEDUPE(attributes)
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvDedupeMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL d = MV_DEDUPE(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+// When the two values are distinct, MV_DEDUPE keeps both.
+// We check the count rather than the values themselves to avoid
+// depending on multi-value order in the result.
+mvDedupeMvAppendDistinct
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+required_capability: fn_mv_append_flattened
+required_capability: fn_mv_count_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL d = MV_COUNT(MV_DEDUPE(MV_APPEND(attributes, resource.attributes)))
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:integer
+2020-01-01T00:02:48.461Z | 2
+;
+
+mvDedupeNull
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL d = MV_DEDUPE(resource.attributes)
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvFirst
+required_capability: flattened_datatype
+required_capability: fn_mv_first_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_FIRST(attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvFirstMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_first_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_FIRST(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvFirstNull
+required_capability: flattened_datatype
+required_capability: fn_mv_first_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL f = MV_FIRST(resource.attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvLast
+required_capability: flattened_datatype
+required_capability: fn_mv_last_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_LAST(attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvLastMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_last_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_LAST(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvLastNull
+required_capability: flattened_datatype
+required_capability: fn_mv_last_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL f = MV_LAST(resource.attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvSlice
+required_capability: flattened_datatype
+required_capability: fn_mv_slice_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL s = MV_SLICE(attributes, 0)
+| KEEP @timestamp, s
+;
+
+@timestamp:date          | s:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvSliceMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_slice_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL s = MV_SLICE(MV_APPEND(attributes, resource.attributes), 1, 1)
+| KEEP @timestamp, s
+;
+
+@timestamp:date          | s:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvSliceNull
+required_capability: flattened_datatype
+required_capability: fn_mv_slice_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL s = MV_SLICE(resource.attributes, 0)
+| KEEP @timestamp, s
+;
+
+@timestamp:date          | s:flattened
+2020-01-01T00:04:00.000Z | null
 ;
 
 values
@@ -252,4 +507,18 @@ FROM flattened_otel_logs
 
 v:flattened
 "[{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37""\,""agent.type"":""filebeat""\,""host.name"":""infra-filebeat-cpcmv""},{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25""\,""agent.type"":""filebeat""\,""host.name"":""infra-filebeat-6vjxr""}]"
+;
+
+values dupe
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_values_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z" OR @timestamp == "2020-01-01T11:38:54.751Z"
+| STATS v = VALUES(resource.attributes)
+;
+
+v:flattened
+"{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;

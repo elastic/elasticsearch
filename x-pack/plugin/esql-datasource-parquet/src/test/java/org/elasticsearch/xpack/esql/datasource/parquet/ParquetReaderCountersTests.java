@@ -26,6 +26,8 @@ public class ParquetReaderCountersTests extends ESTestCase {
         // Footer
         assertEquals(0L, snap.get("footer_read_nanos"));
         assertEquals(0L, snap.get("footer_size_bytes"));
+        assertEquals(0L, snap.get("footer_cache_hits"));
+        assertEquals(0L, snap.get("footer_cache_misses"));
         assertEquals(0L, snap.get("row_groups_in_file"));
         // Row-group filter
         assertEquals(0L, snap.get("row_groups_total"));
@@ -56,6 +58,18 @@ public class ParquetReaderCountersTests extends ESTestCase {
         assertEquals(1290L, snap.get("footer_read_nanos"));
         assertEquals(65536L, snap.get("footer_size_bytes"));
         assertEquals(4L, snap.get("row_groups_in_file"));
+    }
+
+    public void testFooterCacheHitMissCounters() {
+        ParquetReaderCounters c = new ParquetReaderCounters();
+        c.recordFooterCacheMiss();
+        c.recordFooterCacheHit();
+        c.recordFooterCacheHit();
+        c.recordFooterCacheHit();
+
+        Map<String, Object> snap = c.snapshot();
+        assertEquals(3L, snap.get("footer_cache_hits"));
+        assertEquals(1L, snap.get("footer_cache_misses"));
     }
 
     public void testRowGroupFilterCounters() {

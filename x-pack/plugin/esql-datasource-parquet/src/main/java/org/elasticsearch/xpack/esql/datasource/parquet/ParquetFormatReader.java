@@ -391,8 +391,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * builder.
      */
     private ParquetMetadata loadFooter(StorageObject object, ParquetStorageObjectAdapter adapter) throws IOException {
+        // Single-array flag is cheap and avoids allocating an AtomicBoolean per call. The lambda
+        // only runs on cache miss, so observing missed[0] == true after the cache returns means
+        // this caller paid the parse cost; missed[0] == false means another producer (or an earlier
+        // call from this one) already populated the entry within the access TTL.
+        boolean[] missed = { false };
         try {
-            return PARSED_FOOTERS.getOrLoad(adapter.cacheKey(), key -> {
+            ParquetMetadata footer = PARSED_FOOTERS.getOrLoad(adapter.cacheKey(), key -> {
+                missed[0] = true;
                 // Always parse the full footer (no range filter) so the cached entry is reusable
                 // by any split. ParquetFileReader.open with a range only retains blocks whose
                 // midpoint falls in the range, which would make getFooter() unusable for other
@@ -404,6 +410,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
                 }
             });
+            if (missed[0]) {
+                counters.recordFooterCacheMiss();
+            } else {
+                counters.recordFooterCacheHit();
+            }
+            return footer;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
             // ElasticsearchException; any other cause (typically a plain RuntimeException from

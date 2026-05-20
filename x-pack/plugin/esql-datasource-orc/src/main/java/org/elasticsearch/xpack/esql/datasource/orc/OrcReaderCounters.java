@@ -37,6 +37,10 @@ public final class OrcReaderCounters {
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder totalReadNanos = new LongAdder();
 
+    // Footer cache (JVM-wide ParsedFooterCache)
+    private final LongAdder footerCacheHits = new LongAdder();
+    private final LongAdder footerCacheMisses = new LongAdder();
+
     public void addFooterRead(long nanos, long sizeBytes, long stripeCount) {
         if (nanos > 0) {
             footerReadNanos.add(nanos);
@@ -91,12 +95,24 @@ public final class OrcReaderCounters {
         }
     }
 
+    /** Records a footer-cache hit (parsed ORC tail reused without re-parsing). */
+    public void recordFooterCacheHit() {
+        footerCacheHits.increment();
+    }
+
+    /** Records a footer-cache miss (tail parsed and inserted into the cache). */
+    public void recordFooterCacheMiss() {
+        footerCacheMisses.increment();
+    }
+
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("format", "orc");
         snap.put("rows_emitted", rowsEmitted.sum());
         snap.put("footer_read_nanos", footerReadNanos.sum());
         snap.put("footer_size_bytes", footerSizeBytes.sum());
+        snap.put("footer_cache_hits", footerCacheHits.sum());
+        snap.put("footer_cache_misses", footerCacheMisses.sum());
         snap.put("stripes_in_file", stripesInFile.sum());
         snap.put("stripes_total", stripesTotal.sum());
         snap.put("predicate_pushdown_used", predicatePushdownUsed);

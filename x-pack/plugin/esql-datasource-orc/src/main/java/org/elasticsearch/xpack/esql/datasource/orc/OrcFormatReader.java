@@ -174,7 +174,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * {@link OrcFile.ReaderOptions#orcTail}. When ORC sees a pre-supplied tail it skips
      * {@code ReaderImpl.extractFileTail(FileSystem, Path, long)} and the associated remote read.
      */
-    private static Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
         OrcTail tail = loadTail(fs, path);
         return OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
     }
@@ -185,9 +185,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
      * reuse the cached tail.
      */
-    private static OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+        // Single-array flag is cheap and avoids allocating an AtomicBoolean per call. The lambda
+        // only runs on cache miss, so observing missed[0] == true after the cache returns means
+        // this caller paid the parse cost; missed[0] == false means another producer (or an earlier
+        // call from this one) already populated the entry within the access TTL.
+        boolean[] missed = { false };
         try {
-            return PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+            OrcTail tail = PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+                missed[0] = true;
                 // Open a reader once, extract the parsed tail, then close the reader. The
                 // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
                 // safe to share across threads (treated as immutable by all callers).
@@ -206,6 +212,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
                 }
             });
+            if (missed[0]) {
+                counters.recordFooterCacheMiss();
+            } else {
+                counters.recordFooterCacheHit();
+            }
+            return tail;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
             // ElasticsearchException; anything else (typically a plain RuntimeException from

@@ -29,6 +29,19 @@ public class OrcReaderCountersTests extends ESTestCase {
         assertEquals(0L, snap.get("columns_total"));
         assertEquals(0L, snap.get("rows_emitted"));
         assertEquals(0L, snap.get("read_nanos"));
+        assertEquals(0L, snap.get("footer_cache_hits"));
+        assertEquals(0L, snap.get("footer_cache_misses"));
+    }
+
+    public void testFooterCacheHitMissCounters() {
+        OrcReaderCounters counters = new OrcReaderCounters();
+        counters.recordFooterCacheMiss();
+        counters.recordFooterCacheHit();
+        counters.recordFooterCacheHit();
+
+        Map<String, Object> snap = counters.snapshot();
+        assertEquals(2L, snap.get("footer_cache_hits"));
+        assertEquals(1L, snap.get("footer_cache_misses"));
     }
 
     public void testSnapshotReflectsAllIncrements() {

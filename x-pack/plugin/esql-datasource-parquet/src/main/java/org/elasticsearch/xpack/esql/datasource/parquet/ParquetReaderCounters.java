@@ -68,6 +68,10 @@ public final class ParquetReaderCounters {
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder totalReadNanos = new LongAdder();
 
+    // Footer cache (JVM-wide ParsedFooterCache)
+    private final LongAdder footerCacheHits = new LongAdder();
+    private final LongAdder footerCacheMisses = new LongAdder();
+
     // Per-column. Concurrent for thread-safe lazy creation; values are mutated via PerColumnCounters
     // which itself uses LongAdder, so reads from multiple threads remain non-blocking.
     private final Map<String, PerColumnCounters> perColumn = new ConcurrentHashMap<>();
@@ -149,6 +153,16 @@ public final class ParquetReaderCounters {
         }
     }
 
+    /** Records a footer-cache hit (parsed footer reused without re-parsing). */
+    public void recordFooterCacheHit() {
+        footerCacheHits.increment();
+    }
+
+    /** Records a footer-cache miss (footer parsed and inserted into the cache). */
+    public void recordFooterCacheMiss() {
+        footerCacheMisses.increment();
+    }
+
     /** Returns the per-column counters for {@code column}, creating them on first access. */
     public PerColumnCounters perColumn(String column) {
         return perColumn.computeIfAbsent(column, k -> new PerColumnCounters());
@@ -169,6 +183,8 @@ public final class ParquetReaderCounters {
         snap.put("predicate_pushdown_used", predicatePushdownUsed);
         snap.put("footer_read_nanos", footerReadNanos.sum());
         snap.put("footer_size_bytes", footerSizeBytes.sum());
+        snap.put("footer_cache_hits", footerCacheHits.sum());
+        snap.put("footer_cache_misses", footerCacheMisses.sum());
         snap.put("row_groups_in_file", rowGroupsInFile.sum());
 
         snap.put("row_groups_total", rowGroupsTotal.sum());

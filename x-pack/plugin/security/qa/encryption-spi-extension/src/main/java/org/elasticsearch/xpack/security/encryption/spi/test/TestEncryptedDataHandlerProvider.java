@@ -6,17 +6,19 @@
  */
 package org.elasticsearch.xpack.security.encryption.spi.test;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedData;
 import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
 import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptionService;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Discovered via {@code ExtensiblePlugin.loadExtensions} by the security plugin. Registers a single no-op handler that increments
- * an in-JVM counter so the IT can verify the SPI is wired end-to-end.
+ * Discovered via {@code ExtensiblePlugin.loadExtensions} by the security plugin. Registers a {@link TestSpiHandler} that owns a
+ * {@link TestEncryptedBlob} project custom; whenever the coordinator schedules re-encryption the handler decrypts the blob with the
+ * previous key and re-encrypts under the active key.
  */
 public class TestEncryptedDataHandlerProvider implements EncryptedDataHandlerProvider {
 
@@ -24,15 +26,29 @@ public class TestEncryptedDataHandlerProvider implements EncryptedDataHandlerPro
     public static final AtomicInteger INVOCATIONS = new AtomicInteger();
 
     @Override
-    public Collection<EncryptedDataHandler> getHandlers() {
+    public Collection<EncryptedDataHandler<?>> getHandlers() {
         return List.of(new TestSpiHandler());
     }
 
-    static final class TestSpiHandler implements EncryptedDataHandler {
+    static final class TestSpiHandler implements EncryptedDataHandler<TestEncryptedBlob> {
+
         @Override
-        public void reEncrypt(String activeKeyId, ActionListener<Void> listener) {
+        public String customName() {
+            return TestEncryptedBlob.TYPE;
+        }
+
+        @Override
+        public TestEncryptedBlob reEncrypt(TestEncryptedBlob current, EncryptionService encryptionService, String activeKeyId) {
             INVOCATIONS.incrementAndGet();
-            listener.onResponse(null);
+            if (current == null) {
+                return null;
+            }
+            EncryptedData existing = current.blob();
+            if (existing.keyId().equals(activeKeyId)) {
+                return current;
+            }
+            byte[] plaintext = encryptionService.decrypt(existing);
+            return new TestEncryptedBlob(encryptionService.encrypt(plaintext));
         }
     }
 }

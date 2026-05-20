@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.security.encryption.spi.test;
 
+import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.RestHandlersServices;
@@ -20,6 +23,14 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class TestEncryptionSpiPlugin extends Plugin implements ActionPlugin {
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TestEncryptedBlob.TYPE, TestEncryptedBlob::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, TestEncryptedBlob.TYPE, TestEncryptedBlob::readDiffFrom)
+        );
+    }
 
     @Override
     public Collection<RestHandler> getRestHandlers(

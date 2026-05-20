@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -32,6 +33,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptionService;
 
 import java.io.Closeable;
 import java.security.SecureRandom;
@@ -52,8 +54,15 @@ import java.util.stream.Collectors;
  * drives registered {@link EncryptedDataHandler}s to re-encrypt their owned data, and retires non-active keys once their grace window
  * expires.
  *
- * <p>All cluster-state mutations flow through a {@link MasterServiceTaskQueue} dispatched by {@link KeyRotationExecutor}; the sealed
- * {@link KeyRotationTask} hierarchy permits {@link InstallKeyTask}, {@link BeginRotationTask}, and {@link RetireKeysTask}.
+ * <p>Re-encryption follows a two-phase compute-then-CAS pattern:
+ * <ol>
+ *     <li>For each handler whose {@code handlerKeyIds} entry is not yet on the current {@code activeKeyId}, the coordinator forks to
+ *     the generic thread pool, snapshots cluster state, and asks the handler to produce a re-encrypted copy of its
+ *     {@link Metadata.ProjectCustom} slice.</li>
+ *     <li>The result is submitted as a {@link ReEncryptApplyTask} which, on the master thread, atomically swaps the handler's custom
+ *     and updates {@code handlerKeyIds} — but only if the snapshot the compute phase ran against is still current
+ *     (slice unchanged and {@code activeKeyId} unchanged). On conflict the task is a no-op and the next tick re-attempts.</li>
+ * </ol>
  */
 public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
@@ -118,10 +127,11 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
+    private final EncryptionService encryptionService;
     private final MasterServiceTaskQueue<KeyRotationTask> taskQueue;
     private final TimeValue rotationInterval;
     private final TimeValue checkInterval;
-    private final List<EncryptedDataHandler> handlers;
+    private final List<EncryptedDataHandler<?>> handlers;
 
     private Scheduler.Cancellable scheduledTask;
     private volatile boolean closed = false;
@@ -134,7 +144,8 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         FeatureService featureService,
-        Collection<EncryptedDataHandler> handlers,
+        EncryptionService encryptionService,
+        Collection<EncryptedDataHandler<?>> handlers,
         Settings settings
     ) {
         TimeValue rotationInterval = ROTATION_INTERVAL_SETTING.get(settings);
@@ -144,6 +155,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             threadPool,
             projectResolver,
             featureService,
+            encryptionService,
             handlers,
             rotationInterval,
             checkInterval
@@ -158,7 +170,8 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         ThreadPool threadPool,
         ProjectResolver projectResolver,
         FeatureService featureService,
-        Collection<EncryptedDataHandler> handlers,
+        EncryptionService encryptionService,
+        Collection<EncryptedDataHandler<?>> handlers,
         TimeValue rotationInterval,
         TimeValue checkInterval
     ) {
@@ -166,6 +179,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
+        this.encryptionService = encryptionService;
         this.handlers = new CopyOnWriteArrayList<>(handlers);
         this.taskQueue = clusterService.createTaskQueue(
             "primary-encryption-key",
@@ -254,6 +268,11 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     }
 
     private void rotate(PrimaryEncryptionKeyMetadata metadata, long now) {
+        String activeKeyId = metadata.getActiveKeyId();
+        List<EncryptedDataHandler<?>> pending = handlers.stream().filter(h -> metadata.isHandlerOnActive(h.customName()) == false).toList();
+        if (pending.isEmpty()) {
+            return;
+        }
         if (rotating.compareAndSet(false, true) == false) {
             logger.warn(
                 "rotation already in progress, skipping this tick (in progress for {})",
@@ -262,11 +281,10 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             return;
         }
         rotatingSince.set(now);
-        String activeKeyId = metadata.getActiveKeyId();
         try (
             var listeners = new RefCountingListener(
                 ActionListener.runAfter(
-                    ActionListener.wrap(unused -> {}, e -> logger.warn("encrypted-data handler failed; will retry on next tick", e)),
+                    ActionListener.wrap(unused -> {}, e -> logger.warn("re-encryption failed; will retry on next tick", e)),
                     () -> {
                         rotatingSince.set(0L);
                         rotating.set(false);
@@ -274,14 +292,43 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
                 )
             )
         ) {
-            for (EncryptedDataHandler handler : handlers) {
+            for (EncryptedDataHandler<?> handler : pending) {
                 ActionListener<Void> l = listeners.acquire();
-                try {
-                    handler.reEncrypt(activeKeyId, l);
-                } catch (Exception e) {
-                    l.onFailure(e);
-                }
+                threadPool.generic().execute(() -> dispatchOne(handler, activeKeyId, l));
             }
+        }
+    }
+
+    private <T extends Metadata.ProjectCustom> void dispatchOne(
+        EncryptedDataHandler<T> handler,
+        String expectedActiveKeyId,
+        ActionListener<Void> listener
+    ) {
+        try {
+            ClusterState snapshot = clusterService.state();
+            ProjectState projectState = projectResolver.getProjectState(snapshot);
+
+            T oldCustom = projectState.metadata().custom(handler.customName());
+            T newCustom = handler.reEncrypt(oldCustom, encryptionService, expectedActiveKeyId);
+            if (newCustom == null || newCustom == oldCustom) {
+                // Nothing to do — handler signaled no change.
+                listener.onResponse(null);
+                return;
+            }
+            assert handler.customName().equals(newCustom.getWriteableName())
+                : "handler ["
+                    + handler.getClass().getSimpleName()
+                    + "] customName="
+                    + handler.customName()
+                    + " does not match returned custom getWriteableName="
+                    + newCustom.getWriteableName();
+            taskQueue.submitTask(
+                "re-encrypt-" + handler.customName(),
+                new ReEncryptApplyTask(handler.customName(), oldCustom, newCustom, expectedActiveKeyId, listener),
+                null
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -293,7 +340,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     }
 
     // visible for testing
-    void register(EncryptedDataHandler handler) {
+    void register(EncryptedDataHandler<?> handler) {
         handlers.add(handler);
         logger.debug("registered encrypted-data handler [{}]", handler.getClass().getSimpleName());
     }
@@ -326,7 +373,8 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     /**
      * Hierarchy of cluster-state tasks that flow through the PEK task queue. {@link KeyRotationExecutor} dispatches on the concrete type.
      */
-    sealed interface KeyRotationTask extends ClusterStateTaskListener permits InstallKeyTask, BeginRotationTask, RetireKeysTask {
+    sealed interface KeyRotationTask extends ClusterStateTaskListener permits InstallKeyTask, BeginRotationTask, RetireKeysTask,
+        ReEncryptApplyTask {
 
         String description();
 
@@ -357,6 +405,30 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         }
     }
 
+    /**
+     * Atomically swap a handler's {@link Metadata.ProjectCustom} for a re-encrypted copy and record progress in
+     * {@code handlerKeyIds}. Conflict cases (slice changed, or a new rotation began since compute) are turned into no-ops; the next
+     * tick will re-dispatch.
+     */
+    record ReEncryptApplyTask(
+        String customName,
+        Metadata.ProjectCustom expectedOld,
+        Metadata.ProjectCustom newCustom,
+        String expectedActiveKeyId,
+        ActionListener<Void> completionListener
+    ) implements KeyRotationTask {
+        @Override
+        public String description() {
+            return "primary encryption key re-encrypt [" + customName + "]";
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.log(MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR, () -> "failure during " + description(), e);
+            completionListener.onFailure(e);
+        }
+    }
+
     static class KeyRotationExecutor extends SimpleBatchedExecutor<KeyRotationTask, Void> {
         private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -382,6 +454,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
                     existing,
                     retireKeysTask.cutoffDeactivationMillis()
                 );
+                case ReEncryptApplyTask reEncryptTask -> executeReEncryptApply(clusterState, projectState, existing, reEncryptTask);
             };
         }
 
@@ -418,7 +491,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             String newKeyId = PrimaryEncryptionKeyMetadata.generateKeyId();
             Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> newEntries = new HashMap<>(existing.getKeys());
             newEntries.put(newKeyId, new PrimaryEncryptionKeyMetadata.KeyEntry(keyBytes, threadPool.absoluteTimeInMillis()));
-            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(newEntries, newKeyId);
+            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(newEntries, newKeyId, existing.getHandlerKeyIds());
             logger.info("beginning primary encryption key rotation: new active key [{}]", newKeyId);
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
         }
@@ -439,9 +512,44 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             String activeKeyId = existing.getActiveKeyId();
             Map<String, PrimaryEncryptionKeyMetadata.KeyEntry> retained = new HashMap<>(existing.getKeys());
             retained.keySet().removeAll(retiredIds);
-            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(retained, activeKeyId);
+            PrimaryEncryptionKeyMetadata metadata = new PrimaryEncryptionKeyMetadata(retained, activeKeyId, existing.getHandlerKeyIds());
             logger.info("primary encryption key retire: retained active key [{}], retired keys {}", activeKeyId, new TreeSet<>(retiredIds));
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
+        }
+
+        private Tuple<ClusterState, Void> executeReEncryptApply(
+            ClusterState clusterState,
+            ProjectState projectState,
+            PrimaryEncryptionKeyMetadata existing,
+            ReEncryptApplyTask task
+        ) {
+            if (existing == null) {
+                // PEK metadata vanished. Drop and let next tick re-attempt.
+                logger.debug("dropping re-encrypt task for [{}]: no PEK metadata installed", task.customName());
+                return Tuple.tuple(clusterState, null);
+            }
+            if (existing.getActiveKeyId().equals(task.expectedActiveKeyId()) == false) {
+                // A new rotation began since the compute phase. The re-encrypted custom is stale; drop and re-tick.
+                logger.debug(
+                    "dropping re-encrypt task for [{}]: activeKeyId drifted from [{}] to [{}]",
+                    task.customName(),
+                    task.expectedActiveKeyId(),
+                    existing.getActiveKeyId()
+                );
+                return Tuple.tuple(clusterState, null);
+            }
+            Metadata.ProjectCustom current = projectState.metadata().custom(task.customName());
+            if (current != task.expectedOld()) {
+                // Slice was modified between snapshot and apply. Drop and re-tick.
+                logger.debug("dropping re-encrypt task for [{}]: slice mutated between compute and apply", task.customName());
+                return Tuple.tuple(clusterState, null);
+            }
+            PrimaryEncryptionKeyMetadata updatedPek = existing.withHandlerKeyId(task.customName(), task.expectedActiveKeyId());
+            ClusterState newState = clusterState.copyAndUpdateProject(
+                projectState.projectId(),
+                b -> b.putCustom(task.customName(), task.newCustom()).putCustom(PrimaryEncryptionKeyMetadata.TYPE, updatedPek)
+            );
+            return Tuple.tuple(newState, null);
         }
 
         private static ClusterState putMetadata(
@@ -464,6 +572,9 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         @Override
         public void taskSucceeded(KeyRotationTask task, Void unused) {
             logger.debug("[{}] succeeded", task.description());
+            if (task instanceof ReEncryptApplyTask reEncrypt) {
+                reEncrypt.completionListener().onResponse(null);
+            }
         }
 
         @Override

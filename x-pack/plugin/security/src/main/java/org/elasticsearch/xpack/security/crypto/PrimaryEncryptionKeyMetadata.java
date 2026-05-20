@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -66,6 +67,7 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     private static final ParseField ACTIVE_KEY_ID_FIELD = new ParseField("active_key_id");
     private static final ParseField BYTES_FIELD = new ParseField("bytes");
     private static final ParseField GENERATED_AT_FIELD = new ParseField("generated_at");
+    private static final ParseField HANDLER_KEY_IDS_FIELD = new ParseField("handler_key_ids");
 
     /**
      * A single key with its generation timestamp
@@ -106,8 +108,13 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
 
     private final Map<String, KeyEntry> keys;
     private final String activeKeyId;
+    private final Map<String, String> handlerKeyIds;
 
     public PrimaryEncryptionKeyMetadata(Map<String, KeyEntry> keys, String activeKeyId) {
+        this(keys, activeKeyId, Map.of());
+    }
+
+    public PrimaryEncryptionKeyMetadata(Map<String, KeyEntry> keys, String activeKeyId, Map<String, String> handlerKeyIds) {
         if (keys.isEmpty()) {
             throw new IllegalArgumentException("Keys map must not be empty");
         }
@@ -116,12 +123,22 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
         }
         assert keys.values().stream().mapToLong(KeyEntry::generatedAt).max().orElse(Long.MIN_VALUE) == keys.get(activeKeyId).generatedAt()
             : "active key [" + activeKeyId + "] must be the newest entry by generatedAt in " + keys;
+        assert handlerKeyIds.values().stream().allMatch(keys::containsKey)
+            : "handlerKeyIds [" + handlerKeyIds + "] references key IDs absent from keys " + keys.keySet();
         this.keys = Map.copyOf(keys);
         this.activeKeyId = activeKeyId;
+        this.handlerKeyIds = Map.copyOf(handlerKeyIds);
     }
 
     public PrimaryEncryptionKeyMetadata(StreamInput in) throws IOException {
-        this(readEntriesFrom(in), in.readString());
+        this(readEntriesFrom(in), in.readString(), readHandlerKeyIdsFrom(in));
+    }
+
+    private static Map<String, String> readHandlerKeyIdsFrom(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION)) {
+            return in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        }
+        return Map.of();
     }
 
     private static Map<String, KeyEntry> readEntriesFrom(StreamInput in) throws IOException {
@@ -184,12 +201,36 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     }
 
     /**
+     * Returns an unmodifiable map of handler {@code customName} -> the key ID that handler's data is currently encrypted under.
+     */
+    public Map<String, String> getHandlerKeyIds() {
+        return handlerKeyIds;
+    }
+
+    /**
+     * Returns {@code true} when the handler's data has been re-encrypted under the current active key.
+     */
+    public boolean isHandlerOnActive(String customName) {
+        return activeKeyId.equals(handlerKeyIds.get(customName));
+    }
+
+    /**
+     * Returns a copy of this metadata with {@code handlerKeyIds[customName] = keyId}.
+     */
+    public PrimaryEncryptionKeyMetadata withHandlerKeyId(String customName, String keyId) {
+        Map<String, String> updated = new HashMap<>(handlerKeyIds);
+        updated.put(customName, keyId);
+        return new PrimaryEncryptionKeyMetadata(keys, activeKeyId, updated);
+    }
+
+    /**
      * Returns the IDs of non-active keys that have been deactivated for long enough to retire.
      *
      * <p>A non-active key's "deactivation time" is the {@code generatedAt} of the next-newer key in the map (the key that replaced it).
      * The grace period is measured from that deactivation time.
      *
-     * <p>A key is retire-eligible iff its deactivation time is strictly less than {@code cutoffDeactivationMillis}
+     * <p>A key is retire-eligible iff its deactivation time is strictly less than {@code cutoffDeactivationMillis} AND it is not still
+     * referenced by any entry in {@link #getHandlerKeyIds()}
      */
     public Set<String> findRetireableKeyIds(long cutoffDeactivationMillis) {
         // Sort by generatedAt ascending so each entry's deactivation time is the next entry's generatedAt.
@@ -198,10 +239,11 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
             .stream()
             .sorted(Comparator.comparingLong(e -> e.getValue().generatedAt()))
             .toList();
+        Set<String> stillReferenced = Set.copyOf(handlerKeyIds.values());
         Set<String> retireable = new HashSet<>();
         for (int i = 0; i < sorted.size() - 1; i++) {
             String id = sorted.get(i).getKey();
-            if (id.equals(activeKeyId)) {
+            if (id.equals(activeKeyId) || stillReferenced.contains(id)) {
                 continue;
             }
             long deactivatedAt = sorted.get(i + 1).getValue().generatedAt();
@@ -235,6 +277,9 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
             out.writeMap(keys, StreamOutput::writeString, (o, e) -> o.writeByteArray(e.bytes()));
         }
         out.writeString(activeKeyId);
+        if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION)) {
+            out.writeMap(handlerKeyIds, StreamOutput::writeString, StreamOutput::writeString);
+        }
     }
 
     public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
@@ -251,6 +296,11 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
                 builder.field(BYTES_FIELD.getPreferredName(), entry.getValue().bytes());
                 builder.field(GENERATED_AT_FIELD.getPreferredName(), entry.getValue().generatedAt());
                 builder.endObject();
+            }
+            builder.endObject();
+            builder.startObject(HANDLER_KEY_IDS_FIELD.getPreferredName());
+            for (Map.Entry<String, String> entry : handlerKeyIds.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
             return builder;
@@ -275,7 +325,8 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
             String activeKeyId = (String) args[0];
             List<Tuple<String, KeyEntry>> list = (List<Tuple<String, KeyEntry>>) args[1];
             Map<String, KeyEntry> keys = list.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-            return new PrimaryEncryptionKeyMetadata(keys, activeKeyId);
+            Map<String, String> handlerKeyIds = args[2] != null ? (Map<String, String>) args[2] : Map.of();
+            return new PrimaryEncryptionKeyMetadata(keys, activeKeyId, handlerKeyIds);
         }
     );
     static {
@@ -287,6 +338,7 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
             }
             return Tuple.tuple(name, new KeyEntry(p.binaryValue(), 0L)); // old format
         }, KEYS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), HANDLER_KEY_IDS_FIELD);
     }
 
     public static Metadata.ProjectCustom fromXContent(XContentParser parser) throws IOException {
@@ -308,6 +360,8 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
             + keys.size()
             + ", generatedAt="
             + ts
+            + ", handlerKeyIds="
+            + new TreeSet<>(handlerKeyIds.keySet())
             + ", [keys secret]}";
     }
 
@@ -316,11 +370,13 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PrimaryEncryptionKeyMetadata that = (PrimaryEncryptionKeyMetadata) o;
-        return Objects.equals(activeKeyId, that.activeKeyId) && Objects.equals(keys, that.keys);
+        return Objects.equals(activeKeyId, that.activeKeyId)
+            && Objects.equals(keys, that.keys)
+            && Objects.equals(handlerKeyIds, that.handlerKeyIds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(activeKeyId, keys);
+        return Objects.hash(activeKeyId, keys, handlerKeyIds);
     }
 }

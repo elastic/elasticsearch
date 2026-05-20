@@ -6,27 +6,48 @@
  */
 package org.elasticsearch.xpack.security.crypto;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.security.spi.encryption.EncryptedData;
 import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandler;
 import org.elasticsearch.xpack.security.spi.encryption.EncryptionService;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -55,6 +76,13 @@ public class KeyRotationIT extends SecurityIntegTestCase {
             .build();
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestEncryptionPlugin.class);
+        return plugins;
+    }
+
     @Before
     public void waitForPrimaryEncryptionKeyInstalled() throws Exception {
         ensureGreen();
@@ -70,24 +98,69 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         return internalCluster().getInstance(EncryptionService.class, internalCluster().getMasterName());
     }
 
+    private <T extends TestBlobBase> T customOnMaster(String customName) {
+        String master = internalCluster().getMasterName();
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
+        ProjectResolver projectResolver = internalCluster().getInstance(ProjectResolver.class, master);
+        return projectResolver.getProjectState(clusterService.state()).metadata().custom(customName);
+    }
+
     /**
-     * Registers a {@link TestHandler} on every node, sharing a single {@link TestControlState} across them, so the handler that runs on
-     * whichever node is currently master observes/mutates the same state from the test thread.
+     * Registers a {@link TestHandler} on every node's coordinator. All registrations share a single {@link TestControlState}, so the
+     * handler that runs on whichever node is currently master mutates the same in-JVM state that the test reads.
      */
-    private TestControlState registerHandlerOnAllNodes() {
+    private <T extends TestBlobBase> TestControlState registerHandlerOnAllNodes(String customName, Function<EncryptedData, T> factory) {
         final TestControlState state = new TestControlState();
         for (String nodeName : internalCluster().getNodeNames()) {
-            EncryptionService service = internalCluster().getInstance(EncryptionService.class, nodeName);
-            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
             KeyRotationCoordinator coordinator = internalCluster().getInstance(KeyRotationCoordinator.class, nodeName);
-            coordinator.register(new TestHandler(service, threadPool, state));
+            EncryptionService service = internalCluster().getInstance(EncryptionService.class, nodeName);
+            coordinator.register(new TestHandler<>(customName, factory, service, state));
         }
         return state;
     }
 
-    private void seedBlob(TestControlState state, String plaintext) {
-        EncryptedData encrypted = masterEncryptionService().encrypt(plaintext.getBytes(StandardCharsets.UTF_8));
-        state.blob.set(encrypted);
+    /**
+     * Seeds {@code blob} into the master's project state at {@code customName} via an unbatched cluster-state update task, and waits
+     * for it to be applied.
+     */
+    private void seedBlob(String customName, TestBlobBase blob) throws Exception {
+        String master = internalCluster().getMasterName();
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
+        ProjectResolver projectResolver = internalCluster().getInstance(ProjectResolver.class, master);
+        CountDownLatch applied = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        clusterService.submitUnbatchedStateUpdateTask("seed-" + customName, new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return currentState.copyAndUpdateProject(
+                    projectResolver.getProjectState(currentState).projectId(),
+                    b -> b.putCustom(customName, blob)
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+                applied.countDown();
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                applied.countDown();
+            }
+        });
+        assertTrue("seed-" + customName + " did not apply within 30s", applied.await(30, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw new AssertionError("seed-" + customName + " failed", failure.get());
+        }
+    }
+
+    public void testInitialInstallProducesSingleActiveKeyWithEmptyHandlerProgress() {
+        PrimaryEncryptionKeyMetadata metadata = metadataOnMaster();
+        assertThat(metadata, notNullValue());
+        assertThat("install should produce exactly one key", metadata.getKeys().keySet(), hasSize(1));
+        assertThat("the single installed key must be the active one", metadata.getKeys().keySet(), hasItem(metadata.getActiveKeyId()));
+        assertThat("no handlers are registered in this IT, so handlerKeyIds must be empty", metadata.getHandlerKeyIds(), anEmptyMap());
     }
 
     public void testRotationCycleWithNoHandlers() throws Exception {
@@ -106,33 +179,38 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     }
 
     public void testRotationCompletesWithMultipleHandlers() throws Exception {
-        TestControlState alpha = registerHandlerOnAllNodes();
-        TestControlState beta = registerHandlerOnAllNodes();
-        seedBlob(alpha, "alex-data");
-        seedBlob(beta, "limelight-data");
+        TestControlState alpha = registerHandlerOnAllNodes(AlphaBlob.TYPE, AlphaBlob::new);
+        TestControlState beta = registerHandlerOnAllNodes(BetaBlob.TYPE, BetaBlob::new);
+
+        EncryptionService svc = masterEncryptionService();
+        EncryptedData alphaInitial = svc.encrypt("alex-data".getBytes(StandardCharsets.UTF_8));
+        EncryptedData betaInitial = svc.encrypt("limelight-data".getBytes(StandardCharsets.UTF_8));
+        seedBlob(AlphaBlob.TYPE, new AlphaBlob(alphaInitial));
+        seedBlob(BetaBlob.TYPE, new BetaBlob(betaInitial));
         String initialKeyId = metadataOnMaster().getActiveKeyId();
 
-        // Both handlers' data eventually moves off the initial key and onto a still-live key in metadata.
         assertBusy(() -> {
             PrimaryEncryptionKeyMetadata m = metadataOnMaster();
             assertThat("active key should have rotated", m.getActiveKeyId(), not(equalTo(initialKeyId)));
             assertThat("alpha handler invoked", alpha.callCount.get(), greaterThanOrEqualTo(1));
             assertThat("beta handler invoked", beta.callCount.get(), greaterThanOrEqualTo(1));
-            assertThat("alpha blob re-encrypted off initial", alpha.blob.get().keyId(), not(equalTo(initialKeyId)));
-            assertThat("beta blob re-encrypted off initial", beta.blob.get().keyId(), not(equalTo(initialKeyId)));
-            assertThat("alpha blob key still present", m.getKeys().keySet(), hasItem(alpha.blob.get().keyId()));
-            assertThat("beta blob key still present", m.getKeys().keySet(), hasItem(beta.blob.get().keyId()));
+            AlphaBlob alphaBlob = customOnMaster(AlphaBlob.TYPE);
+            BetaBlob betaBlob = customOnMaster(BetaBlob.TYPE);
+            assertThat("alpha blob re-encrypted off initial", alphaBlob.blob.keyId(), not(equalTo(initialKeyId)));
+            assertThat("beta blob re-encrypted off initial", betaBlob.blob.keyId(), not(equalTo(initialKeyId)));
+            assertThat("alpha blob's key still present", m.getKeys().keySet(), hasItem(alphaBlob.blob.keyId()));
+            assertThat("beta blob's key still present", m.getKeys().keySet(), hasItem(betaBlob.blob.keyId()));
         }, 30, TimeUnit.SECONDS);
 
-        // End-to-end round-trip: re-encrypted blobs still decrypt back to the original plaintext.
-        assertEquals("alex-data", new String(masterEncryptionService().decrypt(alpha.blob.get()), StandardCharsets.UTF_8));
-        assertEquals("limelight-data", new String(masterEncryptionService().decrypt(beta.blob.get()), StandardCharsets.UTF_8));
+        AlphaBlob alphaBlob = customOnMaster(AlphaBlob.TYPE);
+        BetaBlob betaBlob = customOnMaster(BetaBlob.TYPE);
+        assertEquals("alex-data", new String(masterEncryptionService().decrypt(alphaBlob.blob), StandardCharsets.UTF_8));
+        assertEquals("limelight-data", new String(masterEncryptionService().decrypt(betaBlob.blob), StandardCharsets.UTF_8));
     }
 
     public void testConsecutiveRotations() throws Exception {
-        // Rotation cadence honors rotation_interval exactly; the grace window for retire does NOT block the next rotation.
-        TestControlState state = registerHandlerOnAllNodes();
-        seedBlob(state, "freewill");
+        TestControlState state = registerHandlerOnAllNodes(AlphaBlob.TYPE, AlphaBlob::new);
+        seedBlob(AlphaBlob.TYPE, new AlphaBlob(masterEncryptionService().encrypt("freewill".getBytes(StandardCharsets.UTF_8))));
         String initialKeyId = metadataOnMaster().getActiveKeyId();
 
         AtomicReference<String> firstRotatedKeyId = new AtomicReference<>();
@@ -151,87 +229,165 @@ public class KeyRotationIT extends SecurityIntegTestCase {
                 not(equalTo(firstRotatedKeyId.get()))
             );
         }, 30, TimeUnit.SECONDS);
+        // Reference unused-but-meaningful counter so the test still depends on real handler invocations.
+        assertThat("handler invoked across consecutive rotations", state.callCount.get(), greaterThanOrEqualTo(1));
     }
 
-    public void testRotationContinuesAfterMasterFailoverMidRotation() throws Exception {
-        TestControlState state = registerHandlerOnAllNodes();
-        state.blockUntilReleased = true;
-        seedBlob(state, "tom sawyer");
-        String preRotationKeyId = state.blob.get().keyId();
+    public void testRotationContinuesAfterMasterFailover() throws Exception {
+        TestControlState state = registerHandlerOnAllNodes(AlphaBlob.TYPE, AlphaBlob::new);
+        EncryptedData seed = masterEncryptionService().encrypt("tom sawyer".getBytes(StandardCharsets.UTF_8));
+        seedBlob(AlphaBlob.TYPE, new AlphaBlob(seed));
+        String preRotationKeyId = seed.keyId();
 
-        // Wait for rotation to begin and the original master's handler to be invoked at least once (it is now blocked on the latch).
+        // Original master rotates at least once and commits the blob's new key id into cluster state.
+        AtomicReference<String> firstObservedKeyId = new AtomicReference<>();
         assertBusy(() -> {
-            assertThat("multiple keys should be present mid-rotation", metadataOnMaster().getKeys().size(), greaterThanOrEqualTo(2));
-            assertThat(state.callCount.get(), greaterThanOrEqualTo(1));
+            AlphaBlob current = customOnMaster(AlphaBlob.TYPE);
+            assertThat("original master re-encrypted off the install key", current.blob.keyId(), not(equalTo(preRotationKeyId)));
+            assertThat("original master invoked the handler", state.callCount.get(), greaterThanOrEqualTo(1));
+            firstObservedKeyId.set(current.blob.keyId());
         }, 30, TimeUnit.SECONDS);
-
-        String midRotationKeyId = metadataOnMaster().getActiveKeyId();
-        assertThat(midRotationKeyId, not(equalTo(preRotationKeyId)));
 
         internalCluster().stopCurrentMasterNode();
         ensureGreen();
 
-        // The new master's coordinator continues the scrub on its first tick.
-        assertBusy(() -> assertThat(state.callCount.get(), greaterThanOrEqualTo(2)), 30, TimeUnit.SECONDS);
-
-        // Release the handler. Eventually the blob is re-encrypted off the original pre-rotation key onto some live key.
-        state.releaseLatch.countDown();
+        // The new master's coordinator must continue rotation on its first tick: the blob's key id in cluster state advances
+        // beyond what the original master committed, and that newer key is still present in metadata (no orphan).
         assertBusy(() -> {
-            assertThat("blob re-encrypted off pre-rotation key", state.blob.get().keyId(), not(equalTo(preRotationKeyId)));
-            assertThat("blob's key still present in metadata", metadataOnMaster().getKeys().keySet(), hasItem(state.blob.get().keyId()));
+            AlphaBlob current = customOnMaster(AlphaBlob.TYPE);
+            assertThat("new master advanced the blob's key id", current.blob.keyId(), not(equalTo(firstObservedKeyId.get())));
+            assertThat("blob's key still present in metadata", metadataOnMaster().getKeys().keySet(), hasItem(current.blob.keyId()));
         }, 30, TimeUnit.SECONDS);
     }
 
-    private enum TestFailMode {
-        OK,
-        ON_FAILURE,
-        THROW
+    /**
+     * Test plugin contributed via {@link #nodePlugins()} purely to register the {@link Metadata.ProjectCustom} subtypes used by the
+     * handlers below.
+     */
+    public static class TestEncryptionPlugin extends Plugin {
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return List.of(
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, AlphaBlob.TYPE, AlphaBlob::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, AlphaBlob.TYPE, AlphaBlob::readDiffFrom),
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, BetaBlob.TYPE, BetaBlob::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, BetaBlob.TYPE, BetaBlob::readDiffFrom)
+            );
+        }
     }
 
-    private static final class TestControlState {
-        final AtomicInteger callCount = new AtomicInteger();
-        final AtomicReference<EncryptedData> blob = new AtomicReference<>();
-        final AtomicReference<String> observedActiveKeyId = new AtomicReference<>();
-        final CountDownLatch releaseLatch = new CountDownLatch(1);
-        volatile TestFailMode failMode = TestFailMode.OK;
-        // When true, the OK arm of the handler awaits releaseLatch before completing the listener.
-        volatile boolean blockUntilReleased = false;
-    }
+    abstract static class TestBlobBase extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+        final EncryptedData blob;
 
-    private record TestHandler(EncryptionService service, ThreadPool threadPool, TestControlState state) implements EncryptedDataHandler {
+        TestBlobBase(EncryptedData blob) {
+            this.blob = Objects.requireNonNull(blob);
+        }
+
+        TestBlobBase(StreamInput in) throws IOException {
+            this.blob = new EncryptedData(in);
+        }
 
         @Override
-        public void reEncrypt(String activeKeyId, ActionListener<Void> listener) {
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            blob.writeTo(out);
+        }
+
+        @Override
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY);
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return ChunkedToXContentHelper.chunk((builder, ignored) -> builder.field("blob", blob));
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o != null && o.getClass() == getClass() && ((TestBlobBase) o).blob.equals(blob);
+        }
+
+        @Override
+        public int hashCode() {
+            return blob.hashCode();
+        }
+    }
+
+    public static final class AlphaBlob extends TestBlobBase {
+        static final String TYPE = "keyrotation_it_alpha";
+
+        public AlphaBlob(EncryptedData blob) {
+            super(blob);
+        }
+
+        public AlphaBlob(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
+        }
+    }
+
+    public static final class BetaBlob extends TestBlobBase {
+        static final String TYPE = "keyrotation_it_beta";
+
+        public BetaBlob(EncryptedData blob) {
+            super(blob);
+        }
+
+        public BetaBlob(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
+        }
+    }
+
+    /**
+     * Shared in-JVM state read by the test thread. 
+     */
+    private static final class TestControlState {
+        final AtomicInteger callCount = new AtomicInteger();
+    }
+
+    /**
+     * Re-encrypts a {@link TestBlobBase}-shaped custom under the active key.
+     */
+    private record TestHandler<T extends TestBlobBase>(
+        String customName,
+        Function<EncryptedData, T> factory,
+        EncryptionService encryptionService,
+        TestControlState state
+    ) implements EncryptedDataHandler<T> {
+
+        @Override
+        public T reEncrypt(T current, EncryptionService service, String activeKeyId) {
             state.callCount.incrementAndGet();
-            state.observedActiveKeyId.set(activeKeyId);
-            switch (state.failMode) {
-                case THROW -> throw new RuntimeException("simulated synchronous throw from test handler");
-                case ON_FAILURE -> listener.onFailure(new RuntimeException("simulated failure from test handler"));
-                case OK -> {
-                    EncryptedData current = state.blob.get();
-                    if (current != null && current.keyId().equals(activeKeyId) == false) {
-                        byte[] plaintext = service.decrypt(current);
-                        state.blob.set(service.encrypt(plaintext));
-                    }
-                    if (state.blockUntilReleased) {
-                        // Complete the listener async, after the latch is released
-                        threadPool.generic().execute(() -> {
-                            try {
-                                if (state.releaseLatch.await(60, TimeUnit.SECONDS) == false) {
-                                    listener.onFailure(new RuntimeException("release latch timed out"));
-                                } else {
-                                    listener.onResponse(null);
-                                }
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                listener.onFailure(e);
-                            }
-                        });
-                    } else {
-                        listener.onResponse(null);
-                    }
-                }
+            if (current == null) {
+                return null;
             }
+            if (current.blob.keyId().equals(activeKeyId)) {
+                return current;
+            }
+            byte[] plaintext = encryptionService.decrypt(current.blob);
+            return factory.apply(encryptionService.encrypt(plaintext));
         }
     }
 }

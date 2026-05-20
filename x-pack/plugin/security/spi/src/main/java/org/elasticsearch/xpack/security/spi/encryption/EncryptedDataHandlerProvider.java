@@ -22,7 +22,7 @@ public interface EncryptedDataHandlerProvider {
     /**
      * Returns the handlers this provider contributes.
      */
-    default Collection<EncryptedDataHandler> getHandlers() {
+    default Collection<EncryptedDataHandler<?>> getHandlers() {
         return Collections.emptyList();
     }
 }

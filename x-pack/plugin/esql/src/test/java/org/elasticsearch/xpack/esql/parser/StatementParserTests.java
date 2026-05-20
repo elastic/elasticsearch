@@ -996,6 +996,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    /** Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146073">#146073</a>. */
+    public void testWildcardPatternWithReservedPrefixChar() {
+        List<String> commands = new ArrayList<>();
+        commands.add("FROM");
+        if (Build.current().isSnapshot()) {
+            commands.add("TS");
+        }
+        for (String command : commands) {
+            assertStringAsIndexPattern("*_logs", command + " *_logs");
+            assertStringAsIndexPattern("*+logs", command + " *+logs");
+            assertStringAsIndexPattern("**_logs", command + " **_logs");
+            assertStringAsIndexPattern("foo*_logs", command + " foo*_logs");
+            assertStringAsIndexPattern("*_logs,*_metrics", command + " *_logs,*_metrics");
+            assertStringAsIndexPattern("cluster:*_logs", command + " cluster:*_logs");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                assertStringAsIndexPattern("*_logs::data", command + " *_logs::data");
+            }
+
+            String lineNumber = command.equals("FROM") ? "line 1:6: " : "line 1:4: ";
+            expectError(command + " _logs*", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " _*logs", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " +logs*", lineNumber + "Invalid index name [+logs], must not start with '_', '-', or '+'");
+        }
+    }
+
     public void testInvalidQuotingAsFromIndexPattern() {
         expectError("FROM \"foo", ": token recognition error at: '\"foo'");
         expectError("FROM \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
@@ -2592,6 +2617,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW false::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
         expectError("ROW abs(1)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
         expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
+    }
+
+    public void testInlineConvertToSnapshotOnlyType() {
+        assumeFalse("date_range is exposed on snapshot builds", Build.current().isSnapshot());
+        expectError(
+            "ROW str = \"2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z\" | EVAL range = str::date_range",
+            "Unknown data type named [date_range]"
+        );
+        expectError("ROW range = \"x\"::date_range", "Unknown data type named [date_range]");
     }
 
     public void testLookup() {

@@ -38,6 +38,7 @@ dependencies {
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
   api project(':libs:user-agent-api')
+  api project(':libs:ip-location-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
   implementation project(":libs:simdvec")
@@ -92,6 +93,14 @@ dependencies {
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))
+}
+
+// log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
+tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(
+    "-processor",
+    "org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor",
+  )
 }
 
 spotless {

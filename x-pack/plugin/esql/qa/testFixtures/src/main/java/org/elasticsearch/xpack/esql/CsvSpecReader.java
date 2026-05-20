@@ -25,6 +25,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new Warning(ctx));
         ctx.addOptionParser(new WarningRegex(ctx));
         ctx.addOptionParser(new IgnoreOrder(ctx));
+        ctx.addOptionParser(new DocumentsFound(ctx));
         return ctx;
     }
 
@@ -210,12 +211,25 @@ public final class CsvSpecReader {
         }
     }
 
+    record DocumentsFound(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("documents_found:")) {
+                state.testCase.expectedDocumentsFound = line.substring("documents_found:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
         final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public String query;
         public String expectedResults;
+        public String expectedDocumentsFound;
         public boolean ignoreOrder;
         /**
          * How to change the test when requesting all values be loaded from stored fields.

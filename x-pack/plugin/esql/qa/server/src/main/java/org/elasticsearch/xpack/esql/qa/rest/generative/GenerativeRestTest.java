@@ -441,6 +441,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
         ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
+        ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
@@ -855,6 +856,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      */
     static boolean isFullTextAfterWhereBugs(String errorMessage) {
         return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorMessage).matches();
+    }
+
+    private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after (?:LIMIT|INLINE|MV_EXPAND|STATS|CHANGE_POINT|\\(from).*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
+     * pipeline-breaking command ({@code LIMIT}, {@code INLINE STATS}, etc.); the generator only walks the
+     * outer command list. Gated on a parenthesised inner {@code FROM}.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
+     */
+    static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(

@@ -299,7 +299,7 @@ public final class ShardSplittingQuery extends Query {
     private final class Visitor {
         final LeafReader leafReader;
         final StoredFields storedFields;
-        final BaseFieldVisitor storedFieldVisitor;
+        final IdRoutingStoredFieldVisitor storedFieldVisitor;
         final RoutingDocValuesReader routingDocValuesReader;
         final ColumnarIdDocValuesReader columnarIdDocValuesReader;
         private String routing;
@@ -312,23 +312,13 @@ public final class ShardSplittingQuery extends Query {
             boolean routingHasDocValues = routingFieldInfo != null && routingFieldInfo.getDocValuesType() == DocValuesType.SORTED;
             FieldInfo idFieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
             boolean idHasDocValues = idFieldInfo != null && idFieldInfo.getDocValuesType() == DocValuesType.BINARY;
-            if (routingHasDocValues && idHasDocValues) {
-                this.storedFieldVisitor = null;
-                this.routingDocValuesReader = new RoutingDocValuesReader(leafReader);
-                this.columnarIdDocValuesReader = new ColumnarIdDocValuesReader(leafReader);
-            } else if (idHasDocValues) {
-                this.storedFieldVisitor = new RoutingStoredFieldVisitor();
-                this.routingDocValuesReader = null;
-                this.columnarIdDocValuesReader = new ColumnarIdDocValuesReader(leafReader);
-            } else if (routingHasDocValues) {
-                this.storedFieldVisitor = new IdStoredFieldVisitor();
-                this.routingDocValuesReader = new RoutingDocValuesReader(leafReader);
-                this.columnarIdDocValuesReader = null;
-            } else {
-                this.storedFieldVisitor = new IdAndRoutingStoredFieldVisitor();
-                this.routingDocValuesReader = null;
-                this.columnarIdDocValuesReader = null;
-            }
+            boolean idHasStoredFields = idHasDocValues == false;
+            boolean routingHasStoredFields = routingHasDocValues == false;
+            this.storedFieldVisitor = (idHasStoredFields || routingHasStoredFields)
+                ? new IdRoutingStoredFieldVisitor(idHasStoredFields, routingHasStoredFields)
+                : null;
+            this.routingDocValuesReader = routingHasDocValues ? new RoutingDocValuesReader(leafReader) : null;
+            this.columnarIdDocValuesReader = idHasDocValues ? new ColumnarIdDocValuesReader(leafReader) : null;
         }
 
         boolean matches(int doc) throws IOException {
@@ -349,18 +339,33 @@ public final class ShardSplittingQuery extends Query {
             return shardMatcher.test(id, routing) == false;
         }
 
-        abstract class BaseFieldVisitor extends StoredFieldVisitor {
+        final class IdRoutingStoredFieldVisitor extends StoredFieldVisitor {
 
-            final int fieldsToVisit;
-            int leftToVisit;
+            private final boolean readId;
+            private final boolean readRouting;
+            private final int fieldsToVisit;
+            private int leftToVisit;
 
-            BaseFieldVisitor(int leftToVisit) {
-                this.fieldsToVisit = leftToVisit;
-                this.leftToVisit = leftToVisit;
+            IdRoutingStoredFieldVisitor(boolean readId, boolean readRouting) {
+                assert readId || readRouting;
+                this.readId = readId;
+                this.readRouting = readRouting;
+                this.fieldsToVisit = (readId ? 1 : 0) + (readRouting ? 1 : 0);
+                this.leftToVisit = fieldsToVisit;
             }
 
             void reset() {
                 this.leftToVisit = fieldsToVisit;
+            }
+
+            @Override
+            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                if ((readId && IdFieldMapper.NAME.equals(fieldInfo.name))
+                    || (readRouting && RoutingFieldMapper.NAME.equals(fieldInfo.name))) {
+                    leftToVisit--;
+                    return Status.YES;
+                }
+                return leftToVisit == 0 ? Status.STOP : Status.NO;
             }
 
             @Override
@@ -370,80 +375,12 @@ public final class ShardSplittingQuery extends Query {
                     default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
                 }
             }
-        }
-
-        final class IdStoredFieldVisitor extends BaseFieldVisitor {
-
-            IdStoredFieldVisitor() {
-                super(1);
-            }
-
-            @Override
-            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                // we don't support 5.x so no need for the uid field
-                switch (fieldInfo.name) {
-                    case IdFieldMapper.NAME:
-                        leftToVisit--;
-                        return Status.YES;
-                    default:
-                        return leftToVisit == 0 ? Status.STOP : Status.NO;
-                }
-            }
-
-        }
-
-        final class RoutingStoredFieldVisitor extends BaseFieldVisitor {
-
-            RoutingStoredFieldVisitor() {
-                super(1);
-            }
 
             @Override
             public void stringField(FieldInfo fieldInfo, String value) throws IOException {
                 switch (fieldInfo.name) {
                     case RoutingFieldMapper.NAME -> routing = value;
                     default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
-                }
-            }
-
-            @Override
-            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                // we don't support 5.x so no need for the uid field
-                switch (fieldInfo.name) {
-                    case RoutingFieldMapper.NAME:
-                        leftToVisit--;
-                        return Status.YES;
-                    default:
-                        return leftToVisit == 0 ? Status.STOP : Status.NO;
-                }
-            }
-
-        }
-
-        final class IdAndRoutingStoredFieldVisitor extends BaseFieldVisitor {
-
-            IdAndRoutingStoredFieldVisitor() {
-                super(2);
-            }
-
-            @Override
-            public void stringField(FieldInfo fieldInfo, String value) throws IOException {
-                switch (fieldInfo.name) {
-                    case RoutingFieldMapper.NAME -> routing = value;
-                    default -> throw new IllegalStateException("Unexpected field: " + fieldInfo.name);
-                }
-            }
-
-            @Override
-            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                // we don't support 5.x so no need for the uid field
-                switch (fieldInfo.name) {
-                    case IdFieldMapper.NAME:
-                    case RoutingFieldMapper.NAME:
-                        leftToVisit--;
-                        return Status.YES;
-                    default:
-                        return leftToVisit == 0 ? Status.STOP : Status.NO;
                 }
             }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -27,8 +28,11 @@ import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -41,8 +45,12 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
+public class ReindexPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
+
+    public static final String CIRCUIT_BREAKER_NAME = "reindex";
+    public static final long DEFAULT_CIRCUIT_BREAKER_LIMIT = (long) (0.50 * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    public static final double DEFAULT_CIRCUIT_BREAKER_OVERHEAD = 1.0d;
 
     public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
@@ -67,6 +75,25 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         return DiscoveryNode.isStateless(environment.settings())
             ? new StatelessReindexRelocationNodePicker()
             : new StatefulReindexRelocationNodePicker();
+    }
+
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        return BreakerSettings.updateFromSettings(
+            new BreakerSettings(
+                CIRCUIT_BREAKER_NAME,
+                DEFAULT_CIRCUIT_BREAKER_LIMIT,
+                DEFAULT_CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settings
+        );
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        assert circuitBreaker.getName().equals(CIRCUIT_BREAKER_NAME);
     }
 
     @Override

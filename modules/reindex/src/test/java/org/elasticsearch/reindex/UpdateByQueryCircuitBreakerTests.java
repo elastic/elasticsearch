@@ -14,7 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that update-by-query reserves heap against the REQUEST circuit breaker for the {@link
+ * End-to-end check that update-by-query reserves heap against the dedicated {@code reindex} circuit breaker for the {@link
  * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
  * CircuitBreakingException} to the client when that reservation can't fit.
  *
@@ -48,7 +48,10 @@ public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
             .put(super.nodeSettings())
             // Sized below the BulkRequest reservation UBQ will attempt (≈ 40 KiB) so the breaker trips
             // when the action calls reserveBatchAllocation in prepareBulkRequest.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "30kb")
+            .put(
+                BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING.getConcreteSettingForNamespace(ReindexPlugin.CIRCUIT_BREAKER_NAME).getKey(),
+                "30kb"
+            )
             .build();
     }
 

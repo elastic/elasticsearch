@@ -14,7 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that reindex reserves heap against the REQUEST circuit breaker for the {@link
+ * End-to-end check that reindex reserves heap against the dedicated {@code reindex} circuit breaker for the {@link
  * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
  * CircuitBreakingException} to the client when that reservation can't fit — without sending the oversized
  * bulk request that would have pushed the node toward OOM.
@@ -51,7 +51,10 @@ public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {
             // Sized below the BulkRequest reservation the reindex will attempt (≈ 40 KiB) so the breaker
             // trips when the action calls reserveBatchAllocation in prepareBulkRequest. Local search-side
             // accounting for these 5 small-ish hits stays well under this limit.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "30kb")
+            .put(
+                BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING.getConcreteSettingForNamespace(ReindexPlugin.CIRCUIT_BREAKER_NAME).getKey(),
+                "30kb"
+            )
             .build();
     }
 

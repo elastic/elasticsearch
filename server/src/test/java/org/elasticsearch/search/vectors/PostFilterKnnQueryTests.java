@@ -310,14 +310,14 @@ public class PostFilterKnnQueryTests extends ESTestCase {
 
     /**
      * 20 docs, selectivity=0.7 (14 pass, 6 fail), arranged so the kNN region around the query is
-     * filter-hostile: the 3 closest docs fail and only 2 close passers exist. With k=10 and
+     * negatively correlated to the filter: the 3 closest docs fail and only 2 close passers exist. With k=10 and
      * scale=0.5 (scaledK=5), round 0's top-5 = {0..4} yields only {3,4} after filtering -
      * scoreDocs.length=2. The early-exit fires: k=10 ≥ EARLY_EXIT_MIN_K and 2 &lt;
      * (k * selectivity) / 2 = 3.5, so retry and fallback are skipped and the outer rewrite falls
      * through to the bare inner query (which carries the user filter), returning the 10 closest
      * passing docs.
      */
-    public void testEarlyExitBailsOnHostileFilter() throws IOException {
+    public void testEarlyExitBailsOnNegativelyCorrelatedFilter() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             // Close cluster: 3 fail at vectors 0..2, 2 pass at vectors 3..4.
             for (int i = 0; i < 3; i++) {

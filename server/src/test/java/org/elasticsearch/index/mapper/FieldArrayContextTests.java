@@ -90,15 +90,6 @@ public class FieldArrayContextTests extends ESTestCase {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext syntheticRoot = MapperBuilderContext.root(true, false);
         MapperBuilderContext storedRoot = MapperBuilderContext.root(false, false);
-        MapperBuilderContext nestedSynthetic = new MapperBuilderContext(
-            null,
-            true,
-            false,
-            false,
-            ObjectMapper.Defaults.DYNAMIC,
-            MapperService.MergeReason.MAPPING_UPDATE,
-            true
-        );
 
         // not synthetic source
         assertNull(
@@ -140,48 +131,6 @@ public class FieldArrayContextTests extends ESTestCase {
                 IndexVersions.MINIMUM_COMPATIBLE,
                 true,
                 false
-            )
-        );
-        // no doc values
-        assertNull(
-            getOffsetsFieldName(
-                syntheticRoot,
-                Mapper.SourceKeepMode.NONE,
-                false,
-                false,
-                builder,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
-            )
-        );
-        // stored
-        assertNull(
-            getOffsetsFieldName(
-                syntheticRoot,
-                Mapper.SourceKeepMode.NONE,
-                true,
-                true,
-                builder,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
-            )
-        );
-        // nested context
-        assertNull(
-            getOffsetsFieldName(
-                nestedSynthetic,
-                Mapper.SourceKeepMode.NONE,
-                true,
-                false,
-                builder,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
             )
         );
     }

@@ -138,7 +138,8 @@ public class FieldArrayContext {
     ) {
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
 
-        if (context.isSourceSynthetic() && hasDocValues
+        // source_keep_mode = arrays path
+        if (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.isSourceSynthetic() && hasDocValues
         // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
             && isStored == false
             // Skip nested docs - we don't have per-nested-doc offset tracking
@@ -148,15 +149,18 @@ public class FieldArrayContext {
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
             && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain)) {
 
-            // source_keep_mode = ARRAYS path
-            if (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS) {
-                return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
-            }
+            return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
+        }
 
-            // multi_value = true + columnar mode path
-            if (multiValue && isColumnar) {
-                return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
-            }
+        // multi_value = true + columnar mode path
+        // Note, stored fields and nested docs will not be allowed in columnar mode - no need to check them explicitly
+        // Note, doc values cannot be disabled in columnar mode
+        if (multiValue && isColumnar && context.isSourceSynthetic()
+        // skip copy_to and multi fields for now - they wll be supported in a follow up
+            && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
+            && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false) {
+
+            return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
         }
 
         // Otherwise, offsets won't be recorded

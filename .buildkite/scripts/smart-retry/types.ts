@@ -29,35 +29,11 @@ export interface MultiRunTaskStatus {
 /**
  * Shape of .failed-test-history.json consumed by InternalTestRerunPlugin.
  *
- * The plugin uses four-state logic per test task:
- *  1. Task in workUnits → rerun only failed tests
- *  2. Task in failedTestTasks (but not workUnits) → rerun all tests
- *  3. Task in executedTestTasks (but not 1 or 2) → skip (confirmed passed)
- *  4. Task not in executedTestTasks → run all tests (never executed)
+ * The plugin skips any test task in successfulTasks and runs everything else.
  */
 export interface FailedTestsReport {
-  workUnits: WorkUnit[];
+  successfulTasks: string[];
   testseed: string;
-  executedTestTasks: string[];
-  failedTestTasks: string[];
-}
-
-export interface WorkUnit {
-  name: string;
-  outcome: string;
-  tests: TestClassEntry[];
-}
-
-export interface TestClassEntry {
-  name: string;
-  outcome: { overall: string; own: string; children: string };
-  children: TestMethodEntry[];
-}
-
-export interface TestMethodEntry {
-  name: string;
-  outcome: { overall: string };
-  children: never[];
 }
 
 /** Environment variables read by the smart-retry orchestrator. */

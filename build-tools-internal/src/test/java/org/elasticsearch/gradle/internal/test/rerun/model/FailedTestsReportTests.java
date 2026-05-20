@@ -28,94 +28,78 @@ public class FailedTestsReportTests {
     public void testDeserializesFullyPopulatedReport() throws Exception {
         String json = """
             {
-              "workUnits": [],
-              "testseed": "DEADBEEF",
-              "executedTestTasks": [":a:test", ":b:test"],
-              "failedTestTasks": [":b:test"]
+              "successfulTasks": [":a:test", ":b:test"],
+              "testseed": "DEADBEEF"
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.workUnits(), equalTo(List.of()));
+        assertThat(report.successfulTasks(), equalTo(List.of(":a:test", ":b:test")));
         assertThat(report.testseed(), equalTo("DEADBEEF"));
-        assertThat(report.executedTestTasks(), equalTo(List.of(":a:test", ":b:test")));
-        assertThat(report.failedTestTasks(), equalTo(List.of(":b:test")));
     }
 
     @Test
-    public void testDeserializesLegacyReportWithoutFailedTestTasks() throws Exception {
-        // Back-compat: a history JSON written before the failedTestTasks field existed
-        // must still deserialize, with failedTestTasks left null for safe fallback.
+    public void testDeserializesEmptySuccessfulTasks() throws Exception {
         String json = """
             {
-              "workUnits": [],
-              "testseed": "CAFE",
-              "executedTestTasks": [":a:test"]
+              "successfulTasks": [],
+              "testseed": "CAFE"
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.executedTestTasks(), equalTo(List.of(":a:test")));
-        assertThat(report.failedTestTasks(), is(nullValue()));
+        assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.testseed(), equalTo("CAFE"));
     }
 
     @Test
-    public void testDeserializesReportWithoutExecutedTestTasks() throws Exception {
-        // Older format where executedTestTasks was not yet emitted.
+    public void testDeserializesReportWithoutSuccessfulTasks() throws Exception {
         String json = """
             {
-              "workUnits": []
+              "testseed": "ABC"
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.executedTestTasks(), is(nullValue()));
-        assertThat(report.failedTestTasks(), is(nullValue()));
+        assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.testseed(), equalTo("ABC"));
     }
 
     @Test
-    public void testEmptyArraysAreDistinctFromNull() throws Exception {
-        // Empty arrays mean "API reachable but returned no entries" — not the same as
-        // "API data unavailable" (null). The plugin treats them differently.
-        String json = """
-            {
-              "workUnits": [],
-              "executedTestTasks": [],
-              "failedTestTasks": []
-            }
-            """;
+    public void testNullSuccessfulTasksDefaultsToEmptyList() {
+        FailedTestsReport report = new FailedTestsReport(null, "seed");
 
-        FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
-
-        assertThat(report.executedTestTasks(), equalTo(List.of()));
-        assertThat(report.failedTestTasks(), equalTo(List.of()));
-    }
-
-    @Test
-    public void testNullWorkUnitsDefaultsToEmptyList() {
-        // The compact constructor must normalise a null workUnits argument to an empty
-        // list so that consumers can iterate it unconditionally.
-        FailedTestsReport report = new FailedTestsReport(null, "seed", null, null);
-
-        assertThat(report.workUnits(), equalTo(List.of()));
-        assertThat(report.executedTestTasks(), is(nullValue()));
-        assertThat(report.failedTestTasks(), is(nullValue()));
+        assertThat(report.successfulTasks(), equalTo(List.of()));
     }
 
     @Test
     public void testIgnoresUnknownFields() throws Exception {
         String json = """
             {
-              "workUnits": [],
-              "unexpectedField": "ignored"
+              "successfulTasks": [":a:test"],
+              "unexpectedField": "ignored",
+              "workUnits": []
             }
             """;
 
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
-        assertThat(report.workUnits(), equalTo(List.of()));
+        assertThat(report.successfulTasks(), equalTo(List.of(":a:test")));
+    }
+
+    @Test
+    public void testNullTestseedDeserializesAsNull() throws Exception {
+        String json = """
+            {
+              "successfulTasks": [":a:test"]
+            }
+            """;
+
+        FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
+
+        assertThat(report.testseed(), is(nullValue()));
     }
 }

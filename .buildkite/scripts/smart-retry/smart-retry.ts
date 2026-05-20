@@ -2,9 +2,6 @@ import type {
   TaskStatusReport,
   MultiRunTaskStatus,
   FailedTestsReport,
-  WorkUnit,
-  TestClassEntry,
-  TestMethodEntry,
   SmartRetryEnv,
   SmartRetryResult,
   SmartRetryDeps,
@@ -129,27 +126,24 @@ function pickTestResult(a: TestEntry["result"], b: TestEntry["result"]): TestEnt
  * Transforms a TaskStatusReport (from task-status.json, possibly merged from
  * multiple runs) into a FailedTestsReport (.failed-test-history.json) for
  * consumption by InternalTestRerunPlugin.
+ *
+ * The plugin skips tasks in successfulTasks and runs everything else.
+ * A task is "successful" if it ran with outcome SUCCESS/UP_TO_DATE/FROM_CACHE,
+ * all its tests passed (no FAILURE results), and the task itself didn't FAIL.
  */
 export function transformTaskStatus(report: TaskStatusReport, testseed: string): FailedTestsReport {
-  const executedTestTasks = uniqueSorted(report.tests.map((t) => t.taskPath));
+  const SUCCESSFUL_OUTCOMES = new Set(["SUCCESS", "UP_TO_DATE", "FROM_CACHE"]);
 
   const failedTaskPaths = new Set(report.tasks.filter((t) => t.outcome === "FAILED").map((t) => t.path));
 
-  const failedTests = report.tests.filter((t) => t.result === "FAILURE");
-  const tasksWithTestFailures = new Set(failedTests.map((t) => t.taskPath));
+  const tasksWithTestFailures = new Set(report.tests.filter((t) => t.result === "FAILURE").map((t) => t.taskPath));
 
-  const workUnits = buildWorkUnits(failedTests);
-
-  const failedTestTasks = [...failedTaskPaths]
-    .filter((p) => !tasksWithTestFailures.has(p) && executedTestTasks.includes(p))
+  const successfulTasks = report.tasks
+    .filter((t) => SUCCESSFUL_OUTCOMES.has(t.outcome) && !failedTaskPaths.has(t.path) && !tasksWithTestFailures.has(t.path))
+    .map((t) => t.path)
     .sort();
 
-  return {
-    workUnits,
-    testseed,
-    executedTestTasks,
-    failedTestTasks,
-  };
+  return { successfulTasks, testseed };
 }
 
 // ---------------------------------------------------------------------------
@@ -189,49 +183,44 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
   const merged = mergeRuns(multiRun);
   const testseed = env.testsSeed ?? "";
   const report = transformTaskStatus(merged, testseed);
-  const workUnitCount = report.workUnits.length;
-  const failedTaskCount = report.failedTestTasks.length;
-  const executedCount = report.executedTestTasks.length;
+  const successfulCount = report.successfulTasks.length;
+  const totalTaskCount = merged.tasks.length;
 
-  if (workUnitCount === 0 && failedTaskCount === 0) {
+  if (successfulCount === 0) {
     return {
       status: "disabled",
-      details: "Previous failure was not caused by test or task failures — rerunning all tests",
+      details: "No successful tasks found in previous runs — rerunning all tests",
       failedTestHistory: null,
       annotation: null,
       metadata: {
         "smart-retry-status": "disabled",
-        "smart-retry-details": "Previous failure was not caused by test or task failures — rerunning all tests",
-        "smart-retry-disabled-reason": "no-test-or-task-failures",
+        "smart-retry-details": "No successful tasks found in previous runs — rerunning all tests",
+        "smart-retry-disabled-reason": "no-successful-tasks",
       },
     };
   }
 
   const originJobName = resolveOriginJobName(buildJson, originJobId);
   const runCount = multiRun.runs.length;
-  const details = `Filtering to ${workUnitCount} work units with test failures, ${failedTaskCount} tasks with non-test failures (across ${runCount} previous run${runCount !== 1 ? "s" : ""})`;
+  const details = `Skipping ${successfulCount} successful tasks out of ${totalTaskCount} total (across ${runCount} previous run${runCount !== 1 ? "s" : ""})`;
 
   const annotation = [
     `Rerunning failed build job [${originJobName}]`,
     "",
-    `**Gradle Tasks with Test Failures:** ${workUnitCount}`,
-    `**Gradle Tasks with Non-Test Failures:** ${failedTaskCount}`,
-    `**Executed Test Tasks in Previous Runs:** ${executedCount}`,
+    `**Successful Tasks to Skip:** ${successfulCount}`,
+    `**Total Tasks in Previous Runs:** ${totalTaskCount}`,
     `**Previous Runs Analyzed:** ${runCount}`,
     "",
-    "This retry will rerun failed tests, rerun all tests for tasks that failed at the Gradle level (e.g. resource leaks), skip confirmed-passed tasks, and run all tests for tasks not executed in previous runs.",
+    "This retry will skip tasks that succeeded in previous runs and run everything else.",
   ].join("\n");
 
   const metadata: Record<string, string> = {
     "smart-retry-status": "enabled",
     "smart-retry-details": details,
-    "smart-retry-work-units": String(workUnitCount),
-    "smart-retry-executed-tasks": String(executedCount),
+    "smart-retry-successful-tasks": String(successfulCount),
+    "smart-retry-total-tasks": String(totalTaskCount),
     "smart-retry-previous-runs": String(runCount),
   };
-  if (failedTaskCount > 0) {
-    metadata["smart-retry-failed-tasks"] = String(failedTaskCount);
-  }
 
   return {
     status: "enabled",
@@ -260,49 +249,3 @@ export function resolveOriginJobName(buildJson: BuildkiteBuildJson, originJobId:
   return job?.name && job.name !== "null" ? job.name : "previous attempt";
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function buildWorkUnits(failedTests: TaskStatusReport["tests"]): WorkUnit[] {
-  const byTask = groupBy(failedTests, (t) => t.taskPath);
-
-  return Object.entries(byTask)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([taskPath, tests]) => ({
-      name: taskPath,
-      outcome: "failed",
-      tests: buildTestClasses(tests),
-    }));
-}
-
-function buildTestClasses(tests: TaskStatusReport["tests"]): TestClassEntry[] {
-  const byClass = groupBy(tests, (t) => t.className);
-
-  return Object.entries(byClass)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([className, methods]) => ({
-      name: className,
-      outcome: { overall: "failed", own: "passed", children: "failed" },
-      children: methods.map(
-        (m): TestMethodEntry => ({
-          name: m.methodName,
-          outcome: { overall: "failed" },
-          children: [],
-        })
-      ),
-    }));
-}
-
-function groupBy<T>(items: T[], keyFn: (item: T) => string): Record<string, T[]> {
-  const result: Record<string, T[]> = {};
-  for (const item of items) {
-    const key = keyFn(item);
-    (result[key] ??= []).push(item);
-  }
-  return result;
-}
-
-function uniqueSorted(arr: string[]): string[] {
-  return [...new Set(arr)].sort();
-}

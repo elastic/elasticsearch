@@ -190,7 +190,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 indexShard,
                 searcherSupplier.get(),
                 randomNonNegativeLong(),
-                false
+                false,
+                0L
             );
             DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(
                 readerWithoutScroll,
@@ -233,7 +234,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 indexShard,
                 searcherSupplier.get(),
                 shardSearchRequest,
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                0L
             );
             try (
                 DefaultSearchContext context1 = new DefaultSearchContext(
@@ -309,7 +311,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 indexShard,
                 searcherSupplier.get(),
                 randomNonNegativeLong(),
-                false
+                false,
+                0L
             ) {
                 @Override
                 public ScrollContext scrollContext() {
@@ -392,7 +395,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     indexShard,
                     searcherSupplier.get(),
                     randomNonNegativeLong(),
-                    false
+                    false,
+                    0L
                 );
             }
 
@@ -468,7 +472,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 indexShard,
                 searcherSupplier,
                 randomNonNegativeLong(),
-                false
+                false,
+                0L
             );
             DefaultSearchContext context = new DefaultSearchContext(
                 readerContext,
@@ -1125,7 +1130,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 indexShard,
                 searcherSupplier.get(),
                 randomNonNegativeLong(),
-                false
+                false,
+                0L
             );
             return new DefaultSearchContext(
                 readerContext,

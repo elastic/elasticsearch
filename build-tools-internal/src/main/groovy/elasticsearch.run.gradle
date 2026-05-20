@@ -34,6 +34,8 @@ testClusters.register("runTask") {
       numberOfNodes = 1
       // Arrow memory allocator needs access to java.nio internals
       jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+      // UninitializedArrays needs reflective access to jdk.internal.misc.Unsafe
+      jvmArgs '--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED'
       // Forward RUST_LOG into the ES JVM so the parquet-rs native lib's
       // `env_logger` picks it up. Set with: `-Drun.rust_log=esql_parquet_rs=debug`
       // (or via the RUST_LOG env var of the gradle process). Defaults to empty,

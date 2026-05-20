@@ -146,7 +146,7 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.Segment;
@@ -1498,7 +1498,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 try (
                     var tempEngine = new ReadOnlyEngine(
                         // Override the temporary engine configuration to use the correct mappers
-                        EngineTestCase.copy(engineConfig, indexService.mapperService()),
+                        EngineConfig.builder(engineConfig).mapperService(indexService.mapperService()).build(),
                         null,
                         new TranslogStats(0, 0, 0, 0, 0),
                         false,

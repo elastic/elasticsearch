@@ -49,10 +49,7 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
         var future = new PlainActionFuture<Void>();
         interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(
-            e.getMessage(),
-            containsString(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME)
-        );
+        assertThat(e.getMessage(), containsString(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME));
     }
 
     public void testSkipsWhenDatasourceActionMatchesRequestAction() {

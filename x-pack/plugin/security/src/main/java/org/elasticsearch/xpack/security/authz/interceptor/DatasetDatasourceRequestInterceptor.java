@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngineRole;
 
@@ -39,7 +40,9 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
             String datasourceAction = dsi.dataSourceClusterActionName();
             if (role.checkClusterAction(datasourceAction, requestInfo.getRequest(), requestInfo.getAuthentication()) == false) {
                 String user = requestInfo.getAuthentication().getEffectiveSubject().getUser().principal();
-                return SubscribableListener.newFailed(authorizationError("action [" + datasourceAction + "] is unauthorized for user [" + user + "]"));
+                return SubscribableListener.newFailed(
+                    authorizationError("action [" + datasourceAction + "] is unauthorized for user [" + user + "]")
+                );
             }
         }
         return SubscribableListener.nullSuccess();

@@ -333,6 +333,7 @@ import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
@@ -342,7 +343,6 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ViewDlsFlsRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;

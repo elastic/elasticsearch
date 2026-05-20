@@ -411,8 +411,8 @@ FROM cluster_one:missing-index*,cluster_two:missing-index | LIMIT 10
 ```
 :::
 
-:::{applies-item} stack: ga =9.1
-If a remote cluster disconnects from the querying cluster, {{ccs}} for {{esql}} sets it to `skipped` and continue the query with other clusters, unless the remote cluster's `skip_unavailable` setting is set to `false`, in which case the query fails.
+:::{applies-item} stack: preview =9.0
+If a remote cluster disconnects from the querying cluster, {{ccs}} for {{esql}} sets it to `skipped` and continues the query with other clusters, unless the remote cluster's `skip_unavailable` setting is set to `false`, in which case the query fails.
 :::
 
 ::::

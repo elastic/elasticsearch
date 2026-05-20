@@ -440,7 +440,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                                     subfieldName(getFieldName(), Metric.value_count)
                                 );
 
-                                return new SortedNumericDoubleValues() {
+                                return new SortedNumericDoubleValues(null) {
                                     @Override
                                     public int docValueCount() {
                                         assert countValues.docValueCount() == sumValues.docValueCount()
@@ -546,7 +546,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             final Metric metric;
 
             private AggregateMetricValues(SortedNumericDocValues values, Metric metric) {
-                super(DocValues.unwrapSingleton(values) != null);
+                super(DocValues.unwrapSingleton(values) != null, values);
                 this.values = values;
                 this.metric = metric;
             }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -801,12 +800,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
         assertThat(issues, hasItem(expected));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the deprecation documentation for the next major version."
-            )
+            "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -824,12 +819,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
         assertThat(issues, hasItem(expected));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the deprecation documentation for the next major version."
-            )
+            "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 

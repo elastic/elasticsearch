@@ -44,10 +44,14 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testCacheMissPublishesNoStatistics() throws Exception {
+    public void testCacheMissPublishesSizeButNoRowCount() throws Exception {
         StorageObject o = obj("{\"a\":1}\n{\"a\":2}\n");
         SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
-        assertFalse(md.statistics().isPresent());
+        // sizeInBytes is always published when length is resolvable; warm queries re-key the
+        // row-count cache off the cached length without re-fetching from storage.
+        assertTrue("statistics must be present (sizeInBytes is always known)", md.statistics().isPresent());
+        assertFalse("rowCount must be absent on cache miss", md.statistics().get().rowCount().isPresent());
+        assertTrue("sizeInBytes must be present on cache miss", md.statistics().get().sizeInBytes().isPresent());
     }
 
     public void testCacheHitPublishesRowCount() throws Exception {

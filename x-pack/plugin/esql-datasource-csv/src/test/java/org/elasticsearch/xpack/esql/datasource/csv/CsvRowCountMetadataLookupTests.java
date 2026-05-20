@@ -46,10 +46,15 @@ public class CsvRowCountMetadataLookupTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testCacheMissPublishesNoStatistics() throws Exception {
+    public void testCacheMissPublishesSizeButNoRowCount() throws Exception {
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n");
         SourceMetadata md = new CsvFormatReader(blockFactory).metadata(o);
-        assertFalse("cache miss must publish no statistics", md.statistics().isPresent());
+        // sizeInBytes is always published when length is resolvable, even on row-count miss —
+        // ExternalSourceResolver.buildMetadataFromCache reads it to re-key the warm-path
+        // row-count cache lookup once the iterator's capture hook fires.
+        assertTrue("statistics must be present (sizeInBytes is always known)", md.statistics().isPresent());
+        assertFalse("rowCount must be absent on cache miss", md.statistics().get().rowCount().isPresent());
+        assertTrue("sizeInBytes must be present on cache miss", md.statistics().get().sizeInBytes().isPresent());
     }
 
     public void testCacheHitPublishesRowCount() throws Exception {

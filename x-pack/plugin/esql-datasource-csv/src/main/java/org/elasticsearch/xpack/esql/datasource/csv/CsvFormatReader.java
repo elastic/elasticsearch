@@ -447,24 +447,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema = readSchema(object);
         String location = object.path().toString();
-        // Cache hit → publish rowCount so PushStatsToExternalSource can short-circuit COUNT(*).
-        // Cache miss → no stats; the query runs normally and (eventually, via the capture hook in
-        // the execution path) populates the cache as a side-effect.
-        OptionalLong cached = ExternalRowCountCache.lookup(object);
-        if (cached.isEmpty()) {
-            return new SimpleSourceMetadata(schema, formatName(), location);
-        }
-        long rowCount = cached.getAsLong();
+        // Always publish sizeInBytes when the file's length is resolvable — even on a row-count
+        // cache miss. The SchemaCacheEntry serializer flattens published statistics into a
+        // sourceMetadata Map and caches it; warm queries on the same (path, mtime, format, config)
+        // short-circuit metadata() entirely, so without sizeInBytes baked in at cold-pass time the
+        // warm-path row-count augmentation in ExternalSourceResolver.buildMetadataFromCache would
+        // have no way to construct the (path, length) cache key. rowCount is added on top when
+        // present.
         long sizeInBytes;
         try {
             sizeInBytes = object.length();
         } catch (IOException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
+        OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);
         SourceStatistics stats = new SourceStatistics() {
             @Override
             public OptionalLong rowCount() {
-                return OptionalLong.of(rowCount);
+                return cachedRowCount;
             }
 
             @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
@@ -43,6 +44,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -437,6 +439,25 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
+        // Warm-path row-count augmentation: the SchemaCacheEntry is cached per
+        // (path, mtime, format, config) and short-circuits metadata() on subsequent queries. The
+        // row-count cache is populated by the iterator's close() hook AFTER the SchemaCacheEntry
+        // is written, so the cached safeMetadata Map carries sizeInBytes but no rowCount on the
+        // first query. Re-key the (path, length) row-count lookup at warm-query time and inject
+        // STATS_ROW_COUNT if the iterator has since populated the cache.
+        Map<String, Object> effectiveMetadata = entry.safeMetadata();
+        if (effectiveMetadata.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
+            && effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sizeBytes
+            && entry.location() != null) {
+            OptionalLong cachedRowCount = ExternalRowCountCache.lookup(entry.location(), sizeBytes.longValue());
+            if (cachedRowCount.isPresent()) {
+                Map<String, Object> augmented = new HashMap<>(effectiveMetadata);
+                augmented.put(SourceStatisticsSerializer.STATS_ROW_COUNT, cachedRowCount.getAsLong());
+                effectiveMetadata = Map.copyOf(augmented);
+            }
+        }
+        final Map<String, Object> finalMetadata = effectiveMetadata;
+
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -455,7 +476,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return entry.safeMetadata();
+                return finalMetadata;
             }
 
             @Override

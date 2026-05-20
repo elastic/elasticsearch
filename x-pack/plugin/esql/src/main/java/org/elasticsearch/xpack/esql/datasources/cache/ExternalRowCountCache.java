@@ -40,10 +40,23 @@ public final class ExternalRowCountCache {
     /** Look up a cached row count by file identity. */
     public static OptionalLong lookup(StorageObject object) {
         try {
-            Long v = CACHE.get(FooterByteCache.Key.keyFor(object, object.length()));
-            return v == null ? OptionalLong.empty() : OptionalLong.of(v);
+            return lookup(object.path().toString(), object.length());
         } catch (Exception e) {
             // IOException from object.length() or any cache-internal failure → miss.
+            return OptionalLong.empty();
+        }
+    }
+
+    /**
+     * Look up a cached row count by file identity, given an already-resolved {@code (path, length)}.
+     * Used by the warm-query optimizer path where the SchemaCacheEntry already carries the file
+     * length, avoiding a fresh {@code length()} I/O round-trip on every query.
+     */
+    public static OptionalLong lookup(String path, long length) {
+        try {
+            Long v = CACHE.get(new FooterByteCache.Key(path, length));
+            return v == null ? OptionalLong.empty() : OptionalLong.of(v);
+        } catch (Exception e) {
             return OptionalLong.empty();
         }
     }

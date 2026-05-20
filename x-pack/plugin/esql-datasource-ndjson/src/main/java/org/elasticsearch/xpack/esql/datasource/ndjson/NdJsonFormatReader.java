@@ -276,21 +276,21 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
         }
         String location = object.path().toString();
-        OptionalLong cached = ExternalRowCountCache.lookup(object);
-        if (cached.isEmpty()) {
-            return new SimpleSourceMetadata(schema, formatName(), location);
-        }
-        long rowCount = cached.getAsLong();
+        // Always publish sizeInBytes when resolvable so the SchemaCacheEntry's serialized
+        // sourceMetadata Map carries the file length; ExternalSourceResolver.buildMetadataFromCache
+        // then re-keys the row-count cache lookup on warm queries without an extra length() call.
+        // See the parallel comment in CsvFormatReader.metadata.
         long sizeInBytes;
         try {
             sizeInBytes = object.length();
         } catch (IOException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
+        OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);
         SourceStatistics stats = new SourceStatistics() {
             @Override
             public OptionalLong rowCount() {
-                return OptionalLong.of(rowCount);
+                return cachedRowCount;
             }
 
             @Override

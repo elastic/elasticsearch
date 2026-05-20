@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.aggregation.UnsupportedTemporalityException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -70,8 +69,8 @@ public class DeltaOnlyHistogramMergeOverTimeTests extends AbstractAggregationTes
 
     @Override
     public void testGroupingAggregate() {
-        if (testCase.extra() instanceof Class<?> c && UnsupportedTemporalityException.class.isAssignableFrom(c)) {
-            Exception e = expectThrows(UnsupportedTemporalityException.class, super::testGroupingAggregate);
+        if (testCase.extra() == IllegalArgumentException.class) {
+            Exception e = expectThrows(IllegalArgumentException.class, super::testGroupingAggregate);
             assertThat(e.getMessage(), Matchers.notNullValue());
             return;
         }
@@ -118,7 +117,7 @@ public class DeltaOnlyHistogramMergeOverTimeTests extends AbstractAggregationTes
                                     + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
                             );
                     } else if (temporality == RateTests.TemporalityParameter.CUMULATIVE) {
-                        return result.withExtra(UnsupportedTemporalityException.class);
+                        return result.withExtra(IllegalArgumentException.class);
                     }
                 }
                 return result;

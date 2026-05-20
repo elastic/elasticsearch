@@ -50,7 +50,7 @@ public class DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator {
             if (current.cachedTemporalityAccessor.get(position) == Temporality.DELTA) {
                 current.delegate.add(groupId, value);
             } else {
-                throw new UnsupportedTemporalityException(
+                throw new IllegalArgumentException(
                     "Cumulative temporality is not supported for the exponential_histogram type on all nodes"
                 );
             }

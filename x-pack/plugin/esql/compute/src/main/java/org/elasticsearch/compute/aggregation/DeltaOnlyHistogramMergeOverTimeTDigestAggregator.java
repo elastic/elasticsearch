@@ -50,7 +50,7 @@ public class DeltaOnlyHistogramMergeOverTimeTDigestAggregator {
             if (current.cachedTemporalityAccessor.get(position) == Temporality.DELTA) {
                 current.delegate.add(groupId, value);
             } else {
-                throw new UnsupportedTemporalityException("Cumulative temporality is not supported for the tdigest type.");
+                throw new IllegalArgumentException("Cumulative temporality is not supported for the tdigest type.");
             }
         } catch (InvalidTemporalityException e) {
             current.warnings.registerException(e);

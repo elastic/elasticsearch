@@ -64,9 +64,7 @@ public class LegacyIrateLongAggregator {
                 current.ensureCapacity(groupId);
                 current.append(groupId, timestamp, value);
             } else {
-                throw new UnsupportedTemporalityException(
-                    "Delta temporality is not supported for counters in irate calculations on all nodes."
-                );
+                throw new IllegalArgumentException("Delta temporality is not supported for counters in irate calculations on all nodes.");
             }
         } catch (InvalidTemporalityException e) {
             // We can't use @GroupingAggregator(warnExceptions=..) here because that would require a breaking change to the

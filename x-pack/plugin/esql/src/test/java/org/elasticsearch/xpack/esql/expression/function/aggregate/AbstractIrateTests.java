@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.compute.aggregation.UnsupportedTemporalityException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
@@ -42,8 +41,8 @@ public abstract class AbstractIrateTests extends AbstractAggregationTestCase {
 
     @Override
     public void testGroupingAggregate() {
-        if (testCase.extra() == UnsupportedTemporalityException.class) {
-            Exception e = expectThrows(UnsupportedTemporalityException.class, super::testGroupingAggregate);
+        if (testCase.extra() == IllegalArgumentException.class) {
+            Exception e = expectThrows(IllegalArgumentException.class, super::testGroupingAggregate);
             assertThat(e.getMessage(), org.hamcrest.Matchers.notNullValue());
             return;
         }
@@ -140,7 +139,7 @@ public abstract class AbstractIrateTests extends AbstractAggregationTestCase {
                                     + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
                             );
                     } else if (temporality == RateTests.TemporalityParameter.DELTA && supportsDelta == false) {
-                        return result.withExtra(UnsupportedTemporalityException.class);
+                        return result.withExtra(IllegalArgumentException.class);
                     }
                 }
                 return result;

@@ -1248,6 +1248,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
         int bracketDepth = 0;
+        // Remember where the parser entered the unclosed state so error messages can anchor on
+        // the actual fault site instead of head/tail-truncating a long line and hiding it.
+        int quoteOpenAt = -1;
+        int bracketOpenAt = -1;
         int i = 0;
         while (i < line.length()) {
             char c = line.charAt(i);
@@ -1282,10 +1286,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 i++;
             } else if (c == quote && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
                 inQuotes = true;
+                quoteOpenAt = i;
                 i++;
             } else if (c == '[' && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
                 if (hasMvcBracketClose(line, i)) {
                     bracketDepth = 1;
+                    bracketOpenAt = i;
                 }
                 current.append(c);
                 i++;
@@ -1303,10 +1309,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         if (inQuotes) {
-            throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarize(line) + "]");
+            throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarizeAround(line, quoteOpenAt) + "]");
         }
         if (bracketDepth > 0) {
-            throw new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarize(line) + "]");
+            throw new MalformedRowException(
+                "Unclosed bracket cell in line [" + CsvErrorMessages.summarizeAround(line, bracketOpenAt) + "]"
+            );
         }
         if (current.length() > 0) {
             entries.add(current.toString().trim());

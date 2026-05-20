@@ -4661,6 +4661,166 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected col2, got: " + summary, summary.contains("col2=[null]"));
     }
 
+    public void testCsvErrorMessagesSummarizeAroundShortValuePassesThrough() {
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 0));
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 4));
+        // Short values must pass through regardless of offset value (including negative and out-of-range).
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", -1));
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 100));
+        assertEquals("null", CsvErrorMessages.summarizeAround(null, 0));
+        assertEquals("null", CsvErrorMessages.summarizeAround(null, -1));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundLongValueAnchorsOnOffset() {
+        // Build a >MAX_EXCERPT_CHARS value with a unique marker at a known offset; the window
+        // must include the marker (the actual fault) plus the offset annotation, and must start
+        // with the elided-prefix indicator because the window does not begin at index 0.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('x');
+        }
+        int faultOffset = 500;
+        String marker = "FAULTHERE";
+        huge.replace(faultOffset, faultOffset + marker.length(), marker);
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
+        assertTrue(
+            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length() + ": " + summarized,
+            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+        );
+        assertTrue(
+            "expected offset annotation, got: " + summarized,
+            summarized.contains("(offset " + faultOffset + " of " + huge.length() + " chars)")
+        );
+        assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
+        // With start > 0 the excerpt must announce the elided prefix.
+        assertTrue("expected leading ellipsis marker, got: " + summarized, summarized.startsWith("… "));
+        // The window does not reach EOL (faultOffset + budget < length) so a trailing ellipsis is required.
+        assertTrue("expected trailing ellipsis marker, got: " + summarized, summarized.endsWith("…"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundOffsetNearStartHasNoLeadingEllipsis() {
+        // When the fault is within OFFSET_LOOKBACK_CHARS of the start, the window begins at index 0
+        // so the "… " leading marker is omitted (no characters elided before the window).
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('a');
+        }
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), 5);
+        assertFalse("did not expect leading ellipsis, got: " + summarized, summarized.startsWith("… "));
+        assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset 5 of 1000 chars)"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundLookbackBoundary() {
+        // OFFSET_LOOKBACK_CHARS is 32: at offset 32 the window starts at index 0 (no leading marker);
+        // at offset 33 the window starts at index 1 (leading marker emitted). Pin both sides of the
+        // transition so an off-by-one in the lookback boundary is caught.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('b');
+        }
+        String atBoundary = CsvErrorMessages.summarizeAround(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS);
+        assertFalse("expected no leading ellipsis at offset == OFFSET_LOOKBACK_CHARS, got: " + atBoundary, atBoundary.startsWith("… "));
+        String pastBoundary = CsvErrorMessages.summarizeAround(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS + 1);
+        assertTrue("expected leading ellipsis at offset == OFFSET_LOOKBACK_CHARS + 1, got: " + pastBoundary, pastBoundary.startsWith("… "));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundOffsetNearEndOmitsTrailingEllipsis() {
+        // When the window reaches end-of-string, the trailing "…" marker is dropped because
+        // nothing follows.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('z');
+        }
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), 990);
+        assertFalse("did not expect trailing ellipsis, got: " + summarized, summarized.endsWith("…"));
+        // The final char of the underlying value must therefore be the final char of the excerpt.
+        assertTrue("expected excerpt to end with the last char of value, got: " + summarized, summarized.endsWith("z"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundUnknownOffsetFallsBackToHead() {
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 5000; i++) {
+            huge.append('x');
+        }
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), -1);
+        assertTrue(
+            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
+            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+        );
+        assertTrue("expected truncated marker, got: " + summarized, summarized.contains("truncated"));
+        assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
+        // The unknown-offset branch must not synthesize a fake offset annotation; assert the
+        // anchored path was not taken.
+        assertFalse("did not expect '(offset' in fallback, got: " + summarized, summarized.contains("(offset"));
+        // Excerpt must come from the head of the value.
+        assertTrue("expected excerpt to start at index 0, got: " + summarized, summarized.startsWith("x"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundPathologicalInputStaysBounded() {
+        // 100 KB input must not bloat the error message AND the offset annotation must survive,
+        // since that is the operator's only handle into the source file.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 100_000; i++) {
+            huge.append('q');
+        }
+        String marker = "FAULTHERE";
+        int faultOffset = 50_000;
+        huge.replace(faultOffset, faultOffset + marker.length(), marker);
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
+        assertTrue(
+            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
+            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+        );
+        assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset " + faultOffset + " of 100000 chars)"));
+        assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
+    }
+
+    /**
+     * End-to-end: an unclosed quoted field at end-of-file produces an error excerpt anchored on the
+     * opening quote, not a head/tail-truncated view of the entire row. The row is sized so the
+     * opening quote sits well inside the elided middle of the legacy head/tail summary, so a
+     * regression that re-routes to {@link CsvErrorMessages#summarize} would hide the fault bytes.
+     */
+    public void testMalformedRowErrorAnchorsOnQuoteOffset() {
+        // Pad both sides of the unmatched quote so the line is much longer than MAX_EXCERPT_CHARS
+        // AND the fault sits in the middle of the line — where head/tail truncation hides it.
+        StringBuilder padHead = new StringBuilder();
+        for (int i = 0; i < 400; i++) {
+            padHead.append('h');
+        }
+        // Trailing padding (still inside the unclosed quoted field) so the line is ~1000 chars and the
+        // legacy head/tail summary would NOT include the opening quote in either window.
+        StringBuilder padTail = new StringBuilder();
+        for (int i = 0; i < 400; i++) {
+            padTail.append('t');
+        }
+        String row = "1," + padHead + ",\"unterminated_field_here_" + padTail;
+        int expectedOffset = "1,".length() + padHead.length() + ",".length();
+
+        String csv = "id:long,name:keyword\n" + row;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        String msg = e.getMessage();
+        assertTrue("expected Unclosed quoted field, got: " + msg, msg.contains("Unclosed quoted field"));
+        assertTrue("expected offset annotation, got: " + msg, msg.contains("(offset " + expectedOffset + " of "));
+        // The unique fault marker sits at the elided middle for legacy head/tail; with offset
+        // anchoring it must survive in the excerpt.
+        assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
+    }
+
     // --- FormatReadContext.readSchema() honor tests ---
     // These tests prove the runtime CSV reader uses the planner-resolved read schema (passed via
     // FormatReadContext.readSchema()) as the authoritative positional column layout, overriding

@@ -40,6 +40,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -376,6 +379,90 @@ public class FileSplitProviderTests extends ESTestCase {
 
     public void testEvaluateFilterUnknownExpressionReturnsNull() {
         assertNull(FileSplitProvider.evaluateFilter(new Literal(SRC, true, DataType.BOOLEAN), Map.of("year", 2024)));
+    }
+
+    public void testEvaluateFilterIsNullOnNullPartitionMatches() {
+        Map<String, Object> values = new HashMap<>();
+        values.put("lang", null);
+        Expression filter = new IsNull(SRC, fieldAttr("lang"));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, values));
+    }
+
+    public void testEvaluateFilterIsNullOnNonNullPartitionDoesNotMatch() {
+        Expression filter = new IsNull(SRC, fieldAttr("lang"));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("lang", 3)));
+    }
+
+    public void testEvaluateFilterIsNotNullOnNullPartitionDoesNotMatch() {
+        Map<String, Object> values = new HashMap<>();
+        values.put("lang", null);
+        Expression filter = new IsNotNull(SRC, fieldAttr("lang"));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, values));
+    }
+
+    public void testEvaluateFilterIsNotNullOnNonNullPartitionMatches() {
+        Expression filter = new IsNotNull(SRC, fieldAttr("lang"));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("lang", 3)));
+    }
+
+    public void testEvaluateFilterIsNullOnUnknownColumnIsNull() {
+        Expression filter = new IsNull(SRC, fieldAttr("missing"));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("lang", 3)));
+    }
+
+    public void testEvaluateFilterInOnNullPartitionIsUnknown() {
+        // lang IN (1, 2) where the partition value is null: under three-valued logic the comparison
+        // is unknown, so the file must be kept (null result, not false).
+        Map<String, Object> values = new HashMap<>();
+        values.put("lang", null);
+        Expression filter = new In(SRC, fieldAttr("lang"), List.of(intLiteral(1), intLiteral(2)));
+        assertNull(FileSplitProvider.evaluateFilter(filter, values));
+    }
+
+    public void testEvaluateFilterOrPruneOnlyWhenAllBranchesFalse() {
+        Expression left = new Equals(SRC, fieldAttr("lang"), intLiteral(1));
+        Expression right = new Equals(SRC, fieldAttr("lang"), intLiteral(2));
+        Expression or = new Or(SRC, left, right);
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(or, Map.of("lang", 1)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(or, Map.of("lang", 3)));
+    }
+
+    public void testEvaluateFilterOrWithIsNullPrunesCorrectly() {
+        Map<String, Object> nullValues = new HashMap<>();
+        nullValues.put("lang", null);
+        Expression or = new Or(SRC, new Equals(SRC, fieldAttr("lang"), intLiteral(1)), new IsNull(SRC, fieldAttr("lang")));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(or, nullValues));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(or, Map.of("lang", 1)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(or, Map.of("lang", 2)));
+    }
+
+    public void testEvaluateFilterAndPrunesOnAnyFalseBranch() {
+        Expression and = new And(
+            SRC,
+            new Equals(SRC, fieldAttr("lang"), intLiteral(1)),
+            new Equals(SRC, fieldAttr("year"), intLiteral(2024))
+        );
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(and, Map.of("lang", 1, "year", 2024)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(and, Map.of("lang", 1, "year", 2023)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(and, Map.of("lang", 2, "year", 2024)));
+    }
+
+    public void testEvaluateFilterAndWithUnknownBranchReturnsNullUnlessOtherIsFalse() {
+        Expression and = new And(
+            SRC,
+            new Equals(SRC, fieldAttr("lang"), intLiteral(1)),
+            new Equals(SRC, fieldAttr("unknown"), intLiteral(0))
+        );
+        assertNull(FileSplitProvider.evaluateFilter(and, Map.of("lang", 1)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(and, Map.of("lang", 2)));
+    }
+
+    public void testEvaluateFilterNotInvertsKnownValuesAndPropagatesNull() {
+        Expression eq = new Equals(SRC, fieldAttr("lang"), intLiteral(1));
+        Expression not = new Not(SRC, eq);
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(not, Map.of("lang", 1)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(not, Map.of("lang", 2)));
+        assertNull(FileSplitProvider.evaluateFilter(not, Map.of("year", 2024)));
     }
 
     // -- sub-file splitting --

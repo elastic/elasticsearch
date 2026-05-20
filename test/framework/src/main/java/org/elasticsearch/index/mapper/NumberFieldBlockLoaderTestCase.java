@@ -113,11 +113,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
      * path and the stored-source re-parsing path can differ (see {@code LongFieldBlockLoaderTests}).
      */
     protected Number tryParseStringFromSource(String s) {
-        try {
-            return Double.parseDouble(s);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
+        return tryParseString(s);
     }
 
     protected abstract T convert(Number value, Map<String, Object> fieldMapping);

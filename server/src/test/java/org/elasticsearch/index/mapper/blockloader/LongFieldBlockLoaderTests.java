@@ -31,18 +31,28 @@ public class LongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Lo
      *
      * <p>During indexing, {@code AbstractXContentParser.toLong} tries {@link Long#parseLong} first,
      * which accepts Unicode digits. This is broader than what {@link Double#parseDouble} accepts.
-     *
-     * <p>Note: {@link #tryParseStringFromSource} is intentionally left at the default
-     * ({@link Double#parseDouble}) because the stored-source re-parsing path goes through
-     * {@code objectToLong -> objectToDouble -> Double.parseDouble}, which rejects those same Unicode
-     * digits. This asymmetry between indexing and stored-source re-parsing is a known inconsistency
-     * in the production code.
      */
     @Override
     protected Number tryParseString(String s) {
         try {
             return Numbers.toLong(s, true);
         } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Overrides the default {@link #tryParseString(String)}-based implementation because the
+     * stored-source re-parsing path goes through {@code objectToLong -> objectToDouble
+     * -> Double.parseDouble}, which rejects some Unicode digits that are accepted by
+     * {@link Numbers#toLong}. This asymmetry between indexing and stored-source re-parsing
+     * is a known inconsistency in the production code.
+     */
+    @Override
+    protected Number tryParseStringFromSource(String s) {
+        try {
+            return Double.parseDouble(s);
+        } catch (NumberFormatException e) {
             return null;
         }
     }

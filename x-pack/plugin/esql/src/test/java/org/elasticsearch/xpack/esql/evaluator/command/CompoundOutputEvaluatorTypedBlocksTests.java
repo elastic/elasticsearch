@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
@@ -268,7 +269,7 @@ public class CompoundOutputEvaluatorTypedBlocksTests extends ESTestCase {
                 if (kv.length != 2) continue;
                 switch (kv[0]) {
                     case "name" -> nameCollector.accept(rowOutput, kv[1]);
-                    case "active" -> activeCollector.accept(rowOutput, Boolean.parseBoolean(kv[1]));
+                    case "active" -> activeCollector.accept(rowOutput, Booleans.parseBoolean(kv[1]));
                     case "asn" -> asnCollector.accept(rowOutput, Long.parseLong(kv[1]));
                     case "lat" -> lat = Double.parseDouble(kv[1]);
                     case "lon" -> lon = Double.parseDouble(kv[1]);

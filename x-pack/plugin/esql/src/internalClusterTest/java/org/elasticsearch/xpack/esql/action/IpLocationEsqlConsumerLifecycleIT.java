@@ -118,16 +118,9 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
 
         // --- Scenario 2: enable download, wait for DB propagation, query returns real data ---
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
-        IpLocationTestHelper.awaitAllRelevantNodesDownloadedDatabases(
-            client(),
-            IpLocationConsumer.ESQL,
-            "GeoLite2-City.mmdb",
-            "GeoLite2-Country.mmdb",
-            "GeoLite2-ASN.mmdb",
-            "MyCustomGeoLite2-City.mmdb"
-        );
+        IpLocationTestHelper.awaitAllDatabasesAvailable(internalCluster(), IpLocationConsumer.ESQL);
 
-        try (EsqlQueryResponse response = run(query)) {
+        try (EsqlQueryResponse response = runOnDataNode(query)) {
             List<List<Object>> values = getValuesList(response);
             assertThat(values, hasSize(1));
             assertThat(values.get(0).get(0), equalTo("SE"));
@@ -158,8 +151,47 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
         }
     }
 
+    /**
+     * Verifies that a master-only node can coordinate an IP_LOCATION query after databases
+     * have been downloaded. This catches the case where {@code isRelevantForNode} excludes
+     * master-only nodes from database staging.
+     */
+    public void testMasterOnlyCoordinatorReturnsRealData() throws Exception {
+        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNodes(2);
+
+        // Trigger ESQL consumer registration and enable download
+        String query = "ROW ip = \""
+            + TEST_IP
+            + "\" | IP_LOCATION g = ip WITH { \"properties\": [\"country_iso_code\", \"city_name\"] } | KEEP g.*";
+        run(query).close();
+
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
+        IpLocationTestHelper.awaitAllDatabasesAvailable(internalCluster(), IpLocationConsumer.ESQL);
+
+        // Query explicitly through the master-only node as coordinator
+        try (
+            EsqlQueryResponse response = internalCluster().masterClient()
+                .execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query))
+                .actionGet(TimeValue.timeValueSeconds(30))
+        ) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            assertThat(values.getFirst().get(0), equalTo("SE"));
+            assertThat(values.getFirst().get(1), equalTo("Linköping"));
+        }
+    }
+
     private EsqlQueryResponse run(String esqlCommands) {
         return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(esqlCommands)).actionGet(TimeValue.timeValueSeconds(30));
+    }
+
+    private EsqlQueryResponse runOnDataNode(String esqlCommands) {
+        return internalCluster().dataNodeClient()
+            .execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(esqlCommands))
+            .actionGet(TimeValue.timeValueSeconds(30));
     }
 
     private void assertEsqlConsumerRegistered() throws Exception {

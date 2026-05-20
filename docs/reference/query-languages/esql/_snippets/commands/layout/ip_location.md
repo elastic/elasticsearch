@@ -32,6 +32,10 @@ IP_LOCATION prefix = expression [WITH { option = value [, ...] }]
 
 ## Description
 
+:::::{note}
+The first `IP_LOCATION` query triggers a one-time download of IP location databases to all nodes in the cluster. These databases are periodically updated while the cluster is running.
+:::::
+
 The `IP_LOCATION` command resolves geographic information for an IP address and adds the results as new columns prefixed with the specified `prefix` followed by a dot (`.`).
 
 This command is the query-time equivalent of the [GeoIP ingest processor](/reference/enrich-processor/geoip-processor.md).

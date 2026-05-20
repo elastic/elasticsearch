@@ -50,8 +50,7 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
         for (int i = 0, attributesSize = attributes.size(); i < attributesSize; i++) {
             KeyValue attribute = attributes.get(i);
             if (attribute.getKey().equals(MAPPING_HINTS)) {
-                boolean aggregateMetricDouble = false;
-                boolean histogramRaw = false;
+                HistogramMapping histoMapping = this.histogramMapping;
                 boolean docCount = this.docCount;
                 if (attribute.getValue().hasArrayValue()) {
                     List<AnyValue> valuesList = attribute.getValue().getArrayValue().getValuesList();
@@ -60,20 +59,14 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
                         if (hint.hasStringValue()) {
                             String value = hint.getStringValue();
                             if (value.equals(AGGREGATE_METRIC_DOUBLE)) {
-                                aggregateMetricDouble = true;
-                            } else if (value.equals(HISTOGRAM_RAW)) {
-                                histogramRaw = true;
+                                histoMapping = HistogramMapping.AGGREGATE_METRIC_DOUBLE;
+                            } else if (value.equals(HISTOGRAM_RAW) && histoMapping != HistogramMapping.AGGREGATE_METRIC_DOUBLE) {
+                                histoMapping = HistogramMapping.HISTOGRAM_RAW;
                             } else if (value.equals(DOC_COUNT)) {
                                 docCount = true;
                             }
                         }
                     }
-                }
-                HistogramMapping histoMapping = this.histogramMapping;
-                if (aggregateMetricDouble) {
-                    histoMapping = HistogramMapping.AGGREGATE_METRIC_DOUBLE;
-                } else if (histogramRaw) {
-                    histoMapping = HistogramMapping.HISTOGRAM_RAW;
                 }
                 return new MappingHints(histoMapping, docCount);
             }

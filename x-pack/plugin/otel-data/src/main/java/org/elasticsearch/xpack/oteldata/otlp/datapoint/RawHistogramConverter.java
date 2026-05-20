@@ -120,7 +120,7 @@ class RawHistogramConverter {
         if (boundsCount == 0) {
             long count = dp.getCount();
             if (count > 0) {
-                values.accept(dp.getSum() / count);
+                values.accept(dp.hasSum() ? dp.getSum() / count : 0.0);
             }
             return;
         }

@@ -121,17 +121,8 @@ public class ExponentialHistogramConverter {
         // Then we probably need to just drop min/max, which aren't really useful for cumulative histograms anyway
 
         int size = dataPoint.getBucketCountsCount();
-        int explicitBoundsCount = dataPoint.getExplicitBoundsCount();
 
-        if (explicitBoundsCount == 0) {
-            long count = dataPoint.getCount();
-            if (count > 0) {
-                bucketsScratch.clear();
-                bucketsScratch.append(dataPoint.getSum() / count, count);
-                bucketsScratch.writeBuckets(builder);
-                writeSummaryStatistics(dataPoint, builder);
-            }
-        } else if (size > 0) {
+        if (size > 0) {
             bucketsScratch.clear();
 
             boolean minHandled = false;

@@ -162,16 +162,6 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                 "empty",
                 (Supplier<TestCase>) () -> new TestCase(HistogramDataPoint.newBuilder().build(), List.of(), List.of(), null, null, null) },
             new Object[] {
-                "single no-bounds bucket",
-                (Supplier<TestCase>) () -> new TestCase(
-                    HistogramDataPoint.newBuilder().addBucketCounts(10L).setCount(10L).setSum(100.0).build(),
-                    List.of(10L),
-                    List.of(10.0),
-                    100.0,
-                    null,
-                    null
-                ) },
-            new Object[] {
                 "single bucket",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(10L, 0L)).addExplicitBounds(5.0).setSum(25.0).build(),

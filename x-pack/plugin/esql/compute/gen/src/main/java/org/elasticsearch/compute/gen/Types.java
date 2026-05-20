@@ -56,6 +56,7 @@ public class Types {
     public static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK = ClassName.get(DATA_PACKAGE, "ExponentialHistogramBlock");
     public static final ClassName EXPONENTIAL_HISTOGRAM_SCRATCH = ClassName.get(DATA_PACKAGE, "ExponentialHistogramScratch");
     public static final ClassName TDIGEST_BLOCK = ClassName.get(DATA_PACKAGE, "TDigestBlock");
+    public static final ClassName LONG_RANGE_BLOCK = ClassName.get(DATA_PACKAGE, "LongRangeBlock");
 
     static final ClassName BOOLEAN_BLOCK_BUILDER = BOOLEAN_BLOCK.nestedClass("Builder");
     static final ClassName BYTES_REF_BLOCK_BUILDER = BYTES_REF_BLOCK.nestedClass("Builder");
@@ -65,6 +66,7 @@ public class Types {
     static final ClassName FLOAT_BLOCK_BUILDER = FLOAT_BLOCK.nestedClass("Builder");
     static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER = EXPONENTIAL_HISTOGRAM_BLOCK.nestedClass("Builder");
     static final ClassName TDIGEST_BLOCK_BUILDER = TDIGEST_BLOCK.nestedClass("Builder");
+    static final ClassName LONG_RANGE_BLOCK_BUILDER = LONG_RANGE_BLOCK.nestedClass("Builder");
 
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 
@@ -142,6 +144,7 @@ public class Types {
     public static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
     public static final ClassName EXPONENTIAL_HISTOGRAM = ClassName.get("org.elasticsearch.exponentialhistogram", "ExponentialHistogram");
     public static final ClassName TDIGEST = ClassName.get("org.elasticsearch.compute.data", "TDigestHolder");
+    public static final ClassName LONG_RANGE = ClassName.get(DATA_PACKAGE, "LongRangeBlockBuilder", "LongRange");
 
     public static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     public static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
@@ -167,7 +170,8 @@ public class Types {
         TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector", null),
         TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector", BYTES_REF),
         TypeDef.of(EXPONENTIAL_HISTOGRAM, "EXPONENTIAL_HISTOGRAM", "ExponentialHistogramBlock", null, EXPONENTIAL_HISTOGRAM_SCRATCH),
-        TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, TDIGEST)
+        TypeDef.of(TDIGEST, "TDIGEST", "TDigestBlock", null, TDIGEST),
+        TypeDef.of(LONG_RANGE, "LONG_RANGE", "LongRangeBlock", null, LONG_RANGE)
     )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -251,6 +255,9 @@ public class Types {
         if (resultType.equals(TDIGEST_BLOCK)) {
             return TDIGEST_BLOCK_BUILDER;
         }
+        if (resultType.equals(LONG_RANGE_BLOCK)) {
+            return LONG_RANGE_BLOCK_BUILDER;
+        }
 
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }
@@ -298,6 +305,9 @@ public class Types {
         }
         if (t.equals(TDIGEST_BLOCK) || t.equals(TDIGEST_BLOCK_BUILDER)) {
             return TDIGEST;
+        }
+        if (t.equals(LONG_RANGE_BLOCK) || t.equals(LONG_RANGE_BLOCK_BUILDER)) {
+            return LONG_RANGE;
         }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }

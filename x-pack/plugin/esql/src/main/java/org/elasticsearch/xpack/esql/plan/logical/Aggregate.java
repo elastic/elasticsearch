@@ -39,9 +39,15 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -226,9 +232,7 @@ public class Aggregate extends UnaryPlan
             if (attr != null) {
                 groupRefsBuilder.add(attr);
             }
-            if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
-                failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
-            }
+            checkUnsupportedStatsGroupingType(e, failures);
         });
         var groupRefs = groupRefsBuilder.build();
 
@@ -247,6 +251,23 @@ public class Aggregate extends UnaryPlan
         checkTimeSeriesAggregates(failures);
         checkCategorizeGrouping(failures);
         checkMultipleScoreAggregations(failures);
+    }
+
+    static void checkUnsupportedGroupingType(Expression e, Failures failures) {
+        if ((e instanceof FieldAttribute f && f.dataType().isCounter())
+            || e.dataType() == AGGREGATE_METRIC_DOUBLE
+            || e.dataType() == DATE_RANGE
+            || e.dataType() == EXPONENTIAL_HISTOGRAM
+            || e.dataType() == FLATTENED) {
+            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        }
+    }
+
+    private static void checkUnsupportedStatsGroupingType(Expression e, Failures failures) {
+        checkUnsupportedGroupingType(e, failures);
+        if (e.dataType() == DENSE_VECTOR) {
+            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        }
     }
 
     protected void checkTimeSeriesAggregates(Failures failures) {
@@ -401,12 +422,13 @@ public class Aggregate extends UnaryPlan
         }
         // found an aggregate, constant or a group, bail out
         if (e instanceof AggregateFunction af && af instanceof Sparkline == false) {
-            af.field().forEachDown(AggregateFunction.class, f -> {
-                // rate aggregate is allowed to be inside another aggregate
+            Consumer<Expression> checkNested = arg -> arg.forEachDown(AggregateFunction.class, f -> {
                 if (f instanceof TimeSeriesAggregateFunction == false) {
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });
+            checkNested.accept(af.field());
+            af.parameters().forEach(checkNested);
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here

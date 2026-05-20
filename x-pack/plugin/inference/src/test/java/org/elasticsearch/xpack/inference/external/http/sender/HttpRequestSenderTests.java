@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -31,7 +32,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
@@ -54,6 +55,7 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -319,17 +321,15 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            String responseJson = """
+            // Wire-shape parity with production OpenAI: base64-encoded float32 embedding.
+            String responseJson = Strings.format("""
                 {
                   "object": "list",
                   "data": [
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
+                          "embedding": "%s"
                       }
                   ],
                   "model": "text-embedding-ada-002-v2",
@@ -338,7 +338,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                       "total_tokens": 8
                   }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -359,9 +359,10 @@ public class HttpRequestSenderTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.size(), is(3));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -434,7 +435,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            var request = mock(Request.class);
+            var request = mock(OutboundRequest.class);
             when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.sendWithoutQueuing(mock(Logger.class), request, mock(ResponseHandler.class), TimeValue.timeValueNanos(1), listener);
@@ -484,7 +485,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
 
             runConcurrentSendTest(mockManager, maxUtilityThreads, (barrier, future) -> {
-                var request = mock(Request.class);
+                var request = mock(OutboundRequest.class);
                 when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
                 return new Thread(() -> {
                     safeAwait(barrier);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -24,23 +26,24 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.STATE_MACHINE_RETRY_DELAY;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptionBaseIT {
     public void testMixedOperationsDuringSplit() throws Exception {
@@ -104,9 +107,76 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         }
     }
 
+    @Override
+    protected boolean addMockFsRepository() {
+        // This test is pretty involved, creating up to 10 index nodes, and can hit the 10-second timeout in
+        // ConcurrentMultiPartUploadsMockFsRepository when using a 5-thread thread pool to write chunks
+        return false;
+    }
+
+    private static class IndexedDocument {
+        String id;
+        // We need to keep a ledger of all field value updates since untracked refreshes can occur, such as during handoff
+        // The last entry is the most recent value
+        List<String> pendingFieldValues;
+        // The field value on the segment after successfully refreshing
+        @Nullable
+        String lastRefreshedValue;
+        @Nullable
+        String routing;
+        // Don't clear the pending field values ledger upon a refresh if this flag is set
+        // During disruptions we record every update even if they fail, so it's possible to set a false segment field value
+        boolean keepFullHistory;
+
+        IndexedDocument(String id, String fieldValue, @Nullable String routing, boolean keepFullHistory) {
+            this.id = id;
+            this.pendingFieldValues = new ArrayList<>(List.of(fieldValue));
+            this.lastRefreshedValue = null;
+            this.routing = routing;
+            this.keepFullHistory = keepFullHistory;
+        }
+
+        boolean wasRefreshed() {
+            return lastRefreshedValue != null;
+        }
+
+        // Assert the fieldValue was a certain value
+        // Used in search and non-real-time gets when an untracked refresh could have occurred
+        void assertHadFieldValue(String fieldValue) {
+            assertTrue(
+                "Failed to find field value ["
+                    + fieldValue
+                    + "] for ["
+                    + id
+                    + "] with pendingFieldValues="
+                    + pendingFieldValues
+                    + " segmentFieldValue=["
+                    + lastRefreshedValue
+                    + "]",
+                fieldValue.equals(lastRefreshedValue) || pendingFieldValues.contains(fieldValue)
+            );
+        }
+
+        String latestFieldValue() {
+            return pendingFieldValues.isEmpty() ? lastRefreshedValue : pendingFieldValues.getLast();
+        }
+
+        void updateFieldValue(String fieldValue) {
+            pendingFieldValues.add(fieldValue);
+        }
+
+        void refresh() {
+            if (pendingFieldValues.isEmpty() == false) {
+                lastRefreshedValue = pendingFieldValues.getLast();
+                if (keepFullHistory == false) {
+                    pendingFieldValues.clear();
+                }
+            }
+        }
+    }
+
     private class NoDisruptionExecutor implements PerThreadOperationExecutor {
-        private final HashMap<String, String> indexed = new HashMap<>();
-        private final HashMap<String, String> indexedAndRefreshed = new HashMap<>();
+        private final HashMap<String, IndexedDocument> indexed = new HashMap<>();
 
         private String indexName;
         private String coordinatorNode;
@@ -126,9 +196,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                 case REFRESH -> {
                     var refreshResult = client(coordinatorNode).admin().indices().prepareRefresh(indexName).get();
                     assertEquals(Arrays.toString(refreshResult.getShardFailures()), 0, refreshResult.getFailedShards());
-
-                    indexedAndRefreshed.putAll(indexed);
-                    indexed.clear();
+                    indexed.values().forEach(IndexedDocument::refresh);
                 }
                 case SEARCH -> {
                     var search = client(coordinatorNode).prepareSearch(indexName)
@@ -139,12 +207,15 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                     assertResponse(search, r -> {
                         Map<String, String> fieldValueInHits = Arrays.stream(r.getHits().getHits())
                             .collect(Collectors.toMap(SearchHit::getId, h -> (String) h.getSourceAsMap().get("field")));
-                        for (var entry : indexedAndRefreshed.entrySet()) {
+                        indexed.forEach((documentId, document) -> {
                             // Everything we've indexed and refreshed should be present.
                             // Other threads are working too so there will be more but shouldn't be less.
-                            var fieldValue = fieldValueInHits.get(entry.getKey());
-                            assertEquals(entry.getValue(), fieldValue);
-                        }
+                            if (document.wasRefreshed()) {
+                                var fieldValue = fieldValueInHits.get(documentId);
+                                assertNotNull(fieldValue);
+                                document.assertHadFieldValue(fieldValue);
+                            }
+                        });
                     });
                 }
                 case INDEX -> {
@@ -154,10 +225,10 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                         String documentId = "document" + id;
-                        indexed.put(documentId, fieldValue);
+                        String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                        indexed.put(documentId, new IndexedDocument(documentId, fieldValue, routing, false));
                         id += 1;
-
-                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                         var indexResponse = indexRequest.get();
                         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     } else {
@@ -168,10 +239,11 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                             String documentId = "document" + id;
-                            indexed.put(documentId, fieldValue);
+                            String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                            indexed.put(documentId, new IndexedDocument(documentId, fieldValue, routing, false));
                             id += 1;
 
-                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                             bulkRequest.add(indexRequest);
                         }
                         var bulkResponse = bulkRequest.get();
@@ -187,14 +259,113 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         }
                     }
                 }
+                case GET -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    IndexedDocument document = randomFrom(indexed.values());
+                    boolean realTime = randomBoolean();
+                    var response = client(coordinatorNode).prepareGet(indexName, document.id)
+                        .setRealtime(realTime)
+                        .setRouting(document.routing)
+                        .execute()
+                        .actionGet();
+                    if (realTime || document.wasRefreshed()) {
+                        assertTrue(response.isExists());
+                    }
+                    if (response.isExists()) {
+                        String fieldValue = (String) response.getSourceAsMap().get("field");
+                        if (realTime) {
+                            assertEquals(document.latestFieldValue(), fieldValue);
+                        } else {
+                            document.assertHadFieldValue(fieldValue);
+                        }
+                    }
+                }
+                case MULTIGET -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    boolean realTime = randomBoolean();
+                    var multiget = client(coordinatorNode).prepareMultiGet().setRealtime(realTime);
+                    int numDocs = randomIntBetween(1, 5);
+                    List<IndexedDocument> documents = new ArrayList<>(numDocs);
+                    for (int i = 0; i < numDocs; i++) {
+                        IndexedDocument document = randomFrom(indexed.values());
+                        var get = new MultiGetRequest.Item(indexName, document.id).routing(document.routing);
+                        multiget.add(get);
+                        documents.add(document);
+                    }
+                    var responses = multiget.execute().actionGet().getResponses();
+                    for (int i = 0; i < numDocs; i++) {
+                        var response = responses[i];
+                        if (response.isFailed()) {
+                            var failure = response.getFailure().getFailure();
+                            assertThat(failure, instanceOf(StaleRequestException.class));
+                            // Rethrow to retry in executeOperations
+                            throw (StaleRequestException) failure;
+                        } else {
+                            IndexedDocument document = documents.get(i);
+                            var getResponse = response.getResponse();
+                            if (realTime || document.wasRefreshed()) {
+                                assertTrue(getResponse.isExists());
+                            }
+                            if (getResponse.isExists()) {
+                                String fieldValue = (String) getResponse.getSourceAsMap().get("field");
+                                if (realTime) {
+                                    assertEquals(document.latestFieldValue(), fieldValue);
+                                } else {
+                                    document.assertHadFieldValue(fieldValue);
+                                }
+                            }
+                        }
+                    }
+                }
+                case TERM_VECTOR -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    IndexedDocument document = randomFrom(indexed.values());
+                    boolean realTime = randomBoolean();
+                    var response = client(coordinatorNode).prepareTermVectors(indexName, document.id)
+                        .setRealtime(realTime)
+                        .setRouting(document.routing)
+                        .execute()
+                        .actionGet();
+                    if (realTime || document.wasRefreshed()) {
+                        assertTrue(response.isExists());
+                    }
+                    if (response.isExists()) {
+                        try {
+                            assertEquals(1, response.getFields().size());
+                            assertEquals("field", response.getFields().iterator().next());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+                case UPDATE -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    IndexedDocument document = randomFrom(indexed.values());
+                    String newFieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
+                    var response = client(coordinatorNode).prepareUpdate(indexName, document.id)
+                        .setDoc("field", newFieldValue)
+                        .setRouting(document.routing)
+                        .setDetectNoop(false)
+                        .execute()
+                        .actionGet();
+                    assertEquals(DocWriteResponse.Result.UPDATED, response.getResult());
+                    document.updateFieldValue(newFieldValue);
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + operation);
             }
         }
     }
 
     private class UnderDisruptionExecutor implements PerThreadOperationExecutor {
-        private final HashMap<String, String> allIndexedDocuments = new HashMap<>();
-        private final HashMap<String, String> indexedSinceLastRefresh = new HashMap<>();
-        private final HashMap<String, String> indexedAndRefreshed = new HashMap<>();
+        private final HashMap<String, IndexedDocument> indexed = new HashMap<>();
 
         private String indexName;
         private String coordinatorNode;
@@ -219,8 +390,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                     // We'll assume nothing was refreshed in that case because otherwise it is not obvious
                     // how to map what documents are refreshed (since we need to know the state of split to reason about that).
                     if (refreshResult.getFailedShards() == 0) {
-                        indexedAndRefreshed.putAll(indexedSinceLastRefresh);
-                        indexedSinceLastRefresh.clear();
+                        indexed.values().forEach(IndexedDocument::refresh);
                     }
                 }
                 case SEARCH -> {
@@ -247,18 +417,11 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             // That being said it is possible we may see documents here that were indexed but not
                             // refreshed in the strict definition (there were no fully successful refreshes but may have been partial ones).
                             // So we check both refreshed and indexed documents.
-                            for (var entry : fieldValueInHits.entrySet()) {
-                                var fieldValue = Optional.ofNullable(indexedAndRefreshed.get(entry.getKey()))
-                                    .or(() -> Optional.ofNullable(allIndexedDocuments.get(entry.getKey())));
-                                String message = String.format(
-                                    Locale.ROOT,
-                                    "Expected to see document with field value %s but got %s",
-                                    fieldValue,
-                                    entry.getKey()
-                                );
-                                assertTrue(message, fieldValue.isPresent());
-                                assertEquals(message, entry.getValue(), fieldValue.get());
-                            }
+                            fieldValueInHits.forEach((documentId, fieldValue) -> {
+                                var document = indexed.get(documentId);
+                                assertNotNull(document);
+                                document.assertHadFieldValue(fieldValue);
+                            });
                         } finally {
                             searchResponse.decRef();
                         }
@@ -275,11 +438,12 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                         String documentId = "document" + currentId;
+                        String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                        var document = new IndexedDocument(documentId, fieldValue, routing, true);
                         currentId += 1;
-                        allIndexedDocuments.put(documentId, fieldValue);
-                        indexedSinceLastRefresh.put(documentId, fieldValue);
+                        indexed.put(documentId, document);
 
-                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                         try {
                             DocWriteResponse response = indexRequest.execute().actionGet();
                             assertTrue(
@@ -287,11 +451,6 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                                 response.getResult() == DocWriteResponse.Result.CREATED
                                     || response.getResult() == DocWriteResponse.Result.UPDATED
                             );
-                            // We can see UPDATED if we retry an operation that failed but was already written to the translog.
-                            if (response.getResult() == DocWriteResponse.Result.UPDATED) {
-                                // Since it's a retry we should never see versions higher than 2.
-                                assertEquals(2, response.getVersion());
-                            }
                         } catch (StaleRequestException e) {
                             // TODO
                             // We currently don't have grace period to drain queued requests and so can see this pretty often.
@@ -305,14 +464,15 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                             String documentId = "document" + currentId;
+                            String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                            var document = new IndexedDocument(documentId, fieldValue, routing, true);
                             currentId += 1;
                             // Bulk requests can partially fail due to a node restart or something else after the data is already
                             // in the translog.
                             // Such writes will be successful and so have to assume all writes can succeed.
-                            allIndexedDocuments.put(documentId, fieldValue);
-                            indexedSinceLastRefresh.put(documentId, fieldValue);
+                            indexed.put(documentId, document);
 
-                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                             bulkRequest.add(indexRequest);
                         }
 
@@ -324,6 +484,105 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         }
                     }
                 }
+                case GET -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    IndexedDocument document = randomFrom(indexed.values());
+                    boolean realTime = randomBoolean();
+                    try {
+                        var response = client(coordinatorNode).prepareGet(indexName, document.id)
+                            .setRealtime(realTime)
+                            .setRouting(document.routing)
+                            .execute()
+                            .actionGet();
+                        // It is possible that the corresponding write operation actually failed so this is expected
+                        if (response.isExists()) {
+                            String fieldValue = (String) response.getSourceAsMap().get("field");
+                            // Check full history of updates since we record all updates even if they fail
+                            document.assertHadFieldValue(fieldValue);
+                        }
+                    } catch (ElasticsearchException e) {
+                        // Shard unavailable during disruption
+                    }
+                }
+                case MULTIGET -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    boolean realTime = randomBoolean();
+                    var multiget = client(coordinatorNode).prepareMultiGet().setRealtime(realTime);
+                    int numDocs = randomIntBetween(1, 5);
+                    List<IndexedDocument> documents = new ArrayList<>(numDocs);
+                    for (int i = 0; i < numDocs; i++) {
+                        IndexedDocument document = randomFrom(indexed.values());
+                        var get = new MultiGetRequest.Item(indexName, document.id).routing(document.routing);
+                        multiget.add(get);
+                        documents.add(document);
+                    }
+                    var responses = multiget.execute().actionGet().getResponses();
+                    for (int i = 0; i < numDocs; i++) {
+                        var response = responses[i];
+                        if (response.isFailed() && response.getFailure().getFailure() instanceof StaleRequestException sre) {
+                            // Rethrow to retry in executeOperations
+                            throw sre;
+                        }
+                        var getResponse = response.getResponse();
+                        // Shard may be unavailable during disruption
+                        if (response.isFailed() == false && getResponse.isExists()) {
+                            IndexedDocument document = documents.get(i);
+                            String fieldValue = (String) getResponse.getSourceAsMap().get("field");
+                            // Check full history of updates since we record all updates even if they fail
+                            document.assertHadFieldValue(fieldValue);
+                        }
+                    }
+                }
+                case TERM_VECTOR -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    IndexedDocument document = randomFrom(indexed.values());
+                    boolean realTime = randomBoolean();
+                    try {
+                        var response = client(coordinatorNode).prepareTermVectors(indexName, document.id)
+                            .setRealtime(realTime)
+                            .setRouting(document.routing)
+                            .execute()
+                            .actionGet();
+                        if (response.isExists()) {
+                            try {
+                                assertEquals(1, response.getFields().size());
+                                assertEquals("field", response.getFields().iterator().next());
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    } catch (ElasticsearchException e) {
+                        // Shard may be unavailable during disruption
+                    }
+                }
+                case UPDATE -> {
+                    if (indexed.isEmpty()) {
+                        return;
+                    }
+                    IndexedDocument document = randomFrom(indexed.values());
+                    String newFieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
+                    // Update requests can fail to return a response after the data is already in the translog, so we have to assume all
+                    // updates can succeed and record the value before sending
+                    document.updateFieldValue(newFieldValue);
+                    try {
+                        var response = client(coordinatorNode).prepareUpdate(indexName, document.id)
+                            .setDoc("field", newFieldValue)
+                            .setRouting(document.routing)
+                            .setDetectNoop(false)
+                            .execute()
+                            .actionGet();
+                        assertEquals(DocWriteResponse.Result.UPDATED, response.getResult());
+                    } catch (ElasticsearchException e) {
+                        // Shard may be unavailable during disruption
+                    }
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + operation);
             }
         }
     }
@@ -351,13 +610,17 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         ensureStableCluster(clusterSize, masterNode);
 
         String indexName = randomIndexName();
-        createIndex(
-            indexName,
-            indexSettings(shards, 1)
-                // Due to all the disruption we can hit the default maximum of 5.
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 100)
-                .build()
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(shards, 1)
+                    // Due to all the disruption we can hit the default maximum of 5.
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 100)
+                    .build()
+            ).setMapping("""
+                {"properties":{"field":{"type": "text","term_vector":"yes","analyzer":"keyword"}}}
+                """)
         );
+
         Index index = resolveIndex(indexName);
         ensureGreen(indexName);
 
@@ -452,42 +715,61 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         }
     }
 
-    private IndexRequestBuilder createIndexRequest(String coordinatorNode, String indexName, String documentId, String fieldValue) {
+    private IndexRequestBuilder createIndexRequest(
+        String coordinatorNode,
+        String indexName,
+        String documentId,
+        String fieldValue,
+        @Nullable String routing
+    ) {
         var indexRequest = client(coordinatorNode).prepareIndex(indexName);
         indexRequest.setId(documentId);
         indexRequest.setSource(Map.of("field", fieldValue));
-
-        if (randomBoolean()) {
-            indexRequest.setRouting(randomAlphaOfLength(5));
-        }
-
+        indexRequest.setRouting(routing);
         return indexRequest;
     }
 
-    // Generates a list of random operations with some basic logic to make it somewhat realistic.
+    private record WeightedOperation(Operation operation, int weight) {}
+
+    private static final List<WeightedOperation> OPERATIONS = List.of(
+        new WeightedOperation(Operation.INDEX, 50),
+        new WeightedOperation(Operation.REFRESH, 10),
+        new WeightedOperation(Operation.SEARCH, 20),
+        new WeightedOperation(Operation.GET, 5),
+        new WeightedOperation(Operation.MULTIGET, 5),
+        new WeightedOperation(Operation.TERM_VECTOR, 5),
+        new WeightedOperation(Operation.UPDATE, 5)
+    );
+    private static final int ROLL_SIZE = OPERATIONS.stream().mapToInt(WeightedOperation::weight).sum();
+    static {
+        assertEquals(100, ROLL_SIZE);
+    }
+
     private List<Operation> randomOperations(int size) {
         var result = new ArrayList<Operation>(size);
 
         for (int i = 0; i < size; i++) {
-            int roll = randomIntBetween(0, 100);
-            // Steady state of indexing.
-            if (roll < 60) {
-                result.add(Operation.INDEX);
-            } else if (roll < 70) {
-                // 10% percent refresh
-                result.add(Operation.REFRESH);
-            } else {
-                // 30% search
-                result.add(Operation.SEARCH);
+            int roll = randomIntBetween(0, ROLL_SIZE - 1);
+            for (WeightedOperation operation : OPERATIONS) {
+                if (roll < operation.weight) {
+                    result.add(operation.operation);
+                    break;
+                }
+                roll -= operation.weight;
             }
         }
 
+        assertEquals(size, result.size());
         return result;
     }
 
     enum Operation {
         INDEX,
         REFRESH,
-        SEARCH
+        SEARCH,
+        GET,
+        MULTIGET,
+        TERM_VECTOR,
+        UPDATE
     }
 }

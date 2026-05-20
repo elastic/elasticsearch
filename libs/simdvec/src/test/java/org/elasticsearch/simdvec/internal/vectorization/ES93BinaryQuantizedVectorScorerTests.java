@@ -22,6 +22,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -102,8 +103,10 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
             try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
                 assertEquals(in.length(), (long) numVectors * perVectorBytes + CodecUtil.footerLength());
 
-                final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
-                final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+                var defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+                var nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
 
                 for (int i = 0; i < numVectors; i++) {
                     var defaultScore = defaultScorer.score(
@@ -116,7 +119,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                         centroidDp,
                         i
                     );
-                    var panamaScore = panamaScorer.score(
+                    var panamaScore = nativeScorer.score(
                         queryData.vector(),
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
@@ -156,8 +159,10 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
             try (IndexInput in = openTestInput(dir, "testScore.bin", perVectorBytes)) {
                 assertEquals(in.length(), (long) numVectors * perVectorBytes + CodecUtil.footerLength());
 
-                final var defaultScorer = defaultProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
-                final var panamaScorer = maybePanamaProvider().newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+                var defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
+                var nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES93BinaryQuantizedVectorScorer(in, dims, vectorLengthInBytes);
 
                 final float[] scoresDefault = new float[numVectors];
                 final float[] scoresPanama = new float[numVectors];
@@ -177,7 +182,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
                     scoresDefault,
                     numVectors
                 );
-                float panamaMaxScore = panamaScorer.scoreBulk(
+                float panamaMaxScore = nativeScorer.scoreBulk(
                     queryData.vector(),
                     queryData.lowerInterval(),
                     queryData.upperInterval(),

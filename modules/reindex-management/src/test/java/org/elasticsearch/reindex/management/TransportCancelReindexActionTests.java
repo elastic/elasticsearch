@@ -35,6 +35,7 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.reindex.management.TransportCancelReindexAction.notFoundException;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -87,6 +88,39 @@ public class TransportCancelReindexActionTests extends ESTestCase {
 
         assertThat(response.getCompletedReindexResponse().isPresent(), is(false));
         verify(client, never()).execute(eq(TransportGetReindexAction.TYPE), any(), any());
+    }
+
+    public void testCancelSynchronouslyPreservesOriginalTaskIdentityWhenRelocated() {
+        TaskId originalTaskId = new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
+        TaskId currentTaskId = randomValueOtherThan(originalTaskId, () -> new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+        long originalStart = between(0, 1_000);
+        long currentStart = originalStart + randomLongBetween(1, 1_000);
+        TaskInfo info = new TaskInfo(
+            currentTaskId,
+            randomAlphaOfLength(10),
+            currentTaskId.getNodeId(),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            null,
+            currentStart,
+            randomNonNegativeLong(),
+            true,
+            randomBoolean(),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            originalTaskId,
+            originalStart
+        );
+        mockCancelTasks(new ListTasksResponse(List.of(info), List.of(), List.of()));
+        mockGetReindex(new GetReindexResponse(new TaskResult(true, info)));
+
+        final CancelReindexResponse response = safeAwait(l -> action.doExecute(mock(), new CancelReindexRequest(currentTaskId, true), l));
+
+        TaskInfo embedded = response.getCompletedReindexResponse().orElseThrow().getTaskResult().getTask();
+        assertTrue(embedded.cancelled());
+        assertEquals(originalTaskId, embedded.originalTaskId());
+        assertEquals(originalStart, embedded.originalStartTimeMillis());
+        assertEquals(currentTaskId, embedded.taskId());
     }
 
     public void testCancelSynchronouslyEmbedsGetReindexResponseWithCancelledTrue() {
@@ -183,12 +217,12 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         assertSame("real node failures must surface, not be swallowed as not-found", underlying, failure.getCause());
     }
 
-    public void testTaskFailurePropagatedAsConflict() {
-        ElasticsearchStatusException conflict = new ElasticsearchStatusException(
+    public void testTaskFailurePropagatedAsServiceUnavailable() {
+        ElasticsearchStatusException relocating = new ElasticsearchStatusException(
             "cannot cancel task [" + taskId.getId() + "] because it is being relocated",
-            RestStatus.CONFLICT
+            RestStatus.SERVICE_UNAVAILABLE
         );
-        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
+        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), relocating);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of()));
 
         final ElasticsearchStatusException failure = safeAwaitFailure(
@@ -196,7 +230,7 @@ public class TransportCancelReindexActionTests extends ESTestCase {
             CancelReindexResponse.class,
             l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
         );
-        assertSame("cause is rethrown directly", conflict, failure);
+        assertSame("cause is rethrown directly", relocating, failure);
     }
 
     public void testValidationNodeFailureDroppedWhenMixedWithRealFailure() {
@@ -205,8 +239,8 @@ public class TransportCancelReindexActionTests extends ESTestCase {
             "Failed node [some-other-node]",
             new ResourceNotFoundException("task [{}] is not found", taskId)
         );
-        ElasticsearchStatusException conflict = new ElasticsearchStatusException("being relocated", RestStatus.CONFLICT);
-        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
+        ElasticsearchStatusException relocating = new ElasticsearchStatusException("being relocated", RestStatus.SERVICE_UNAVAILABLE);
+        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), relocating);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of(validation)));
 
         final ElasticsearchStatusException failure = safeAwaitFailure(
@@ -214,7 +248,7 @@ public class TransportCancelReindexActionTests extends ESTestCase {
             CancelReindexResponse.class,
             l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
         );
-        assertSame("real task failure surfaces, validation noise is dropped", conflict, failure);
+        assertSame("real task failure surfaces, validation noise is dropped", relocating, failure);
         assertEquals("validation node failure is not attached as suppressed", 0, failure.getSuppressed().length);
     }
 
@@ -222,8 +256,8 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         // If cancel-tasks ever fans out and returns more than one failure, we want all of them visible — the head determines the surfaced
         // status (and message), the rest hang off via getSuppressed() so they don't get silently dropped.
         FailedNodeException nodeFailure = new FailedNodeException(taskId.getNodeId(), "node failed", new RuntimeException("transport"));
-        ElasticsearchStatusException conflict = new ElasticsearchStatusException("being relocated", RestStatus.CONFLICT);
-        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), conflict);
+        ElasticsearchStatusException relocating = new ElasticsearchStatusException("being relocated", RestStatus.SERVICE_UNAVAILABLE);
+        TaskOperationFailure taskFailure = new TaskOperationFailure(taskId.getNodeId(), taskId.getId(), relocating);
         mockCancelTasks(new ListTasksResponse(List.of(), List.of(taskFailure), List.of(nodeFailure)));
 
         // Node failures come first in the response model, so they're the head.
@@ -233,7 +267,7 @@ public class TransportCancelReindexActionTests extends ESTestCase {
             l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
         );
         assertSame(nodeFailure, failure);
-        assertThat(failure.getSuppressed(), arrayContaining(conflict));
+        assertThat(failure.getSuppressed(), arrayContaining(relocating));
     }
 
     public void testGetReindexFailurePropagated() {

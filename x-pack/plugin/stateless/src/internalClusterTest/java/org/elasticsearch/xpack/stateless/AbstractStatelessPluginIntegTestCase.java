@@ -36,6 +36,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -131,11 +132,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -393,7 +392,9 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO);
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
         }
-        builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
+        if (randomBoolean()) {
+            builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
+        }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
         return builder;
     }
@@ -1121,11 +1122,19 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
     }
 
+    /**
+     * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
+     * atomic writes.
+     *
+     * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
+     * @return The list of finalized blobs in that container
+     */
     protected Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
+            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
             .map(blob -> blobContainerPath + blob)
             .collect(Collectors.toSet());
     }
@@ -1270,10 +1279,44 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return indexingNodeSettingsBuilder.build();
     }
 
+    /**
+     * Relocate non-hollow index shards from {@code indexNodeA} to {@code indexNodeB} and hollow them on the target.
+     *
+     * Preconditions:
+     * <ul>
+     * <li>The cluster contains exactly two {@link DiscoveryNodeRole#INDEX_ROLE} nodes.</li>
+     * <li>{@code indexName} has {@code index.routing.allocation.exclude._name} setting set to {@code indexNodeB}. This is later
+     *     updated to indexNodeA to hollow the shards.</li>
+     * </ul>
+     */
     protected void hollowShards(String indexName, int numberOfShards, String indexNodeA, String indexNodeB) throws Exception {
-        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        // assert cluster does not have more indexing nodes, and index settings exclude indexNodeB
+        final var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).setMetadata(true).get().getState();
+        final Set<String> indexingNodeNames = new HashSet<>();
+        for (DiscoveryNode node : state.nodes()) {
+            if (node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName())) {
+                indexingNodeNames.add(node.getName());
+            }
+        }
+        assertThat(
+            "we expect exactly two indexing nodes in the cluster (no other index-role nodes)",
+            indexingNodeNames,
+            equalTo(Set.of(indexNodeA, indexNodeB))
+        );
+
+        var indexMetadata = state.metadata().getProject().index(indexName);
+        assertThat("index [" + indexName + "] must exist", indexMetadata, notNullValue());
+        String excludeNames = indexMetadata.getSettings().get(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name");
+        assertThat(
+            "index [" + indexName + "] must set [index.routing.allocation.exclude._name] so primaries stay off [" + indexNodeB + "]",
+            excludeNames,
+            equalTo(indexNodeB)
+        );
+
+        final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        final var index = resolveIndex(indexName);
         for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(resolveIndex(indexName), 0);
+            var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
             var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
             assertFalse(indexEngine.isLastCommitHollow());
@@ -1281,17 +1324,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
 
         logger.debug("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> {
-            var nodes = internalCluster().nodesInclude(indexName);
-            assertThat(nodes, not(hasItem(indexNodeA)));
-            assertThat(nodes, hasItem(indexNodeB));
-        });
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA), indexName);
+        internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(indexNodeA) == false && nodes.contains(indexNodeB));
         ensureGreen(indexName);
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
         for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(resolveIndex(indexName), i);
+            var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
         }

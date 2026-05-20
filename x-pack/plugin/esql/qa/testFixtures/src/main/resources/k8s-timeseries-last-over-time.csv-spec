@@ -34,6 +34,41 @@ clients:double | step:datetime            | cluster:keyword
 357.0          | 2024-05-10T00:03:00.000Z | staging
 ;
 
+last_over_time_of_integer_promql_expanded
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
+| SORT cluster, step;
+
+clients:double | step:datetime            | cluster:keyword
+396.5          | 2024-05-10T00:02:00.000Z | prod
+632.5          | 2024-05-10T00:03:00.000Z | prod
+742.0          | 2024-05-10T00:04:00.000Z | prod
+440.0          | 2024-05-10T00:02:00.000Z | qa
+565.0          | 2024-05-10T00:03:00.000Z | qa
+454.0          | 2024-05-10T00:04:00.000Z | qa
+205.0          | 2024-05-10T00:03:00.000Z | staging
+357.0          | 2024-05-10T00:04:00.000Z | staging
+;
+
+last_over_time_of_integer_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
+| TS_COLLAPSE
+| SORT cluster;
+
+clients:double        | step:datetime                                                                  | cluster:keyword
+[396.5, 632.5, 742.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | prod
+[440.0, 565.0, 454.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | qa
+[205.0, 357.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging
+;
+
 implicit_last_over_time_of_integer
 required_capability: ts_command_v0
 TS k8s | STATS clients = avg(network.eth0.currently_connected_clients) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
@@ -374,21 +409,23 @@ null        | two         | 2024-05-10T00:13:00.000Z
 last_over_time_null_values_promql
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (last_over_time(events_received[1m])))
 | SORT events DESC, pod, step | LIMIT 10;
 
 events:double | step:datetime            | pod:keyword
-20.0          | 2024-05-10T00:14:00.000Z | two
-18.0          | 2024-05-10T00:12:00.000Z | two
-16.0          | 2024-05-10T00:13:00.000Z | one
+20.0          | 2024-05-10T00:15:00.000Z | two
+18.0          | 2024-05-10T00:13:00.000Z | two
 16.0          | 2024-05-10T00:14:00.000Z | one
-11.0          | 2024-05-10T00:10:00.000Z | one
-9.0           | 2024-05-10T00:11:00.000Z | one
-9.0           | 2024-05-10T00:13:00.000Z | three
-7.0           | 2024-05-10T00:12:00.000Z | three
-7.0           | 2024-05-10T00:10:00.000Z | two
-5.0           | 2024-05-10T00:11:00.000Z | two
+16.0          | 2024-05-10T00:15:00.000Z | one
+12.0          | 2024-05-10T00:10:00.000Z | two
+11.0          | 2024-05-10T00:11:00.000Z | one
+9.0           | 2024-05-10T00:10:00.000Z | one
+9.0           | 2024-05-10T00:12:00.000Z | one
+9.0           | 2024-05-10T00:10:00.000Z | three
+9.0           | 2024-05-10T00:14:00.000Z | three
 ;
 
 implicit_last_over_time_null_values

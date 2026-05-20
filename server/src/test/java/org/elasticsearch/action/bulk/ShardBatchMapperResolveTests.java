@@ -12,13 +12,16 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
 import org.elasticsearch.eirf.EirfSchema;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -122,19 +125,63 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         // redundant with the per-mapper guard, so this test is intentionally narrow).
     }
 
-    public void testTextMapperIsUnsupported() throws IOException {
+    public void testTextMapperHappyPath() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup());
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof TextFieldMapper);
+    }
+
+    public void testTextMapperWithIndexPrefixesFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> {
+            b.startObject("t");
+            b.field("type", "text");
+            b.startObject("index_prefixes").endObject();
+            b.endObject();
+        }));
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup()));
     }
 
-    public void testBooleanMapperIsUnsupported() throws IOException {
-        MapperService ms = mapper(mapping(b -> { b.startObject("b").field("type", "boolean").endObject(); }));
-        assertNull(ShardBatchMapper.resolveMappers(schemaOf("b"), ms.mappingLookup()));
+    public void testTextMapperWithIndexPhrasesFallsBack() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").field("index_phrases", true).endObject(); }));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup()));
     }
 
-    public void testIpMapperIsUnsupported() throws IOException {
+    public void testTextMapperWithFielddataIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("t").field("type", "text").field("fielddata", true).endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("t"), ms.mappingLookup());
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof TextFieldMapper);
+    }
+
+    public void testBooleanMapperHappyPath() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("b").field("type", "boolean").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("b"), ms.mappingLookup());
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof BooleanFieldMapper);
+    }
+
+    public void testBooleanIgnoreMalformedIsSupported() throws IOException {
+        MapperService ms = mapper(
+            mapping(b -> { b.startObject("b").field("type", "boolean").field("ignore_malformed", true).endObject(); })
+        );
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("b"), ms.mappingLookup());
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof BooleanFieldMapper);
+    }
+
+    public void testIpMapperHappyPath() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("ip").field("type", "ip").endObject(); }));
-        assertNull(ShardBatchMapper.resolveMappers(schemaOf("ip"), ms.mappingLookup()));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("ip"), ms.mappingLookup());
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof IpFieldMapper);
+    }
+
+    public void testIpIgnoreMalformedIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("ip").field("type", "ip").field("ignore_malformed", true).endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("ip"), ms.mappingLookup());
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof IpFieldMapper);
     }
 
     public void testKeywordWithCopyToFallsBack() throws IOException {

@@ -1601,6 +1601,37 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Supplier test case data for {@link DataType#FLATTENED} fields.
+     * <p>
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#flattenedCases}.
+     * </p>
+     */
+    public static List<TypedDataSupplier> flattenedCases() {
+        return List.of(
+            new TypedDataSupplier("<empty flattened>", FlattenedCases.EMPTY::get, DataType.FLATTENED),
+            new TypedDataSupplier("<single key flattened>", FlattenedCases.SINGLE_KEY::get, DataType.FLATTENED),
+            new TypedDataSupplier("<multi key flattened>", FlattenedCases.MULTI_KEY::get, DataType.FLATTENED),
+            new TypedDataSupplier("<object flattened>", FlattenedCases.OBJECT::get, DataType.FLATTENED),
+            new TypedDataSupplier("<random flattened>", FlattenedCases.RANDOM::get, DataType.FLATTENED)
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on a {@link DataType#FLATTENED} field.
+     */
+    public static void forUnaryFlattened(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            unary(suppliers, expectedEvaluatorToString, flattenedCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+        }
+    }
+
+    /**
      * Supplier test case data for {@link Version} fields.
      * <p>
      * For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.
@@ -1818,6 +1849,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final Object extra;
         private final boolean allowText;
+        private final boolean injectNullTemporality;
 
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<?> matcher) {
             this(data, equalTo(evaluatorToString), expectedType, matcher);
@@ -1900,6 +1932,40 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             boolean canBuildEvaluator,
             boolean allowText
         ) {
+            this(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator,
+                allowText,
+                false
+            );
+        }
+
+        private TestCase(
+            Source source,
+            Configuration configuration,
+            List<TypedData> data,
+            Matcher<String> evaluatorToString,
+            DataType expectedType,
+            Matcher<?> matcher,
+            String[] expectedWarnings,
+            String[] expectedBuildEvaluatorWarnings,
+            Class<? extends Throwable> foldingExceptionClass,
+            String foldingExceptionMessage,
+            Object extra,
+            boolean canBuildEvaluator,
+            boolean allowText,
+            boolean injectNullTemporality
+        ) {
             this.source = source;
             this.configuration = configuration;
             this.data = data;
@@ -1915,6 +1981,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.extra = extra;
             this.canBuildEvaluator = canBuildEvaluator;
             this.allowText = allowText;
+            this.injectNullTemporality = injectNullTemporality;
         }
 
         public Source getSource() {
@@ -2161,6 +2228,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 foldingExceptionMessage,
                 extra,
                 false
+            );
+        }
+
+        public boolean injectNullTemporality() {
+            return injectNullTemporality;
+        }
+
+        /**
+         * Configures the test case so that a constant null block will be automatically injected into {@link TemporalityAware} expressions.
+         * Normally, tests should provide the temporality explicitly. However, this can be used if for example the original
+         * function is not {@link TemporalityAware} but is replaced with surrogates which are.
+         */
+        public TestCase withInjectNullTemporality() {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator,
+                allowText,
+                true
             );
         }
 

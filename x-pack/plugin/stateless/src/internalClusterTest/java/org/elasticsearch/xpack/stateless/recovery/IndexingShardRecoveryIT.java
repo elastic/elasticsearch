@@ -240,7 +240,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
 
     public void testSnapshotRecovery() throws Exception {
         startMasterOnlyNode();
-        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
 
         var indexName = createIndex(randomIntBetween(1, 3), 0);
         var lastUploaded = new PrimaryTermAndGeneration(1L, 3L);
@@ -276,11 +276,14 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         logger.info("--> deleting index {}", indexName);
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        // Restore the snapshot on a new indexing node so that we have clean state for asserts below.
-        // Restoring on the same node can skip parts of the logic that we expect during restore
-        // (in StatelessIndexEventListener#afterFilesRestoredFromRepository).
-        internalCluster().stopNode(indexNode);
-        startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        // Index into a throwaway index to advance the node-level TranslogReplicator maxUploadedGeneration.
+        // This ensures we always get expected commit in afterFilesRestoredFromRepository when totalDocs > 0.
+        if (totalDocs > 0) {
+            var tempIndex = "advance-translog";
+            createIndex(tempIndex, indexSettings(1, 0).build());
+            ensureGreen(tempIndex);
+            indexDocs(tempIndex, 10);
+        }
 
         logger.info("--> restoring snapshot of {}", indexName);
         var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "snapshots", "snapshot").setWaitForCompletion(true).get();

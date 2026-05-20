@@ -488,6 +488,10 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]")
         );
         defaultAnalyzer().error(
+            "from test | stats w_avg = weighted_avg(salary, count(*)) by first_name",
+            equalTo("1:48: nested aggregations [count(*)] not allowed inside other aggregations " + "[weighted_avg(salary, count(*))]")
+        );
+        defaultAnalyzer().error(
             "from test | stats count(avg(first_name)) by first_name",
             equalTo(
                 "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"

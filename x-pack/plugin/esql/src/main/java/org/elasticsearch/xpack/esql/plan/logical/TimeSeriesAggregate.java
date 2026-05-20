@@ -44,13 +44,14 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
     public static final TransportVersion TIME_SERIES_OUTPUT_BUCKET = TransportVersion.fromName("time_series_output_bucket");
+    // Retained for wire-format compatibility with nodes that wrote the now-removed `collapsed` flag; collapsing is
+    // handled by TimeSeriesCollapse rather than a flag on this node.
     private static final TransportVersion TIME_SERIES_AGGREGATE_COLLAPSED = TransportVersion.fromName("time_series_aggregate_collapsed");
     private static final TransportVersion TIME_SERIES_ORIGIN = TransportVersion.fromName("time_series_origin");
 
     private final Bucket timeBucket;
     private final Bucket outputTimeBucket;
     private final Expression timestamp;
-    private final boolean collapsed;
     private final Origin origin;
 
     public TimeSeriesAggregate(
@@ -61,7 +62,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Bucket timeBucket,
         Expression timestamp
     ) {
-        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, false, Origin.TS_COMMAND);
+        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, Origin.TS_COMMAND);
     }
 
     public TimeSeriesAggregate(
@@ -71,10 +72,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
         Expression timestamp,
-        boolean collapsed,
         Origin origin
     ) {
-        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, collapsed, origin);
+        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, origin);
     }
 
     public TimeSeriesAggregate(
@@ -85,14 +85,12 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Bucket timeBucket,
         Bucket outputTimeBucket,
         Expression timestamp,
-        boolean collapsed,
         Origin origin
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.outputTimeBucket = outputTimeBucket;
         this.timestamp = timestamp;
-        this.collapsed = collapsed;
         this.origin = origin;
     }
 
@@ -116,9 +114,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             this.outputTimeBucket = this.timeBucket;
         }
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
-            this.collapsed = in.readBoolean();
-        } else {
-            this.collapsed = false;
+            in.readBoolean(); // discarded: collapsing is handled by TimeSeriesCollapse
         }
         if (in.getTransportVersion().supports(TIME_SERIES_ORIGIN)) {
             this.origin = in.readEnum(Origin.class);
@@ -138,7 +134,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             out.writeOptionalWriteable(outputTimeBucket);
         }
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
-            out.writeBoolean(collapsed);
+            out.writeBoolean(false);
         }
         if (out.getTransportVersion().supports(TIME_SERIES_ORIGIN)) {
             out.writeEnum(origin);
@@ -161,7 +157,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             timeBucket,
             outputTimeBucket,
             timestamp,
-            collapsed,
             origin
         );
     }
@@ -176,7 +171,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             timeBucket,
             outputTimeBucket,
             timestamp,
-            collapsed,
             origin
         );
     }
@@ -191,7 +185,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             timeBucket,
             outputTimeBucket,
             timestamp,
-            collapsed,
             origin
         );
     }
@@ -208,13 +201,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             timeBucket,
             outputTimeBucket,
             newTimestamp,
-            collapsed,
             origin
         );
-    }
-
-    public boolean isCollapsed() {
-        return collapsed;
     }
 
     public Origin origin() {
@@ -246,7 +234,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, outputTimeBucket, timestamp, collapsed, origin);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, outputTimeBucket, timestamp, origin);
     }
 
     @Override
@@ -266,7 +254,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(timeBucket, other.timeBucket)
             && Objects.equals(outputTimeBucket, other.outputTimeBucket)
             && Objects.equals(timestamp, other.timestamp)
-            && collapsed == other.collapsed
             && origin == other.origin;
     }
 

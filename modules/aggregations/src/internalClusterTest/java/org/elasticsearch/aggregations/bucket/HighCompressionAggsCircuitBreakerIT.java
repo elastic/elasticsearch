@@ -31,8 +31,6 @@ import java.util.List;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING;
-import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING;
-import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.composite;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
@@ -78,10 +76,8 @@ public class HighCompressionAggsCircuitBreakerIT extends AggregationIntegTestCas
             // Coordinator: tight breaker. The uncompressed aggregation tree should easily exceed this; the
             // compressed wire representation does not.
             settings.put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "7MB");
-        } else {
-            // Data nodes: keep memory usage real so we don't OOM during indexing/reduce.
-            settings.put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), true).put(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%");
         }
+        // Data nodes use the default total breaker (real memory, 95%). Enough headroom on the 512 MB IT heap.
         return settings.build();
     }
 

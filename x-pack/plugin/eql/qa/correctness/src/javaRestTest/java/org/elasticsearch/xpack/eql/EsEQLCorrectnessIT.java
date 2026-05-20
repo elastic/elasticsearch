@@ -66,7 +66,6 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
             .module("repository-gcs")
             .setting("xpack.license.self_generated.type", "basic")
             .setting("xpack.security.enabled", "true")
-            .jvmArg("-Xms4g")
             .jvmArg("-Xmx4g")
             .user("admin", "admin-password", "superuser", false);
 

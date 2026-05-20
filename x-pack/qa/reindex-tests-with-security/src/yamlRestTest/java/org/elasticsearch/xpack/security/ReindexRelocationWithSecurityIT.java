@@ -283,7 +283,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                     // The rethrottle API returns 200 OK even when it encounters task failures (by design).
                     // We need to check for task_failures in the response and retry if the task is relocating.
                     final List<?> taskFailures = body.evaluate("task_failures");
-                    if (taskFailures != null && !taskFailures.isEmpty()) {
+                    if (taskFailures != null && taskFailures.isEmpty() == false) {
                         throw new AssertionError("rethrottle encountered task failures (task may be relocating): " + taskFailures);
                     }
                 } catch (Exception e) {

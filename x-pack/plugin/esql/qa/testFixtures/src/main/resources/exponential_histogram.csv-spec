@@ -1100,3 +1100,30 @@ time:datetime            | count:long
 2025-09-25T00:50:00.000Z | 1451
 2025-09-25T01:00:00.000Z | 147
 ;
+
+// -------------------------------------------------------------------------------
+
+isNotNullFilter
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+required_capability: fix_histogram_blockloaders_isnull
+
+TS exp_histo_sample
+ | WHERE mostly_empty IS NOT NULL
+ | STATS cnt = COUNT(mostly_empty) BY instance
+ | KEEP instance, cnt
+ | SORT instance
+;
+
+instance:keyword          | cnt:long
+dummy-empty               | 0
+dummy-full                | 7
+dummy-negative_only       | 0
+dummy-no_zero_bucket      | 0
+dummy-positive_only       | 0
+dummy-zero_count_only     | 0
+dummy-zero_threshold_only | 0
+instance-0                | 0
+instance-1                | 0
+instance-2                | 0
+;

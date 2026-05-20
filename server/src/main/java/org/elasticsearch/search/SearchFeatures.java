@@ -61,6 +61,13 @@ public final class SearchFeatures implements FeatureSpecification {
     );
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
     public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
+    /**
+     * A non-top-level {@code date_histogram} with {@code hard_bounds} that excludes every fixed rounding point
+     * produced from the data no longer throws {@code ArrayIndexOutOfBoundsException}; it returns an empty histogram.
+     */
+    public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
+        "search.aggs.date_histogram.hard_bounds_outside_data_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -89,7 +96,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
             EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
-            DEFAULT_DISK_BBQ
+            DEFAULT_DISK_BBQ,
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX
         );
     }
 }

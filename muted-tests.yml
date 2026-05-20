@@ -145,9 +145,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
-- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
-  method: testUpdateKeepAlive
-  issue: https://github.com/elastic/elasticsearch/issues/144618
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
@@ -255,9 +252,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexListRelocationIT
   method: testListReindexShowsOriginalIdentityAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/145963
-- class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
-  method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
-  issue: https://github.com/elastic/elasticsearch/issues/146106
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/147516
@@ -279,15 +273,15 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=cluster.info/20_info_http/Cluster HTTP Info}
   issue: https://github.com/elastic/elasticsearch/issues/147753
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/50_index_patterns/_index LIKE with overly complex pattern}
-  issue: https://github.com/elastic/elasticsearch/issues/148134
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.search.aggregations.bucket.DateHistogramOffsetIT
-  method: testSingleValueWithNegativeOffset
-  issue: https://github.com/elastic/elasticsearch/issues/148589
+- class: org.elasticsearch.reindex.ReindexBasicTests
+  method: testReindexFailsWhenSourceIndexIsClosed
+  issue: https://github.com/elastic/elasticsearch/issues/149234
+- class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
+  method: testMonitorClusterHealth
+  issue: https://github.com/elastic/elasticsearch/issues/148615
 
 # Examples:
 #

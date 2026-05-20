@@ -995,18 +995,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // immediately-completed listener and fall straight through.
             SubscribableListener<Void> ready = pages.waitForReady();
             if (ready.isDone() == false) {
-                ready.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        clearCurrentIterator(state);
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    clearCurrentIterator(state);
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(ready, state, completionListener);
             }
             if (pages.hasNext() == false) {
                 // Race: waitForReady reported done (page available or EOF), but by the time we
@@ -1020,33 +1009,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 if (recheck.isDone()) {
                     return DrainResult.EOF;
                 }
-                recheck.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        clearCurrentIterator(state);
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    clearCurrentIterator(state);
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(recheck, state, completionListener);
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
-                space.addListener(ActionListener.wrap(v -> {
-                    try {
-                        executor.execute(() -> runProducerLoop(state, completionListener));
-                    } catch (Exception e) {
-                        clearCurrentIterator(state);
-                        completionListener.onFailure(e);
-                    }
-                }, e -> {
-                    clearCurrentIterator(state);
-                    completionListener.onFailure(e);
-                }));
-                return DrainResult.BLOCKED;
+                return parkUntilReady(space, state, completionListener);
             }
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
@@ -1059,6 +1026,45 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.rowsRemaining -= rows;
             }
         }
+    }
+
+    /**
+     * Register a single listener that resumes the producer loop when {@code signal} fires, and
+     * return synchronously. {@link DrainResult#BLOCKED} is returned immediately after listener
+     * registration; the producer resumes asynchronously when {@code signal} completes.
+     * <p>
+     * Cleanup semantics by branch:
+     * <ul>
+     * <li>Success branch (happy path): re-submits {@link #runProducerLoop} on {@code executor};
+     *     the current iterator stays open across the park. Only if {@code executor.execute()}
+     *     itself throws (e.g. shutting-down pool) is the iterator cleared and the failure
+     *     routed through {@code completionListener.onFailure}.</li>
+     * <li>Failure branch: clears the current iterator and routes the signal's failure through
+     *     {@code completionListener.onFailure}.</li>
+     * </ul>
+     * Both cleanup paths match what the surrounding {@link #runProducerLoop} {@code catch} block
+     * does on a synchronous throw.
+     * <p>
+     * Collapses three structurally identical {@code addListener} blocks (page-ready, page-ready
+     * recheck, buffer-space) into one site, removing copy-paste drift risk between branches.
+     *
+     * @param signal a not-done listener from {@code waitForReady()} or {@code waitForSpace()};
+     *               callers must verify {@code signal.isDone() == false} before invoking this
+     *               helper, otherwise the producer will be re-submitted immediately.
+     */
+    private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+        signal.addListener(ActionListener.wrap(v -> {
+            try {
+                executor.execute(() -> runProducerLoop(state, completionListener));
+            } catch (Exception e) {
+                clearCurrentIterator(state);
+                completionListener.onFailure(e);
+            }
+        }, e -> {
+            clearCurrentIterator(state);
+            completionListener.onFailure(e);
+        }));
+        return DrainResult.BLOCKED;
     }
 
     /**

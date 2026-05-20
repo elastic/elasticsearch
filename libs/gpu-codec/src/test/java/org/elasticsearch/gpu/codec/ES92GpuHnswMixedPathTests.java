@@ -99,11 +99,6 @@ public class ES92GpuHnswMixedPathTests extends BaseKnnVectorsFormatTestCase {
         // No bytes support
     }
 
-    @Override
-    protected boolean supportsFloatVectorFallback() {
-        return false;
-    }
-
     /**
      * A resource manager that randomly returns null from tryAcquire to simulate GPU contention,
      * forcing some flushes to fall back to CPU graph building.

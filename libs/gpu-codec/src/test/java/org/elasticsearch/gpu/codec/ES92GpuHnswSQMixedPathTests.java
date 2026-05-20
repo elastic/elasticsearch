@@ -109,8 +109,4 @@ public class ES92GpuHnswSQMixedPathTests extends BaseKnnVectorsFormatTestCase {
         // No bytes support
     }
 
-    @Override
-    protected boolean supportsFloatVectorFallback() {
-        return false;
-    }
 }

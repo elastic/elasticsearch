@@ -69,7 +69,7 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
     public void testCpuFallbackGraphMatchesLucene() throws Exception {
         float[][] vectors = generateVectors(numVectors, dims);
         var gpuFormat = new ES92GpuHnswVectorsFormat(() -> new NullResourceManager(), 0L, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
-        var luceneFormat = new Lucene99HnswVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, 0);
+        var luceneFormat = new Lucene99HnswVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
 
         try (Directory gpuDir = newDirectory(); Directory luceneDir = newDirectory()) {
             indexVectors(gpuDir, gpuFormat, vectors, similarity);
@@ -260,7 +260,7 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
 
         @Override
         public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-            return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat().fieldsWriter(state), 0, null, 0);
+            return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat().fieldsWriter(state), 0, null);
         }
     }
 }

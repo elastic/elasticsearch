@@ -71,6 +71,7 @@ public final class MultiRowTestCaseSupplier {
             case GEOHASH -> geohashCases(minRows, maxRows);
             case GEOTILE -> geotileCases(minRows, maxRows);
             case GEOHEX -> geohexCases(minRows, maxRows);
+            case DENSE_VECTOR -> denseVectorCases(minRows, maxRows);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };

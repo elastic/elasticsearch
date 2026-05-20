@@ -24,6 +24,10 @@
 | date_nanos | date_nanos | date_nanos |
 | date_nanos | integer | date_nanos |
 | date_nanos | long | date_nanos |
+| dense_vector {applies_to}`stack: ga 9.5.0` | date | dense_vector |
+| dense_vector {applies_to}`stack: ga 9.5.0` | date_nanos | dense_vector |
+| dense_vector {applies_to}`stack: ga 9.5.0` | integer | dense_vector |
+| dense_vector {applies_to}`stack: ga 9.5.0` | long | dense_vector |
 | double | date | double |
 | double | date_nanos | double |
 | double | integer | double |

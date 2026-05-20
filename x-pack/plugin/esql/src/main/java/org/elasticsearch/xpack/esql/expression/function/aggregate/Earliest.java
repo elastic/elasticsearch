@@ -44,6 +44,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "cartesian_shape",
             "date",
             "date_nanos",
+            "dense_vector",
             "double",
             "geo_point",
             "geo_shape",
@@ -72,6 +73,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -138,11 +140,13 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.GEO_SHAPE
                 || dt == DataType.GEOHASH
                 || dt == DataType.GEOTILE
-                || dt == DataType.GEOHEX,
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR,
             sourceText(),
             DEFAULT,
             "boolean",
             "date",
+            "dense_vector",
             "ip",
             "string",
             "numeric except counter types"

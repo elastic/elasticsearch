@@ -2868,6 +2868,17 @@ public class EsqlCapabilities {
          */
         FIRST_AGG_EXTENDED_TYPES,
 
+        /**
+         * Support EARLIEST aggregation on extended types: version, unsigned_long, geo_point,
+         * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
+         */
+        EARLIEST_AGG_EXTENDED_TYPES,
+
+        /**
+         * Support FIRST and EARLIEST aggregation on dense_vector fields.
+         */
+        FIRST_AGG_DENSE_VECTOR,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

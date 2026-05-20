@@ -9,6 +9,7 @@
 | cartesian_shape {applies_to}`stack: ga 9.5.0` | cartesian_shape |
 | date | date |
 | date_nanos | date_nanos |
+| dense_vector {applies_to}`stack: ga 9.5.0` | dense_vector |
 | double | double |
 | geo_point {applies_to}`stack: ga 9.5.0` | geo_point |
 | geo_shape {applies_to}`stack: ga 9.5.0` | geo_shape |

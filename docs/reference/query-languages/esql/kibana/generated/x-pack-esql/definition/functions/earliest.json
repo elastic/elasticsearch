@@ -68,6 +68,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "The search field"

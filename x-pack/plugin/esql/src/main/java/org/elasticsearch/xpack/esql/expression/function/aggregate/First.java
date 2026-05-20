@@ -65,6 +65,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "dense_vector",
             "double",
             "geo_point",
             "geo_shape",
@@ -109,6 +110,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -194,11 +196,13 @@ public class First extends AggregateFunction implements ToAggregator {
                 || dt == DataType.GEO_SHAPE
                 || dt == DataType.GEOHASH
                 || dt == DataType.GEOTILE
-                || dt == DataType.GEOHEX,
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR,
             sourceText(),
             FIRST,
             "boolean",
             "date",
+            "dense_vector",
             "ip",
             "string",
             "numeric except counter types"
@@ -224,7 +228,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG -> new AnyLongAggregatorFunctionSupplier();
                 case INTEGER -> new AnyIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
-                case FLOAT -> new AnyFloatAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
                     new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
@@ -238,7 +242,7 @@ public class First extends AggregateFunction implements ToAggregator {
                     new AllFirstLongByLongAggregatorFunctionSupplier();
                 case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
-                case FLOAT -> new AllFirstFloatByLongAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllFirstFloatByLongAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
                     new AllFirstBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
@@ -252,7 +256,7 @@ public class First extends AggregateFunction implements ToAggregator {
                     new AllFirstLongByIntAggregatorFunctionSupplier();
                 case INTEGER -> new AllFirstIntByIntAggregatorFunctionSupplier();
                 case DOUBLE -> new AllFirstDoubleByIntAggregatorFunctionSupplier();
-                case FLOAT -> new AllFirstFloatByIntAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllFirstFloatByIntAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
                     new AllFirstBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByIntAggregatorFunctionSupplier();

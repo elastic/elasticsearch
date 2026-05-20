@@ -539,3 +539,17 @@ first_gh:geohash | first_gt:geotile | first_ghex:geohex
 u3bu             | 4/8/5            | 841f059ffffffff
 ;
 
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on dense_vector type
+required_capability: first_agg_dense_vector
+
+FROM colors
+| WHERE id < 5
+| STATS first_rgb = FIRST(rgb_vector, id)
+;
+
+first_rgb:dense_vector
+[128.0, 0.0, 0.0]
+;
+

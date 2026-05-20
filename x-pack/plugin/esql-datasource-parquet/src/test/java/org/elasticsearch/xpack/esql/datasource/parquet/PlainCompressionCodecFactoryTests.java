@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import io.airlift.compress.lz4.Lz4Compressor;
+
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompressor;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
@@ -15,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class PlainCompressionCodecFactoryTests extends ESTestCase {
 
@@ -52,9 +55,222 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         assertRoundTrip(CompressionCodecName.LZ4_RAW);
     }
 
-    public void testLz4HadoopFramedUnsupported() {
-        expectThrows(UnsupportedOperationException.class, () -> factory.getDecompressor(CompressionCodecName.LZ4));
+    /**
+     * Round-trips a payload via a test-only Hadoop-framed LZ4 compressor and the production
+     * decompressor wired into the factory. The compressor is intentionally not part of
+     * {@link PlainCompressionCodecFactory} — legacy {@code LZ4} is read-only — but exercising the
+     * decompressor against real Hadoop-framed bytes is the only way to lock in reader correctness
+     * for customer files written during the deprecation window.
+     */
+    public void testLz4HadoopFramedRoundTrip() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        BytesInput compressed = compressor.compress(BytesInput.from(original));
+        BytesInput decompressed = decompressor.decompress(compressed, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Reader must still reject {@code getCompressor(LZ4)}: the parquet-format spec deprecated the
+     * Hadoop-framed codec and ES|QL must not emit it. Acceptance criterion of the feature.
+     */
+    public void testLz4HadoopFramedCompressorStillUnsupported() {
         expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.LZ4));
+    }
+
+    /**
+     * Verifies the decompressor honors Hadoop's frame format when an outer block carries
+     * multiple sub-blocks. Parquet-mr in practice emits one sub-block per page, but the Hadoop
+     * frame format permits more; a writer that splits an outer block across sub-blocks must
+     * still produce a readable file. The frame bytes here are hand-crafted to force the
+     * sub-block loop in the decompressor.
+     */
+    public void testLz4HadoopFramedMultipleSubBlocks() throws IOException {
+        byte[] partA = randomByteArrayOfLength(between(64, 256));
+        byte[] partB = randomByteArrayOfLength(between(64, 256));
+        byte[] partC = randomByteArrayOfLength(between(64, 256));
+        byte[] framed = buildMultiSubBlockFrame(new byte[][] { partA, partB, partC });
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        int total = partA.length + partB.length + partC.length;
+        BytesInput decompressed = decompressor.decompress(BytesInput.from(framed), total);
+        byte[] out = decompressed.toByteArray();
+
+        byte[] expected = new byte[total];
+        System.arraycopy(partA, 0, expected, 0, partA.length);
+        System.arraycopy(partB, 0, expected, partA.length, partB.length);
+        System.arraycopy(partC, 0, expected, partA.length + partB.length, partC.length);
+        assertArrayEquals(expected, out);
+    }
+
+    public void testLz4HadoopFramedMultipleSubBlocksDirectByteBuffer() throws IOException {
+        byte[] partA = randomByteArrayOfLength(between(64, 256));
+        byte[] partB = randomByteArrayOfLength(between(64, 256));
+        byte[] framed = buildMultiSubBlockFrame(new byte[][] { partA, partB });
+
+        ByteBuffer input = ByteBuffer.allocateDirect(framed.length);
+        input.put(framed).flip();
+        int total = partA.length + partB.length;
+        ByteBuffer output = ByteBuffer.allocateDirect(total);
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        decompressor.decompress(input, framed.length, output, total);
+        output.flip();
+        byte[] result = new byte[total];
+        output.get(result);
+
+        byte[] expected = new byte[total];
+        System.arraycopy(partA, 0, expected, 0, partA.length);
+        System.arraycopy(partB, 0, expected, partA.length, partB.length);
+        assertArrayEquals(expected, result);
+    }
+
+    /**
+     * Decompressor must defend against a caller that flips the input {@link ByteBuffer} to
+     * little-endian byte order: Hadoop's frame uses BE int32 headers unconditionally, so the
+     * decompressor must read them in BE regardless of the buffer's configured order.
+     */
+    public void testLz4HadoopFramedLittleEndianBufferOrderIgnored() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] framed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer input = ByteBuffer.allocate(framed.length).order(ByteOrder.LITTLE_ENDIAN);
+        input.put(framed).flip();
+        ByteBuffer output = ByteBuffer.allocate(original.length);
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        decompressor.decompress(input, framed.length, output, original.length);
+        output.flip();
+        byte[] result = new byte[original.length];
+        output.get(result);
+        assertArrayEquals(original, result);
+    }
+
+    public void testLz4HadoopFramedTruncatedOuterHeader() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Two bytes is short of the four-byte outer length header.
+        byte[] truncated = new byte[] { 0x00, 0x00 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(truncated), 16));
+        assertTrue(e.getMessage(), e.getMessage().contains("truncated outer length header"));
+    }
+
+    public void testLz4HadoopFramedTruncatedSubBlockHeader() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Outer length declares 32 bytes, but the sub-block header is truncated to two bytes.
+        byte[] framed = new byte[] { 0x00, 0x00, 0x00, 0x20, 0x00, 0x00 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(framed), 32));
+        assertTrue(e.getMessage(), e.getMessage().contains("truncated sub-block length header"));
+    }
+
+    public void testLz4HadoopFramedInvalidOuterLength() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Outer length of 0 is rejected — Hadoop streams treat it as EOF, but parquet pages
+        // never legitimately carry an empty outer block in the middle of a frame.
+        byte[] framed = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(framed), 16));
+        assertTrue(e.getMessage(), e.getMessage().contains("invalid outer uncompressed length"));
+    }
+
+    public void testLz4HadoopFramedInvalidSubBlockLength() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        // Outer length declares 32 bytes; sub-block declares 200 bytes of compressed data but only
+        // 4 trailing bytes follow. The decompressor must reject the over-long sub-block before
+        // handing it to aircompressor.
+        byte[] framed = new byte[] { 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, (byte) 0xC8, 0x01, 0x02, 0x03, 0x04 };
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(framed), 32));
+        assertTrue(e.getMessage(), e.getMessage().contains("invalid sub-block compressed length"));
+    }
+
+    /**
+     * Negative-path coverage for the {@code ByteBuffer} decompress overload, which has its own
+     * frame parsing loop distinct from the {@code BytesInput} path. Truncating the outer header
+     * here ensures the buffer-cursor restoration in the finally block doesn't leak invalid state
+     * to callers on the error path.
+     */
+    public void testLz4HadoopFramedTruncatedOuterHeaderDirectByteBuffer() {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        byte[] truncated = new byte[] { 0x00, 0x00 };
+        ByteBuffer input = ByteBuffer.allocateDirect(truncated.length);
+        input.put(truncated).flip();
+        ByteBuffer output = ByteBuffer.allocateDirect(16);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(input, truncated.length, output, 16));
+        assertTrue(e.getMessage(), e.getMessage().contains("truncated outer length header"));
+    }
+
+    public void testLz4HadoopFramedTrailingBytesRejected() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        byte[] original = randomByteArrayOfLength(between(100, 256));
+        byte[] framed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        // Append a stray byte after the legitimate frame. The reader must reject it: parquet pages
+        // are sized exactly to the compressed payload and unconsumed trailing bytes signal corruption.
+        byte[] withTrailing = new byte[framed.length + 1];
+        System.arraycopy(framed, 0, withTrailing, 0, framed.length);
+        withTrailing[framed.length] = (byte) 0xAB;
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        IOException e = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(withTrailing), original.length));
+        assertTrue(e.getMessage(), e.getMessage().contains("trailing bytes after frame"));
+    }
+
+    public void testDirectByteBufferDecompressionLz4HadoopFramed() throws IOException {
+        assertDirectByteBufferRoundTripWithLegacyLz4Writer();
+    }
+
+    private void assertDirectByteBufferRoundTripWithLegacyLz4Writer() throws IOException {
+        LegacyLz4HadoopFramedCodecFactory writeFactory = new LegacyLz4HadoopFramedCodecFactory();
+        BytesInputCompressor compressor = writeFactory.getCompressor(CompressionCodecName.LZ4);
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressedBytes = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer input = ByteBuffer.allocateDirect(compressedBytes.length);
+        input.put(compressedBytes).flip();
+        ByteBuffer output = ByteBuffer.allocateDirect(original.length);
+
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        decompressor.decompress(input, compressedBytes.length, output, original.length);
+        output.flip();
+        byte[] result = new byte[original.length];
+        output.get(result);
+        assertArrayEquals(original, result);
+    }
+
+    /**
+     * Builds a Hadoop {@code BlockCompressorStream} frame from raw uncompressed payload parts,
+     * emitting one outer block whose declared uncompressed length covers all parts and
+     * {@code parts.length} sub-blocks back to back. Used to exercise the decompressor's
+     * sub-block loop on hand-crafted inputs that the simpler test compressor would never emit.
+     */
+    private static byte[] buildMultiSubBlockFrame(byte[][] parts) throws IOException {
+        Lz4Compressor lz4 = new Lz4Compressor();
+        int totalUncompressed = 0;
+        byte[][] compressed = new byte[parts.length][];
+        for (int i = 0; i < parts.length; i++) {
+            byte[] part = parts[i];
+            totalUncompressed += part.length;
+            byte[] buf = new byte[lz4.maxCompressedLength(part.length)];
+            int len = lz4.compress(part, 0, part.length, buf, 0, buf.length);
+            compressed[i] = new byte[len];
+            System.arraycopy(buf, 0, compressed[i], 0, len);
+        }
+        int frameLen = 4;
+        for (byte[] c : compressed) {
+            frameLen += 4 + c.length;
+        }
+        byte[] framed = new byte[frameLen];
+        ByteBuffer buf = ByteBuffer.wrap(framed); // BE by default
+        buf.putInt(totalUncompressed);
+        for (byte[] c : compressed) {
+            buf.putInt(c.length);
+            buf.put(c);
+        }
+        return framed;
     }
 
     public void testDirectByteBufferDecompressionSnappy() throws IOException {
@@ -248,6 +464,10 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
             assertSame(factory.getDecompressor(codec), factory.getDecompressor(codec));
             assertSame(factory.getCompressor(codec), factory.getCompressor(codec));
         }
+        // Legacy LZ4 has a decompressor only, but the LazyInitializable holder must still hand
+        // out a single shared instance under contention.
+        BytesInputDecompressor legacyLz4 = factory.getDecompressor(CompressionCodecName.LZ4);
+        assertSame(legacyLz4, factory.getDecompressor(CompressionCodecName.LZ4));
     }
 
     private void assertRoundTrip(CompressionCodecName codec) throws IOException {

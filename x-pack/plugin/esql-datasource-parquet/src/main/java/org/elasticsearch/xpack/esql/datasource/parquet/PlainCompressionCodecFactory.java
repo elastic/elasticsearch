@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import io.airlift.compress.MalformedInputException;
 import io.airlift.compress.lz4.Lz4Compressor;
 import io.airlift.compress.lz4.Lz4Decompressor;
 
@@ -74,6 +75,11 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         dec.put(CompressionCodecName.GZIP, lazy(GzipBytesDecompressor::new));
         dec.put(CompressionCodecName.ZSTD, lazy(ZstdBytesDecompressor::new));
         dec.put(CompressionCodecName.LZ4_RAW, lazy(Lz4RawBytesDecompressor::new));
+        // Legacy Hadoop-framed LZ4 (CompressionCodecName.LZ4) is read-only — see
+        // Lz4HadoopFramedBytesDecompressor for the rationale and frame format. No matching entry
+        // is added to the compressors map: the codec is deprecated by the parquet-format spec
+        // and ES|QL must not emit it. getCompressor(LZ4) continues to throw.
+        dec.put(CompressionCodecName.LZ4, lazy(Lz4HadoopFramedBytesDecompressor::new));
         this.decompressors = dec;
 
         Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> com = new EnumMap<>(
@@ -297,6 +303,219 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
         @Override
         public void release() {}
+    }
+
+    /**
+     * Legacy Hadoop-framed LZ4 decompressor — reads files written with
+     * {@link CompressionCodecName#LZ4} (the deprecated codec, distinct from {@code LZ4_RAW}).
+     *
+     * <p>This codec wraps raw LZ4 block-format payloads in Hadoop's {@code BlockCompressorStream}
+     * framing — the same framing parquet-mr embeds when it writes the legacy codec. The framing
+     * is:
+     *
+     * <pre>
+     * [outer uncompressed length: int32 big-endian]
+     *   one or more sub-blocks:
+     *     [sub-block compressed length: int32 big-endian]
+     *     [sub-block compressed bytes: raw LZ4 block format]
+     * </pre>
+     *
+     * <p>Sub-blocks accumulate until the decompressed bytes written equal the outer uncompressed
+     * length. In practice parquet-mr produces a single sub-block per column chunk page, but the
+     * Hadoop frame format permits multiple sub-blocks and this decompressor honors it.
+     *
+     * <p>The implementation strips the Hadoop frame in plain Java and delegates each sub-block to
+     * the existing aircompressor {@link Lz4Decompressor} — the same library used for
+     * {@link CompressionCodecName#LZ4_RAW}. No Hadoop dependency is required, which is the entire
+     * reason {@link PlainCompressionCodecFactory} exists: keep the ~50 MB Hadoop jar off the
+     * runtime classpath.
+     *
+     * <p>This codec is deliberately read-only. The parquet-format spec deprecated it in November
+     * 2021 in favor of {@code LZ4_RAW} (see PARQUET-2032); ES|QL accepts files written during the
+     * deprecation window (notably ClickHouse {@code FORMAT Parquet} exports from v23.3 through
+     * mid-2024, and Spark 3.0–3.4 with explicit {@code lz4} compression) but never emits the
+     * deprecated codec itself. No entry is registered in the compressors map.
+     */
+    private static class Lz4HadoopFramedBytesDecompressor implements BytesInputDecompressor {
+        private final Lz4Decompressor lz4 = new Lz4Decompressor();
+
+        @Override
+        public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
+            byte[] in = bytes.toByteArray();
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
+            decompressHadoopFramed(in, 0, in.length, out, 0, decompressedSize);
+            return BytesInput.from(out);
+        }
+
+        @Override
+        public void decompress(ByteBuffer input, int compressedSize, ByteBuffer output, int decompressedSize) throws IOException {
+            // The frame envelope and sub-block headers are parsed via ByteBuffer slicing, then each
+            // sub-block is handed to aircompressor's ByteBuffer decompress overload — preserving the
+            // direct-buffer fast path when both buffers are off-heap and avoiding any extra copy of
+            // the compressed payload regardless of buffer kind. The byte-array fallback is reserved
+            // for inputs that are neither direct nor heap-backed (rare).
+            if (input.hasArray() == false && input.isDirect() == false) {
+                decompressViaHeapCopy(this, input, compressedSize, output, decompressedSize);
+                return;
+            }
+            int origLimit = input.limit();
+            int origPos = input.position();
+            int compressedEnd = origPos + compressedSize;
+            input.limit(compressedEnd);
+            try {
+                int outWritten = 0;
+                while (outWritten < decompressedSize) {
+                    if (input.remaining() < 4) {
+                        throw new IOException("Hadoop-framed LZ4: truncated outer length header");
+                    }
+                    // Read BE int32 independently of the buffer's current byte order — the parquet
+                    // read path doesn't set order explicitly today, but defending against a caller
+                    // that does prevents silent corruption.
+                    int outerUncompressedLen = readIntBE(input);
+                    if (outerUncompressedLen <= 0) {
+                        throw new IOException("Hadoop-framed LZ4: invalid outer uncompressed length " + outerUncompressedLen);
+                    }
+                    if (outWritten + outerUncompressedLen > decompressedSize) {
+                        throw new IOException(
+                            "Hadoop-framed LZ4: outer length "
+                                + outerUncompressedLen
+                                + " at offset "
+                                + outWritten
+                                + " exceeds declared decompressed size "
+                                + decompressedSize
+                        );
+                    }
+                    int outerEnd = outWritten + outerUncompressedLen;
+                    while (outWritten < outerEnd) {
+                        if (input.remaining() < 4) {
+                            throw new IOException("Hadoop-framed LZ4: truncated sub-block length header");
+                        }
+                        int subCompressedLen = readIntBE(input);
+                        if (subCompressedLen <= 0 || subCompressedLen > input.remaining()) {
+                            throw new IOException(
+                                "Hadoop-framed LZ4: invalid sub-block compressed length "
+                                    + subCompressedLen
+                                    + " (remaining "
+                                    + input.remaining()
+                                    + ")"
+                            );
+                        }
+                        // Slice the sub-block into its own ByteBuffer view and a same-kind sliced
+                        // output view. Aircompressor consumes the entire source buffer up to its
+                        // limit and advances the output buffer position by the number of bytes
+                        // written; we then advance our cursors accordingly.
+                        int subInPos = input.position();
+                        ByteBuffer subIn = input.duplicate();
+                        subIn.position(subInPos).limit(subInPos + subCompressedLen);
+                        ByteBuffer subOut = output.duplicate();
+                        int subOutPos = output.position() + outWritten;
+                        subOut.position(subOutPos).limit(output.position() + outerEnd);
+                        try {
+                            lz4.decompress(subIn, subOut);
+                        } catch (MalformedInputException e) {
+                            throw new IOException("Hadoop-framed LZ4: malformed sub-block at output offset " + outWritten, e);
+                        }
+                        int written = subOut.position() - subOutPos;
+                        if (written <= 0) {
+                            throw new IOException("Hadoop-framed LZ4: sub-block decoded to 0 bytes");
+                        }
+                        outWritten += written;
+                        input.position(subInPos + subCompressedLen);
+                    }
+                    if (outWritten != outerEnd) {
+                        throw new IOException(
+                            "Hadoop-framed LZ4: outer block underflow, expected " + outerEnd + " uncompressed bytes, got " + outWritten
+                        );
+                    }
+                }
+                if (input.position() != compressedEnd) {
+                    throw new IOException(
+                        "Hadoop-framed LZ4: trailing bytes after frame, " + (compressedEnd - input.position()) + " bytes unconsumed"
+                    );
+                }
+                output.position(output.position() + outWritten);
+            } finally {
+                input.limit(origLimit);
+                input.position(compressedEnd);
+            }
+        }
+
+        @Override
+        public void release() {}
+
+        private void decompressHadoopFramed(byte[] in, int inOff, int inLen, byte[] out, int outOff, int outCapacity) throws IOException {
+            int inEnd = inOff + inLen;
+            int inPos = inOff;
+            int outWritten = 0;
+            while (outWritten < outCapacity) {
+                if (inEnd - inPos < 4) {
+                    throw new IOException("Hadoop-framed LZ4: truncated outer length header");
+                }
+                int outerUncompressedLen = readIntBE(in, inPos);
+                inPos += 4;
+                if (outerUncompressedLen <= 0) {
+                    throw new IOException("Hadoop-framed LZ4: invalid outer uncompressed length " + outerUncompressedLen);
+                }
+                if (outWritten + outerUncompressedLen > outCapacity) {
+                    throw new IOException(
+                        "Hadoop-framed LZ4: outer length "
+                            + outerUncompressedLen
+                            + " at offset "
+                            + outWritten
+                            + " exceeds declared decompressed size "
+                            + outCapacity
+                    );
+                }
+                int outerEnd = outWritten + outerUncompressedLen;
+                while (outWritten < outerEnd) {
+                    if (inEnd - inPos < 4) {
+                        throw new IOException("Hadoop-framed LZ4: truncated sub-block length header");
+                    }
+                    int subCompressedLen = readIntBE(in, inPos);
+                    inPos += 4;
+                    if (subCompressedLen <= 0 || subCompressedLen > inEnd - inPos) {
+                        throw new IOException(
+                            "Hadoop-framed LZ4: invalid sub-block compressed length "
+                                + subCompressedLen
+                                + " (remaining "
+                                + (inEnd - inPos)
+                                + ")"
+                        );
+                    }
+                    int written;
+                    try {
+                        written = lz4.decompress(in, inPos, subCompressedLen, out, outOff + outWritten, outerEnd - outWritten);
+                    } catch (MalformedInputException e) {
+                        throw new IOException("Hadoop-framed LZ4: malformed sub-block at output offset " + outWritten, e);
+                    }
+                    if (written <= 0) {
+                        throw new IOException("Hadoop-framed LZ4: sub-block decoded to 0 bytes");
+                    }
+                    outWritten += written;
+                    inPos += subCompressedLen;
+                }
+                if (outWritten != outerEnd) {
+                    throw new IOException(
+                        "Hadoop-framed LZ4: outer block underflow, expected " + outerEnd + " uncompressed bytes, got " + outWritten
+                    );
+                }
+            }
+            if (inPos != inEnd) {
+                throw new IOException("Hadoop-framed LZ4: trailing bytes after frame, " + (inEnd - inPos) + " bytes unconsumed");
+            }
+        }
+
+        private static int readIntBE(byte[] buf, int off) {
+            return ((buf[off] & 0xFF) << 24) | ((buf[off + 1] & 0xFF) << 16) | ((buf[off + 2] & 0xFF) << 8) | (buf[off + 3] & 0xFF);
+        }
+
+        private static int readIntBE(ByteBuffer in) {
+            int b1 = in.get() & 0xFF;
+            int b2 = in.get() & 0xFF;
+            int b3 = in.get() & 0xFF;
+            int b4 = in.get() & 0xFF;
+            return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4;
+        }
     }
 
     // --------------------------------- compressors ---------------------------------

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -19,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -46,6 +46,15 @@ public class HierarchicalKMeans {
     // count > OVERSIZED_THRESHOLD * targetSize triggers a split. Smaller values produce more
     // (smaller) final centroids — pushes total count up and per-cluster size down.
     static final float OVERSIZED_THRESHOLD = 1.0f;
+
+    // Concat-path quality gate. When the greedy concat path produces a clustering that's likely
+    // degenerate, clusterByConcatenation bails out and re-runs the full hierarchical rebuild.
+    // Z_THRESHOLD: max cluster size's z-score above which we flag as a catastrophic outlier.
+    // EMPTY_FRACTION: fraction of empty clusters above which we bail (duplicate seeds).
+    // PRIOR_ZERO_FRACTION: fraction of prior clusterSizes equal to zero above which we bail pre-emptively.
+    static final float Z_THRESHOLD = 3.0f;
+    static final float EMPTY_FRACTION = 0.1f;
+    static final float PRIOR_ZERO_FRACTION = 0.5f;
 
     final int dimension;
     final int maxIterations;
@@ -187,26 +196,18 @@ public class HierarchicalKMeans {
             return kMeansIntermediate;
         }
 
-//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
-        resolveOversizedAndEmptyClusters(kMeansIntermediate, vectors, centroidVectorCount, targetSize);
-//=======
-        int centroidIndexOffset = 0; // tracks the cumulative change in centroid indices due to splits and removals
+        // Sequentially split each oversized cluster; updateAssignmentsWithRecursiveSplit inserts
+        // the sub-partition's centroids in place of the parent and shifts following assignments.
+        int centroidIndexOffset = 0;
         for (int c = 0; c < centroidVectorCount.length; c++) {
-            // Recurse for each cluster which is larger than targetSize
             final int count = centroidVectorCount[c];
             final int adjustedCentroid = c + centroidIndexOffset;
-            if (count > targetSize) {
+            if (count > OVERSIZED_THRESHOLD * targetSize) {
                 final ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
-
-                // TODO: consider iterative here instead of recursive
-                // recursive call to build out the sub partitions around this centroid c
-                // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
                 KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
-                // Update offset: split replaces 1 centroid with subPartitions.centroids().length centroids
                 centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
             }
         }
-//>>>>>>> main
 
         return kMeansIntermediate;
     }
@@ -275,7 +276,6 @@ public class HierarchicalKMeans {
      * Reduce a large set of centroids to targetCount using lightweight K-means.
      * Operates only on centroids (not full vectors), so it's very fast.
      */
-//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
     private float[][] reduceCentroids(float[][] centroids, int targetCount) throws IOException {
         ClusteringFloatVectorValues centroidValues = KMeansFloatVectorValues.build(java.util.Arrays.asList(centroids), null, dimension);
         float[][] reduced = KMeansLocal.pickInitialCentroids(centroidValues, targetCount);
@@ -354,14 +354,20 @@ public class HierarchicalKMeans {
         long totalSize = 0;
         for (int s : clusterSizes)
             totalSize += s;
-        double r = random.nextDouble() * totalSize;
-        double cum = 0;
-        int firstIdx = n - 1;
-        for (int i = 0; i < n; i++) {
-            cum += clusterSizes[i];
-            if (cum > r) {
-                firstIdx = i;
-                break;
+        int firstIdx;
+        if (totalSize <= 0) {
+            // Degenerate: all prior cluster sizes are zero. Pick uniformly at random.
+            firstIdx = random.nextInt(n);
+        } else {
+            double r = random.nextDouble() * totalSize;
+            double cum = 0;
+            firstIdx = n - 1;
+            for (int i = 0; i < n; i++) {
+                cum += clusterSizes[i];
+                if (cum > r) {
+                    firstIdx = i;
+                    break;
+                }
             }
         }
         selected[0] = Arrays.copyOf(centroids[firstIdx], centroids[firstIdx].length);
@@ -381,15 +387,23 @@ public class HierarchicalKMeans {
                 weights[j] = (double) clusterSizes[j] * minDist[j];
                 totalWeight += weights[j];
             }
-            // rv requires totalWeight to be fully accumulated before sampling, so two passes are necessary.
-            double rv = random.nextDouble() * totalWeight;
-            double cumulative = 0;
-            int chosen = n - 1;
-            for (int j = 0; j < n; j++) {
-                cumulative += weights[j];
-                if (cumulative >= rv) {
-                    chosen = j;
-                    break;
+            int chosen;
+            if (totalWeight <= 0) {
+                // Degenerate: every remaining candidate has zero weight (sizes all zero, or all
+                // already-selected centroids cover the space). Fall back to uniform sampling so
+                // we still produce k seeds rather than re-picking centroids[0] deterministically.
+                chosen = random.nextInt(n);
+            } else {
+                // rv requires totalWeight to be fully accumulated before sampling, so two passes are necessary.
+                double rv = random.nextDouble() * totalWeight;
+                double cumulative = 0;
+                chosen = n - 1;
+                for (int j = 0; j < n; j++) {
+                    cumulative += weights[j];
+                    if (cumulative >= rv) {
+                        chosen = j;
+                        break;
+                    }
                 }
             }
             selected[c] = Arrays.copyOf(centroids[chosen], centroids[chosen].length);
@@ -486,31 +500,104 @@ public class HierarchicalKMeans {
     }
 
     /**
-     * Supplement a small set of centroids with random vectors to reach targetCount.
-     * Uses stride-based sampling to spread selected vectors evenly across the dataset.
+     * Supplement a small set of centroids with greedily-selected vectors to reach targetCount.
+     * Uses distance-based sampling on a reservoir sample of the corpus: each iteration picks a
+     * new centroid with probability proportional to (clusterSize × distance²) when prior cluster
+     * sizes are known, otherwise just distance². The size weighting biases new centroids toward
+     * vectors whose nearest existing centroid has a large prior cluster — splitting big clusters
+     * to improve the final size balance. Once a vector's nearest centroid becomes a newly-added
+     * one, its weight reduces to distance² only (pure k-means++ for already-addressed regions).
      */
-    private static float[][] supplementCentroids(float[][] existing, ClusteringFloatVectorValues vectors, int targetCount)
-        throws IOException {
+    private static float[][] supplementCentroids(
+        float[][] existing,
+        int[] clusterSizes,
+        ClusteringFloatVectorValues vectors,
+        int targetCount
+    ) throws IOException {
         float[][] augmented = new float[targetCount][];
         for (int i = 0; i < existing.length; i++) {
             augmented[i] = Arrays.copyOf(existing[i], existing[i].length);
         }
         int needed = targetCount - existing.length;
-        // Stride-based sampling: pick every (size/needed)-th vector for even distribution
-        int filled = 0;
-        double stride = (double) vectors.size() / needed;
-        for (int i = 0; filled < needed && i < vectors.size(); i++) {
-            if (i >= (long) (filled * stride)) {
-                float[] vector = vectors.vectorValue(i);
-                augmented[existing.length + filled] = Arrays.copyOf(vector, vector.length);
-                filled++;
+        if (needed <= 0 || vectors.size() == 0) {
+            return augmented;
+        }
+
+        Random random = new Random(42L);
+        int n = vectors.size();
+        int sampleSize = Math.min(n, Math.max(needed * 64, 4096));
+
+        // Reservoir-sample sampleSize vector indices, deterministic with seed 42.
+        int[] sample = new int[sampleSize];
+        for (int i = 0; i < sampleSize; i++) sample[i] = i;
+        for (int i = sampleSize; i < n; i++) {
+            int j = random.nextInt(i + 1);
+            if (j < sampleSize) sample[j] = i;
+        }
+
+        // For each sampled vector, find its nearest existing centroid; record min squared dist
+        // and which existing centroid it falls under (or -1 once it lands under a newly-added one).
+        float[] minDist = new float[sampleSize];
+        int[] nearestId = new int[sampleSize];
+        Arrays.fill(minDist, Float.MAX_VALUE);
+        for (int s = 0; s < sampleSize; s++) {
+            float[] vec = vectors.vectorValue(sample[s]);
+            for (int c = 0; c < existing.length; c++) {
+                float d = ESVectorUtil.squareDistance(vec, existing[c]);
+                if (d < minDist[s]) {
+                    minDist[s] = d;
+                    nearestId[s] = c;
+                }
             }
         }
-        // Fallback: fill any remaining slots from the start (shouldn't happen with stride sampling)
-        for (int i = 0; filled < needed && i < vectors.size(); i++) {
-            float[] vector = vectors.vectorValue(i);
-            augmented[existing.length + filled] = Arrays.copyOf(vector, vector.length);
-            filled++;
+
+        for (int it = 0; it < needed; it++) {
+            // Build cumulative weight (size × distance² for vectors still nearest to an existing
+            // centroid; distance² alone for vectors now nearest to a newly-added one).
+            double total = 0;
+            for (int s = 0; s < sampleSize; s++) {
+                int nid = nearestId[s];
+                double w = (clusterSizes != null && nid >= 0 && nid < existing.length) ? (double) clusterSizes[nid] * minDist[s] : minDist[s];
+                total += w;
+            }
+
+            int chosen;
+            if (total <= 0) {
+                // Degenerate: all candidates collapsed onto current centroids or all weights are
+                // zero (e.g. clusterSizes contains zeros for an empty prior cluster, or the prior
+                // covers the data perfectly). Fall back to uniform sampling so every slot still
+                // gets a centroid.
+                chosen = random.nextInt(sampleSize);
+            } else {
+                double r = random.nextDouble() * total;
+                double cum = 0;
+                chosen = sampleSize - 1;
+                for (int s = 0; s < sampleSize; s++) {
+                    int nid = nearestId[s];
+                    double w = (clusterSizes != null && nid >= 0 && nid < existing.length)
+                        ? (double) clusterSizes[nid] * minDist[s]
+                        : minDist[s];
+                    cum += w;
+                    if (cum >= r) {
+                        chosen = s;
+                        break;
+                    }
+                }
+            }
+
+            float[] vec = vectors.vectorValue(sample[chosen]);
+            int newIdx = existing.length + it;
+            augmented[newIdx] = Arrays.copyOf(vec, vec.length);
+
+            // Update minDist / nearestId for the new centroid.
+            for (int s = 0; s < sampleSize; s++) {
+                float[] v = vectors.vectorValue(sample[s]);
+                float d = ESVectorUtil.squareDistance(v, augmented[newIdx]);
+                if (d < minDist[s]) {
+                    minDist[s] = d;
+                    nearestId[s] = newIdx;
+                }
+            }
         }
         return augmented;
     }
@@ -556,7 +643,7 @@ public class HierarchicalKMeans {
         } else if (initialCentroids.length > k) {
             seedCentroids = reduceCentroids(initialCentroids, k);
         } else {
-            seedCentroids = supplementCentroids(initialCentroids, vectors, k);
+            seedCentroids = supplementCentroids(initialCentroids, null, vectors, k);
         }
 
         // Single assignment pass: assign all vectors to nearest seed centroid and update positions.
@@ -576,7 +663,16 @@ public class HierarchicalKMeans {
             }
         }
 
-        resolveOversizedAndEmptyClusters(kMeansIntermediate, vectors, centroidVectorCount, targetSize);
+        int centroidIndexOffset = 0;
+        for (int c = 0; c < centroidVectorCount.length; c++) {
+            final int count = centroidVectorCount[c];
+            final int adjustedCentroid = c + centroidIndexOffset;
+            if (count > OVERSIZED_THRESHOLD * targetSize) {
+                final ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
+                centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
+            }
+        }
 
         // Neighborhood-aware refinement + SOAR with minimal iteration.
         // One pass is sufficient since the initial assignment is already good.
@@ -643,6 +739,13 @@ public class HierarchicalKMeans {
             k = Math.clamp(Math.max(k, kFromPrior), 2, MAXK);
         }
 
+        // Pre-check: the prior is too degenerate to give us useful seeds. Bail to full rebuild
+        // before we waste compute on a clustering we'd just throw away.
+        if (priorIsDegenerate(allPriorCentroids, clusterSizes, k)) {
+            logger.debug("clusterByConcatenation: prior is degenerate, falling back to full rebuild");
+            return cluster(vectors, targetSize);
+        }
+
         // Fit prior centroids to target K using variance-aware reduction
         float[][] seedCentroids;
         if (allPriorCentroids.length == k) {
@@ -650,7 +753,7 @@ public class HierarchicalKMeans {
         } else if (allPriorCentroids.length > k) {
             seedCentroids = reduceVarianceAware(allPriorCentroids, clusterSizes, k);
         } else {
-            seedCentroids = supplementCentroids(allPriorCentroids, vectors, k);
+            seedCentroids = supplementCentroids(allPriorCentroids, clusterSizes, vectors, k);
         }
 
         // Single assignment pass with NO iterative convergence (0 sampled iterations).
@@ -660,7 +763,118 @@ public class HierarchicalKMeans {
         // maxIterations=0 means only the final full-pass assignment (no sampled iterations)
         KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), vectors.size(), 0);
         kMeansLocal.cluster(vectors, kMeansIntermediate);
-//=======
+
+        // Handle oversized clusters
+        int[] centroidVectorCount = new int[seedCentroids.length];
+        for (int assignment : assignments) {
+            if (assignment >= 0) {
+                centroidVectorCount[assignment]++;
+            }
+        }
+
+        // Post-check: the concat clustering produced a catastrophic distribution (many empty
+        // clusters from duplicate seeds, OR one cluster blew up far beyond the rest). Bail and
+        // run the full rebuild so the merge isn't ruined.
+        if (concatClusteringIsDegenerate(centroidVectorCount)) {
+            logger.debug("clusterByConcatenation: post-assignment distribution is degenerate, falling back to full rebuild");
+            return cluster(vectors, targetSize);
+        }
+
+        int centroidIndexOffset = 0;
+        for (int c = 0; c < centroidVectorCount.length; c++) {
+            final int count = centroidVectorCount[c];
+            final int adjustedCentroid = c + centroidIndexOffset;
+            if (count > OVERSIZED_THRESHOLD * targetSize) {
+                final ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
+                centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
+            }
+        }
+
+        // SOAR assignment only — benchmarks showed refinement pass never justifies its cost
+        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
+            assignSoarOnly(vectors, kMeansIntermediate);
+        }
+
+        return kMeansIntermediate;
+    }
+
+    /**
+     * Pre-check on the input to the concat path. Returns true if the prior is so degenerate
+     * (mostly empty clusters, or far too few centroids vs target k) that we should skip the
+     * greedy path entirely and go to the full hierarchical rebuild.
+     */
+    private static boolean priorIsDegenerate(float[][] allPriorCentroids, int[] clusterSizes, int k) {
+        if (allPriorCentroids.length == 0 || clusterSizes == null || clusterSizes.length == 0) {
+            return true;
+        }
+        if (allPriorCentroids.length < Math.max(2, k / 4)) {
+            return true;
+        }
+        long totalSize = 0;
+        int zeros = 0;
+        for (int s : clusterSizes) {
+            totalSize += s;
+            if (s == 0) zeros++;
+        }
+        if (totalSize == 0) {
+            return true;
+        }
+        if ((double) zeros / clusterSizes.length > PRIOR_ZERO_FRACTION) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Post-check on the concat clustering. Returns true if the per-cluster vector counts indicate
+     * a catastrophic outcome — either too many empty clusters (duplicate seeds collapsed onto
+     * each other) or a single cluster blew up to a z-score above {@link #Z_THRESHOLD} above the
+     * mean (greedy assignment imbalanced the partition).
+     */
+    private static boolean concatClusteringIsDegenerate(int[] centroidVectorCount) {
+        int k = centroidVectorCount.length;
+        if (k == 0) return true;
+
+        int empty = 0;
+        long sum = 0;
+        int max = 0;
+        for (int v : centroidVectorCount) {
+            if (v == 0) empty++;
+            sum += v;
+            if (v > max) max = v;
+        }
+        if ((double) empty / k > EMPTY_FRACTION) {
+            return true;
+        }
+        if (sum == 0) {
+            return true;
+        }
+
+        double mean = (double) sum / k;
+        double sqSum = 0;
+        for (int v : centroidVectorCount) {
+            double d = v - mean;
+            sqSum += d * d;
+        }
+        double variance = k > 1 ? sqSum / (k - 1) : 0;
+        double stddev = Math.sqrt(variance);
+        if (stddev > 0 && (max - mean) / stddev > Z_THRESHOLD) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Merge the child centroids in {@code subPartitions} into the K-means results.
+     * {@code subPartitions} are inserted into the results next to the parent centroid
+     * at position {@code cluster}.
+     *
+     * @param current Current results
+     * @param cluster Index of the split centroid
+     * @param subPartitions The new centroids resulting from the split
+     * @return The number of centroids added excluding the one that is replaced
+     */
     int updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
         if (subPartitions.centroids().length == 0) {
             return 0; // nothing to do, sub-partitions is empty
@@ -668,7 +882,6 @@ public class HierarchicalKMeans {
         int orgCentroidsSize = current.centroids().length;
         int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
-        // update based on the outcomes from the split clusters recursion
         float[][] newCentroids = new float[newCentroidsSize][];
         int[] newClusterCounts = new int[newCentroidsSize];
 
@@ -696,115 +909,22 @@ public class HierarchicalKMeans {
 
         assert Arrays.stream(newCentroids).allMatch(Objects::nonNull);
         current.setCentroids(newCentroids, newClusterCounts);
-//>>>>>>> main
 
-        // Handle oversized clusters
-        int[] centroidVectorCount = new int[seedCentroids.length];
-        for (int assignment : assignments) {
-            if (assignment >= 0) {
-                centroidVectorCount[assignment]++;
+        // Reindex remaining (non-split) assignments to account for the inserted centroids.
+        // IMPORTANT: do this BEFORE remapping the split-cluster's assignments to avoid double-shifting.
+        for (int i = 0; i < current.assignments().length; i++) {
+            if (current.assignments()[i] > cluster) {
+                current.assignments()[i] = current.assignments()[i] - 1 + subPartitions.centroids().length;
             }
         }
-        resolveOversizedAndEmptyClusters(kMeansIntermediate, vectors, centroidVectorCount, targetSize);
-
-        // SOAR assignment only — benchmarks showed refinement pass never justifies its cost
-        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
-            assignSoarOnly(vectors, kMeansIntermediate);
+        // Remap each split-cluster vector's assignment to its sub-centroid's new global index.
+        for (int i = 0; i < subPartitions.assignments().length; i++) {
+            int parentOrd = subPartitions.ordToDoc(i);
+            assert current.assignments()[parentOrd] == cluster;
+            current.assignments()[parentOrd] = cluster + subPartitions.assignments()[i];
         }
 
-        return kMeansIntermediate;
-    }
-
-    private void resolveOversizedAndEmptyClusters(
-        KMeansIntermediate kMeansIntermediate,
-        ClusteringFloatVectorValues vectors,
-        int[] centroidVectorCount,
-        int targetSize
-    ) throws IOException {
-        int[] assignments = kMeansIntermediate.assignments();
-        float[][] centroids = kMeansIntermediate.centroids();
-
-        FixedBitSet isSplit = new FixedBitSet(centroids.length);
-        boolean hasSplitOrEmpty = false;
-        for (int c = 0; c < centroids.length; c++) {
-            int count = centroidVectorCount[c];
-            if (count == 0) {
-                hasSplitOrEmpty = true;
-            } else if (count > OVERSIZED_THRESHOLD * targetSize) {
-                isSplit.set(c);
-                hasSplitOrEmpty = true;
-            }
-        }
-
-        if (!hasSplitOrEmpty) {
-            return;
-        }
-
-        int[][] clusterSlices = new int[centroids.length][];
-        int[] sliceIndex = new int[centroids.length];
-        for (int c = 0; c < centroids.length; c++) {
-            if (isSplit.get(c)) {
-                clusterSlices[c] = new int[centroidVectorCount[c]];
-            }
-        }
-        for (int i = 0; i < assignments.length; i++) {
-            int c = assignments[i];
-            if (c >= 0 && isSplit.get(c)) {
-                clusterSlices[c][sliceIndex[c]++] = i;
-            }
-        }
-
-        KMeansIntermediate[] subPartitionsList = new KMeansIntermediate[centroids.length];
-        int newCentroidsCount = 0;
-        for (int c = 0; c < centroids.length; c++) {
-            if (isSplit.get(c)) {
-                int finalC = c;
-                int[] slice = clusterSlices[c];
-                ClusteringFloatVectorValues sample = new ClusteringFloatVectorValuesSlice(vectors, i -> slice[i], centroidVectorCount[c]);
-                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
-                subPartitionsList[c] = subPartitions;
-                newCentroidsCount += subPartitions.centroids().length;
-            } else if (centroidVectorCount[c] > 0) {
-                newCentroidsCount++;
-            }
-        }
-
-        float[][] newCentroids = new float[newCentroidsCount][];
-        int[] centroidOffsetMap = new int[centroids.length];
-        int currentDest = 0;
-
-        for (int c = 0; c < centroids.length; c++) {
-            centroidOffsetMap[c] = currentDest;
-            if (isSplit.get(c)) {
-                KMeansIntermediate sub = subPartitionsList[c];
-                System.arraycopy(sub.centroids(), 0, newCentroids, currentDest, sub.centroids().length);
-                currentDest += sub.centroids().length;
-            } else if (centroidVectorCount[c] > 0) {
-                newCentroids[currentDest] = centroids[c];
-                currentDest++;
-            }
-        }
-
-        for (int i = 0; i < assignments.length; i++) {
-            int c = assignments[i];
-            if (c >= 0 && isSplit.get(c) == false) {
-                assignments[i] = centroidOffsetMap[c];
-            }
-        }
-
-        for (int c = 0; c < centroids.length; c++) {
-            if (isSplit.get(c)) {
-                KMeansIntermediate sub = subPartitionsList[c];
-                int baseOffset = centroidOffsetMap[c];
-                int[] slice = clusterSlices[c];
-                int[] subAssignments = sub.assignments();
-                for (int j = 0; j < subAssignments.length; j++) {
-                    int parentOrd = sub.ordToDoc(j);
-                    assignments[parentOrd] = baseOffset + subAssignments[j];
-                }
-            }
-        }
-
-        kMeansIntermediate.setCentroids(newCentroids);
+        // number of items inserted with 1 element replaced
+        return subPartitions.centroids().length - 1;
     }
 }

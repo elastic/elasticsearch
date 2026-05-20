@@ -129,6 +129,17 @@ public class FormatReaderRegistry {
                 FormatReader inner = byExtension(stripped);
                 DecompressionCodec codec = codecRegistry.byExtension(extension);
                 if (codec != null) {
+                    if (inner.supportsWholeFileCompression() == false) {
+                        throw new IllegalArgumentException(
+                            "Format ["
+                                + inner.formatName()
+                                + "] does not support whole-file compression; the ["
+                                + extension
+                                + "] suffix is not valid on ["
+                                + objectName
+                                + "]. Use an uncompressed file and rely on the format's built-in column compression instead."
+                        );
+                    }
                     return new CompressionDelegatingFormatReader(inner, codec);
                 }
             }

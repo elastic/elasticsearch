@@ -131,6 +131,146 @@ public class StringPatternTests extends ESTestCase {
         assertEquals("*", like("\\*").extractSuffix());
     }
 
+    public void testShapePrefix() {
+        assertEquals(new WildcardPattern.Shape.Prefix("foo"), like("foo*").shape());
+        assertEquals(new WildcardPattern.Shape.Prefix("foo*"), like("foo\\**").shape());
+        assertEquals(new WildcardPattern.Shape.Prefix("foo?"), like("foo\\?*").shape());
+        assertEquals(new WildcardPattern.Shape.Prefix("café"), like("café*").shape());
+        assertEquals(new WildcardPattern.Shape.Prefix("\\"), like("\\\\*").shape());
+        // The bare "*" case is covered in testShapeAmbiguous (it parses as Suffix(""),
+        // not Prefix("") — both are semantically equivalent on the matching side).
+    }
+
+    public void testShapeSuffix() {
+        assertEquals(new WildcardPattern.Shape.Suffix("bar"), like("*bar").shape());
+        assertEquals(new WildcardPattern.Shape.Suffix("*bar"), like("*\\*bar").shape());
+        assertEquals(new WildcardPattern.Shape.Suffix("?bar"), like("*\\?bar").shape());
+        assertEquals(new WildcardPattern.Shape.Suffix("café"), like("*café").shape());
+        assertEquals(new WildcardPattern.Shape.Suffix("\\"), like("*\\\\").shape());
+    }
+
+    public void testShapeContains() {
+        assertEquals(new WildcardPattern.Shape.Contains("foo"), like("*foo*").shape());
+        assertEquals(new WildcardPattern.Shape.Contains(""), like("**").shape());
+        assertEquals(new WildcardPattern.Shape.Contains("*"), like("*\\**").shape());
+        assertEquals(new WildcardPattern.Shape.Contains("?"), like("*\\?*").shape());
+        assertEquals(new WildcardPattern.Shape.Contains("\\"), like("*\\\\*").shape());
+        assertEquals(new WildcardPattern.Shape.Contains("café"), like("*café*").shape());
+    }
+
+    public void testShapeGeneral() {
+        // Empty pattern, exact strings, and patterns that don't fit the three simple shapes
+        // all fall through to General.
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("").shape());
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo").shape());
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo\\*").shape());      // escaped-only, exact-match
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo*bar").shape());     // prefix*suffix
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo?bar").shape());     // unescaped '?'
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("*foo*bar*").shape());   // three stars
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("*foo?bar*").shape());   // unescaped '?' in body
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("foo*bar*").shape());    // two stars not pinned to both ends
+        assertSame(WildcardPattern.Shape.General.INSTANCE, like("*foo*bar").shape());    // two stars not pinned to both ends
+        // Note: dangling-backslash patterns ("foo\\", "*foo\\", "\\") are rejected by the
+        // WildcardPattern constructor itself (via StringUtils.wildcardToJavaPattern), so they
+        // never reach shape(). The dangling-escape branch in shape() exists as a defensive
+        // fall-through for callers that bypass the constructor's validation.
+    }
+
+    public void testShapeAmbiguous() {
+        // Single bare "*" is ambiguous between Prefix(""), Suffix(""), and Contains("") —
+        // all three are semantically "matches everything". The parser is allowed to pick
+        // any of them; pin the actual choice so a future refactor is intentional.
+        assertEquals(new WildcardPattern.Shape.Suffix(""), like("*").shape());
+    }
+
+    /**
+     * Comprehensive cross-product over the shape parser's input space: emptiness, leading/trailing
+     * stars in every combination, every body content class (empty / plain ASCII / unicode /
+     * escaped specials / unescaped {@code ?} / unescaped {@code *} / dangling backslash).
+     * The expected {@link WildcardPattern.Shape} is computed from a separate reference
+     * implementation walking the same definition, then compared against the production parser.
+     */
+    public void testShapeCombinatoric() {
+        // Bodies are inputs that the WildcardPattern constructor will accept (no dangling
+        // backslashes, no escapes-of-non-special chars — those throw at construction time and
+        // never reach shape()).
+        String[] bodies = new String[] {
+            "",                          // empty body
+            "a",                         // single ASCII char
+            "abc",                       // multi-char ASCII
+            "café",                      // unicode (multibyte UTF-8)
+            "北京",                       // unicode (3-byte UTF-8)
+            "a\\*b",                     // escaped '*' in body — unescapes to "a*b"
+            "a\\?b",                     // escaped '?' in body — unescapes to "a?b"
+            "a\\\\b",                    // escaped '\\' in body — unescapes to "a\\b"
+            "a?b",                       // unescaped '?' — forces General
+            "a*b",                       // unescaped '*' in middle — forces General
+        };
+        boolean[] flags = new boolean[] { false, true };
+        for (String body : bodies) {
+            for (boolean leading : flags) {
+                for (boolean trailing : flags) {
+                    String pattern = (leading ? "*" : "") + body + (trailing ? "*" : "");
+                    WildcardPattern.Shape actual = like(pattern).shape();
+                    WildcardPattern.Shape expected = referenceShape(pattern);
+                    assertEquals("pattern=[" + pattern + "]", expected, actual);
+                }
+            }
+        }
+    }
+
+    /**
+     * Independent reference implementation of {@link WildcardPattern#shape()} used purely
+     * as a cross-check oracle for {@link #testShapeCombinatoric}. Walks the pattern once,
+     * categorizes by unescaped-star count and position. Kept separate from the production
+     * parser so a single bug cannot break both at once.
+     */
+    private static WildcardPattern.Shape referenceShape(String pattern) {
+        int n = pattern.length();
+        if (n == 0) {
+            return WildcardPattern.Shape.General.INSTANCE;
+        }
+        StringBuilder lit = new StringBuilder();
+        int stars = 0;
+        boolean firstStarAtStart = false;
+        boolean lastStarAtEnd = false;
+        int i = 0;
+        while (i < n) {
+            char c = pattern.charAt(i);
+            if (c == '\\') {
+                if (i + 1 >= n) {
+                    return WildcardPattern.Shape.General.INSTANCE;
+                }
+                lit.append(pattern.charAt(i + 1));
+                i += 2;
+            } else if (c == '?') {
+                return WildcardPattern.Shape.General.INSTANCE;
+            } else if (c == '*') {
+                stars++;
+                if (stars == 1) {
+                    firstStarAtStart = (i == 0);
+                }
+                lastStarAtEnd = (i == n - 1);
+                i++;
+            } else {
+                lit.append(c);
+                i++;
+            }
+        }
+        if (stars == 0) {
+            return WildcardPattern.Shape.General.INSTANCE;
+        }
+        if (stars == 1) {
+            if (firstStarAtStart) return new WildcardPattern.Shape.Suffix(lit.toString());
+            if (lastStarAtEnd) return new WildcardPattern.Shape.Prefix(lit.toString());
+            return WildcardPattern.Shape.General.INSTANCE;
+        }
+        if (stars == 2 && firstStarAtStart && lastStarAtEnd) {
+            return new WildcardPattern.Shape.Contains(lit.toString());
+        }
+        return WildcardPattern.Shape.General.INSTANCE;
+    }
+
     public void testTooComplexPattern() {
         var e = expectThrows(IllegalArgumentException.class, () -> rlike("(a|b)*a(a|b){13}").createAutomaton(false));
         assertEquals("Pattern was too complex to determinize", e.getMessage());

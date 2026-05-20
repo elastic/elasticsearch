@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.util.OptionalLong;
@@ -18,36 +19,43 @@ import java.util.OptionalLong;
  * {@code PushStatsToExternalSource} short-circuit {@code COUNT(*)} to a {@code LocalSourceExec}
  * after the file has been seen at least once.
  * <p>
- * Identity is {@code (path, length)} — matching {@code FooterByteCache.Key}'s convention for
- * Parquet. The codebase-wide assumption is that a file at a given {@code (path, length)} is
- * immutable; the same assumption already underpins {@code ParsedFooterCache}, the schema cache and
- * split-byte-range planning.
+ * Identity is {@code (path, length)} — matching {@code FooterByteCache.Key} for Parquet. The
+ * {@code (path, length)} convention is shared with {@code FooterByteCache}, {@code ParsedFooterCache}
+ * and {@code ExternalSourceCacheService.schemaCache}; each of those bounds same-length-mutation
+ * staleness with an {@code expireAfter*} TTL rather than treating identity as proof of immutability.
+ * This cache inherits the same TTL discipline via {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS}
+ * so a file rewritten between queries with the same byte length stops serving its stale row count
+ * once the entry idles past the access window. Within a single query, concurrent splits keep the
+ * entry alive via access-time resets, so the warm short-circuit path is unaffected.
  */
 public final class ExternalRowCountCache {
 
-    private record Key(String path, long length) {}
-
-    private static final Cache<Key, Long> CACHE = CacheBuilder.<Key, Long>builder().setMaximumWeight(10_000).build();
+    private static final Cache<FooterByteCache.Key, Long> CACHE = CacheBuilder.<FooterByteCache.Key, Long>builder()
+        .setMaximumWeight(10_000)
+        .setExpireAfterAccess(TimeValue.timeValueSeconds(FooterByteCache.EXPIRE_AFTER_ACCESS_SECONDS))
+        .build();
 
     private ExternalRowCountCache() {}
 
     /** Look up a cached row count by file identity. */
     public static OptionalLong lookup(StorageObject object) {
         try {
-            Long v = CACHE.get(new Key(object.path().toString(), object.length()));
+            Long v = CACHE.get(FooterByteCache.Key.keyFor(object, object.length()));
             return v == null ? OptionalLong.empty() : OptionalLong.of(v);
         } catch (Exception e) {
+            // IOException from object.length() or any cache-internal failure → miss.
             return OptionalLong.empty();
         }
     }
 
     /**
-     * Record an authoritative row count for a fully-drained file under a non-lossy error policy.
-     * Caller is responsible for the FAIL_FAST gate; this method writes unconditionally.
+     * Record a row count for a fully-drained file. The gate (whole-file context, natural EOF,
+     * zero parse errors observed) lives at the caller — see the iterator {@code close()} paths in
+     * {@code CsvBatchIterator} and {@code NdJsonPageIterator}. This method writes unconditionally.
      */
     public static void put(StorageObject object, long rowCount) {
         try {
-            CACHE.put(new Key(object.path().toString(), object.length()), rowCount);
+            CACHE.put(FooterByteCache.Key.keyFor(object, object.length()), rowCount);
         } catch (Exception e) {
             // Cache write failures degrade silently — next query repopulates.
         }

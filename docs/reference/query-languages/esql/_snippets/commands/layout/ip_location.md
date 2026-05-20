@@ -64,7 +64,7 @@ The output columns depend on the `database_file` and `properties` options. For t
 :   The geographic coordinates as a `geo_point`.
 
 If the IP address is not found in the database, all output columns are `null`.
-If the database is not yet available on the node (e.g., still downloading), KEYWORD output columns contain a sentinel string and other columns are `null`, with a warning header indicating the unavailable database.
+If the database is not yet available on the node (e.g., still downloading), KEYWORD output columns contain the sentinel value `_ip_location_database_unavailable_<database_file>` and non-KEYWORD columns are `null`, with a warning header indicating the unavailable database. Similarly, if the database has expired, KEYWORD columns contain `_ip_location_expired_database` and non-KEYWORD columns are `null`.
 
 ## Examples
 

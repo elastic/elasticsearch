@@ -718,7 +718,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Set<DatabaseProperty> validProperties = DatabaseProperty.buildValidSet(info.getFields().keySet());
             filteredOutputFields = new LinkedHashMap<>();
             for (String property : properties) {
-                DatabaseProperty dp = DatabaseProperty.parseProperty(validProperties, property);
+                DatabaseProperty dp;
+                try {
+                    dp = DatabaseProperty.parseProperty(validProperties, property);
+                } catch (IllegalArgumentException e) {
+                    throw new ParsingException(source, e.getMessage());
+                }
                 Class<?> type = info.getFields().get(dp.fieldName());
                 if (type != null) {
                     filteredOutputFields.put(dp.fieldName(), type);

@@ -79,6 +79,7 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
         "search.aggs.date_histogram.hard_bounds_outside_data_fix"
     );
+    public static final NodeFeature COUNT_STATS_PARAMETER = new NodeFeature("search.count.stats_parameter");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -110,7 +111,8 @@ public final class SearchFeatures implements FeatureSpecification {
             DEFAULT_DISK_BBQ,
             PROFILE_COORDINATOR_REQUEST_METADATA,
             SCROLL_EMPTY_CONTEXT_RETURNS_200,
-            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
+            COUNT_STATS_PARAMETER
         );
     }
 }

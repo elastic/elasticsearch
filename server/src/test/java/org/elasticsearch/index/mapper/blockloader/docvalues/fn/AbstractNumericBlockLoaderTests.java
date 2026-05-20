@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -23,10 +22,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class AbstractBooleansFromDocValuesBlockLoaderTests extends AbstractBlockLoaderTestCase {
-    public AbstractBooleansFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+public abstract class AbstractNumericBlockLoaderTests extends AbstractBlockLoaderTestCase {
+    public AbstractNumericBlockLoaderTests(boolean multiValues, boolean missingValues) {
         super(multiValues, missingValues);
     }
+
+    /** Build one indexable doc-values field for the {@code field} column carrying the given seed integer. */
+    protected abstract IndexableField field(int v);
 
     protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
 
@@ -54,9 +56,5 @@ public abstract class AbstractBooleansFromDocValuesBlockLoaderTests extends Abst
                 innerTest(breaker, ctx, mvCount);
             }
         }
-    }
-
-    private static SortedNumericDocValuesField field(int v) {
-        return new SortedNumericDocValuesField("field", v % 4 == 0 ? 1 : 0);
     }
 }

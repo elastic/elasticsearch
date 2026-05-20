@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
@@ -65,8 +66,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -99,62 +98,50 @@ public class ApproximationVerifier {
 
     /**
      * These processing commands are supported for query approximation.
-     * The transport version indicates which version is needed for all
+     * The supported version indicates which version is needed for all
      * data nodes for the command to be supported.
      * <p>
      * When a command is not supported, it should be added to
      * ApproximationSupportTests.UNSUPPORTED_COMMANDS
      * to make sure all commands are captured.
      */
-    static final Map<Class<? extends LogicalPlan>, TransportVersion> SUPPORTED_COMMANDS;
-    static {
-        Map<Class<? extends LogicalPlan>, TransportVersion> BUILDER = new HashMap<>(
-            Map.ofEntries(
-                new AbstractMap.SimpleImmutableEntry<>(Aggregate.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(ChangePoint.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Completion.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Dissect.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Enrich.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(EsRelation.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Eval.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Filter.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Grok.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Insist.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Limit.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(LimitBy.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(LocalRelation.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(MvExpand.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(OrderBy.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Project.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(RegexExtract.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(RegisteredDomain.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Rerank.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Row.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(Sample.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(SampledAggregate.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(TopN.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(TopNBy.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(UriParts.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(UnionAll.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(UserAgent.class, TransportVersion.zero()),
-                new AbstractMap.SimpleImmutableEntry<>(ViewUnionAll.class, TransportVersion.zero())
-            )
-        );
-        if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled()) {
-            BUILDER.put(Join.class, TRANSPORT_VERSION_LOOKUP_JOIN);
-        }
-        if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled()) {
-            BUILDER.put(InlineJoin.class, TransportVersion.zero());
-            BUILDER.put(StubRelation.class, TransportVersion.zero());  // temporary node
-        }
-        if (EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()) {
-            BUILDER.put(Fork.class, TransportVersion.zero());
-            BUILDER.put(MMR.class, TransportVersion.zero());
-            BUILDER.put(NamedSubquery.class, TransportVersion.zero());
-            BUILDER.put(Subquery.class, TransportVersion.zero());
-        }
-        SUPPORTED_COMMANDS = Collections.unmodifiableMap(BUILDER);
-    }
+    static final Map<Class<? extends LogicalPlan>, SupportedVersion> SUPPORTED_COMMANDS = Map.ofEntries(
+        new AbstractMap.SimpleImmutableEntry<>(Aggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(ChangePoint.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Completion.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Dissect.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Enrich.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(EsRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Eval.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Filter.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Fork.class, SupportedVersion.underConstruction(TransportVersion.zero())),
+        new AbstractMap.SimpleImmutableEntry<>(Grok.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(InlineJoin.class, SupportedVersion.underConstruction(TransportVersion.zero())),
+        new AbstractMap.SimpleImmutableEntry<>(Insist.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Join.class, SupportedVersion.underConstruction(TRANSPORT_VERSION_LOOKUP_JOIN)),
+        new AbstractMap.SimpleImmutableEntry<>(Limit.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(LimitBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(LocalRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(MMR.class, SupportedVersion.underConstruction(TransportVersion.zero())),
+        new AbstractMap.SimpleImmutableEntry<>(MvExpand.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(NamedSubquery.class, SupportedVersion.underConstruction(TransportVersion.zero())),
+        new AbstractMap.SimpleImmutableEntry<>(OrderBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Project.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(RegexExtract.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(RegisteredDomain.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Rerank.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Row.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(Sample.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(SampledAggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(StubRelation.class, SupportedVersion.underConstruction(TransportVersion.zero())),
+        new AbstractMap.SimpleImmutableEntry<>(Subquery.class, SupportedVersion.underConstruction(TransportVersion.zero())),
+        new AbstractMap.SimpleImmutableEntry<>(TopN.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(TopNBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(UriParts.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new AbstractMap.SimpleImmutableEntry<>(ViewUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
+    );
 
     /**
      * These LIMIT-like processing commands are only supported after the STATS.
@@ -275,10 +262,12 @@ public class ApproximationVerifier {
         logicalPlan.forEachUp(plan -> {
             boolean unsupportedIndexMode = plan instanceof EsRelation er && SUPPORTED_INDEX_MODES.contains(er.indexMode()) == false;
             boolean isSupportedOnAllNodes = SUPPORTED_COMMANDS.containsKey(plan.getClass())
-                && minimumVersion.supports(SUPPORTED_COMMANDS.get(plan.getClass()))
+                && SUPPORTED_COMMANDS.get(plan.getClass()).supportedOn(minimumVersion, Build.current().isSnapshot())
                 && unsupportedIndexMode == false;
             if (isSupportedOnAllNodes == false) {
-                boolean isSupportedOnCoordinator = SUPPORTED_COMMANDS.containsKey(plan.getClass()) && unsupportedIndexMode == false;
+                boolean isSupportedOnCoordinator = SUPPORTED_COMMANDS.containsKey(plan.getClass())
+                    && SUPPORTED_COMMANDS.get(plan.getClass()).supportedLocally()
+                    && unsupportedIndexMode == false;
                 // TODO: ideally just return the command from the source
                 // this can give bad messages (e.g. for subqueries) or long ones (many irrelevant extras)
                 String message = isSupportedOnCoordinator == false

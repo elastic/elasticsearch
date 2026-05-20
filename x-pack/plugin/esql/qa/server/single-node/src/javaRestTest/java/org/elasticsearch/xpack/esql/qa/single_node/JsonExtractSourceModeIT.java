@@ -65,6 +65,21 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
         String index = "json_extract_" + sourceMode.name().toLowerCase(java.util.Locale.ROOT);
         try {
             createIndexWithSourceMode(index, sourceMode);
+        } catch (ResponseException e) {
+            // Serverless ES rejects {"_source": {"enabled": false | "includes" | "excludes"}} mappings.
+            // The DISABLED, INCLUDES_ADDRESS, and EXCLUDES_NAME cells exercise those exact features;
+            // skip them when the cluster won't accept the mapping.
+            assumeFalse(
+                "cluster rejects _source." + sourceMode + " parameter: " + e.getMessage(),
+                e.getResponse().getStatusLine().getStatusCode() == 400
+                    && (e.getMessage().contains("[includes] is not allowed")
+                        || e.getMessage().contains("[excludes] is not allowed")
+                        || e.getMessage().contains("[enabled] is not allowed")
+                        || e.getMessage().contains("[mode] is not allowed"))
+            );
+            throw e;
+        }
+        try {
             indexFixtureDocs(index);
 
             verifyTopLevelString(index);

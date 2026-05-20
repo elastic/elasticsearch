@@ -103,53 +103,64 @@ export async function analyzeReports(
         if (s.mtimeMs < minMtimeMs) continue;
       }
       const xml = parser.parse(await readFile(file, "utf8"));
-      const suite = xml.testsuite ?? xml.testsuites?.testsuite;
-      if (!suite) continue;
-      const rawCases = suite.testcase;
-      const cases: any[] = Array.isArray(rawCases) ? rawCases : rawCases ? [rawCases] : [];
+      // A report file may be either a single <testsuite> or a <testsuites>
+      // wrapper around one or more <testsuite>. fast-xml-parser returns the
+      // inner value as an array when multiple suites are present, so coerce to
+      // an array and process each. Gradle's randomized runner usually writes
+      // one suite per file, but this defends against future shape changes.
+      const rawSuites = xml.testsuite ?? xml.testsuites?.testsuite;
+      if (!rawSuites) continue;
+      const suites: any[] = Array.isArray(rawSuites) ? rawSuites : [rawSuites];
 
       let batchFailed = 0;
       let batchTimeout = 0;
-      for (const c of cases) {
-        const key = `${c.classname}|${c.name}`;
-        let entry = perTestMap.get(key);
-        if (!entry) {
-          entry = {
-            className: c.classname,
-            method: c.name,
-            passes: 0,
-            failures: 0,
-            failureKinds: [],
-            exampleMessages: [],
-          };
-          perTestMap.set(key, entry);
-        }
-        const fail = c.failure ?? c.error;
-        if (fail) {
-          // fail-parser may return string body OR { type, message, "#text" }
-          const f: FailureEntry = typeof fail === "string"
-            ? { type: "", message: fail }
-            : { type: fail.type ?? "", message: fail.message ?? fail["#text"] ?? "" };
-          const kind = classifyFailure(f);
-          if (kind === "suite-timeout") {
-            suiteTimeoutMarkers += 1;
-            batchTimeout += 1;
-          } else {
-            realFailures += 1;
-            entry.failures += 1;
-            entry.failureKinds.push(kind);
-            if (entry.exampleMessages.length < 3 && !entry.exampleMessages.includes(f.message)) {
-              entry.exampleMessages.push(f.message);
-            }
-            batchFailed += 1;
+      let batchTotalCases = 0;
+      for (const suite of suites) {
+        const rawCases = suite.testcase;
+        const cases: any[] = Array.isArray(rawCases) ? rawCases : rawCases ? [rawCases] : [];
+        batchTotalCases += cases.length;
+
+        for (const c of cases) {
+          const key = `${c.classname}|${c.name}`;
+          let entry = perTestMap.get(key);
+          if (!entry) {
+            entry = {
+              className: c.classname,
+              method: c.name,
+              passes: 0,
+              failures: 0,
+              failureKinds: [],
+              exampleMessages: [],
+            };
+            perTestMap.set(key, entry);
           }
-        } else if (c.skipped === undefined) {
-          entry.passes += 1;
-          successfulCases += 1;
+          const fail = c.failure ?? c.error;
+          if (fail) {
+            // fail-parser may return string body OR { type, message, "#text" }
+            const f: FailureEntry = typeof fail === "string"
+              ? { type: "", message: fail }
+              : { type: fail.type ?? "", message: fail.message ?? fail["#text"] ?? "" };
+            const kind = classifyFailure(f);
+            if (kind === "suite-timeout") {
+              suiteTimeoutMarkers += 1;
+              batchTimeout += 1;
+            } else {
+              realFailures += 1;
+              entry.failures += 1;
+              entry.failureKinds.push(kind);
+              if (entry.exampleMessages.length < 3 && !entry.exampleMessages.includes(f.message)) {
+                entry.exampleMessages.push(f.message);
+              }
+              batchFailed += 1;
+            }
+          } else if (c.skipped === undefined) {
+            entry.passes += 1;
+            successfulCases += 1;
+          }
         }
       }
 
-      batches.push({ reportPath: file, totalCases: cases.length, failed: batchFailed, suiteTimeoutMarkers: batchTimeout });
+      batches.push({ reportPath: file, totalCases: batchTotalCases, failed: batchFailed, suiteTimeoutMarkers: batchTimeout });
     }
   }
 

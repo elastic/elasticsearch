@@ -53,6 +53,40 @@ describe("analyzeReports", () => {
     ]);
   });
 
+  test("processes every <testsuite> inside a <testsuites> wrapper", async () => {
+    // Some emitters wrap multiple suites in a single file. The analyzer must
+    // process all of them, not just the first.
+    const root = await mkTmpReports([
+      {
+        path: "server/build/test-results/test/TEST-org.example.MultiTests.xml",
+        body: `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="org.example.AlphaTests" tests="1" failures="0">
+    <testcase classname="org.example.AlphaTests" name="testA"/>
+  </testsuite>
+  <testsuite name="org.example.BetaTests" tests="2" failures="1">
+    <testcase classname="org.example.BetaTests" name="testB"/>
+    <testcase classname="org.example.BetaTests" name="testB">
+      <failure type="java.lang.AssertionError" message="boom"/>
+    </testcase>
+  </testsuite>
+</testsuites>`,
+      },
+    ]);
+    const report = await analyzeReports([root]);
+    expect(report.totals.successfulCases).toBe(2); // testA + first testB
+    expect(report.totals.realFailures).toBe(1);    // second testB
+    const summaries = report.perTest.map((t) => `${t.className}.${t.method}`).sort();
+    expect(summaries).toEqual([
+      "org.example.AlphaTests.testA",
+      "org.example.BetaTests.testB",
+    ]);
+    // Single BatchSummary aggregates both suites in the one file.
+    expect(report.batches).toHaveLength(1);
+    expect(report.batches[0].totalCases).toBe(3);
+    expect(report.batches[0].failed).toBe(1);
+  });
+
   test("treats suite-timeout markers as informational, not real failures", async () => {
     const root = await mkTmpReports([
       {

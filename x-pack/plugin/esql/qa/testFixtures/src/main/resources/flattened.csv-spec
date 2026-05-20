@@ -636,13 +636,13 @@ required_capability: fn_mv_append_flattened
 
 FROM flattened_mv_contains
 | EVAL
-    contains_r = MV_CONTAINS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c)),
-    intersects_r = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
-| KEEP id, contains_r, intersects_r
+    contains = MV_CONTAINS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c)),
+    intersects = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, contains, intersects
 | SORT id
 ;
 
-id:integer | contains_r:boolean | intersects_r:boolean
+id:integer | contains:boolean | intersects:boolean
 1          | true               | true
 2          | true               | true
 3          | false              | true

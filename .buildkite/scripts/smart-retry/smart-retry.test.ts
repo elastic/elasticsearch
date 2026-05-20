@@ -79,7 +79,7 @@ describe("transformTaskStatus", () => {
   test("empty report produces empty result", () => {
     const result = transformTaskStatus(makeReport(), "");
 
-    expect(result).toEqual({ successfulTasks: [], testseed: "" });
+    expect(result).toEqual({ successfulTasks: [], successfulTests: {}, testseed: "" });
   });
 
   test("preserves testseed", () => {
@@ -88,7 +88,7 @@ describe("transformTaskStatus", () => {
     expect(result.testseed).toBe("DEADBEEF");
   });
 
-  test("all tests passed — all tasks in successfulTasks", () => {
+  test("all tests passed — all tasks in successfulTasks, no successfulTests", () => {
     const result = transformTaskStatus(
       makeReport({
         tasks: [
@@ -104,25 +104,30 @@ describe("transformTaskStatus", () => {
     );
 
     expect(result.successfulTasks).toEqual([":modules:test", ":server:test"]);
+    expect(result.successfulTests).toEqual({});
     expect(result.testseed).toBe("ABC123");
   });
 
-  test("task with test failures is not in successfulTasks", () => {
+  test("task with mixed test results — passing tests go into successfulTests", () => {
     const result = transformTaskStatus(
       makeReport({
         tasks: [{ path: ":server:test", outcome: "FAILED" }],
         tests: [
           { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
           { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SUCCESS" },
+          { taskPath: ":server:test", className: "org.es.BarTest", methodName: "testBaz", result: "SUCCESS" },
         ],
       }),
       ""
     );
 
     expect(result.successfulTasks).toEqual([]);
+    expect(result.successfulTests).toEqual({
+      ":server:test": ["org.es.BarTest#testBaz", "org.es.FooTest#testBar"],
+    });
   });
 
-  test("task failed at Gradle level without test failures is not in successfulTasks", () => {
+  test("task failed at Gradle level without test failures — passing tests go into successfulTests", () => {
     const result = transformTaskStatus(
       makeReport({
         tasks: [
@@ -138,6 +143,9 @@ describe("transformTaskStatus", () => {
     );
 
     expect(result.successfulTasks).toEqual([":modules:test"]);
+    expect(result.successfulTests).toEqual({
+      ":server:test": ["org.es.FooTest#testFoo"],
+    });
   });
 
   test("multiple task paths with mixed results", () => {
@@ -160,6 +168,28 @@ describe("transformTaskStatus", () => {
     );
 
     expect(result.successfulTasks).toEqual([":modules:test"]);
+    expect(result.successfulTests).toEqual({
+      ":server:test": ["org.es.FooTest#testBar"],
+      ":plugins:test": ["org.es.PluginTest#testAll"],
+    });
+  });
+
+  test("skipped tests are not included in successfulTests", () => {
+    const result = transformTaskStatus(
+      makeReport({
+        tasks: [{ path: ":server:test", outcome: "FAILED" }],
+        tests: [
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SKIPPED" },
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBaz", result: "SUCCESS" },
+        ],
+      }),
+      ""
+    );
+
+    expect(result.successfulTests).toEqual({
+      ":server:test": ["org.es.FooTest#testBaz"],
+    });
   });
 
   test("skipped tests do not prevent task from being successful", () => {
@@ -175,6 +205,7 @@ describe("transformTaskStatus", () => {
     );
 
     expect(result.successfulTasks).toEqual([":server:test"]);
+    expect(result.successfulTests).toEqual({});
   });
 
   test("UP_TO_DATE and FROM_CACHE count as successful outcomes", () => {
@@ -190,6 +221,7 @@ describe("transformTaskStatus", () => {
     );
 
     expect(result.successfulTasks).toEqual([":a:test", ":b:test"]);
+    expect(result.successfulTests).toEqual({});
   });
 
   test("INTERRUPTED and NOT_RUN tasks are not successful", () => {
@@ -206,6 +238,25 @@ describe("transformTaskStatus", () => {
     );
 
     expect(result.successfulTasks).toEqual([":c:test"]);
+    expect(result.successfulTests).toEqual({});
+  });
+
+  test("all tests in a failed task passed — no successfulTasks, all tests in successfulTests", () => {
+    const result = transformTaskStatus(
+      makeReport({
+        tasks: [{ path: ":server:test", outcome: "FAILED" }],
+        tests: [
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "SUCCESS" },
+          { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SUCCESS" },
+        ],
+      }),
+      ""
+    );
+
+    expect(result.successfulTasks).toEqual([]);
+    expect(result.successfulTests).toEqual({
+      ":server:test": ["org.es.FooTest#testBar", "org.es.FooTest#testFoo"],
+    });
   });
 });
 
@@ -593,7 +644,7 @@ describe("runSmartRetry", () => {
     expect(result.details).toBe("Failed to download task-status artifact");
   });
 
-  test("disabled when no successful tasks found", async () => {
+  test("disabled when no successful tasks or tests found", async () => {
     const result = await runSmartRetry(
       makeEnv(),
       makeDeps({
@@ -610,9 +661,34 @@ describe("runSmartRetry", () => {
     );
 
     expect(result.status).toBe("disabled");
-    expect(result.details).toContain("No successful tasks");
+    expect(result.details).toContain("No successful tasks or tests");
     expect(result.failedTestHistory).toBeNull();
-    expect(result.metadata["smart-retry-disabled-reason"]).toBe("no-successful-tasks");
+    expect(result.metadata["smart-retry-disabled-reason"]).toBe("no-successful-tasks-or-tests");
+  });
+
+  test("enabled when only individual tests succeeded (no fully successful tasks)", async () => {
+    const result = await runSmartRetry(
+      makeEnv(),
+      makeDeps({
+        downloadArtifact: async () =>
+          makeMultiRun(
+            makeReport({
+              tasks: [{ path: ":server:test", outcome: "FAILED" }],
+              tests: [
+                { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testFoo", result: "FAILURE" },
+                { taskPath: ":server:test", className: "org.es.FooTest", methodName: "testBar", result: "SUCCESS" },
+              ],
+            })
+          ),
+      })
+    );
+
+    expect(result.status).toBe("enabled");
+    expect(result.failedTestHistory!.successfulTasks).toEqual([]);
+    expect(result.failedTestHistory!.successfulTests).toEqual({
+      ":server:test": ["org.es.FooTest#testBar"],
+    });
+    expect(result.metadata["smart-retry-successful-tests"]).toBe("1");
   });
 
   test("enabled with successful tasks to skip", async () => {
@@ -638,11 +714,14 @@ describe("runSmartRetry", () => {
     expect(result.status).toBe("enabled");
     expect(result.failedTestHistory).not.toBeNull();
     expect(result.failedTestHistory!.successfulTasks).toEqual([":modules:test"]);
+    expect(result.failedTestHistory!.successfulTests).toEqual({});
     expect(result.failedTestHistory!.testseed).toBe("SEED");
     expect(result.annotation).toContain("Rerunning failed build job [Test Step]");
     expect(result.annotation).toContain("**Successful Tasks to Skip:** 1");
+    expect(result.annotation).toContain("**Successful Tests to Skip:** 0");
     expect(result.metadata["smart-retry-status"]).toBe("enabled");
     expect(result.metadata["smart-retry-successful-tasks"]).toBe("1");
+    expect(result.metadata["smart-retry-successful-tests"]).toBe("0");
   });
 
   test("uses explicit origin job ID from env", async () => {

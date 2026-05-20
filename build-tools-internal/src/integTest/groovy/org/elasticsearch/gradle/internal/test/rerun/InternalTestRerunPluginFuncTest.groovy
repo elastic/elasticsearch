@@ -44,7 +44,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
     def "skips successful tasks and runs everything else"() {
         given:
         simpleTestSetup()
-        writeSuccessfulTasks([":subproject1:test"])
+        writeHistory([":subproject1:test"], [:])
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
@@ -61,7 +61,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
     def "skips all tasks when all are successful"() {
         given:
         simpleTestSetup()
-        writeSuccessfulTasks([":subproject1:test", ":subproject2:test"])
+        writeHistory([":subproject1:test", ":subproject2:test"], [:])
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
@@ -70,10 +70,10 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("succeeded in previous run")
     }
 
-    def "runs all tests when no tasks are successful"() {
+    def "runs all tests when no tasks are successful and no tests to exclude"() {
         given:
         simpleTestSetup()
-        writeSuccessfulTasks([])
+        writeHistory([], [:])
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
@@ -82,6 +82,47 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("not confirmed successful in previous run")
         testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
         testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+    }
+
+    def "excludes individual successful tests from partially-failed tasks"() {
+        given:
+        simpleTestSetup()
+        writeHistory(
+            [":subproject1:test"],
+            [":subproject2:test": ["org.acme.SubProject2TestClazz1#someTest1", "org.acme.SubProject2TestClazz1#someTest2"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        // subproject1 fully successful — skip entirely
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+
+        // subproject2 partially failed — exclude the 2 successful tests
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("excluding 2 successful tests")
+        testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testNotExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+    }
+
+    def "excludes specific methods while running others in the same class"() {
+        given:
+        simpleTestSetup()
+        writeHistory(
+            [],
+            [":subproject2:test": ["org.acme.SubProject2TestClazz2#someTest1"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("excluding 1 successful tests")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+        // Other classes in the same task still run
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
     }
 
     def "handles malformed failed-test-history gracefully"() {
@@ -115,6 +156,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         file(".failed-test-history.json") << '''
 {
   "successfulTasks": [":subproject1:test"],
+  "successfulTests": {},
   "workUnits": [],
   "executedTestTasks": [":subproject1:test", ":subproject2:test"],
   "unknownField": "ignored"
@@ -144,6 +186,23 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
     }
 
+    def "task in successfulTasks takes precedence over successfulTests"() {
+        given:
+        simpleTestSetup()
+        // Task is in both successfulTasks (skip entirely) and successfulTests (exclude tests).
+        // successfulTasks should win — skip the whole task.
+        writeHistory(
+            [":subproject1:test"],
+            [":subproject1:test": ["org.acme.SubProject1TestClazz1#someTest1"]]
+        )
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+    }
+
     boolean testExecuted(String output, String testReference) {
         output.contains(testReference + " STARTED")
     }
@@ -152,11 +211,16 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         output.contains(testReference) == false
     }
 
-    private File writeSuccessfulTasks(List<String> tasks) {
-        def tasksJson = tasks.collect { "\"$it\"" }.join(", ")
+    private File writeHistory(List<String> successfulTasks, Map<String, List<String>> successfulTests) {
+        def tasksJson = successfulTasks.collect { "\"$it\"" }.join(", ")
+        def testsEntries = successfulTests.collect { taskPath, tests ->
+            def testsJson = tests.collect { "\"$it\"" }.join(", ")
+            "\"$taskPath\": [$testsJson]"
+        }.join(", ")
         file(".failed-test-history.json") << """
 {
-  "successfulTasks": [$tasksJson]
+  "successfulTasks": [$tasksJson],
+  "successfulTests": {$testsEntries}
 }
 """
     }

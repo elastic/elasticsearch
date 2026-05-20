@@ -127,9 +127,9 @@ function pickTestResult(a: TestEntry["result"], b: TestEntry["result"]): TestEnt
  * multiple runs) into a FailedTestsReport (.failed-test-history.json) for
  * consumption by InternalTestRerunPlugin.
  *
- * The plugin skips tasks in successfulTasks and runs everything else.
- * A task is "successful" if it ran with outcome SUCCESS/UP_TO_DATE/FROM_CACHE,
- * all its tests passed (no FAILURE results), and the task itself didn't FAIL.
+ * The plugin skips tasks in successfulTasks entirely. For tasks not in
+ * successfulTasks, individual passing tests listed in successfulTests are
+ * excluded so only the failures (and never-run tests) execute.
  */
 export function transformTaskStatus(report: TaskStatusReport, testseed: string): FailedTestsReport {
   const SUCCESSFUL_OUTCOMES = new Set(["SUCCESS", "UP_TO_DATE", "FROM_CACHE"]);
@@ -138,12 +138,24 @@ export function transformTaskStatus(report: TaskStatusReport, testseed: string):
 
   const tasksWithTestFailures = new Set(report.tests.filter((t) => t.result === "FAILURE").map((t) => t.taskPath));
 
-  const successfulTasks = report.tasks
-    .filter((t) => SUCCESSFUL_OUTCOMES.has(t.outcome) && !failedTaskPaths.has(t.path) && !tasksWithTestFailures.has(t.path))
-    .map((t) => t.path)
-    .sort();
+  const successfulTaskSet = new Set(
+    report.tasks
+      .filter((t) => SUCCESSFUL_OUTCOMES.has(t.outcome) && !failedTaskPaths.has(t.path) && !tasksWithTestFailures.has(t.path))
+      .map((t) => t.path)
+  );
+  const successfulTasks = [...successfulTaskSet].sort();
 
-  return { successfulTasks, testseed };
+  const successfulTests: Record<string, string[]> = {};
+  for (const test of report.tests) {
+    if (test.result !== "SUCCESS") continue;
+    if (successfulTaskSet.has(test.taskPath)) continue;
+    (successfulTests[test.taskPath] ??= []).push(`${test.className}#${test.methodName}`);
+  }
+  for (const key of Object.keys(successfulTests)) {
+    successfulTests[key].sort();
+  }
+
+  return { successfulTasks, successfulTests, testseed };
 }
 
 // ---------------------------------------------------------------------------
@@ -183,41 +195,44 @@ export async function runSmartRetry(env: SmartRetryEnv, deps: SmartRetryDeps): P
   const merged = mergeRuns(multiRun);
   const testseed = env.testsSeed ?? "";
   const report = transformTaskStatus(merged, testseed);
-  const successfulCount = report.successfulTasks.length;
+  const successfulTaskCount = report.successfulTasks.length;
+  const successfulTestCount = Object.values(report.successfulTests).reduce((sum, tests) => sum + tests.length, 0);
   const totalTaskCount = merged.tasks.length;
 
-  if (successfulCount === 0) {
+  if (successfulTaskCount === 0 && successfulTestCount === 0) {
     return {
       status: "disabled",
-      details: "No successful tasks found in previous runs — rerunning all tests",
+      details: "No successful tasks or tests found in previous runs — rerunning everything",
       failedTestHistory: null,
       annotation: null,
       metadata: {
         "smart-retry-status": "disabled",
-        "smart-retry-details": "No successful tasks found in previous runs — rerunning all tests",
-        "smart-retry-disabled-reason": "no-successful-tasks",
+        "smart-retry-details": "No successful tasks or tests found in previous runs — rerunning everything",
+        "smart-retry-disabled-reason": "no-successful-tasks-or-tests",
       },
     };
   }
 
   const originJobName = resolveOriginJobName(buildJson, originJobId);
   const runCount = multiRun.runs.length;
-  const details = `Skipping ${successfulCount} successful tasks out of ${totalTaskCount} total (across ${runCount} previous run${runCount !== 1 ? "s" : ""})`;
+  const details = `Skipping ${successfulTaskCount} successful tasks and ${successfulTestCount} individual tests out of ${totalTaskCount} total tasks (across ${runCount} previous run${runCount !== 1 ? "s" : ""})`;
 
   const annotation = [
     `Rerunning failed build job [${originJobName}]`,
     "",
-    `**Successful Tasks to Skip:** ${successfulCount}`,
+    `**Successful Tasks to Skip:** ${successfulTaskCount}`,
+    `**Successful Tests to Skip:** ${successfulTestCount}`,
     `**Total Tasks in Previous Runs:** ${totalTaskCount}`,
     `**Previous Runs Analyzed:** ${runCount}`,
     "",
-    "This retry will skip tasks that succeeded in previous runs and run everything else.",
+    "This retry will skip tasks that succeeded in previous runs, exclude individual passing tests from partially-failed tasks, and run everything else.",
   ].join("\n");
 
   const metadata: Record<string, string> = {
     "smart-retry-status": "enabled",
     "smart-retry-details": details,
-    "smart-retry-successful-tasks": String(successfulCount),
+    "smart-retry-successful-tasks": String(successfulTaskCount),
+    "smart-retry-successful-tests": String(successfulTestCount),
     "smart-retry-total-tasks": String(totalTaskCount),
     "smart-retry-previous-runs": String(runCount),
   };

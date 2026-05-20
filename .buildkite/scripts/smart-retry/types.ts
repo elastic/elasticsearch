@@ -29,10 +29,13 @@ export interface MultiRunTaskStatus {
 /**
  * Shape of .failed-test-history.json consumed by InternalTestRerunPlugin.
  *
- * The plugin skips any test task in successfulTasks and runs everything else.
+ * The plugin skips any test task in successfulTasks entirely. For tasks not
+ * in successfulTasks but present in successfulTests, individual passing tests
+ * are excluded so only the failures re-run. Everything else runs normally.
  */
 export interface FailedTestsReport {
   successfulTasks: string[];
+  successfulTests: Record<string, string[]>;
   testseed: string;
 }
 

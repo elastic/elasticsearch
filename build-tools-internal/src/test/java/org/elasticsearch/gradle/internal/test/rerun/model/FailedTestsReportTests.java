@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -29,6 +30,9 @@ public class FailedTestsReportTests {
         String json = """
             {
               "successfulTasks": [":a:test", ":b:test"],
+              "successfulTests": {
+                ":c:test": ["org.es.FooTest#testBar", "org.es.BazTest#testQux"]
+              },
               "testseed": "DEADBEEF"
             }
             """;
@@ -36,14 +40,16 @@ public class FailedTestsReportTests {
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
         assertThat(report.successfulTasks(), equalTo(List.of(":a:test", ":b:test")));
+        assertThat(report.successfulTests(), equalTo(Map.of(":c:test", List.of("org.es.FooTest#testBar", "org.es.BazTest#testQux"))));
         assertThat(report.testseed(), equalTo("DEADBEEF"));
     }
 
     @Test
-    public void testDeserializesEmptySuccessfulTasks() throws Exception {
+    public void testDeserializesEmptySuccessfulTasksAndTests() throws Exception {
         String json = """
             {
               "successfulTasks": [],
+              "successfulTests": {},
               "testseed": "CAFE"
             }
             """;
@@ -51,11 +57,12 @@ public class FailedTestsReportTests {
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
         assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulTests(), equalTo(Map.of()));
         assertThat(report.testseed(), equalTo("CAFE"));
     }
 
     @Test
-    public void testDeserializesReportWithoutSuccessfulTasks() throws Exception {
+    public void testDeserializesReportWithoutOptionalFields() throws Exception {
         String json = """
             {
               "testseed": "ABC"
@@ -65,14 +72,16 @@ public class FailedTestsReportTests {
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
         assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulTests(), equalTo(Map.of()));
         assertThat(report.testseed(), equalTo("ABC"));
     }
 
     @Test
-    public void testNullSuccessfulTasksDefaultsToEmptyList() {
-        FailedTestsReport report = new FailedTestsReport(null, "seed");
+    public void testNullFieldsDefaultToEmptyCollections() {
+        FailedTestsReport report = new FailedTestsReport(null, null, "seed");
 
         assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulTests(), equalTo(Map.of()));
     }
 
     @Test

@@ -45,8 +45,10 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -85,9 +87,16 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
+import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -971,17 +980,119 @@ public final class TextFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
+            if (prefixFieldType != null && prefixFieldType.accept(value.length())) {
+                Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
+                if (method == null
+                    || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
+                    return new ConstantScoreQuery(tq);
+                }
+                return tq;
+            }
+            if (indexType().hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             }
-            Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
-            if (method == null
-                || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
-                || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
-                return new ConstantScoreQuery(tq);
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (usesBinaryDocValues) {
+                return new StringScriptFieldPrefixQuery(
+                    new Script(""),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexCreatedVersion),
+                    name(),
+                    value,
+                    caseInsensitive
+                );
             }
-            return tq;
+            if (caseInsensitive == false) {
+                return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
+            }
+            return new StringScriptFieldPrefixQuery(
+                new Script(""),
+                ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                name(),
+                value,
+                caseInsensitive
+            );
+        }
+
+        @Override
+        public Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            if (indexType().hasTerms()) {
+                return super.wildcardQuery(value, method, caseInsensitive, context);
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
+            }
+            if (caseInsensitive == false) {
+                Term term = new Term(name(), value);
+                if (context.getCircuitBreaker() != null) {
+                    Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                }
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+            }
+            return new StringScriptFieldWildcardQuery(
+                new Script(""),
+                ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                name(),
+                value,
+                true
+            );
+        }
+
+        @Override
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            if (indexType().hasTerms()) {
+                return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+            if (matchFlags != 0) {
+                throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
+            }
+            if (usesBinaryDocValues) {
+                return new StringScriptFieldRegexpQuery(
+                    new Script(""),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexCreatedVersion),
+                    name(),
+                    value,
+                    syntaxFlags,
+                    matchFlags,
+                    maxDeterminizedStates
+                );
+            }
+            if (context.getCircuitBreaker() != null) {
+                Term term = new Term(name(), value);
+                Automaton dfa = AutomatonQueries.toRegexpAutomaton(
+                    term,
+                    syntaxFlags,
+                    matchFlags,
+                    maxDeterminizedStates,
+                    context.getCircuitBreaker()
+                );
+                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+            }
+            return new RegexpQuery(
+                new Term(name(), value),
+                syntaxFlags,
+                matchFlags,
+                RegexpQuery.DEFAULT_PROVIDER,
+                maxDeterminizedStates,
+                MultiTermQuery.DOC_VALUES_REWRITE
+            );
         }
 
         @Override

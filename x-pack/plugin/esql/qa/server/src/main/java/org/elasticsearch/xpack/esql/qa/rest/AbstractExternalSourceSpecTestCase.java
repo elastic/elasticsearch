@@ -293,8 +293,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
-        if (query.contains(MULTIFILE_SUFFIX)) {
-            // HTTP does not support directory listing, so skip multi-file glob tests
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+            // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
 
@@ -432,6 +432,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String MULTIFILE_SUFFIX = "_multifile";
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
+    /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
+    private static final String HIVE_SUFFIX = "_hive";
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
@@ -447,6 +449,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SUFFIX)) {
+            // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
+            // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
+            // parses the directory names independently)
+            relativePath = "hive-partitioned/**/*." + format;
         } else {
             // Single-file template: employees -> standalone/employees.parquet
             String filename = templateName + "." + format;

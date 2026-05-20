@@ -20,30 +20,17 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 
 ## Prerequisites [esql-ccs-prerequisites]
 
-* {{ccs-cap}} requires remote clusters. To set up remote clusters, see [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
-
-    To ensure your remote cluster configuration supports {{ccs}}, see [Supported {{ccs}} configurations](docs-content://explore-analyze/cross-cluster-search.md#ccs-supported-configurations).
-
+* {{esql}} {{ccs}} is not supported in {{serverless-short}}.
 * For full {{ccs}} capabilities, the local and remote clusters must be on the same [subscription level](https://www.elastic.co/subscriptions).
 * The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
-* If you use [sniff mode](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md#sniff-mode), the local coordinating node must be able to connect to seed and gateway nodes on the remote cluster.
-
-    We recommend using gateway nodes capable of serving as coordinating nodes. The seed nodes can be a subset of these gateway nodes.
-
-* If you use [proxy mode](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md#proxy-mode), the local coordinating node must be able to connect to the configured `proxy_address`. The proxy at this address must be able to route connections to gateway and coordinating nodes on the remote cluster.
-* {{ccs-cap}} requires different security privileges on the local cluster and remote cluster. See [Configure roles and users](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#remote-clusters-privileges-api-key) and [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
+* The remote clusters must be connected using **API key authentication**. For setup instructions across all deployment types, refer to [Add remote clusters using API key authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md).
+  To verify which security model is in use, run `GET _remote/info`. With API key authentication, the response includes a `"cluster_credentials"` key.
+* For supported version pairings, see [Supported {{ccs}} configurations](docs-content://explore-analyze/cross-cluster-search.md#ccs-supported-configurations).
 
 
-## Configure user and role
+## Configure roles and users [esql-ccs-security-model-api-key]
 
-{{esql}} uses [API key authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md) for {{ccs}}. Follow the steps on that page for the full setup instructions, including how to add remote clusters. This page contains only the information specific to {{esql}}.
-
-::::{tip}
-To check which security model is being used to connect your clusters, run `GET _remote/info`. If you’re using the API key authentication method, you’ll see the `"cluster_credentials"` key in the response.
-
-::::
-
-Using {{esql}} with the API key based security model requires some additional permissions that may not be needed when using the traditional query DSL based search. The following example API call creates a role that can query remote indices using {{esql}} when using the API key based security model. The final privilege, `remote_cluster`, is required to allow remote enrich operations.
+{{esql}} {{ccs}} needs some additional permissions beyond a standard DSL-based search. The following example creates a role that can query remote indices using {{esql}}. The final `remote_cluster` privilege is required for remote enrich operations.
 
 ```console
 POST /_security/role/remote1

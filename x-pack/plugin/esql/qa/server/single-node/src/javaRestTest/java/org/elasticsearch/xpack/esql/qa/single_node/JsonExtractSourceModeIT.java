@@ -174,17 +174,12 @@ public class JsonExtractSourceModeIT extends RestEsqlTestCase {
     }
 
     private Map<String, Object> runProbe(String index, String expr, String column, AssertWarnings warnings) throws IOException {
-        var query = "FROM "
-            + index
-            + " METADATA _source | EVAL "
-            + column
-            + " = "
-            + expr
-            + " | KEEP "
-            + column
-            + " | SORT "
-            + column
-            + " NULLS LAST";
+        var query = """
+            FROM %index METADATA _source
+            | EVAL %column = %expr
+            | KEEP %column
+            | SORT %column NULLS LAST
+            """.replace("%index", index).replace("%column", column).replace("%expr", expr);
         return run(query, warnings);
     }
 

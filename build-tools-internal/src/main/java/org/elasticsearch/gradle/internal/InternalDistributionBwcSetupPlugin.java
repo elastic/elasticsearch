@@ -165,25 +165,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         BwcGitExtension gitExtension = bwcGitPlugin.getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
 
-        // Register artifact types and transforms for DRA archive unpacking (idempotent).
-        project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
-        project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, spec -> {
-            spec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, "tar.gz").attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
-            spec.getTo()
-                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
-            spec.parameters(p -> {});
-        });
-        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
-        project.getDependencies().registerTransform(UnzipTransform.class, spec -> {
-            spec.getFrom()
-                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
-                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
-            spec.getTo()
-                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
-            spec.parameters(p -> {});
-        });
+        // Register DRA artifact types and transforms for this BWC sub-project.
+        registerDraArtifactTransforms(project);
 
         // Set the git extension properties before creating the DRA provider, so the provider's
         // ValueSource parameters receive proper lazy Provider<String> values.
@@ -318,6 +301,27 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 draBaseUrl
             );
         }
+    }
+
+    private static void registerDraArtifactTransforms(Project project) {
+        project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
+        project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, spec -> {
+            spec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, "tar.gz").attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.parameters(p -> {});
+        });
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, spec -> {
+            spec.getFrom()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(BWC_DISTRIBUTION_ATTRIBUTE, true);
+            spec.parameters(p -> {});
+        });
     }
 
     private static void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {

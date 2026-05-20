@@ -18,6 +18,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecSt
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.SplitDeltaCodecStage;
 
 /**
  * Maps between {@link StageSpec} records and concrete stage instances, and between
@@ -44,6 +45,7 @@ public final class StageFactory {
             case StageSpec.DeltaStage ignored -> DeltaCodecStage.INSTANCE;
             case StageSpec.OffsetStage ignored -> OffsetCodecStage.INSTANCE;
             case StageSpec.GcdStage ignored -> GcdCodecStage.INSTANCE;
+            case StageSpec.SplitDeltaStage splitDelta -> new SplitDeltaCodecStage(splitDelta.kMax());
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -77,6 +79,7 @@ public final class StageFactory {
             case DELTA_STAGE -> new StageSpec.DeltaStage();
             case OFFSET_STAGE -> new StageSpec.OffsetStage();
             case GCD_STAGE -> new StageSpec.GcdStage();
+            case SPLIT_DELTA_STAGE -> new StageSpec.SplitDeltaStage(StageSpec.SplitDeltaStage.DEFAULT_K_MAX);
             case BITPACK_PAYLOAD -> new StageSpec.BitPackPayload();
         };
     }

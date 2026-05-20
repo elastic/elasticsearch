@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -149,7 +150,15 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         List<Attribute> eagerColumns = new ArrayList<>(sourceOutput.size());
         List<Attribute> deferredColumns = new ArrayList<>(sourceOutput.size());
         for (Attribute a : sourceOutput) {
-            if (eagerRefs.contains(a)) {
+            // Virtual columns (today: {@code _file.*}) are materialised on the producer thread by
+            // {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator} from per-file
+            // metadata, not by the format reader. They must stay in the source's narrowed output
+            // (so the iterator still injects them and downstream operators see them) and they
+            // must not be deferred (the {@link ColumnExtractor} positional read path cannot
+            // produce values that don't exist in the file). Pin every {@link VirtualAttribute}
+            // as eager unconditionally; relying on the marker rather than a specific subclass
+            // keeps future virtual attributes correct by construction.
+            if (a instanceof VirtualAttribute || eagerRefs.contains(a)) {
                 eagerColumns.add(a);
             } else {
                 deferredColumns.add(a);

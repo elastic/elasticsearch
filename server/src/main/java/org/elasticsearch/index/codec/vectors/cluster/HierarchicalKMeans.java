@@ -352,8 +352,9 @@ public class HierarchicalKMeans {
 
         // First seed: proportional to cluster size, biasing toward high-density regions.
         long totalSize = 0;
-        for (int s : clusterSizes)
+        for (int s : clusterSizes) {
             totalSize += s;
+        }
         int firstIdx;
         if (totalSize <= 0) {
             // Degenerate: all prior cluster sizes are zero. Pick uniformly at random.
@@ -422,8 +423,9 @@ public class HierarchicalKMeans {
         int n = centroids.length;
 
         long totalVectors = 0;
-        for (int s : clusterSizes)
+        for (int s : clusterSizes) {
             totalVectors += s;
+        }
         long capacityPerSeed = (totalVectors + k - 1) / k;
         // Allow CAPACITY_SLACK overflow so minor seed-placement imbalances don't force long-range assignments.
         long maxCapacity = capacityPerSeed + (long) (capacityPerSeed * CAPACITY_SLACK);
@@ -455,8 +457,9 @@ public class HierarchicalKMeans {
         // Sort by descending regret so the centroid with the highest cost of displacement
         // is assigned to its preferred seed before that seed can fill up.
         Integer[] order = new Integer[n];
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < n; i++) {
             order[i] = i;
+        }
         Arrays.sort(order, (a, b) -> Float.compare(secondDist[b] - nearestDist[b], secondDist[a] - nearestDist[a]));
 
         int[] assignments = new int[n];
@@ -529,8 +532,9 @@ public class HierarchicalKMeans {
 
         // Reservoir-sample sampleSize vector indices, deterministic with seed 42.
         int[] sample = new int[sampleSize];
-        for (int i = 0; i < sampleSize; i++)
+        for (int i = 0; i < sampleSize; i++) {
             sample[i] = i;
+        }
         for (int i = sampleSize; i < n; i++) {
             int j = random.nextInt(i + 1);
             if (j < sampleSize) sample[j] = i;

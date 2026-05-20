@@ -65,6 +65,7 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -870,6 +871,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final BulkItemResponse response = item.getPrimaryResponse();
             final Engine.Result operationResult;
             if (item.getPrimaryResponse().isFailed()) {
+                if (response.getFailure().getCause() instanceof TaskCancelledException) {
+                    continue; // ignore replication is primary indexing is cancelled.
+                }
+
                 if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     continue; // ignore replication as we didn't generate a sequence number for this request.
                 }

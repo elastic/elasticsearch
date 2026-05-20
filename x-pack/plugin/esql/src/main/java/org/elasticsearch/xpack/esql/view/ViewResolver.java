@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexMode;
@@ -26,7 +25,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlHasOriginProjectTargetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -156,21 +154,15 @@ public class ViewResolver {
         // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
         // output uncompacted is the foundation for the CPS lenient-field-caps work in
         // esql-planning #543, #472.
-        doResolveOriginViews(projectRouting, listener.delegateFailureAndWrap((l1, shouldResolveLocalViews) -> {
-            if (shouldResolveLocalViews == false) {
-                l1.onResponse(new ViewResolutionResult(plan, viewQueries));
-            } else {
-                replaceViews(
-                    plan,
-                    projectRouting,
-                    parser,
-                    new LinkedHashSet<>(),
-                    viewQueries,
-                    0,
-                    l1.delegateFailureAndWrap((l2, rewritten) -> l2.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
-                );
-            }
-        }));
+        replaceViews(
+            plan,
+            projectRouting,
+            parser,
+            new LinkedHashSet<>(),
+            viewQueries,
+            0,
+            listener.delegateFailureAndWrap((l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
+        );
     }
 
     private void replaceViews(
@@ -606,18 +598,6 @@ public class ViewResolver {
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
         client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
-    }
-
-    protected void doResolveOriginViews(String projectRouting, ActionListener<Boolean> listener) {
-        if (crossProjectModeDecider.crossProjectEnabled() == false || Strings.isNullOrBlank(projectRouting)) {
-            listener.onResponse(true);
-        } else {
-            client.execute(
-                EsqlHasOriginProjectTargetAction.TYPE,
-                new EsqlHasOriginProjectTargetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
-                new ThreadedActionListener<>(executor, listener.map(EsqlHasOriginProjectTargetAction.Response::resolveLocalViews))
-            );
-        }
     }
 
     record ViewPlan(String name, LogicalPlan plan) {}

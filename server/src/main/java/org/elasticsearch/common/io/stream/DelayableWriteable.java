@@ -307,9 +307,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             if (serializedAtVersion.supports(COMPRESS_DELAYABLE_WRITEABLE) == false) {
                 return serialized.length();
             }
-            try (
-                InputStream in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())
-            ) {
+            try (InputStream in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())) {
                 return in.transferTo(OutputStream.nullOutputStream());
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to compute uncompressed size of serialized DelayableWriteable", e);

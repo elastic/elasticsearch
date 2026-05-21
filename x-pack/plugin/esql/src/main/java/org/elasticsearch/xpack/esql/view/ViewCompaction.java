@@ -339,8 +339,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 // Prevent merging when a wildcard in one pattern matches a concrete name in the other.
                 // Merging would produce a single UnresolvedRelation that deduplicates the overlapping index
                 // during resolution, collapsing what should be two independent data copies into one.
-                if (Regex.isSimpleMatchPattern(otherPattern) == false
-                    && Regex.simpleMatch(mainPattern, otherPattern)) {
+                if (Regex.isSimpleMatchPattern(otherPattern) == false && Regex.simpleMatch(mainPattern, otherPattern)) {
                     return null;
                 }
                 if (Regex.isSimpleMatchPattern(otherPattern)

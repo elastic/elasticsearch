@@ -35,7 +35,10 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -607,38 +610,78 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             : effectiveMavenGroup + ":" + effectiveMavenModule + ":" + versionString + ":" + gradleClassifier + "@" + extension;
         project.getDependencies().add(draConfigName, dependencyNotation);
 
-        // Copy task that places the resolved (and optionally unpacked) artifact at the expected path.
         File rootDir = project.getRootDir();
-        project.getTasks().register(bwcTaskName, Copy.class, t -> {
-            t.doFirst(
-                task -> task.getLogger()
-                    .lifecycle(
-                        "BWC [{}]: downloading pre-built distribution [{}] from DRA snapshot {} — skipping source build",
-                        bwcVersion.get(),
-                        projectName,
-                        buildId
-                    )
-            );
-            t.dependsOn("writeDraRefspec");
-            t.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
-            t.from(draConfig);
-            if (useNativeExpanded) {
-                t.into(projectArtifact.expandedDistDir);
-                t.getOutputs().dir(expectedOutputFile);
-            } else {
-                t.into(projectArtifact.distFile.getParentFile());
-                t.getOutputs().files(projectArtifact.distFile);
-            }
-            t.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
-            t.doLast(task -> {
-                if (expectedOutputFile.exists() == false) {
-                    Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());
-                    throw new InvalidUserDataException(
-                        "Downloading %s from DRA didn't produce expected artifact [%s].".formatted(bwcVersion.get(), relativeOutputPath)
-                    );
-                }
+        if (mavenModule.isEmpty() == false) {
+            // Maven JAR artifacts (JDBC, stable API): use a plain DefaultTask so that
+            // getOutputs().getFiles() contains exactly the downloaded JAR. A Copy task's
+            // implicit @OutputDirectory would also appear in the output file set, causing
+            // JarApiComparisonTask's single-jar assertion to fail with both the JAR name
+            // and the parent directory name ("distributions") in the set.
+            project.getTasks().register(bwcTaskName, task -> {
+                task.doFirst(
+                    t -> t.getLogger()
+                        .lifecycle(
+                            "BWC [{}]: downloading pre-built [{}] from DRA snapshot {} — skipping source build",
+                            bwcVersion.get(),
+                            projectName,
+                            buildId
+                        )
+                );
+                task.dependsOn("writeDraRefspec");
+                task.getInputs().files(draConfig).withPropertyName("draJar");
+                task.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
+                task.getOutputs().file(projectArtifact.distFile);
+                task.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", t -> buildParams.getCi() == false);
+                task.doLast(t -> {
+                    projectArtifact.distFile.getParentFile().mkdirs();
+                    File src = draConfig.getSingleFile();
+                    try {
+                        Files.copy(src.toPath(), projectArtifact.distFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    if (projectArtifact.distFile.exists() == false) {
+                        Path relativeOutputPath = rootDir.toPath().relativize(projectArtifact.distFile.toPath());
+                        throw new InvalidUserDataException(
+                            "Downloading %s from DRA didn't produce expected artifact [%s].".formatted(bwcVersion.get(), relativeOutputPath)
+                        );
+                    }
+                });
             });
-        });
+        } else {
+            // Distribution archives: use a Copy task which handles tar.gz/zip extraction
+            // via registered artifact transforms.
+            project.getTasks().register(bwcTaskName, Copy.class, t -> {
+                t.doFirst(
+                    task -> task.getLogger()
+                        .lifecycle(
+                            "BWC [{}]: downloading pre-built distribution [{}] from DRA snapshot {} — skipping source build",
+                            bwcVersion.get(),
+                            projectName,
+                            buildId
+                        )
+                );
+                t.dependsOn("writeDraRefspec");
+                t.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
+                t.from(draConfig);
+                if (useNativeExpanded) {
+                    t.into(projectArtifact.expandedDistDir);
+                    t.getOutputs().dir(expectedOutputFile);
+                } else {
+                    t.into(projectArtifact.distFile.getParentFile());
+                    t.getOutputs().files(projectArtifact.distFile);
+                }
+                t.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+                t.doLast(task -> {
+                    if (expectedOutputFile.exists() == false) {
+                        Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());
+                        throw new InvalidUserDataException(
+                            "Downloading %s from DRA didn't produce expected artifact [%s].".formatted(bwcVersion.get(), relativeOutputPath)
+                        );
+                    }
+                });
+            });
+        }
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }
 

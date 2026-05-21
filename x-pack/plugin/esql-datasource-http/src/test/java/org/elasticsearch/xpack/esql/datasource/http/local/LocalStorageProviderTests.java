@@ -363,6 +363,22 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertEquals(0, flatEntries.size());
     }
 
+    // -- glob guard --
+
+    public void testNewObjectRejectsGlobPattern() {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv.zst");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(globPath));
+        assertThat(e.getMessage(), containsString("glob pattern"));
+        assertThat(e.getMessage(), containsString("*.csv.zst"));
+    }
+
+    public void testExistsRejectsGlobPattern() throws IOException {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv");
+        expectThrows(IllegalArgumentException.class, () -> provider.exists(globPath));
+    }
+
     // -- helpers --
 
     private static List<String> collectObjectNames(StorageIterator iterator) throws IOException {

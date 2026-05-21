@@ -971,17 +971,22 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting("index.mapping.use_default_id_mode", settings -> {
-        if (settings == null) {
-            return Boolean.FALSE.toString();
-        }
-        IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
-        if (indexVersionCreated.before(IndexVersions.MAPPING_ID_MODE_DEFAULT)) {
-            return Boolean.FALSE.toString();
-        }
-        IndexMode indexMode = IndexSettings.MODE.get(settings);
-        return Boolean.toString(indexMode.isStrictColumnar());
-    }, Property.IndexScope, Property.Final);
+    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.use_colulmnar_id_mode_by_default",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
+            if (indexVersionCreated.before(IndexVersions.MAPPING_ID_MODE_DEFAULT)) {
+                return Boolean.FALSE.toString();
+            }
+            IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.isStrictColumnar());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
 
     /**
      * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.

@@ -2912,8 +2912,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         return;
                     }
 
-                    LOGGER.info("randomly setting [index.mapping.use_default_id_mode] to [true]");
-                    additionalSettings.put("index.mapping.use_default_id_mode", true);
+                    String columnarIdMode = indexTemplateAndCreateRequestSettings.get("index.mapping.use_colulmnar_id_mode_by_default");
+                    if (columnarIdMode != null) {
+                        return;
+                    }
+
+                    LOGGER.info("randomly setting [index.mapping.use_colulmnar_id_mode_by_default] to [true]");
+                    additionalSettings.put("index.mapping.use_colulmnar_id_mode_by_default", true);
                     if (randomBoolean()) {
                     }
                 }

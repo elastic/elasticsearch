@@ -66,6 +66,11 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         return super.setRandomIndexSettings(random, builder).remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
     }
 
+    @Override
+    protected boolean randomizeColumnarIdMode() {
+        return false;
+    }
+
     private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();
 
     public static class EngineTestPlugin extends Plugin implements EnginePlugin {

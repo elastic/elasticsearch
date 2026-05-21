@@ -405,8 +405,9 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // The SPI contract on DataSourceValidator.validateDataset says dataset settings carry no
         // secrets, but only convention enforces that. If a dataset key ever shadowed a parent
         // secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
-        // SecureString — losing secret-classification down the carrier path. validatePutDataset
-        // rejects the put at validate-time so the invariant is enforced where it's defined.
+        // EncryptedSecret (or plaintext String, when no encryption service is bound) — losing
+        // secret-classification down the carrier path. validatePutDataset rejects the put at
+        // validate-time so the invariant is enforced where it's defined.
         final String parentDsName = "shadowing_parent";
         final String datasetName = "shadowing_ds";
         assertAcked(

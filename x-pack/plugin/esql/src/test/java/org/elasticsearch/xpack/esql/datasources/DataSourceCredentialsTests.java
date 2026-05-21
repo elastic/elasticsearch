@@ -53,6 +53,13 @@ public class DataSourceCredentialsTests extends ESTestCase {
         DataSourceCredentials.initialize(IDENTITY);
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        // The static holder is process-wide; reset it so no test leaves the JVM with a bound stub.
+        DataSourceCredentials.initialize(null);
+        super.tearDown();
+    }
+
     public void testNullMapPassesThrough() {
         assertNull(DataSourceCredentials.decryptInPlace(null));
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
@@ -46,7 +47,20 @@ final class DecompressingStorageObject implements StorageObject {
         if (codec instanceof SplittableDecompressionCodec splittable && delegate instanceof RangeStorageObject range) {
             return splittable.decompressRange(range.rawDelegate(), range.offset(), range.offset() + range.length());
         }
-        return codec.decompress(delegate.newStream());
+        // raw is bound to a local before being handed to the codec so that, when the codec's
+        // wrapping-stream constructor throws on header inspection (e.g. SnappyFramedInputStream
+        // rejects a non-snappy file with "invalid stream header"), we still own a reference to
+        // the underlying stream and can close it. Closing matters because, when the delegate is
+        // a ConcurrencyLimitedStorageObject, the underlying stream is a PermitReleasingInputStream
+        // whose close() releases the cloud-API concurrency permit. Leaking it pins the permit
+        // until JVM shutdown — and the limiter pool only holds 50.
+        InputStream raw = delegate.newStream();
+        try {
+            return codec.decompress(raw);
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(raw);
+            throw t;
+        }
     }
 
     @Override

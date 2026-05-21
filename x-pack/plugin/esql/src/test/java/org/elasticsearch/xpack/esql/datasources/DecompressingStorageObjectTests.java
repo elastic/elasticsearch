@@ -201,4 +201,75 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             return path;
         }
     }
+
+    /**
+     * Regression test for the cloud-API permit leak fixed in this PR. When the codec throws on
+     * header inspection (here: a fabricated codec that rejects everything as a stand-in for
+     * SnappyFramedInputStream rejecting a non-snappy file), the underlying stream must be
+     * closed so a wrapping {@code PermitReleasingInputStream} releases its permit. Before the
+     * fix, the unclosed stream pinned the permit until JVM shutdown and 50 such failures
+     * exhausted the limiter pool.
+     */
+    public void testNewStreamClosesRawWhenCodecThrows() throws IOException {
+        java.util.concurrent.atomic.AtomicBoolean rawClosed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        StorageObject tracking = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream("garbage".getBytes(StandardCharsets.UTF_8)) {
+                    @Override
+                    public void close() throws IOException {
+                        rawClosed.set(true);
+                        super.close();
+                    }
+                };
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return 7L;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("file:///garbage.csv.bad");
+            }
+        };
+
+        DecompressionCodec throwingCodec = new DecompressionCodec() {
+            @Override
+            public String name() {
+                return "throwing-codec";
+            }
+
+            @Override
+            public java.util.List<String> extensions() {
+                return java.util.List.of(".bad");
+            }
+
+            @Override
+            public InputStream decompress(InputStream in) throws IOException {
+                throw new IOException("invalid stream header");
+            }
+        };
+
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(tracking, throwingCodec);
+        IOException thrown = expectThrows(IOException.class, decompressing::newStream);
+        assertEquals("invalid stream header", thrown.getMessage());
+        assertTrue("underlying stream must be closed when the codec rejects the header", rawClosed.get());
+    }
 }

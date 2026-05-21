@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -44,6 +45,10 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             }
             request.routing(routings);
         }
+        if (randomBoolean()) {
+            String slice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(3, 10);
+            request.searchSlice(slice).setRoutingFromSlice(randomBoolean());
+        }
 
         TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -55,6 +60,13 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
                 assertArrayEquals(request.indices(), deserialized.indices());
                 assertEquals(request.indicesOptions(), deserialized.indicesOptions());
                 assertEquals(request.routing(), deserialized.routing());
+                if (version.supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
+                    assertEquals(request.searchSlice(), deserialized.searchSlice());
+                    assertEquals(request.isRoutingFromSlice(), deserialized.isRoutingFromSlice());
+                } else {
+                    assertNull(deserialized.searchSlice());
+                    assertFalse(deserialized.isRoutingFromSlice());
+                }
                 assertEquals(request.preference(), deserialized.preference());
             }
         }

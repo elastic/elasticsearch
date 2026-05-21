@@ -19,7 +19,7 @@ import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
-import org.elasticsearch.test.tls.TestTlsCertificate;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;

@@ -22,7 +22,7 @@ import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.tls.TestTlsCertificate;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 
 import java.util.function.Supplier;
 

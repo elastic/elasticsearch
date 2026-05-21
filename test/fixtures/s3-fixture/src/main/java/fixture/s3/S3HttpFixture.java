@@ -25,7 +25,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.TestEsExecutors;
-import org.elasticsearch.test.tls.TestTlsCertificate;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 

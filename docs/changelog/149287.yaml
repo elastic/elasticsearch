@@ -1,0 +1,6 @@
+area: Ingest Node
+issues:
+ - 149276
+pr: 149287
+summary: Close `GeoIp` `configDatabases` to release open file locks
+type: bug

@@ -30,7 +30,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -972,18 +971,13 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
-        "index.mapping.use_default_id_mode",
-        settings -> {
-            if (settings == null) {
-                return Boolean.FALSE.toString();
-            }
-            IndexMode indexMode = IndexSettings.MODE.get(settings);
-            return Boolean.toString(indexMode.isColumnar());
-        },
-        Property.IndexScope,
-        Property.Final
-    );
+    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting("index.mapping.use_default_id_mode", settings -> {
+        if (settings == null) {
+            return Boolean.FALSE.toString();
+        }
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return Boolean.toString(indexMode.isColumnar());
+    }, Property.IndexScope, Property.Final);
 
     /**
      * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.

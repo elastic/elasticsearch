@@ -86,15 +86,34 @@ public class IndexAbstractionResolver {
         final String originProjectAlias = targetProjects.originProjectAlias();
         final Set<String> linkedProjectAliases = targetProjects.allProjectAliases();
         final ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
+
+        // Single-pass walk mirroring the include-then-exclude-then-re-include semantics of
+        // RemoteClusterAware#groupClusterIndices for the linked clusters, applied to the origin project's local side:
+        // * When `-X:*` resolves to the origin project we drop the local side of every previously resolved expression and
+        // stop adding new local resolutions until a subsequent positive expression re-includes origin.
+        // * Unlike the linked-cluster check (enforced downstream in groupClusterIndices during remote dispatch), origin is
+        // implicitly in the target set, so a project-wildcard exclusion of origin does NOT require a prior positive
+        // inclusion — `-_origin:*` standalone is valid and produces an empty local side.
+        boolean originDropped = false;
+
         for (String originalIndexExpression : indices) {
             final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
                 .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
 
-            final String localIndexExpression = indexRewriteResult.localExpression();
+            if (originProjectAlias != null && indexRewriteResult.excludedProjects().contains(originProjectAlias)) {
+                resolvedExpressionsBuilder.clearAllLocalExpressions();
+                originDropped = true;
+            }
+
+            if (originDropped && indexRewriteResult.includedProjects().contains(originProjectAlias)) {
+                originDropped = false;
+            }
+
+            final String localIndexExpression = originDropped ? null : indexRewriteResult.localExpression();
             if (localIndexExpression == null) {
-                // (there can be an exclusion without any local index expressions)
-                // nothing to resolve locally so skip resolve abstraction call
-                resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
+                if (indexRewriteResult.remoteExpressions().isEmpty() == false) {
+                    resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
+                }
                 continue;
             }
 

@@ -116,15 +116,18 @@ public class CrossProjectIndexExpressionsRewriter {
     ) {
         String localExpression = null;
         final Set<String> rewrittenExpressions = new LinkedHashSet<>();
+        final Set<String> includedProjects = new LinkedHashSet<>();
         if (originAlias != null) {
             localExpression = indexExpression; // adding the original indexExpression for the _origin cluster.
+            includedProjects.add(originAlias);
         }
         for (String targetProjectAlias : allProjectAliases) {
             if (false == targetProjectAlias.equals(originAlias)) {
                 rewrittenExpressions.add(RemoteClusterAware.buildRemoteIndexName(targetProjectAlias, indexExpression));
+                includedProjects.add(targetProjectAlias);
             }
         }
-        return new IndexRewriteResult(localExpression, rewrittenExpressions);
+        return new IndexRewriteResult(localExpression, rewrittenExpressions, includedProjects, Set.of());
     }
 
     private static IndexRewriteResult rewriteQualifiedExpression(
@@ -158,8 +161,15 @@ public class CrossProjectIndexExpressionsRewriter {
             projectRouting
         );
 
+        // A "project-wildcard" full exclusion has the shape `-X:*`. It removes every resolved project from the target set
+        // (mirroring RemoteClusterAware#groupClusterIndices, which treats only this exact shape as a full cluster exclusion).
+        // Any other exclusion shape (e.g. `-X:logs`, `X:-logs`, `X:-*`) is an index-level narrowing and still implies inclusion of X.
+        final boolean isProjectWildcardExclusion = isExclusion && "*".equals(indexExpression);
+
         String localExpression = null;
         final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
+        final Set<String> includedProjects = isProjectWildcardExclusion ? Set.of() : new LinkedHashSet<>();
+        final Set<String> excludedProjects = isProjectWildcardExclusion ? new LinkedHashSet<>() : Set.of();
         // TODO: Rewrite supports exclusion such as -project:index but it is still rejected by RemoteClusterAware#groupClusterIndices
         // We could consider supporting it all the way through, see also ES-13767
         for (String project : allProjectsMatchingAlias) {
@@ -169,9 +179,14 @@ public class CrossProjectIndexExpressionsRewriter {
                 final String remoteIndexName = RemoteClusterAware.buildRemoteIndexName(project, indexExpression);
                 resourcesMatchingLinkedProjectAliases.add(isExclusion ? EXCLUSION_PREFIX + remoteIndexName : remoteIndexName);
             }
+            if (isProjectWildcardExclusion) {
+                excludedProjects.add(project);
+            } else {
+                includedProjects.add(project);
+            }
         }
 
-        return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
+        return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases, includedProjects, excludedProjects);
     }
 
     private static void ensureProjectsAvailable(
@@ -229,11 +244,26 @@ public class CrossProjectIndexExpressionsRewriter {
     }
 
     /**
-     * A container for a local expression and a list of remote expressions.
+     * A container for a local expression and a list of remote expressions, along with the set of projects this single
+     * input expression positively targets and the set of projects it fully excludes via the project-wildcard form
+     * {@code -X:*}.
+     *
+     * <p>Callers walking a list of input expressions can accumulate these sets left-to-right (mirroring
+     * {@link RemoteClusterAware#groupClusterIndices(Set, String[])}) to determine the final target project set,
+     * including re-inclusion via a later positive expression.
+     *
+     * <p>Only the {@code -X:*} shape contributes to {@code excludedProjects}. Other exclusion shapes (such as
+     * {@code -X:logs}, {@code X:-logs}, {@code X:-*}) are index-level narrowings and still contribute to
+     * {@code includedProjects}.
      */
-    public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
+    public record IndexRewriteResult(
+        @Nullable String localExpression,
+        Set<String> remoteExpressions,
+        Set<String> includedProjects,
+        Set<String> excludedProjects
+    ) {
         public IndexRewriteResult(String localExpression) {
-            this(localExpression, Set.of());
+            this(localExpression, Set.of(), Set.of(), Set.of());
         }
 
         public boolean isEmpty() {

@@ -322,11 +322,44 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         });
     }
 
+    public void testExponentialHistogramRaw() throws Exception {
+        MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(
+            new BufferedByteStringAccessor(),
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+
+        ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setZeroCount(1)
+            .setPositive(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
+            .setNegative(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
+            .addAllAttributes(mappingHints(MappingHints.HISTOGRAM_RAW))
+            .build();
+
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createExponentialHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
+        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
+
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+
+            assertThat(doc.evaluate("metrics.exponential_histogram.values"), equalTo(List.of(-2.0, -1.0, 0.0, 2.0, 4.0)));
+            assertThat(doc.evaluate("metrics.exponential_histogram.counts"), equalTo(List.of(1, 1, 1, 1, 1)));
+            assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "histogram"));
+        });
+    }
+
     public void testHistogram() throws Exception {
         HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
             .setTimeUnixNano(timestamp)
             .setStartTimeUnixNano(startTimestamp)
-            .addBucketCounts(10L)
+            .addAllBucketCounts(List.of(10L, 0L))
             .addExplicitBounds(5.0)
             .build();
 
@@ -343,6 +376,61 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
             assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(2.5)));
+            assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(10)));
+            assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
+        });
+    }
+
+    public void testHistogramRaw() throws Exception {
+        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .addAllBucketCounts(List.of(1L, 3L, 5L, 2L))
+            .addAllExplicitBounds(List.of(10.0, 20.0, 30.0))
+            .addAllAttributes(mappingHints(MappingHints.HISTOGRAM_RAW))
+            .build();
+
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
+        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
+
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+
+            assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(10.0, 20.0, 30.0)));
+            assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(1, 3, 7)));
+            assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
+        });
+    }
+
+    public void testHistogramRawWithoutExplicitBounds() throws Exception {
+        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .addBucketCounts(10L)
+            .setCount(10L)
+            .setSum(100.0)
+            .addAllAttributes(mappingHints(MappingHints.HISTOGRAM_RAW))
+            .build();
+
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
+        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
+
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+
+            assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(10.0)));
             assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(10)));
             assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
         });

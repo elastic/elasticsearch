@@ -975,7 +975,10 @@ public final class IndexSettings {
         if (settings == null) {
             return Boolean.FALSE.toString();
         }
-        IndexMode indexMode = IndexSettings.MODE.get(settings);
+IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
+            if (indexVersionCreated.before(IndexVersions.MAPPING_ID_MODE_DEFAULT)) {
+                return Boolean.FALSE.toString();
+            }        IndexMode indexMode = IndexSettings.MODE.get(settings);
         return Boolean.toString(indexMode.isColumnar());
     }, Property.IndexScope, Property.Final);
 

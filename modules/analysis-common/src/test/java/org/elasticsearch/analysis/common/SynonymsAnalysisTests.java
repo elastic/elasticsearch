@@ -383,7 +383,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         );
     }
 
-    public void testManyChainedSynonymGraphFilters() throws IOException { // tmp ci trigger
+    public void testManyChainedSynonymGraphFilters() throws IOException {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("path.home", createTempDir().toString());

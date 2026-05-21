@@ -65,8 +65,8 @@ public class ES940OSQVectorsScorer {
         int bulkSize,
         SymmetricInt4Encoding int4Encoding
     ) {
-        if (indexBits == 1 && queryBits != 4) {
-            throw new IllegalArgumentException("Only asymmetric 4-bit query supported for 1-bit index");
+        if (indexBits == 1 && (queryBits == 4 || queryBits == 1) == false) {
+            throw new IllegalArgumentException("Only asymmetric 4-bit or symmetric 1-bit query supported for 1-bit index");
         }
         if (indexBits == 2 && queryBits != 4) {
             throw new IllegalArgumentException("Only asymmetric 4-bit query supported for 2-bit index");
@@ -106,7 +106,11 @@ public class ES940OSQVectorsScorer {
      */
     public long quantizeScore(byte[] q) throws IOException {
         if (indexBits == 1) {
-            return quantized4BitScore(q, length);
+            if (queryBits == 1) {
+                return quantized1BitScoreSymmetric(q, length);
+            } else if (queryBits == 4) {
+                return quantized4BitScore(q, length);
+            }
         }
         if (indexBits == 2) {
             return quantized4BitScore2BitIndex(q);
@@ -119,6 +123,15 @@ public class ES940OSQVectorsScorer {
         }
         assert (indexBits == 7);
         return quantized7BitScore(q);
+    }
+
+    private long quantized1BitScoreSymmetric(byte[] q, int length) throws IOException {
+        assert q.length == length : "length mismatch q " + q.length + " vs " + length;
+        long score = 0;
+        for (int i = 0; i < length; i++) {
+            score += Long.bitCount((q[i] & in.readByte()) & 0xFF);
+        }
+        return score;
     }
 
     private long quantized7BitScore(byte[] q) throws IOException {

@@ -581,3 +581,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderTests
   method: testMalformedRowErrorAnchorsOnQuoteOffset
   issue: https://github.com/elastic/elasticsearch/issues/149567
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats.sumWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/149574

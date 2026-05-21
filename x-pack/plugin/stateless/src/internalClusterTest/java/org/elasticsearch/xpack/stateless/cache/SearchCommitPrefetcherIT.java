@@ -60,6 +60,8 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -148,18 +150,19 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
         }
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadBCC = prefetchNonUploadedCommits == false || randomBoolean();
         if (uploadBCC) {
             flush(indexName);
         }
 
-        assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(greaterThan(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(lessThan(bccTotalSizeInBytes)));
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
-        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
+        assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThan(0L)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(lessThan(bccTotalSizeInBytes)));
+
+        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.bytesCount();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
         var searchRequest = prepareSearch(indexName);
@@ -172,10 +175,10 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         // Maybe there's a better search request that forces fetching more data?
         if (uploadBCC) {
-            assertThat(bytesReadFromIndexingNode.get(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
+            assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
             assertThat(bytesReadFromBlobStore.get(), is(greaterThanOrEqualTo(bytesReadFromBlobStoreBeforeSearch)));
         } else {
-            assertThat(bytesReadFromIndexingNode.get(), is(greaterThanOrEqualTo(bytesReadFromIndexingNodeBeforeSearch)));
+            assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThanOrEqualTo(bytesReadFromIndexingNodeBeforeSearch)));
             assertThat(bytesReadFromBlobStore.get(), is(equalTo(bytesReadFromBlobStoreBeforeSearch)));
         }
     }
@@ -285,7 +288,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
 
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadBCC = prefetchNonUploadedCommits == false || randomBoolean();
         if (uploadBCC) {
@@ -293,6 +295,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
         // wait for the refreshes to complete
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
+
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         // it's tricky to test that something does NOT happen (you can't wait for things to not happen)
         // so we just submit a marker task to the prewarming thread pool and then check that it was the only task that ran in the pool
@@ -310,8 +314,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(getNumberOfCompletedTasks(threadPool, prewarmThreadPool), is(preIngestTasksPrewarmingPool + 1));
 
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(greaterThan(0L)));
-        assertThat(bytesReadFromIndexingNode.get(), is(lessThan(bccTotalSizeInBytes)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThan(0L)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(lessThan(bccTotalSizeInBytes)));
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
 
         // let's test we updated the internal tracking of the max prefetch offset to the latest commit, at the very end
@@ -369,11 +373,13 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             indexDocs(indexName, 10_000);
             refresh(indexName);
         }
+
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         flush(indexName);
+
+        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         assertBusy(
             () -> assertThat(
@@ -381,7 +387,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
                 // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
                 // at population time and the blob is padded later on.
-                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.get() + bccTotalPaddingInBytes))
+                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.bytesCount() + bccTotalPaddingInBytes))
             )
         );
 
@@ -401,7 +407,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             assertThat(bytesReadFromBlobStore.get(), is(greaterThan(0L)));
         }
 
-        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
+        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.bytesCount();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
         searchRequest = prepareSearch(indexName);
@@ -412,7 +418,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
         assertNoFailures(searchRequest);
 
-        assertThat(bytesReadFromIndexingNode.get(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(bytesReadFromBlobStoreBeforeSearch)));
     }
 
@@ -451,8 +457,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
         }
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadCommitNotificationReceived = new CountDownLatch(1);
         AtomicReference<CheckedRunnable<Exception>> pendingNewCommitNotificationHandlerRef = new AtomicReference<>();
@@ -469,6 +473,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         flush(indexName);
 
+        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
+
         safeAwait(uploadCommitNotificationReceived);
 
         indexDocs(indexName, 100);
@@ -480,7 +487,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                 // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
                 // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
                 // at population time and the blob is padded later on.
-                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.get() + bccTotalPaddingInBytes))
+                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.bytesCount() + bccTotalPaddingInBytes))
             )
         );
         assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(lessThanOrEqualTo(bccTotalSizeInBytes))));
@@ -492,7 +499,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(pendingNewCommitNotificationHandler, is(notNullValue()));
         pendingNewCommitNotificationHandler.run();
 
-        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.get();
+        var bytesReadFromIndexingNodeBeforeSearch = bytesReadFromIndexingNode.bytesCount();
         var bytesReadFromBlobStoreBeforeSearch = bytesReadFromBlobStore.get();
 
         searchRequest = prepareSearch(indexName);
@@ -503,7 +510,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
         assertNoFailures(searchRequest);
 
-        assertThat(bytesReadFromIndexingNode.get(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
+        assertThat(bytesReadFromIndexingNode.bytesCount(), is(equalTo(bytesReadFromIndexingNodeBeforeSearch)));
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(bytesReadFromBlobStoreBeforeSearch)));
     }
 
@@ -714,8 +721,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L)));
     }
 
-    private AtomicLong meterIndexingNodeReadsForBCC(String indexNode, ShardId shardId, long vBCCGenToMeter) {
-        var bytesReadFromIndexingNode = new AtomicLong();
+    private UniqueRangesTracker meterIndexingNodeReadsForBCC(String indexNode, ShardId shardId, long vBCCGenToMeter) {
+        final var bytesReadFromIndexingNode = new UniqueRangesTracker();
         MockTransportService.getInstance(indexNode)
             .addRequestHandlingBehavior(
                 TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
@@ -732,7 +739,10 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                             var getVBCCChunkResponse = (GetVirtualBatchedCompoundCommitChunkResponse) response;
                             if (getVBCCChunkRequest.getShardId().equals(shardId)
                                 && getVBCCChunkRequest.getVirtualBatchedCompoundCommitGeneration() == vBCCGenToMeter) {
-                                bytesReadFromIndexingNode.addAndGet(getVBCCChunkResponse.getData().length());
+                                bytesReadFromIndexingNode.addRange(
+                                    getVBCCChunkRequest.getOffset(),
+                                    getVBCCChunkResponse.getData().length()
+                                );
                             }
                             channel.sendResponse(response);
                         }
@@ -775,6 +785,46 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             }
         });
         return bytesReadFromBlobStore;
+    }
+
+    /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)`
+    /// range and merging overlaps.
+    private static final class UniqueRangesTracker {
+        private final NavigableMap<Long, Long> rangesByStart = new TreeMap<>();
+
+        /// Records a `[offset, offset + length)` range and returns the running total of unique bytes after the merge.
+        private synchronized void addRange(long offset, long length) {
+            if (length > 0) {
+                long start = offset;
+                long end = offset + length;
+                // coalesce with the predecessor entry if it overlaps or touches
+                final var floor = rangesByStart.floorEntry(start);
+                if (floor != null && floor.getValue() >= start) {
+                    start = floor.getKey();
+                    end = Math.max(end, floor.getValue());
+                    rangesByStart.remove(floor.getKey());
+                }
+                // coalesce with any subsequent entries that the merged range now overlaps or touches
+                final var iter = rangesByStart.tailMap(start, false).entrySet().iterator();
+                while (iter.hasNext()) {
+                    final var entry = iter.next();
+                    if (entry.getKey() > end) {
+                        break;
+                    }
+                    end = Math.max(end, entry.getValue());
+                    iter.remove();
+                }
+                rangesByStart.put(start, end);
+            }
+        }
+
+        private synchronized long bytesCount() {
+            long total = 0;
+            for (final var entry : rangesByStart.entrySet()) {
+                total += entry.getValue() - entry.getKey();
+            }
+            return total;
+        }
     }
 
     public static final class TestStatelessPluginNoRecoveryPrewarming extends TestUtils.StatelessPluginWithTrialLicense {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
@@ -26,6 +27,16 @@ public interface TelemetryProvider {
     Tracer getTracer();
 
     MeterRegistry getMeterRegistry();
+
+    /**
+     * Returns the {@link HttpServerInstrumentation} for tracing REST request spans.
+     * The default implementation returns {@link HttpServerInstrumentation#NOOP}, which is a safe
+     * no-op suitable for environments without tracing. Implementations that enable tracing
+     * should override this to return a live implementation.
+     */
+    default HttpServerInstrumentation getHttpServerInstrumentation() {
+        return HttpServerInstrumentation.NOOP;
+    }
 
     /**
      * Ensures buffered metrics are exported. Implementations should flush the meter provider they own

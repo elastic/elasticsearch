@@ -20,6 +20,7 @@ module org.elasticsearch.telemetry.apm {
     requires io.opentelemetry.sdk.trace;
     requires io.opentelemetry.exporter.otlp;
     requires io.opentelemetry.instrumentation.runtime_telemetry;
+    requires io.opentelemetry.instrumentation_api;
     requires io.opentelemetry.sdk.common;
     requires org.elasticsearch.logging;
 

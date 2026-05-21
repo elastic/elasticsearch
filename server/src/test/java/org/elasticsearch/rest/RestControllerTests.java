@@ -41,6 +41,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -84,7 +85,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -104,6 +104,7 @@ public class RestControllerTests extends ESTestCase {
     private TestThreadPool threadPool;
     private NodeClient client;
     private Tracer tracer;
+    private HttpServerInstrumentation instrumentation;
     private LongCounter requestsCounter;
     private TelemetryProvider telemetryProvider;
     private List<RestRequest.Method> methodList;
@@ -128,10 +129,12 @@ public class RestControllerTests extends ESTestCase {
         threadPool = createThreadPool();
         client = new NoOpNodeClient(threadPool);
         tracer = mock(Tracer.class);
+        instrumentation = mock(HttpServerInstrumentation.class);
         requestsCounter = mock(LongCounter.class);
         telemetryProvider = mock(TelemetryProvider.class);
         var mockMeterRegister = mock(MeterRegistry.class);
         when(telemetryProvider.getTracer()).thenReturn(tracer);
+        when(telemetryProvider.getHttpServerInstrumentation()).thenReturn(instrumentation);
         when(telemetryProvider.getMeterRegistry()).thenReturn(mockMeterRegister);
         when(mockMeterRegister.registerLongCounter(eq(RestController.METRIC_REQUESTS_TOTAL), anyString(), anyString())).thenReturn(
             requestsCounter
@@ -316,29 +319,7 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(tracer).startTrace(
-            eq(threadContext),
-            eq(channel.request()),
-            eq("GET /"),
-            eq(
-                Map.of(
-                    "http.method",
-                    "GET",
-                    "http.request.method",
-                    "GET",
-                    "http.flavour",
-                    "1.1",
-                    "network.protocol.version",
-                    "1.1",
-                    "http.url",
-                    "/",
-                    "url.full",
-                    "/",
-                    "url.path",
-                    "/"
-                )
-            )
-        );
+        verify(instrumentation).start(eq(threadContext), eq(channel.request()), eq("/"));
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {
@@ -971,8 +952,8 @@ public class RestControllerTests extends ESTestCase {
 
         final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(tracer).startTrace(any(), any(RestRequest.class), anyString(), anyMap());
-        verify(tracer).addError(any(RestRequest.class), any(IllegalArgumentException.class));
+        verify(instrumentation).start(any(), any(RestRequest.class), anyString());
+        verify(instrumentation).recordException(any(RestRequest.class), any(IllegalArgumentException.class));
     }
 
     public void testDispatchCompatibleHandler() {

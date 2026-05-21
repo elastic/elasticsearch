@@ -12,20 +12,29 @@ package org.elasticsearch.telemetry.apm.internal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.APMHttpServerInstrumentation;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
+    private final APMHttpServerInstrumentation httpServerInstrumentation;
 
     public APMTelemetryProvider(Settings settings) {
         apmTracer = new APMTracer(settings);
         apmMeterService = new APMMeterService(settings);
+        httpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
     }
 
     @Override
     public APMTracer getTracer() {
         return apmTracer;
+    }
+
+    @Override
+    public HttpServerInstrumentation getHttpServerInstrumentation() {
+        return httpServerInstrumentation;
     }
 
     public APMMeterService getMeterService() {

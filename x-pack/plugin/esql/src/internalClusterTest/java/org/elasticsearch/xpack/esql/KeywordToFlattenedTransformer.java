@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * POC helper that rewrites every {@code keyword} field declaration in a csv-spec mapping JSON to
+ * Helper that rewrites every {@code keyword} field declaration in a csv-spec mapping JSON to
  * {@code flattened}, and wraps document source values for those fields so that they remain valid
  * input to a {@code flattened} field.
  * <p>
@@ -45,7 +45,7 @@ import java.util.Set;
  * (which it no longer is once we wrap it as {@code {"v": ...}}). Keyword fields declaring any of
  * the following parameters are passed through unchanged &mdash; they keep type {@code keyword},
  * are not added to the path set, and so neither their source values nor query references to them
- * are rewritten elsewhere in the POC pipeline. The denylist is exposed via
+ * are rewritten elsewhere in the pipeline. The denylist is exposed via
  * {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED}.
  * <ul>
  *   <li>{@code time_series_dimension} &mdash; a TSDB dimension marker that exists on
@@ -65,11 +65,21 @@ import java.util.Set;
  *       which usually does not match the destination's mapper.</li>
  *   <li>{@code script} &mdash; scripted/runtime fields. Their value is not produced from
  *       {@code _source}, so wrapping the source has no effect, and converting the type silently
- *       changes the field's semantics in ways that are not the focus of this POC.</li>
+ *       changes the field's semantics in ways that are not the focus of this test variant.</li>
  * </ul>
  * Anything else that flattened still rejects can be added to the denylist; the failure mode is
  * always the same {@code MapperParsingException} at index creation time, so new entries are easy
  * to locate from the test failure log.
+ *
+ * <h2>Caller-supplied path exclusions</h2>
+ * The overload {@link #transformMapping(String, Set)} accepts a set of dotted field paths that the
+ * caller wants to leave as {@code keyword} regardless of their declared parameters. This is the
+ * extension point used by callers that need to keep certain keyword fields intact for reasons that
+ * are not visible in the mapping itself, the canonical example being enrich-policy {@code match}
+ * fields: converting the source field to {@code flattened} breaks the enrich-policy reindex into
+ * the internal {@code .enrich-*} index (which expects a {@code keyword}), and that failure poisons
+ * the test resource loader for the rest of the JVM. Excluded paths are not added to the returned
+ * {@code keywordFieldPaths} either, so source-value wrapping for those fields is also suppressed.
  */
 public final class KeywordToFlattenedTransformer {
 
@@ -104,16 +114,30 @@ public final class KeywordToFlattenedTransformer {
     public record MappingResult(String transformedMapping, Set<String> keywordFieldPaths) {}
 
     /**
+     * Convenience overload that excludes no paths. Equivalent to
+     * {@code transformMapping(originalMapping, Set.of())}.
+     */
+    public static MappingResult transformMapping(String originalMapping) throws IOException {
+        return transformMapping(originalMapping, Set.of());
+    }
+
+    /**
      * Walks {@code originalMapping} JSON, rewrites every {@code "type":"keyword"} declaration reachable
      * from the root via {@code "properties"} chains to {@code "type":"flattened"}, and returns the
      * transformed mapping along with the dotted paths of every rewritten field.
      * <p>
-     * Multi-field sub-fields under {@code "fields"} are not rewritten — see class-level Javadoc.
+     * Multi-field sub-fields under {@code "fields"} are not rewritten &mdash; see class-level
+     * Javadoc.
      * <p>
-     * If no keyword fields are found, the original mapping JSON is returned unchanged and the path
-     * set is empty.
+     * Any field whose dotted path is in {@code excludedPaths} is left as {@code keyword} and is
+     * <em>not</em> added to {@code keywordFieldPaths}. Use this to keep specific keyword fields
+     * intact for reasons that are not encoded in the mapping itself (e.g. enrich-policy
+     * {@code match_field}s; see class-level Javadoc).
+     * <p>
+     * If no keyword fields are rewritten the original mapping JSON is returned unchanged and the
+     * path set is empty.
      */
-    public static MappingResult transformMapping(String originalMapping) throws IOException {
+    public static MappingResult transformMapping(String originalMapping, Set<String> excludedPaths) throws IOException {
         JsonNode root = MAPPER.readTree(originalMapping);
         if (root.isObject() == false) {
             return new MappingResult(originalMapping, Collections.emptySet());
@@ -123,11 +147,41 @@ public final class KeywordToFlattenedTransformer {
             return new MappingResult(originalMapping, Collections.emptySet());
         }
         Set<String> paths = new HashSet<>();
-        rewriteKeywords((ObjectNode) properties, "", paths);
+        rewriteKeywords((ObjectNode) properties, "", paths, excludedPaths);
         if (paths.isEmpty()) {
             return new MappingResult(originalMapping, Collections.emptySet());
         }
         return new MappingResult(MAPPER.writeValueAsString(root), paths);
+    }
+
+    /**
+     * Returns the dotted paths of every leaf field declared in {@code originalMapping}, regardless
+     * of declared type. The walk follows the same {@code "properties"} chain as
+     * {@link #transformMapping(String, Set)} but emits a path for every entry that has a
+     * {@code "type"} declaration, including non-keyword leaves (e.g. {@code long}, {@code ip},
+     * {@code text}, {@code geo_point}). Multi-field sub-fields under {@code "fields"} are
+     * intentionally excluded for the same reasons listed in the class-level Javadoc.
+     * <p>
+     * The motivating use case is cross-dataset scoping in
+     * {@code CsvFlattenedKeywordIT.KeywordToFlattenedStrategy}: subtracting the union of
+     * <em>non-keyword</em> paths across every dataset a query touches from the union of
+     * <em>keyword</em> paths excludes a field whose name happens to be {@code keyword} in one
+     * dataset and (say) {@code ip} in another, which would otherwise be wrapped in
+     * {@code field_extract(...)} and produce a verifier error on the dataset where the field is
+     * non-keyword.
+     */
+    public static Set<String> extractAllFieldPaths(String originalMapping) throws IOException {
+        JsonNode root = MAPPER.readTree(originalMapping);
+        if (root.isObject() == false) {
+            return Set.of();
+        }
+        JsonNode properties = root.path("properties");
+        if (properties.isObject() == false) {
+            return Set.of();
+        }
+        Set<String> paths = new HashSet<>();
+        collectFieldPaths((ObjectNode) properties, "", paths);
+        return Set.copyOf(paths);
     }
 
     /**
@@ -165,7 +219,36 @@ public final class KeywordToFlattenedTransformer {
         return modified ? MAPPER.writeValueAsString(doc) : documentJson;
     }
 
-    private static void rewriteKeywords(ObjectNode propertiesNode, String prefix, Set<String> paths) {
+    /**
+     * Walks {@code propertiesNode} (and its nested {@code properties} sub-objects) and adds the
+     * dotted path of every entry that has a {@code "type"} declaration to {@code paths}.
+     * Multi-field sub-fields under {@code "fields"} are skipped in line with the rest of this
+     * helper. The walk does not look at the type's value, so this method captures all leaf
+     * fields regardless of whether they would have been candidates for the keyword&rarr;flattened
+     * rewrite.
+     */
+    private static void collectFieldPaths(ObjectNode propertiesNode, String prefix, Set<String> paths) {
+        Iterator<Map.Entry<String, JsonNode>> it = propertiesNode.fields();
+        while (it.hasNext()) {
+            Map.Entry<String, JsonNode> entry = it.next();
+            JsonNode fieldNode = entry.getValue();
+            if (fieldNode.isObject() == false) {
+                continue;
+            }
+            ObjectNode fieldObj = (ObjectNode) fieldNode;
+            String fullPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+            JsonNode typeNode = fieldObj.get("type");
+            if (typeNode != null && typeNode.isTextual()) {
+                paths.add(fullPath);
+            }
+            JsonNode nested = fieldObj.path("properties");
+            if (nested.isObject()) {
+                collectFieldPaths((ObjectNode) nested, fullPath, paths);
+            }
+        }
+    }
+
+    private static void rewriteKeywords(ObjectNode propertiesNode, String prefix, Set<String> paths, Set<String> excludedPaths) {
         Iterator<Map.Entry<String, JsonNode>> it = propertiesNode.fields();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> entry = it.next();
@@ -180,13 +263,14 @@ public final class KeywordToFlattenedTransformer {
             if (typeNode != null
                 && typeNode.isTextual()
                 && KEYWORD_TYPE.equals(typeNode.asText())
-                && hasIncompatibleParameter(fieldObj) == false) {
+                && hasIncompatibleParameter(fieldObj) == false
+                && excludedPaths.contains(fullPath) == false) {
                 fieldObj.put("type", FLATTENED_TYPE);
                 paths.add(fullPath);
             }
             JsonNode nested = fieldObj.path("properties");
             if (nested.isObject()) {
-                rewriteKeywords((ObjectNode) nested, fullPath, paths);
+                rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths);
             }
             // Multi-fields under "fields" are intentionally skipped here; if a keyword parent has
             // a "fields" block we already refuse to rewrite the parent itself via

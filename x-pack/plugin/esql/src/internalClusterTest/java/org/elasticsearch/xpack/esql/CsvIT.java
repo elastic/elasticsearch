@@ -148,7 +148,9 @@ public class CsvIT extends ESTestCase {
         String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException;
 
         /**
-         * Returns the ES|QL query to send to the cluster. The default {@link #IDENTITY_INDEX_LOAD_STRATEGY}
+         * Returns the ES|QL query to send to the cluster, given the full {@link CsvSpecReader.CsvTestCase}
+         * for context (in particular, {@link CsvSpecReader.CsvTestCase#expectedResults} lets a variant
+         * recover the expected output column order). The default {@link #IDENTITY_INDEX_LOAD_STRATEGY}
          * returns the original query unchanged.
          * <p>
          * Implementations may throw {@link org.junit.AssumptionViolatedException} (typically via
@@ -156,7 +158,7 @@ public class CsvIT extends ESTestCase {
          * query is not relevant for the variant &mdash; for example, when no field that this variant rewrites
          * appears in the query and so re-running the spec would only re-test the unmodified behavior.
          */
-        String transformQuery(String originalQuery);
+        String transformQuery(CsvSpecReader.CsvTestCase testCase);
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
@@ -171,8 +173,8 @@ public class CsvIT extends ESTestCase {
         }
 
         @Override
-        public String transformQuery(String originalQuery) {
-            return originalQuery;
+        public String transformQuery(CsvSpecReader.CsvTestCase testCase) {
+            return testCase.query;
         }
     };
 
@@ -298,7 +300,7 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        String queryToRun = indexLoadStrategy.transformQuery(testCase.query);
+        String queryToRun = indexLoadStrategy.transformQuery(testCase);
         var request = syncEsqlQueryRequest(queryToRun);
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));

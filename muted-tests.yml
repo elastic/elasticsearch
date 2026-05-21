@@ -549,14 +549,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/149350
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
-  methods:
-  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}
-  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zst/LOCAL]}
-  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zstd/LOCAL]}
-  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz/LOCAL]}
-  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/149481
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.* [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149482
@@ -596,3 +588,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
+- class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
+  method: testBackgroundMergeCanRetainDeletedGenerationalFile
+  issue: https://github.com/elastic/elasticsearch/issues/149626

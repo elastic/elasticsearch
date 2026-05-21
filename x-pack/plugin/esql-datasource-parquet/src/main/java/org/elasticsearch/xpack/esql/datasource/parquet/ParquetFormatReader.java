@@ -897,6 +897,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
                 ? resolvedAttributes
                 : convertParquetSchemaToAttributes(parquetSchema);
+
+            // Count-only fast path: when the planner asks for zero data columns (e.g. a query
+            // that only references {@code _file.*} virtual columns or a bare {@code COUNT(*)}
+            // atop the source) and no pushdown is active on this file, walk the row group
+            // metadata and emit row-count-only pages instead of building a column iterator over
+            // the entire file schema. Skipped when any predicate path is active (record filter,
+            // FilterPredicate, or {@link ParquetPushedExpressions}) so we keep the row-group
+            // pruning and YES-conjunct re-evaluation the column iterator performs - in those
+            // cases the leak is plugged at the consumer side by
+            // {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator} releasing
+            // any surplus blocks the legacy "empty projection -> full schema" fallback emits.
+            if (projectedColumns != null
+                && projectedColumns.isEmpty()
+                && filterPredicate == null
+                && pushedExpressions == null
+                && FilterCompat.isFilteringRequired(recordFilter) == false) {
+                return new ParquetCountOnlyIterator(reader, batchSize, rowLimit);
+            }
             List<Attribute> projectedAttributes = buildProjectedAttributes(projectedColumns, attributes);
 
             MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);

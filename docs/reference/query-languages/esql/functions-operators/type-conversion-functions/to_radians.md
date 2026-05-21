@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_RADIANS` function [esql-to_radians]
 
-:::{include} ../../_snippets/functions/layout/to_radians.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_radians.md
 :::

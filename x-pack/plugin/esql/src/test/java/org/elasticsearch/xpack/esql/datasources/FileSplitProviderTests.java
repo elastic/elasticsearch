@@ -116,11 +116,15 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(2, splits.size());
-        assertEquals(Map.of("year", 2024), ((FileSplit) splits.get(0)).partitionValues());
-        assertEquals(Map.of("year", 2023), ((FileSplit) splits.get(1)).partitionValues());
+        Map<String, Object> split0Values = ((FileSplit) splits.get(0)).partitionValues();
+        assertEquals(2024, split0Values.get("year"));
+        assertTrue(split0Values.containsKey("_file.path"));
+        Map<String, Object> split1Values = ((FileSplit) splits.get(1)).partitionValues();
+        assertEquals(2023, split1Values.get("year"));
+        assertTrue(split1Values.containsKey("_file.path"));
     }
 
-    public void testNoPartitionMetadataProducesEmptyPartitionValues() {
+    public void testNoPartitionMetadataStillHasFileMetadata() {
         StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/file.parquet"), 100, Instant.EPOCH);
         FileList fileList = GlobExpander.fileListOf(List.of(e1), "s3://b/*.parquet");
 
@@ -128,7 +132,13 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
-        assertEquals(Map.of(), ((FileSplit) splits.get(0)).partitionValues());
+        Map<String, Object> values = ((FileSplit) splits.get(0)).partitionValues();
+        assertTrue(values.containsKey("_file.path"));
+        assertTrue(values.containsKey("_file.name"));
+        assertTrue(values.containsKey("_file.directory"));
+        assertTrue(values.containsKey("_file.size"));
+        assertTrue(values.containsKey("_file.modified"));
+        assertEquals(100L, values.get("_file.size"));
     }
 
     public void testEmptyFileListProducesNoSplits() {

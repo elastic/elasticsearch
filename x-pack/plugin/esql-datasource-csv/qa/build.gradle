@@ -86,6 +86,19 @@ tasks.register('syncCsvIcebergMultifileUbnFixtures', Sync) {
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn")
 }
 
+// UNION_BY_NAME KEYWORD-fallback fixture set: two CSVs with un-typed headers so the sampler
+// infers different per-file types for the `col` column (INTEGER in file A, KEYWORD in file B).
+// The reconciler must widen `col` to KEYWORD with a warning instead of throwing. Used by
+// csv-union-by-name.csv-spec to prove the end-to-end stringification path under UBN.
+tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_type_drift_a.csv', 'multifile_type_drift_b.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_type_drift")
+}
+
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
 def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
 
@@ -119,11 +132,11 @@ sourceSets.javaRestTest.resources {
 }
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures'
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

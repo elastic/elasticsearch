@@ -58,3 +58,42 @@ bob          | null
 charlie      | paris
 dave         | london
 ;
+
+// =========================================================================================
+// UNION_BY_NAME × cross-file type drift — KEYWORD fallback end-to-end (issue esql-planning#794).
+//
+// Two fixture files under iceberg-fixtures/multifile_type_drift/:
+//   multifile_type_drift_a.csv — untyped header [id, col, note]; sampler infers col:INTEGER
+//                                rows: (1, 123, alpha), (2, 456, gamma), (3, 789, delta)
+//   multifile_type_drift_b.csv — untyped header [id, col, note]; sampler infers col:KEYWORD
+//                                rows: (4, abc, beta), (5, def, epsilon), (6, ghi, zeta)
+//
+// Pre-fix this threw IllegalArgumentException at planning time ("No compatible supertype for
+// col: integer vs keyword"). With the new KEYWORD fallback the reconciler widens col to KEYWORD,
+// stringifies the INTEGER side of file A, and emits a warning header naming the conflicting
+// types and files. STRICT-mode failure is asserted by the unit tests; the spec runner has no
+// error-assertion syntax.
+// =========================================================================================
+
+multiFileUnionByNameTypeDrift
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: external_union_by_name_keyword_fallback
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+| SORT id ASC
+| LIMIT 10
+;
+warningRegex:Schema reconciliation widened columns to keyword
+warningRegex:Column \[col\].*widened to keyword
+
+id:integer | col:keyword | note:keyword
+1          | 123         | alpha
+2          | 456         | gamma
+3          | 789         | delta
+4          | abc         | beta
+5          | def         | epsilon
+6          | ghi         | zeta
+;

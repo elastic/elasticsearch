@@ -33,7 +33,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  */
 public class MvCount extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvCount", MvCount::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvCount.class).unary(MvCount::new).name("mv_count");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvCount.class)
+        .unary(MvCount::new)
+        .capabilities("flattened")
+        .name("mv_count");
 
     @FunctionInfo(
         returnType = "integer",
@@ -51,6 +54,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

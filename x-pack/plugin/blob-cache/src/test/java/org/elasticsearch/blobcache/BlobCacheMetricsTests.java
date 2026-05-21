@@ -45,7 +45,8 @@ public class BlobCacheMetricsTests extends ESTestCase {
             Math.toIntExact(ByteSizeValue.ofMb(mebiBytesSent).getBytes()),
             TimeUnit.SECONDS.toNanos(secondsTaken),
             cachePopulationReason,
-            cachePopulationSource
+            cachePopulationSource,
+            null
         );
         String threadName = NON_ES_EXECUTOR_TO_RECORD;
 

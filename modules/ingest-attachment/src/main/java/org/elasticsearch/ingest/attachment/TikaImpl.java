@@ -80,6 +80,13 @@ final class TikaImpl {
                 throw new RuntimeException("document is encrypted", e);
             }
             throw new RuntimeException(e);
+        } catch (TikaException e) {
+            if (e.getCause() instanceof IOException ioException
+                && ioException.getMessage().contains("decryption material is not compatible")) {
+                // BouncyCastle might be available (e.g. if running in FIPS mode) but we still don't support encrypted PDFs.
+                throw new RuntimeException("document is encrypted", e);
+            }
+            throw e;
         }
     }
 }

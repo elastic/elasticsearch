@@ -32,7 +32,7 @@ import java.util.List;
 
 /**
  * Builds an {@link EsqlStatement} containing a {@link PromqlCommand} logical plan
- * directly from Prometheus query_range parameters, bypassing ES|QL string construction and parsing.
+ * directly from Prometheus query parameters, bypassing ES|QL string construction and parsing.
  */
 class PromqlQueryPlanBuilder {
 
@@ -42,19 +42,41 @@ class PromqlQueryPlanBuilder {
      * Builds an {@link EsqlStatement} containing a {@link PromqlCommand} with an {@link Eval} node
      * for the {@code TO_LONG(step)} conversion used by the Prometheus response writer.
      */
-    static EsqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr) {
-        return buildStatement(query, index, startStr, endStr, stepStr, 0);
+    static EsqlStatement buildRangeStatement(String query, String index, String startStr, String endStr, String stepStr) {
+        return buildRangeStatement(query, index, startStr, endStr, stepStr, 0);
     }
 
-    static EsqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr, int limit) {
+    static EsqlStatement buildRangeStatement(String query, String index, String startStr, String endStr, String stepStr, int limit) {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseStep(Source.EMPTY, stepStr);
-
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
+        return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, limit);
+    }
 
+    static EsqlStatement buildRangeStatement(String query, String index, Instant startInstant, Instant endInstant, Duration stepDuration) {
+        Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
+        Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
+        Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
+        return buildStatement(query, index, startLiteral, endLiteral, stepLiteral, Literal.NULL, 0);
+    }
+
+    static EsqlStatement buildInstantStatement(String query, String index, Instant at) {
+        Literal timeLiteral = Literal.dateTime(Source.EMPTY, at);
+        return buildStatement(query, index, timeLiteral, timeLiteral, Literal.NULL, Literal.NULL, 0);
+    }
+
+    private static EsqlStatement buildStatement(
+        String query,
+        String index,
+        Literal startLiteral,
+        Literal endLiteral,
+        Literal stepLiteral,
+        Literal bucketsLiteral,
+        int limit
+    ) {
         IndexPattern indexPattern = new IndexPattern(Source.EMPTY, index);
         UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
             Source.EMPTY,
@@ -75,7 +97,7 @@ class PromqlQueryPlanBuilder {
             startLiteral,
             endLiteral,
             stepLiteral,
-            Literal.NULL,
+            bucketsLiteral,
             Literal.timeDuration(Source.EMPTY, DEFAULT_SCRAPE_INTERVAL),
             PrometheusQueryResponseListener.VALUE_COLUMN,
             new UnresolvedTimestamp(Source.EMPTY)

@@ -76,20 +76,20 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Mode> mode;
-        private final boolean strictColumnar;
+        private final boolean columnarIdByDefault;
 
-        Builder(boolean strictColumnar) {
+        Builder(boolean columnarIdByDefault) {
             super(NAME);
             mode = new Parameter<>(
                 "mode",
                 false,
-                () -> strictColumnar ? Mode.COLUMNAR : Mode.DEFAULT,
+                () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DEFAULT,
                 (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
                 m -> ((ProvidedIdFieldMapper) m).mode,
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
                 v -> v.toString().toLowerCase(Locale.ROOT)
             ).setSerializerCheck((includeDefaults, isConfigured, value) -> isConfigured);
-            this.strictColumnar = strictColumnar;
+            this.columnarIdByDefault = columnarIdByDefault;
         }
 
         @Override
@@ -106,9 +106,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             var mode = this.mode.getValue();
             switch (mode) {
                 case COLUMNAR:
-                    return strictColumnar ? COLUMNAR_ID_STRICT_COLUMNAR : COLUMNAR_ID;
+                    return columnarIdByDefault ? COLUMNAR_ID_STRICT_COLUMNAR : COLUMNAR_ID;
                 case DEFAULT:
-                    return strictColumnar ? DOCUMENT_ID_STRICT_COLUMNAR : DOCUMENT_ID;
+                    return columnarIdByDefault ? DOCUMENT_ID_STRICT_COLUMNAR : DOCUMENT_ID;
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
@@ -304,12 +304,12 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     private final Mode mode;
-    private final boolean strictColumnar;
+    private final boolean columnarIdByDefault;
 
-    public ProvidedIdFieldMapper(Mode mode, boolean strictColumnar) {
+    public ProvidedIdFieldMapper(Mode mode, boolean columnarIdByDefault) {
         super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
         this.mode = mode;
-        this.strictColumnar = strictColumnar;
+        this.columnarIdByDefault = columnarIdByDefault;
     }
 
     @Override
@@ -319,7 +319,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(strictColumnar);
+        Builder builder = new Builder(columnarIdByDefault);
         builder.init(this);
         return builder;
     }

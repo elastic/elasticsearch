@@ -51,7 +51,7 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean randomColumnarModePluginEnabled() {
+    protected boolean randomizeColumnarIdMode() {
         // tests assert that _id field uses stored fields
         return false;
     }

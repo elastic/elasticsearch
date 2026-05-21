@@ -167,6 +167,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
                 IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
+                IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,

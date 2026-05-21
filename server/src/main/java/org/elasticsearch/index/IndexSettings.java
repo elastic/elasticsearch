@@ -55,6 +55,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
@@ -971,6 +972,19 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.use_default_id_mode",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.isColumnar());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.
      * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled, defaults to {@code false}.
@@ -1179,7 +1193,7 @@ public final class IndexSettings {
             return Boolean.toString(disableAutoTextByDefault == false);
         },
         value -> {
-            if (value == false && FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+            if (value == false && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
                 throw new IllegalArgumentException(
                     "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
                         + " extended_doc_values_options feature flag is enabled"
@@ -1294,6 +1308,7 @@ public final class IndexSettings {
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
+    private final boolean useColumnarIdByDefault;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1504,6 +1519,7 @@ public final class IndexSettings {
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         indexDisabledByDefault = INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
+        useColumnarIdByDefault = EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() && scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
@@ -2340,6 +2356,10 @@ public final class IndexSettings {
 
     public boolean isIndexDisabledByDefault() {
         return indexDisabledByDefault;
+    }
+
+    public boolean isUseColumnarIdByDefault() {
+        return useColumnarIdByDefault;
     }
 
     /**

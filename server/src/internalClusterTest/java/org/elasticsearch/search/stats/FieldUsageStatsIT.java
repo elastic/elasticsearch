@@ -43,7 +43,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean randomColumnarModePluginEnabled() {
+    protected boolean randomizeColumnarIdMode() {
+        // test assumes that _id field uses stored fields
         return false;
     }
 

@@ -104,9 +104,8 @@ public class TopHitsIT extends ESIntegTestCase {
         return List.of(CustomScriptPlugin.class, FetchPlugin.class);
     }
 
-    @Override
-    protected boolean randomColumnarModePluginEnabled() {
-        // nested field type isn't supported
+    protected boolean randomizeColumnarIdMode() {
+        // just b/c of testNoStoredFields(...)
         return false;
     }
 

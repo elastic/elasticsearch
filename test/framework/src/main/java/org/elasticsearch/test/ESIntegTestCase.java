@@ -2828,13 +2828,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
-        if (randomColumnarModePluginEnabled()) {
-            mocks.add(RandomColumnarModePlugin.class);
+        if (randomizeColumnarIdMode()) {
+            mocks.add(RandomizeColumnarIdModePlugin.class);
         }
         return Collections.unmodifiableList(mocks);
     }
 
-    protected boolean randomColumnarModePluginEnabled() {
+    protected boolean randomizeColumnarIdMode() {
         return true;
     }
 
@@ -2870,9 +2870,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    public static final class RandomColumnarModePlugin extends Plugin {
+    public static final class RandomizeColumnarIdModePlugin extends Plugin {
 
-        private static final Logger LOGGER = LogManager.getLogger(RandomColumnarModePlugin.class);
+        private static final Logger LOGGER = LogManager.getLogger(RandomizeColumnarIdModePlugin.class);
 
         public static final Setting<Boolean> SKIP_RANDOM_COLUMNAR_MODE_SETTING = Setting.boolSetting(
             "index.skip.random_columnar_mode",
@@ -2912,9 +2912,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         return;
                     }
 
+                    LOGGER.info("randomly setting [index.mapping.use_default_id_mode] to [true]");
+                    additionalSettings.put("index.mapping.use_default_id_mode", true);
                     if (randomBoolean()) {
-                        LOGGER.info("randomly setting index.mode to columnar");
-                        additionalSettings.put("index.mode", "columnar");
                     }
                 }
             );

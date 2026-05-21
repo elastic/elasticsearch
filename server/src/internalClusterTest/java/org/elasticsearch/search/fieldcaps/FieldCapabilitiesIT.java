@@ -119,11 +119,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean randomColumnarModePluginEnabled() {
-        return false;
-    }
-
-    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();

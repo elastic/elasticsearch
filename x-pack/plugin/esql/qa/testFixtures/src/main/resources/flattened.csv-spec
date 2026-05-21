@@ -606,3 +606,205 @@ FROM flattened_otel_logs
 v:flattened
 "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;
+
+mvContains
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+
+FROM flattened_many
+| EVAL c = MV_CONTAINS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL c = MV_CONTAINS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+
+FROM flattened_many
+| WHERE id == 4
+| EVAL superset_null = MV_CONTAINS(flat_a, flat_c), subset_null = MV_CONTAINS(flat_c, flat_a)
+| KEEP id, superset_null, subset_null
+;
+
+id:integer | superset_null:boolean | subset_null:boolean
+4          | false                 | true
+;
+
+mvIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_many
+| EVAL c = MV_INTERSECTS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL c = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_many
+| WHERE id == 4
+| EVAL left_null = MV_INTERSECTS(flat_a, flat_c), right_null = MV_INTERSECTS(flat_c, flat_a)
+| KEEP id, left_null, right_null
+;
+
+id:integer | left_null:boolean | right_null:boolean
+4          | false             | false
+;
+
+mvIntersection
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+
+FROM flattened_many
+| EVAL intersection = MV_INTERSECTION(flat_a, flat_c)
+| KEEP id, intersection
+| SORT id
+;
+
+id:integer | intersection:flattened
+1          | "{""k"":""v1""}"
+2          | null
+3          | null
+4          | null
+5          | "{""k"":""same""}"
+;
+
+// MV_INTERSECTION returns the shared values; on row 3 (v1, v2, v3 all distinct),
+// [v1,v2] ∩ [v2,v3] = {v2}, showing it returns the actual overlap rather than a boolean.
+mvIntersectionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL intersection = MV_INTERSECTION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, intersection
+;
+
+id:integer | intersection:flattened
+3          | "{""k"":""v2""}"
+;
+
+// MV_CONTAINS requires *all* subset values to be present; MV_INTERSECTS only requires *any*.
+// Row 3 (v1, v2, v3 all distinct) is the distinguishing case: superset=[v1,v2],
+// second-arg=[v2,v3] shares v2 with the superset (intersects=true) but v3 is absent (contains=false).
+mvContainsVsIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL
+    contains = MV_CONTAINS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c)),
+    intersects = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, contains, intersects
+| SORT id
+;
+
+id:integer | contains:boolean | intersects:boolean
+1          | true               | true
+2          | true               | true
+3          | false              | true
+4          | false              | false
+5          | true               | true
+;
+
+// MV_UNION returns all unique values from both inputs; null is treated as an empty set.
+mvUnion
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+
+FROM flattened_many
+| EVAL union = MV_UNION(flat_a, flat_c)
+| KEEP id, union
+| SORT id
+;
+
+id:integer | union:flattened
+1          | "{""k"":""v1""}"
+2          | "[{""k"":""v1""}, {""k"":""v2""}]"
+3          | "[{""k"":""v1""}, {""k"":""v3""}]"
+4          | "{""k"":""v2""}"
+5          | "{""k"":""same""}"
+;
+
+// Row 3 (v1, v2, v3 all distinct): MV_UNION([v1,v2], [v2,v3]) = [v1,v2,v3], not [v1,v2] or [v2,v3].
+mvUnionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL union = MV_UNION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, union
+;
+
+id:integer | union:flattened
+3          | "[{""k"":""v1""}, {""k"":""v2""}, {""k"":""v3""}]"
+;

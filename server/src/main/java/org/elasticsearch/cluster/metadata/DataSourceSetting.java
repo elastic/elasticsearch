@@ -39,7 +39,7 @@ import java.util.Objects;
  *
  * <p>The value's Java type is no longer a discriminator, so plaintext values carry whatever type the
  * validator produced. The only structural invariant is that a {@code V1} value is the ciphertext
- * {@code byte[]} — the consumer-side decrypt seam reads it as such.
+ * {@code byte[]} — the consumer-side decryption step reads it as such.
  *
  * <p>Access values via {@link #rawValue()} (always returns the raw value) or {@link #nonSecretValue()}
  * (asserts {@code !secret}).
@@ -98,7 +98,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         this.encryption = Objects.requireNonNull(encryption, "encryption");
         if (encryption == EncryptionFormat.V1 && (value instanceof byte[]) == false) {
             // Not a constraint on what a secret may be — a V1 value *is* the ciphertext, which is
-            // bytes by construction. Failing here beats a ClassCastException deep in the decrypt seam.
+            // bytes by construction. Failing here beats a ClassCastException deep in the decryption step.
             throw new IllegalArgumentException(
                 "an encrypted data source setting value must be a byte[] ciphertext blob; got ["
                     + (value == null ? "null" : value.getClass().getName())
@@ -136,7 +136,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     /** Returns the value of a non-secret setting; throws if secret. */
     public Object nonSecretValue() {
         if (secret) {
-            throw new IllegalStateException("secret setting — use rawValue() and route through the decrypt helper");
+            throw new IllegalStateException("internal error: cannot read a secret data source setting as plaintext");
         }
         return value;
     }
@@ -186,8 +186,9 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int v = value instanceof byte[] bytes ? Arrays.hashCode(bytes) : Objects.hashCode(value);
-        return Objects.hash(v, secret, encryption);
+        // byte[].hashCode() is identity-based — use Arrays.hashCode for content equality.
+        int valueHash = value instanceof byte[] bytes ? Arrays.hashCode(bytes) : Objects.hashCode(value);
+        return Objects.hash(valueHash, secret, encryption);
     }
 
     @Override

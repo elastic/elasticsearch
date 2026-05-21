@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
@@ -23,17 +25,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Master-side encrypt seam for data-source secret values. Wraps the optional {@link EncryptionService}
- * binding and produces the on-wire {@code byte[]} blob shape (the binary {@code writeTo} output of
- * an {@link EncryptedData}) for each secret-flagged setting that arrives with a plaintext {@code String}.
+ * Master-side encryption step for data-source secret values. Wraps the optional
+ * {@link EncryptionService} binding; callers hand it the settings of a PUT and get back what
+ * should be stored.
  *
- * <p>When the wrapped service is {@code null} (security plugin disabled or PEK feature flag off),
- * {@link #isAvailable()} returns {@code false} and callers are expected to take the plaintext-fallback
- * path on the producer side. {@link #encrypt(Map)} is only safe to call when {@link #isAvailable()};
- * the method short-circuits with an {@link IllegalStateException} if invoked without a service to
- * encourage callers to gate.
+ * <p>Two paths:
+ * <ul>
+ *   <li><b>service bound</b> — every plaintext-String secret is replaced by its
+ *       {@link EncryptedData} ciphertext blob; non-secret values, null-valued secrets, and
+ *       already-encrypted carriers pass through unchanged.
+ *   <li><b>no service bound</b> — settings pass through unchanged. If any of them is a real
+ *       secret being persisted as plaintext, a {@code WARN} naming the data source is logged so
+ *       the operator can see exactly which credentials hit the disk in clear text.
+ * </ul>
+ *
+ * <p>The constructor accepts a {@code null} service so callers don't have to guard at construction
+ * time; the {@link #apply(String, Map)} method does the right thing in both cases.
  */
 public final class DataSourceEncryption {
+
+    private static final Logger logger = LogManager.getLogger(DataSourceEncryption.class);
 
     @Nullable
     private final EncryptionService service;
@@ -42,59 +53,79 @@ public final class DataSourceEncryption {
         this.service = service;
     }
 
-    public boolean isAvailable() {
-        return service != null;
-    }
-
     /**
-     * Encrypt every secret-flagged plaintext-String value in {@code settings}. Non-secret values pass
-     * through unchanged. Already-encrypted carriers (cluster-state replay paths) also pass through.
-     *
-     * @throws IllegalStateException if no service is bound; callers must gate on {@link #isAvailable()}.
+     * Apply the encryption step to {@code settings}. Returns the input map unchanged when no
+     * encryption service is bound; otherwise returns a new map with every plaintext secret
+     * replaced by its ciphertext carrier. When no service is bound and at least one real secret
+     * is being persisted, logs a {@code WARN} naming {@code dataSourceName} so the operator can
+     * see exactly which credentials are stored as plaintext.
      */
-    public Map<String, DataSourceSetting> encrypt(Map<String, DataSourceSetting> settings) {
+    public Map<String, DataSourceSetting> apply(String dataSourceName, Map<String, DataSourceSetting> settings) {
         if (service == null) {
-            throw new IllegalStateException("encrypt() called without a bound EncryptionService; gate on isAvailable()");
+            if (containsRealSecret(settings)) {
+                logger.warn(
+                    "credentials for data source [{}] are stored as plaintext because no encryption service is available",
+                    dataSourceName
+                );
+            }
+            return settings;
         }
         Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
         for (var entry : settings.entrySet()) {
+            String key = entry.getKey();
             DataSourceSetting setting = entry.getValue();
-            if (setting.secret() == false) {
-                result.put(entry.getKey(), setting);
-                continue;
-            }
-            Object raw = setting.rawValue();
-            if (raw == null) {
-                result.put(entry.getKey(), setting);
-                continue;
-            }
-            if (raw instanceof String plaintext) {
-                byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
-                try {
-                    EncryptedData encrypted = service.encrypt(bytes);
-                    BytesStreamOutput out = new BytesStreamOutput();
-                    try {
-                        encrypted.writeTo(out);
-                    } catch (IOException e) {
-                        throw new ElasticsearchStatusException(
-                            "failed to serialize encrypted value for setting [" + entry.getKey() + "]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        );
-                    }
-                    result.put(
-                        entry.getKey(),
-                        new DataSourceSetting(BytesReference.toBytes(out.bytes()), true, DataSourceSetting.EncryptionFormat.V1)
-                    );
-                } finally {
-                    Arrays.fill(bytes, (byte) 0);
-                }
+            if (needsEncryption(setting)) {
+                result.put(key, encryptOne(key, (String) setting.rawValue()));
             } else {
-                // Not a plaintext String to encrypt — already a V1 ciphertext carrier (cluster-state
-                // replay). Pass through unchanged.
-                result.put(entry.getKey(), setting);
+                result.put(key, setting);
             }
         }
         return result;
+    }
+
+    /** Only fresh plaintext String secrets need encrypting; non-secrets, null, and existing ciphertext byte[] pass through. */
+    private static boolean needsEncryption(DataSourceSetting setting) {
+        return setting.secret() && setting.rawValue() instanceof String;
+    }
+
+    /** True if any setting is a secret with an actual plaintext value attached. */
+    private static boolean containsRealSecret(Map<String, DataSourceSetting> settings) {
+        for (var setting : settings.values()) {
+            if (setting.secret() && setting.rawValue() != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Encrypt one plaintext into a freshly-built ciphertext-carrying setting. The intermediate
+     * UTF-8 byte buffer is zeroed in {@code finally} so the plaintext does not linger in JVM
+     * memory beyond this method.
+     */
+    private DataSourceSetting encryptOne(String key, String plaintext) {
+        byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
+        try {
+            EncryptedData encrypted = service.encrypt(bytes);
+            byte[] blob = serializeCarrier(encrypted, key);
+            return new DataSourceSetting(blob, true, DataSourceSetting.EncryptionFormat.V1);
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
+        }
+    }
+
+    /** Render the upstream {@link EncryptedData} primitive into its native byte representation. */
+    private static byte[] serializeCarrier(EncryptedData encrypted, String key) {
+        BytesStreamOutput out = new BytesStreamOutput();
+        try {
+            encrypted.writeTo(out);
+        } catch (IOException e) {
+            throw new ElasticsearchStatusException(
+                "failed to serialize encrypted value for setting [" + key + "]",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e
+            );
+        }
+        return BytesReference.toBytes(out.bytes());
     }
 }

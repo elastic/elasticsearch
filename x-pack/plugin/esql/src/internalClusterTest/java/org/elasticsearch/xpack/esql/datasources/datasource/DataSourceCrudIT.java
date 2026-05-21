@@ -138,7 +138,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("secret-prefixed setting marked secret", secret.secret(), equalTo(true));
         assertThat("secret value must be stored as encrypted byte[] blob", secret.rawValue(), instanceOf(byte[].class));
         byte[] blob = (byte[]) secret.rawValue();
-        assertThat("ds reports encrypted state", ds.encryptionState(), equalTo("encrypted"));
 
         // E2E round-trip through DataSourceCredentials.decryptInPlace — the seam the connector boundary uses.
         // Proves: PUT encrypts → cluster state holds byte[] blob → projection wraps it as EncryptedSecret

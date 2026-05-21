@@ -236,7 +236,7 @@ public final class DatasetRewriter {
 
     /**
      * Parent settings overlaid by dataset settings. An encrypted secret is forwarded wrapped in an
-     * {@link EncryptedSecret} so the data-node decrypt seam recognizes it by type rather than by
+     * {@link EncryptedSecret} so the data-node decryption step recognizes it by type rather than by
      * inferring from the value's shape; a plaintext secret and non-secrets pass through as-is.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {

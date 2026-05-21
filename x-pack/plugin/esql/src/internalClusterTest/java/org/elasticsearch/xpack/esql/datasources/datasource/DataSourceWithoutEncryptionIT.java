@@ -19,7 +19,6 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -41,7 +40,7 @@ public class DataSourceWithoutEncryptionIT extends ESIntegTestCase {
         return List.of(DataSourceCrudIT.LocalStateDataSource.class);
     }
 
-    public void testPutWithSecretStoresPlaintextAndReportsState() throws Exception {
+    public void testPutWithSecretStoresPlaintext() throws Exception {
         final String dsName = "no_encryption_secret";
         assertAcked(
             client().execute(
@@ -61,21 +60,5 @@ public class DataSourceWithoutEncryptionIT extends ESIntegTestCase {
         assertTrue("secret flag preserved", secret.secret());
         assertThat("secret value stored as plaintext String when no service is bound", secret.rawValue(), instanceOf(String.class));
         assertEquals("plaintext value preserved verbatim", "AKIA_plaintext", secret.rawValue());
-        assertThat("ds reports plaintext state", ds.encryptionState(), equalTo("plaintext"));
-    }
-
-    public void testPutWithNoSecretsSucceedsSilently() throws Exception {
-        // Non-secret-only PUTs don't trigger the plaintext warning (no secrets to be at risk).
-        final String dsName = "no_encryption_no_secret";
-        assertAcked(
-            client().execute(PutDataSourceAction.INSTANCE, DataSourceCrudIT.putDataSourceRequest(dsName, Map.of("region", "us-east-1")))
-                .get()
-        );
-        GetDataSourceAction.Response resp = client().execute(
-            GetDataSourceAction.INSTANCE,
-            new GetDataSourceAction.Request(TEST_TIMEOUT, new String[] { dsName })
-        ).get();
-        DataSource ds = resp.getDataSources().iterator().next();
-        assertThat("ds with no secrets reports no_secrets state", ds.encryptionState(), equalTo("no_secrets"));
     }
 }

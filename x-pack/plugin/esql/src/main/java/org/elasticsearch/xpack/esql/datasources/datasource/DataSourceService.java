@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Orchestrates create / replace / delete of data sources in cluster state. */
 public class DataSourceService {
@@ -55,16 +54,6 @@ public class DataSourceService {
     protected final ClusterService clusterService;
     private final Map<String, DataSourceValidator> validatorsByType;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
-
-    /**
-     * CAS-guarded so the "encryption unavailable" warning logs at most once per master-instance
-     * lifetime. The flag is per-{@code DataSourceService}, which is per-node; the warning body runs
-     * inside the CAS task body, which only executes on the elected master. After a master failover
-     * the new master's flag starts at {@code false} and the warning re-fires on its first plaintext
-     * PUT — which is the right shape for an audit signal (operators see it every time a fresh master
-     * takes over a non-encrypting cluster).
-     */
-    private final AtomicBoolean plaintextWarningLogged = new AtomicBoolean(false);
 
     private volatile int maxDataSourcesCount;
 
@@ -97,14 +86,12 @@ public class DataSourceService {
     }
 
     /**
-     * Create or replace a data source. When {@code encryption.isAvailable()}, every secret value is
-     * encrypted master-side before being committed to cluster state. When it is not available (e.g. the
-     * cluster runs without {@code xpack.security.enabled} or with the PEK feature flag off), secret
-     * values are committed as plaintext and a single loud warning is logged at most once per
-     * master-instance lifetime (re-fires after a master failover; see {@link #plaintextWarningLogged}).
-     * The decrypt seam ({@code DataSourceCredentials.decryptInPlace}) still refuses to hand the
-     * connector an encrypted blob without a key, so the only asymmetric mode is "unbound at PUT, then
-     * plaintext at FROM" — which is what you'd expect on a dev / no-security cluster.
+     * Create or replace a data source. {@code encryption} owns both halves of the encryption story:
+     * when a service is bound it encrypts every secret master-side; when it isn't, secrets are stored
+     * as plaintext and a {@code WARN} naming the data source is logged so the operator sees exactly
+     * which credentials hit the disk in clear text. The consumer-side decryption step still refuses
+     * to hand the connector an encrypted blob without a key (the only asymmetric mode is "unbound at
+     * PUT, then plaintext at FROM" — what you'd expect on a dev / no-security cluster).
      */
     public void putDataSource(
         ProjectId projectId,
@@ -126,20 +113,7 @@ public class DataSourceService {
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
-                final Map<String, DataSourceSetting> stored;
-                if (encryption.isAvailable()) {
-                    stored = encryption.encrypt(validated.settings());
-                } else {
-                    if (hasSecret(validated.settings()) && plaintextWarningLogged.compareAndSet(false, true)) {
-                        logger.warn(
-                            "data-source secrets are being stored as PLAINTEXT in cluster state because "
-                                + "no encryption service is bound on this node. To encrypt at rest, enable xpack.security "
-                                + "and the primary-encryption-key feature flag. This message is logged at most once "
-                                + "per master-instance lifetime."
-                        );
-                    }
-                    stored = validated.settings();
-                }
+                Map<String, DataSourceSetting> stored = encryption.apply(validated.name(), validated.settings());
                 final DataSource dataSource = new DataSource(validated.name(), validated.type(), validated.description(), stored);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(dataSource.name(), dataSource);
@@ -151,13 +125,6 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
-    }
-
-    private static boolean hasSecret(Map<String, DataSourceSetting> settings) {
-        for (DataSourceSetting s : settings.values()) {
-            if (s.secret() && s.rawValue() != null) return true;
-        }
-        return false;
     }
 
     /** Delete data sources by name. Fails with 409 if any dataset references one; 404 if a name doesn't exist. */

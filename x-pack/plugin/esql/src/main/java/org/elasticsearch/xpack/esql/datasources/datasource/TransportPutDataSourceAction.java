@@ -28,14 +28,14 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
 
     // Optional Guice injection. When unset (security plugin absent or PEK feature flag off),
     // putDataSource stores secrets as plaintext and logs a once-per-master-lifetime WARN; the
-    // data-node decrypt seam still refuses to serve an encrypted blob without a key.
+    // data-node decryption step still refuses to serve an encrypted blob without a key.
     private volatile EncryptionService encryptionService;
 
     @Inject(optional = true)
     public void setEncryptionService(EncryptionService encryptionService) {
         this.encryptionService = encryptionService;
         // Fires per Guice action construction on every node loading ESQL — populates the data-node
-        // decrypt seam (DataSourceCredentials) before any FROM <dataset> reaches the connector.
+        // decryption step (DataSourceCredentials) before any FROM <dataset> reaches the connector.
         DataSourceCredentials.initialize(encryptionService);
     }
 

@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Decrypts secret values at the catalog-invocation seam. {@link #initialize} runs once per node at
+ * Decrypts secret values at the catalog-invocation point. {@link #initialize} runs once per node at
  * Guice setter time (from {@code TransportPutDataSourceAction.setEncryptionService}); {@link #decryptInPlace}
  * runs on every connector call to materialize plaintext from encrypted blobs just before the connector
  * consumes them.
@@ -34,7 +34,7 @@ import java.util.Map;
  *
  * <p>TODO(#149194): the static singleton holder mirrors the same per-project mismatch the linked issue
  * flags inside {@code PrimaryEncryptionKeyService}. When that lands and the service becomes
- * project-aware, replace this static seam with a per-call lookup that carries {@code ProjectId} context.
+ * project-aware, replace this static holder with a per-call lookup that carries {@code ProjectId} context.
  */
 public final class DataSourceCredentials {
 

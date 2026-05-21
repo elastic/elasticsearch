@@ -11,9 +11,9 @@ import org.elasticsearch.cluster.metadata.DataSourceSetting;
 
 /**
  * Marks an encrypted secret as it travels in the transient connector-config {@code Map<String, Object>}
- * from the coordinator to the data-node decrypt seam.
+ * from the coordinator to the data-node decryption step.
  *
- * <p>This type exists so the decrypt seam never has to infer "is this encrypted" from a value's
+ * <p>This type exists so the decryption step never has to infer "is this encrypted" from a value's
  * runtime class. A bare {@code byte[]} in the config map would be ambiguous against a legitimate
  * binary plaintext value; an {@code EncryptedSecret} is unambiguous because it is constructed in
  * exactly one place (the settings projection for an encrypted setting) and nothing else ever

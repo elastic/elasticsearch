@@ -386,7 +386,7 @@ public final class DataSourceModule implements Closeable {
      * Lazy table catalog wrapper whose canHandle() uses heuristics (S3 scheme + no file extension)
      * without loading Iceberg classes.
      *
-     * <p>Decrypt seam: every config-map entry exposed by this wrapper passes through
+     * <p>Decryption step: every config-map entry exposed by this wrapper passes through
      * {@link DataSourceCredentials#decryptInPlace(java.util.Map)} before delegation. The wrapper
      * deliberately exposes only the {@link ExternalSourceFactory} surface — direct callers of the
      * underlying {@link org.elasticsearch.xpack.esql.datasources.spi.TableCatalog#planScan(String, java.util.Map, java.util.List)}

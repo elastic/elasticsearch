@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.Action;
+import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -22,14 +23,20 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -612,12 +619,14 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         File rootDir = project.getRootDir();
         if (mavenModule.isEmpty() == false) {
-            // Maven JAR artifacts (JDBC, stable API): use a plain DefaultTask so that
+            // Maven JAR artifacts (JDBC, stable API): use a dedicated task type so that
             // getOutputs().getFiles() contains exactly the downloaded JAR. A Copy task's
             // implicit @OutputDirectory would also appear in the output file set, causing
             // JarApiComparisonTask's single-jar assertion to fail with both the JAR name
             // and the parent directory name ("distributions") in the set.
-            project.getTasks().register(bwcTaskName, task -> {
+            // A typed task class also avoids Configuration Cache issues: a plain
+            // DefaultTask doLast lambda cannot capture a Configuration object.
+            project.getTasks().register(bwcTaskName, DownloadMavenJarTask.class, task -> {
                 task.doFirst(
                     t -> t.getLogger()
                         .lifecycle(
@@ -628,25 +637,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                         )
                 );
                 task.dependsOn("writeDraRefspec");
-                task.getInputs().files(draConfig).withPropertyName("draJar");
+                task.getDraJar().from(draConfig);
                 task.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
-                task.getOutputs().file(projectArtifact.distFile);
+                task.getOutputJar().set(projectArtifact.distFile);
                 task.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", t -> buildParams.getCi() == false);
-                task.doLast(t -> {
-                    projectArtifact.distFile.getParentFile().mkdirs();
-                    File src = draConfig.getSingleFile();
-                    try {
-                        Files.copy(src.toPath(), projectArtifact.distFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    if (projectArtifact.distFile.exists() == false) {
-                        Path relativeOutputPath = rootDir.toPath().relativize(projectArtifact.distFile.toPath());
-                        throw new InvalidUserDataException(
-                            "Downloading %s from DRA didn't produce expected artifact [%s].".formatted(bwcVersion.get(), relativeOutputPath)
-                        );
-                    }
-                });
             });
         } else {
             // Distribution archives: use a Copy task which handles tar.gz/zip extraction
@@ -749,6 +743,37 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         DistributionProjectArtifact(File distFile, File expandedDistDir) {
             this.distFile = distFile;
             this.expandedDistDir = expandedDistDir;
+        }
+    }
+
+    /**
+     * Downloads a single Maven JAR artifact from the DRA snapshot repository into the declared
+     * output file location.
+     *
+     * <p>Using a dedicated task type (rather than {@link Copy}) ensures that
+     * {@code getOutputs().getFiles()} contains exactly the one downloaded JAR, without the
+     * implicit {@code @OutputDirectory} that a {@code Copy} task registers, which would break
+     * {@link JarApiComparisonTask}'s single-jar assertion.
+     *
+     * <p>Declaring {@code draJar} as an abstract {@link ConfigurableFileCollection} property
+     * (rather than capturing the {@link org.gradle.api.artifacts.Configuration} in a lambda)
+     * also keeps this task compatible with Gradle's Configuration Cache.
+     */
+    public abstract static class DownloadMavenJarTask extends DefaultTask {
+
+        @InputFiles
+        @PathSensitive(PathSensitivity.NONE)
+        public abstract ConfigurableFileCollection getDraJar();
+
+        @OutputFile
+        public abstract RegularFileProperty getOutputJar();
+
+        @TaskAction
+        public void download() throws IOException {
+            File src = getDraJar().getSingleFile();
+            File dest = getOutputJar().getAsFile().get();
+            dest.getParentFile().mkdirs();
+            Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
     }
 }

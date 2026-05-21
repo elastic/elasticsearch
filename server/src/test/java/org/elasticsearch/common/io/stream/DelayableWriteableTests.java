@@ -187,9 +187,7 @@ public class DelayableWriteableTests extends ESTestCase {
         assertThat(compressed.uncompressedSize(), equalTo(expectedUncompressed));
         assertThat((long) compressed.bytes().length(), lessThan(compressed.uncompressedSize()));
 
-        try (
-            StreamInput in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(compressed.bytes().streamInput())
-        ) {
+        try (StreamInput in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(compressed.bytes().streamInput())) {
             in.setTransportVersion(version);
             assertThat(new Example(in), equalTo(e));
         }

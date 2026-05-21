@@ -77,6 +77,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -138,6 +140,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
+    // Per-label running totals, kept in lock-step with queryConstructionMemoryUsed so that releaseQueryConstructionMemory() can decrement
+    // the circuit breaker with the original labels and keep the es.breaker.memory.held per-category gauge balanced.
+    private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -817,9 +822,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (delta > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
         } else if (delta < 0) {
-            circuitBreaker.addWithoutBreaking(delta);
+            // Use the labeled release variant so es.breaker.memory.held{category=label} stays balanced.
+            circuitBreaker.addWithoutBreaking(delta, label);
         }
-        queryConstructionMemoryUsed.addAndGet(delta);
+        if (delta != 0) {
+            queryConstructionMemoryByLabel.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(delta);
+            queryConstructionMemoryUsed.addAndGet(delta);
+        }
         if (held > 0 && CB_RESERVATION_LOGGER.isDebugEnabled()) {
             CB_RESERVATION_LOGGER.debug(
                 "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
@@ -839,11 +848,24 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     /**
      * Release all accumulated query construction memory back to the circuit breaker.
+     * <p>
+     * Each label's accumulated bytes are released via the category-aware
+     * {@link CircuitBreaker#addWithoutBreaking(long, String)} so the {@code es.breaker.memory.held} per-category gauge nets to zero
+     * across the request lifetime.
      */
     public void releaseQueryConstructionMemory() {
-        long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
-        if (memoryToRelease > 0 && circuitBreaker != null) {
-            circuitBreaker.addWithoutBreaking(-memoryToRelease);
+        if (circuitBreaker == null) {
+            queryConstructionMemoryUsed.set(0);
+            queryConstructionMemoryByLabel.clear();
+            return;
         }
+        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+            long held = entry.getValue().getAndSet(0);
+            if (held != 0) {
+                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+            }
+        }
+        queryConstructionMemoryByLabel.clear();
+        queryConstructionMemoryUsed.set(0);
     }
 }

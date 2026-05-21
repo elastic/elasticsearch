@@ -301,7 +301,8 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
                 context.getCircuitBreaker()
             );
             reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
-            context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + fieldName);
+            // Reservation and swap below intentionally use the same label so es.breaker.memory.held{category} is balanced per label.
+            context.addCircuitBreakerMemory(reservation, "regexp:" + fieldName);
             query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
         } else {
             query = method == null

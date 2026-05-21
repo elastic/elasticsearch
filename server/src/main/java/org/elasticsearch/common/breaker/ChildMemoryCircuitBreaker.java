@@ -13,10 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
-import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
@@ -34,21 +36,26 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final HierarchyCircuitBreakerService parent;
     private final String name;
     private final LongCounter trippedCountMeter;
+    private final LongCounter memoryReservedMeter;
+    private final LongUpDownCounter memoryHeldMeter;
 
     public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
+    public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "category";
+    /** Bucket used by {@link #addWithoutBreaking(long)} (the unlabeled release variant) when reporting to {@code es.breaker.memory.held}. */
+    public static final String UNCATEGORIZED_RELEASE = "uncategorized";
 
     /**
      * Create a circuit breaker that will break if the number of estimated
      * bytes grows above the limit. All estimations will be multiplied by
      * the given overheadConstant. Uses the given oldBreaker to initialize
      * the starting offset.
-     * @param trippedCountMeter the counter used to report the tripped count metric
+     * @param metrics the metrics container used to report trip count and reserved-bytes metrics
      * @param settings settings to configure this breaker
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(
-        LongCounter trippedCountMeter,
+        CircuitBreakerMetrics metrics,
         BreakerSettings settings,
         Logger logger,
         HierarchyCircuitBreakerService parent,
@@ -62,18 +69,24 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.logger = logger;
         logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
-        this.trippedCountMeter = trippedCountMeter;
+        this.trippedCountMeter = metrics.getTripCount();
+        this.memoryReservedMeter = metrics.getMemoryReservedTotal();
+        this.memoryHeldMeter = metrics.getMemoryHeld();
     }
 
     /**
-     * Method used to trip the breaker, delegates to the parent to determine
-     * whether to trip the breaker or not
+     * Method used to trip the breaker, delegates to the parent to determine whether to trip the breaker or not. The {@code category}
+     * metric attribute is set to {@code fieldName} verbatim; call sites are responsible for keeping that label low-cardinality if they
+     * want the metric to be aggregatable.
      */
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        this.trippedCountMeter.incrementBy(1L, Collections.singletonMap(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name));
+        this.trippedCountMeter.incrementBy(
+            1L,
+            Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, fieldName)
+        );
         final String message = "["
             + this.name
             + "] Data too large, data for ["
@@ -95,10 +108,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     /**
-     * Add a number of bytes, tripping the circuit breaker if the aggregated
-     * estimates are above the limit. Automatically trips the breaker if the
-     * memory limit is set to 0. Will never trip the breaker if the limit is
-     * set to -1, but can still be used to aggregate estimations.
+     * Add a number of bytes, tripping the circuit breaker if the aggregated estimates are above the limit. Automatically trips the breaker
+     * if the memory limit is set to 0. Will never trip the breaker if the limit is set to -1, but can still be used to aggregate
+     * estimations.
+     * <p>
+     * When the addition is admitted (positive bytes, breaker did not trip, parent breaker did not trip), the bytes are also reported to
+     * {@code es.breaker.memory.reserved.total} (counter) and {@code es.breaker.memory.held} (up-down counter / gauge) with the
+     * {@code category} attribute set to {@code label} verbatim. Callers should keep that label low-cardinality (avoid embedding field
+     * names, shard ids, or other dynamic content) so the metrics stay aggregatable.
+     *
      * @param bytes number of bytes to add to the breaker
      */
     @Override
@@ -125,11 +143,16 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         try {
             parent.checkParentLimit((long) (bytes * overheadConstant), label);
         } catch (CircuitBreakingException e) {
-            // If the parent breaker is tripped, this breaker has to be
-            // adjusted back down because the allocation is "blocked" but the
-            // breaker has already been incremented
-            this.addWithoutBreaking(-bytes);
+            // If the parent breaker is tripped, this breaker has to be adjusted back down because the allocation is "blocked" but the
+            // breaker has already been incremented. The per-category held gauge has not been touched yet (we update it only after the
+            // parent check succeeds), so the rollback must not decrement it either - use the meter-agnostic helper.
+            this.adjustUsedBytes(-bytes);
             throw e;
+        }
+        if (bytes > 0) {
+            final Map<String, Object> attrs = Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label);
+            this.memoryReservedMeter.incrementBy(bytes, attrs);
+            this.memoryHeldMeter.add(bytes, attrs);
         }
         assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
     }
@@ -195,11 +218,37 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      *
      * Also does not check with the parent breaker to see if the parent limit
      * has been exceeded.
+     * <p>
+     * Updates {@code es.breaker.memory.held} under {@code category="uncategorized"}. Use {@link #addWithoutBreaking(long, String)} when
+     * the corresponding admit was labeled so that the per-category gauge stays balanced.
      *
      * @param bytes number of bytes to add to the breaker
      */
     @Override
     public void addWithoutBreaking(long bytes) {
+        adjustUsedBytes(bytes);
+        this.memoryHeldMeter.add(
+            bytes,
+            Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, UNCATEGORIZED_RELEASE)
+        );
+    }
+
+    /**
+     * Category-aware variant of {@link #addWithoutBreaking(long)} - records the delta on {@code es.breaker.memory.held} under
+     * {@code category=label}, so that an admit / release pair sharing the same label cancels out on the per-category gauge.
+     */
+    @Override
+    public void addWithoutBreaking(long bytes, String label) {
+        adjustUsedBytes(bytes);
+        this.memoryHeldMeter.add(bytes, Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
+    }
+
+    /**
+     * Meter-agnostic helper that bumps the internal {@code used} counter only. Used by the parent-trip rollback path in
+     * {@link #addEstimateBytesAndMaybeBreak(long, String)} where the per-category held gauge has not yet been incremented and therefore
+     * must not be decremented.
+     */
+    private void adjustUsedBytes(long bytes) {
         long u = used.addAndGet(bytes);
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u);

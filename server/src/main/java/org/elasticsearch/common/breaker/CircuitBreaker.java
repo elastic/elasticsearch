@@ -78,6 +78,12 @@ public interface CircuitBreaker {
 
     /**
      * Add bytes to the breaker and trip if the that puts breaker over the limit.
+     * <p>
+     * The {@code label} is used both as the human-readable identifier embedded in the resulting {@link CircuitBreakingException} and as
+     * the {@code category} attribute on the {@code es.breaker.memory.reserved.total}, {@code es.breaker.trip.total} and
+     * {@code es.breaker.memory.held} metrics. Callers should keep the label low-cardinality (avoid embedding field names, shard ids, or
+     * other dynamic content) so those metrics stay aggregatable.
+     *
      * @param bytes number of bytes to add
      * @param label thing requesting the bytes being added that is included in
      *              the exception if the breaker is tripped
@@ -85,9 +91,22 @@ public interface CircuitBreaker {
     void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
 
     /**
-     * Add bytes to the circuit breaker without tripping.
+     * Add bytes to the circuit breaker without tripping. Releases (negative {@code bytes}) made through this overload are reported on the
+     * {@code es.breaker.memory.held} gauge under {@code category="uncategorized"}. Prefer {@link #addWithoutBreaking(long, String)} when
+     * the caller knows the label that was used at admit time, so the per-category gauge stays balanced.
      */
     void addWithoutBreaking(long bytes);
+
+    /**
+     * Category-aware variant of {@link #addWithoutBreaking(long)}. The {@code label} is used as the {@code category} attribute on the
+     * {@code es.breaker.memory.held} gauge so that admit and release can balance out per sub-system.
+     * <p>
+     * The default implementation drops the label and delegates to {@link #addWithoutBreaking(long)}, which is safe for breakers that do
+     * not maintain the held gauge (e.g. noop or test breakers).
+     */
+    default void addWithoutBreaking(long bytes, String label) {
+        addWithoutBreaking(bytes);
+    }
 
     /**
      * @return the currently used bytes the breaker is tracking

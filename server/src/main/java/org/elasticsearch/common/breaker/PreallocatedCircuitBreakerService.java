@@ -128,19 +128,36 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
 
         @Override
         public void addWithoutBreaking(long bytes) {
+            addWithoutBreakingInternal(bytes, null);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes, String label) {
+            addWithoutBreakingInternal(bytes, label);
+        }
+
+        private void addWithoutBreakingInternal(long bytes, String label) {
             if (closed) {
                 throw new IllegalStateException("already closed");
             }
             if (preallocationUsed == preallocated) {
                 // Preallocation buffer was full before this request
-                next.addWithoutBreaking(bytes);
+                if (label == null) {
+                    next.addWithoutBreaking(bytes);
+                } else {
+                    next.addWithoutBreaking(bytes, label);
+                }
                 return;
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 // This request filled up the buffer
                 preallocationUsed = preallocated;
-                next.addWithoutBreaking(newUsed - preallocated);
+                if (label == null) {
+                    next.addWithoutBreaking(newUsed - preallocated);
+                } else {
+                    next.addWithoutBreaking(newUsed - preallocated, label);
+                }
                 return;
             }
             // This is the fast case. No volatile reads or writes here, ma!

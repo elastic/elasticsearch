@@ -8,3 +8,4 @@ steps:
       machineType: n4-custom-32-98304
       diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
+      preemptible: true

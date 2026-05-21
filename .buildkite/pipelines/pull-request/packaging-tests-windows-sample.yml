@@ -21,5 +21,6 @@ steps:
           machineType: n4-standard-16
           diskType: hyperdisk-balanced
           diskSizeGb: 350
+          preemptible: true
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

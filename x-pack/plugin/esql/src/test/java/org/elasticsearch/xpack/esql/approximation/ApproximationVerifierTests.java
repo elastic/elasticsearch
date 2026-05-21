@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Arrays;
 import java.util.List;
@@ -80,6 +83,18 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         assertError(
             "FROM test | STATS COUNT() | FORK (WHERE true) (WHERE true)",
             equalTo("line 1:29: approximation not supported: query with [FORK (WHERE true) (WHERE true)] cannot be approximated")
+        );
+    }
+
+    public void testVerify_nestedSubqueries() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        // We need the plan before optimization here, because otherwise the verification exception
+        // "Nested subqueries are not supported" is thrown at the end of logical optimization.
+        LogicalPlan plan = EsqlTestUtils.analyzer().addDefaultIndex().query("FROM test, (FROM test, (FROM test)) | STATS COUNT()");
+        VerificationException exception = assertThrows(VerificationException.class, () -> ApproximationVerifier.verifyPlanOrThrow(plan));
+        assertThat(
+            exception.getMessage(),
+            equalTo("line 1:18: approximation not supported: query with multiple or nested forks or subqueries cannot be approximated")
         );
     }
 

@@ -32,6 +32,11 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
     private static final DefaultVectorScorerFactory FALLBACK = new DefaultVectorScorerFactory();
 
     @Override
+    public boolean usesNative() {
+        return false;
+    }
+
+    @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);

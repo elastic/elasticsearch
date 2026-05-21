@@ -685,7 +685,7 @@ public class DesiredBalanceComputer {
                     "computation converged for input index [{}] with unassigned shard [{}] due to allocation decision {}",
                     inputIndex,
                     lastTrackedUnassignedShard,
-                    org.elasticsearch.common.Strings.toString(
+                    org.elasticsearch.common.Strings.toTruncatedString(
                         p -> ChunkedToXContentHelper.object("node_allocation_decision", shardAllocationDecision.toXContentChunked(p))
                     )
                 );

@@ -4,36 +4,50 @@
 
 without_single_dimension
 required_capability: esql_without_grouping
-TS k8s 
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod) 
-| SORT total_cost;
+// tag::docsWithoutSingleDimension[]
+TS k8s
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod)
+| SORT total_cost
+// end::docsWithoutSingleDimension[]
+;
 
+// tag::docsWithoutSingleDimension-result[]
 total_cost:double | _timeseries:keyword
 15.875            | "{""cluster"":""staging"",""region"":""us""}"
 18.625            | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
 26.5              | "{""cluster"":""qa""}"
+// end::docsWithoutSingleDimension-result[]
 ;
 
 
 without_multiple_dimensions
 required_capability: esql_without_grouping
-TS k8s 
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region) 
-| SORT total_cost;
+// tag::docsWithoutMultipleDimensions[]
+TS k8s
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| SORT total_cost
+// end::docsWithoutMultipleDimensions[]
+;
 
+// tag::docsWithoutMultipleDimensions-result[]
 total_cost:double | _timeseries:keyword
 15.875            | "{""cluster"":""staging""}"
 18.625            | "{""cluster"":""prod""}"
 26.5              | "{""cluster"":""qa""}"
+// end::docsWithoutMultipleDimensions-result[]
 ;
 
 
 without_empty_equivalent_group_by_all
 required_capability: esql_without_grouping
-TS k8s 
-| STATS total_cost = sum(network.cost) BY WITHOUT() 
-| SORT total_cost;
+// tag::docsWithoutEmpty[]
+TS k8s
+| STATS total_cost = sum(network.cost) BY WITHOUT()
+| SORT total_cost
+// end::docsWithoutEmpty[]
+;
 
+// tag::docsWithoutEmpty-result[]
 total_cost:double | _timeseries:keyword
 0.0               | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 1.75              | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
@@ -44,6 +58,26 @@ total_cost:double | _timeseries:keyword
 9.5               | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
 10.75             | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 10.875            | "{""cluster"":""qa"",""pod"":""three""}"
+// end::docsWithoutEmpty-result[]
+;
+
+
+without_with_tbucket
+required_capability: esql_without_grouping
+required_capability: tbucket
+// tag::docsWithoutWithTbucket[]
+TS k8s
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod), tbucket = TBUCKET(1 hour)
+| SORT total_cost
+// end::docsWithoutWithTbucket[]
+;
+
+// tag::docsWithoutWithTbucket-result[]
+total_cost:double | _timeseries:keyword                                      | tbucket:datetime
+15.875            | "{""cluster"":""staging"",""region"":""us""}"             | 2024-05-10T00:00:00.000Z
+18.625            | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"       | 2024-05-10T00:00:00.000Z
+26.5              | "{""cluster"":""qa""}"                                    | 2024-05-10T00:00:00.000Z
+// end::docsWithoutWithTbucket-result[]
 ;
 
 

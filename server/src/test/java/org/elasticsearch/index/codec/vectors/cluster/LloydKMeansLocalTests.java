@@ -167,7 +167,7 @@ public class LloydKMeansLocalTests extends ESTestCase {
             assertThat(recall, greaterThanOrEqualTo(0.5));
             if (recall == 1.0) {
                 // we cannot assert on array equality as there can be small differences due to numerical errors
-                assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-5f);
+                assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-4f);
             }
         }
         int numThreads = randomIntBetween(2, 8);

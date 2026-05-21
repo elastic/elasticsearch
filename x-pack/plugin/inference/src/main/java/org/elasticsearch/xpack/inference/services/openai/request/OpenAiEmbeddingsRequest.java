@@ -15,19 +15,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
+public class OpenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
@@ -57,7 +56,6 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         var org = model.rateLimitServiceSettings().organizationId();
         if (org != null) {
@@ -70,7 +68,13 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
             }
         }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+        model.secretsApplier()
+            .applyTo(
+                httpPost,
+                listener.delegateFailureAndWrap(
+                    (requestActionListener, req) -> requestActionListener.onResponse(new HttpRequest(req, getInferenceEntityId()))
+                )
+            );
     }
 
     @Override
@@ -84,7 +88,7 @@ public class OpenAiEmbeddingsRequest implements DenseEmbeddingRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
         return new OpenAiEmbeddingsRequest(truncator, truncatedInput, model);

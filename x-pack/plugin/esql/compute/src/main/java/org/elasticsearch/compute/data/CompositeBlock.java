@@ -116,6 +116,11 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public int valueMaxByteSize() {
+        throw new UnsupportedOperationException("composite blocks do not have a single value byte size");
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return blocks[0].blockFactory();
     }

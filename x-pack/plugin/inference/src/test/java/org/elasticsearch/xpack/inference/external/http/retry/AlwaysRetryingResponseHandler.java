@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
@@ -36,11 +36,11 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
+    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, OutboundRequest outboundRequest, HttpResult result)
         throws RetryException {
         try {
-            checkForFailureStatusCode(throttlerManager, logger, request, result);
-            checkForEmptyBody(throttlerManager, logger, request, result);
+            checkForFailureStatusCode(throttlerManager, logger, outboundRequest, result);
+            checkForEmptyBody(throttlerManager, logger, outboundRequest, result);
         } catch (Exception e) {
             throw new RetryException(true, e);
         }
@@ -51,7 +51,7 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         try {
             return parseFunction.apply(result);
         } catch (Exception e) {

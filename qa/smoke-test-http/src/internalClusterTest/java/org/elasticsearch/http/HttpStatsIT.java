@@ -22,10 +22,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -84,6 +86,8 @@ public class HttpStatsIT extends HttpSmokeTestCase {
     }
 
     private void assertHttpStats(XContentTestUtils.JsonMapView jsonMapView) {
+        assertClientStats(jsonMapView);
+
         final List<String> routes = List.of("/", "/_cat/nodes", "/{index}/_search", "/_cluster/state");
 
         for (var route : routes) {
@@ -112,5 +116,47 @@ public class HttpStatsIT extends HttpSmokeTestCase {
                 ltMillis > 1 ? notNullValue() : nullValue()
             );
         }
+    }
+
+    /**
+     * Assert the per-client fields exposed under {@code http.clients}.
+     * We have an internal cluster and a known rest client, so we can deterministically
+     * locate the client(s) that have served at least one request and assert the full shape.
+     */
+    private static void assertClientStats(XContentTestUtils.JsonMapView jsonMapView) {
+        final List<?> clients = jsonMapView.get("http.clients");
+        assertThat(clients, not(empty()));
+
+        // the same lower bound the yaml test used to have.
+        final long minEpochMillis = 1684328268000L;
+
+        // Filter out requests freshly made or inactive by request_count >= 1. Those entries are guaranteed
+        // to have every field populated.
+        int assertedClients = 0;
+        for (int i = 0; i < clients.size(); i++) {
+            final String prefix = "http.clients." + i;
+            final Number requestCount = jsonMapView.get(prefix + ".request_count");
+            if (requestCount == null || requestCount.longValue() < 1) {
+                continue;
+            }
+            assertedClients += 1;
+
+            final Number id = jsonMapView.get(prefix + ".id");
+            final Number openedTimeMillis = jsonMapView.get(prefix + ".opened_time_millis");
+            final Number lastRequestTimeMillis = jsonMapView.get(prefix + ".last_request_time_millis");
+            final Number requestSizeBytes = jsonMapView.get(prefix + ".request_size_bytes");
+
+            assertThat(id.longValue(), greaterThanOrEqualTo(1L));
+
+            assertThat(jsonMapView.get(prefix + ".agent"), notNullValue());
+            assertThat(jsonMapView.get(prefix + ".local_address"), notNullValue());
+            assertThat(jsonMapView.get(prefix + ".remote_address"), notNullValue());
+            assertThat(jsonMapView.get(prefix + ".last_uri"), notNullValue());
+            assertThat(openedTimeMillis.longValue(), greaterThanOrEqualTo(minEpochMillis));
+            assertThat(lastRequestTimeMillis.longValue(), greaterThanOrEqualTo(openedTimeMillis.longValue()));
+            assertThat(requestCount.longValue(), greaterThanOrEqualTo(1L));
+            assertThat(requestSizeBytes.longValue(), greaterThanOrEqualTo(0L));
+        }
+        assertThat("expected at least one client with request_count >= 1, got: " + clients, assertedClients, greaterThanOrEqualTo(1));
     }
 }

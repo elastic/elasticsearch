@@ -152,25 +152,29 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user-dls");
         assertOK(submitResp);
         SearchHit[] hits = getSearchHits(extractResponseId(submitResp), "user-dls");
-        assertThat(hits, arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
-            @Override
-            public boolean matches(Object actual) {
-                SearchHit hit = (SearchHit) actual;
-                return "index".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
-            }
-        }, new CustomMatcher<>("\"index\" doc 2 matcher") {
-            @Override
-            public boolean matches(Object actual) {
-                SearchHit hit = (SearchHit) actual;
-                return "index".equals(hit.getIndex()) && "2".equals(hit.getId()) && "boo".equals(hit.getSourceAsMap().get("baz"));
-            }
-        }, new CustomMatcher<>("\"index-user2\" doc 1 matcher") {
-            @Override
-            public boolean matches(Object actual) {
-                SearchHit hit = (SearchHit) actual;
-                return "index-user2".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
-            }
-        }));
+        try {
+            assertThat(hits, arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
+                @Override
+                public boolean matches(Object actual) {
+                    SearchHit hit = (SearchHit) actual;
+                    return "index".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
+                }
+            }, new CustomMatcher<>("\"index\" doc 2 matcher") {
+                @Override
+                public boolean matches(Object actual) {
+                    SearchHit hit = (SearchHit) actual;
+                    return "index".equals(hit.getIndex()) && "2".equals(hit.getId()) && "boo".equals(hit.getSourceAsMap().get("baz"));
+                }
+            }, new CustomMatcher<>("\"index-user2\" doc 1 matcher") {
+                @Override
+                public boolean matches(Object actual) {
+                    SearchHit hit = (SearchHit) actual;
+                    return "index-user2".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
+                }
+            }));
+        } finally {
+            releaseHits(hits);
+        }
     }
 
     public void testWithUsers() throws Exception {
@@ -309,10 +313,20 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         );
         SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
         try {
-            return searchResponse.getHits().asUnpooled().getHits();
+            SearchHit[] raw = searchResponse.getHits().getHits();
+            for (SearchHit hit : raw) {
+                hit.mustIncRef();
+            }
+            return raw.clone();
         } finally {
             searchResponse.decRef();
             asyncSearchResponse.decRef();
+        }
+    }
+
+    private static void releaseHits(SearchHit[] hits) {
+        for (SearchHit hit : hits) {
+            hit.decRef();
         }
     }
 
@@ -331,7 +345,12 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             assertOK(submit);
             final Response resp = getAsyncSearch(extractResponseId(submit), authorizedUser);
             assertOK(resp);
-            assertThat(getSearchHits(extractResponseId(resp), authorizedUser), arrayContainingInAnyOrder(hitMatcher));
+            SearchHit[] pitHits = getSearchHits(extractResponseId(resp), authorizedUser);
+            try {
+                assertThat(pitHits, arrayContainingInAnyOrder(hitMatcher));
+            } finally {
+                releaseHits(pitHits);
+            }
 
             String unauthorizedUser = randomValueOtherThan(authorizedUser, () -> randomFrom("user1", "user2"));
             ResponseException exc = expectThrows(
@@ -395,7 +414,11 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                 final Response firstResp = getAsyncSearch(extractResponseId(firstSubmit), firstUser);
                 assertOK(firstResp);
                 final SearchHit[] firstHits = getSearchHits(extractResponseId(firstResp), firstUser);
-                assertThat(firstHits, arrayContainingInAnyOrder(hitMatcher));
+                try {
+                    assertThat(firstHits, arrayContainingInAnyOrder(hitMatcher));
+                } finally {
+                    releaseHits(firstHits);
+                }
             }
             {
                 String secondUser = randomValueOtherThan(firstUser, () -> randomFrom("user1", "user2"));
@@ -404,7 +427,11 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                 final Response secondResp = getAsyncSearch(extractResponseId(secondSubmit), secondUser);
                 assertOK(secondResp);
                 final SearchHit[] secondHits = getSearchHits(extractResponseId(secondResp), secondUser);
-                assertThat(secondHits, arrayContainingInAnyOrder(hitMatcher));
+                try {
+                    assertThat(secondHits, arrayContainingInAnyOrder(hitMatcher));
+                } finally {
+                    releaseHits(secondHits);
+                }
             }
         } finally {
             closePointInTime(pitId, firstUser);
@@ -416,13 +443,18 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         try {
             Response userResp = submitAsyncSearchWithPIT(pitId, "*", TimeValue.timeValueSeconds(10), "user1");
             assertOK(userResp);
-            assertThat(getSearchHits(extractResponseId(userResp), "user1"), arrayWithSize(3));
+            SearchHit[] userHits = getSearchHits(extractResponseId(userResp), "user1");
+            try {
+                assertThat(userHits, arrayWithSize(3));
+            } finally {
+                releaseHits(userHits);
+            }
 
             Response dlsResp = submitAsyncSearchWithPIT(pitId, "*", TimeValue.timeValueSeconds(10), "user-dls");
             assertOK(dlsResp);
-            assertThat(
-                getSearchHits(extractResponseId(dlsResp), "user-dls"),
-                arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
+            SearchHit[] dlsHits = getSearchHits(extractResponseId(dlsResp), "user-dls");
+            try {
+                assertThat(dlsHits, arrayContainingInAnyOrder(new CustomMatcher<>("\"index\" doc 1 matcher") {
                     @Override
                     public boolean matches(Object actual) {
                         SearchHit hit = (SearchHit) actual;
@@ -434,8 +466,10 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                         SearchHit hit = (SearchHit) actual;
                         return "index".equals(hit.getIndex()) && "2".equals(hit.getId()) && "boo".equals(hit.getSourceAsMap().get("baz"));
                     }
-                })
-            );
+                }));
+            } finally {
+                releaseHits(dlsHits);
+            }
         } finally {
             closePointInTime(pitId, "user1");
         }

@@ -25,7 +25,6 @@ import org.elasticsearch.common.logging.LogConfigurator;
 public class BQVectorUtilsTests extends LuceneTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

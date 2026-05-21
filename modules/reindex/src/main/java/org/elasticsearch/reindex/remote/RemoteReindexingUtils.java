@@ -68,6 +68,7 @@ public class RemoteReindexingUtils {
      *
      * @param indices   indices to open PIT on
      * @param keepAlive PIT keep alive duration
+     * @param remoteVersion remote cluster version (used to omit REST parameters the remote does not support)
      * @param listener  receives the PIT id on success, or failure/rejection on error
      * @param threadPool thread pool for preserving thread context
      * @param client   REST client for the remote cluster
@@ -76,6 +77,7 @@ public class RemoteReindexingUtils {
         SearchRequest request,
         String[] indices,
         TimeValue keepAlive,
+        Version remoteVersion,
         RejectAwareActionListener<BytesReference> listener,
         ThreadPool threadPool,
         RestClient client
@@ -86,7 +88,7 @@ public class RemoteReindexingUtils {
         assert request.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
         assert request.allowPartialSearchResults() == null || request.allowPartialSearchResults() == false
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
-        execute(RemoteRequestBuilders.openPit(indices, keepAlive, request), OPEN_PIT_PARSER, listener, threadPool, client);
+        execute(RemoteRequestBuilders.openPit(indices, keepAlive, request, remoteVersion), OPEN_PIT_PARSER, listener, threadPool, client);
     }
 
     /**

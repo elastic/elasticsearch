@@ -11,13 +11,21 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FIX_SUM_AGG_LONG_OVERFLOW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
+import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CERTIFIED_COLUMN_PREFIX;
+import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for query approximation generated from existing CSV tests.
@@ -44,7 +52,42 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         // For simplicity, we just allow all warnings here.
         testCase.allowAllWarnings();
 
-        doTest("SET approximation=true; " + testCase.query);
+        // Sample a huge number of rows, so that exact results are computed.
+        executeQuery("""
+            SET approximation={"rows":2000000000};
+            {QUERY}
+            """.replace("{QUERY}", testCase.query));
+
+        try {
+            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            executeQuery("""
+                SET approximation={"rows":2000000000};
+                {QUERY}
+                | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == "fork1" | DROP _fork
+                """.replace("{QUERY}", testCase.query));
+        } catch (AssumptionViolatedException e) {
+            // do nothing
+        }
+
+        try {
+            // Subqueries use FORK under the hood, hence have the same restrictions as FORK tests.
+            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            assumeTrue("Subqueries in approximation require inline stats capability", APPROXIMATION_INLINE_STATS_V2.isEnabled());
+            assumeTrue("Subquery must start with FROM", testCase.query.toUpperCase(Locale.ROOT).startsWith("FROM "));
+            executeQuery("""
+                SET approximation={"rows":2000000000};
+                FROM ({QUERY} | EVAL _subquery=1), ({QUERY} | EVAL _subquery=2)
+                | WHERE _subquery == 1
+                | DROP _subquery
+                """.replace("{QUERY}", testCase.query));
+        } catch (AssumptionViolatedException e) {
+            // do nothing
+        }
+    }
+
+    private void executeQuery(String query) throws Throwable {
+        logger.info("executing query:\n=========={}\n==========", query);
+        doTest(query);
     }
 
     @Override
@@ -54,19 +97,42 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         List<List<Object>> actualValues,
         Logger logger
     ) {
+        Map<String, Integer> columnIndex = new HashMap<>();
+
         // Query approximation may add additional columns starting with "_approximation_".
-        // Since these columns are not present in the original CSV test, they are removed.
+        // These columns are not present in the original CSV test, so they must be added.
         for (int col = 0; col < actualColumns.size(); col++) {
-            if (actualColumns.get(col).get("name").startsWith("_approximation_")) {
-                actualColumns.remove(col);
-                final int colFinal = col;
-                actualValues.forEach(row -> row.remove(colFinal));
-                col--;
+            String columnName = actualColumns.get(col).get("name");
+            columnIndex.put(columnName, col);
+
+            if (columnName.startsWith(CONFIDENCE_INTERVAL_COLUMN_PREFIX) && columnName.endsWith(")")) {
+                String originalColumnName = columnName.substring(CONFIDENCE_INTERVAL_COLUMN_PREFIX.length(), columnName.length() - 1);
+                int originalColumnIndex = columnIndex.get(originalColumnName);
+
+                // Add confidence interval column and corresponding certified column.
+                expected.columnNames().add(columnName);
+                expected.columnTypes().add(expected.columnTypes().get(originalColumnIndex));
+                String certifiedColumnName = columnName.replace(CONFIDENCE_INTERVAL_COLUMN_PREFIX, CERTIFIED_COLUMN_PREFIX);
+                assertThat(
+                    "approximation confidence interval column should be followed by a corresponding certified column",
+                    actualColumns.get(col + 1).get("name"),
+                    equalTo(certifiedColumnName)
+                );
+                expected.columnNames().add(certifiedColumnName);
+                expected.columnTypes().add(CsvTestUtils.Type.BOOLEAN);
+
+                for (int rowIndex = 0; rowIndex < expected.values().size(); rowIndex++) {
+                    // The results are always exact, so add a zero-width confidence interval with certified=true.
+                    // If the result is null or multivalued (which happens for INLINE STATS ... BY mv_field),
+                    // the confidence interval and certified must be null instead.
+                    Object originalValue = expected.values().get(rowIndex).get(originalColumnIndex);
+                    boolean isSingleValued = originalValue != null && originalValue instanceof List == false;
+                    expected.values().get(rowIndex).add(isSingleValued ? List.of(originalValue, originalValue) : null);
+                    expected.values().get(rowIndex).add(isSingleValued ? true : null);
+                }
             }
         }
 
-        // All CST tests (except for the approximation tests, which are skipped) have small data,
-        // therefore the exact result should be returned even with approximation enabled.
         super.assertResults(expected, actualColumns, actualValues, logger);
     }
 
@@ -77,6 +143,11 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Approximation casts integer SUM to double, preventing long overflow",
             testCase.requiredCapabilities.contains(FIX_SUM_AGG_LONG_OVERFLOW.capabilityName())
+        );
+        assumeFalse(
+            "Subqueries in approximation require inline stats capability",
+            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+                && APPROXIMATION_INLINE_STATS_V2.isEnabled() == false
         );
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
     }

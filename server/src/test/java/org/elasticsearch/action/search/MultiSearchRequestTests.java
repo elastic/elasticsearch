@@ -238,7 +238,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                       "status": 500
                     }
                   ]
-                }""", tookInMillis)), Strings.toString(response));
+                }""", tookInMillis)), Strings.toTruncatedString(response));
         } finally {
             response.decRef();
         }

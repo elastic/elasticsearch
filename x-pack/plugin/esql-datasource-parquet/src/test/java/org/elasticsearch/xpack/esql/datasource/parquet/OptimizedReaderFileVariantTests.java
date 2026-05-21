@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class OptimizedReaderFileVariantTests extends ESTestCase {
 
     private final CompressionCodecName codec;
+    private final WriterVersion writerVersion;
     private final int rowGroupSize;
     private final int pageSize;
     private final int rowCount;
@@ -62,6 +64,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
     public OptimizedReaderFileVariantTests(
         String description,
         CompressionCodecName codec,
+        WriterVersion writerVersion,
         int rowGroupSize,
         int pageSize,
         int rowCount,
@@ -69,6 +72,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
     ) {
         this.description = description;
         this.codec = codec;
+        this.writerVersion = writerVersion;
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
         this.rowCount = rowCount;
@@ -86,18 +90,37 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
             CompressionCodecName.ZSTD,
             CompressionCodecName.LZ4_RAW };
 
+        // V1 retains the original RG/page-size matrix so all prior coverage stays intact.
         for (CompressionCodecName codec : codecs) {
-            params.add(new Object[] { codec.name() + "/1RG/non-null", codec, 1024 * 1024, 1024 * 1024, 100, false });
-            params.add(new Object[] { codec.name() + "/1RG/nullable", codec, 1024 * 1024, 1024 * 1024, 100, true });
-            params.add(new Object[] { codec.name() + "/multiRG/non-null", codec, 1024, 256, 500, false });
-            params.add(new Object[] { codec.name() + "/multiRG/nullable", codec, 1024, 256, 500, true });
-            params.add(new Object[] { codec.name() + "/smallPage/non-null", codec, 8 * 1024, 128, 200, false });
+            String prefix = codec.name() + "/V1";
+            params.add(new Object[] { prefix + "/1RG/non-null", codec, WriterVersion.PARQUET_1_0, 1024 * 1024, 1024 * 1024, 100, false });
+            params.add(new Object[] { prefix + "/1RG/nullable", codec, WriterVersion.PARQUET_1_0, 1024 * 1024, 1024 * 1024, 100, true });
+            params.add(new Object[] { prefix + "/multiRG/non-null", codec, WriterVersion.PARQUET_1_0, 1024, 256, 500, false });
+            params.add(new Object[] { prefix + "/multiRG/nullable", codec, WriterVersion.PARQUET_1_0, 1024, 256, 500, true });
+            params.add(new Object[] { prefix + "/smallPage/non-null", codec, WriterVersion.PARQUET_1_0, 8 * 1024, 128, 200, false });
+        }
+
+        // V2 page format uses uncompressed rep/def levels and only compresses the data portion -
+        // a distinct decode path in PrefetchedPageReader. Cover the same codec / nullable axes for
+        // V2 across both 1RG and multiRG layouts to exercise both filtered and sequential builder
+        // paths under V2.
+        for (CompressionCodecName codec : codecs) {
+            String prefix = codec.name() + "/V2";
+            params.add(new Object[] { prefix + "/1RG/non-null", codec, WriterVersion.PARQUET_2_0, 1024 * 1024, 1024 * 1024, 100, false });
+            params.add(new Object[] { prefix + "/1RG/nullable", codec, WriterVersion.PARQUET_2_0, 1024 * 1024, 1024 * 1024, 100, true });
+            params.add(new Object[] { prefix + "/multiRG/non-null", codec, WriterVersion.PARQUET_2_0, 1024, 256, 500, false });
+            params.add(new Object[] { prefix + "/multiRG/nullable", codec, WriterVersion.PARQUET_2_0, 1024, 256, 500, true });
         }
 
         return params;
     }
 
     public void testBaselineAndOptimizedProduceSameOutput() throws Exception {
+        // Test variants reuse the same StorageObject path with different file contents; the shared
+        // FooterByteCache is keyed by (path, length) and would otherwise serve a stale footer from
+        // a prior variant that happens to share the same byte length. Clear it to ensure each
+        // variant reads its own footer bytes from the StorageObject.
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
 
         MessageType schema;
@@ -160,6 +183,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
                 .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
                 .withCompressionCodec(codec)
+                .withWriterVersion(writerVersion)
                 .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .build()

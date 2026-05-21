@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.telemetry.apm.metrics.MetricAttributes;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +23,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEPLOYMENT_DURATION;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_DURATION;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 
 public class MetricValidator {
     static final int MAX_LENGTH = 255;
@@ -127,7 +134,12 @@ public class MetricValidator {
 
         static final Set<String> BLOB_CACHE_ATTRIBUTES = Set.of("executor", "file_extension", "reason", "source");
 
-        static final Set<String> INFERENCE_ATTRIBUTES = Set.of("inference_source", "service", "status_code", "task_type");
+        static final Set<String> INFERENCE_ATTRIBUTES = Set.of(
+            INFERENCE_SOURCE_ATTRIBUTE,
+            SERVICE_ATTRIBUTE,
+            STATUS_CODE_ATTRIBUTE,
+            TASK_TYPE_ATTRIBUTE
+        );
 
         static final Set<String> ML_ATTRIBUTES = Set.of("deployment_id", "scales_to_zero");
 
@@ -188,9 +200,9 @@ public class MetricValidator {
             Map.entry("es.esql.functions.usages.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.settings.queries.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.settings.usages.total", ESQL_ATTRIBUTES),
-            Map.entry("es.inference.requests.count.total", INFERENCE_ATTRIBUTES),
-            Map.entry("es.inference.requests.time", INFERENCE_ATTRIBUTES),
-            Map.entry("es.inference.trained_model.deployment.time", INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_REQUEST_COUNT_TOTAL, INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_REQUEST_DURATION, INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_DEPLOYMENT_DURATION, INFERENCE_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.projects.linked.connections.error.total", LINKED_PROJECT_ATTRIBUTES),

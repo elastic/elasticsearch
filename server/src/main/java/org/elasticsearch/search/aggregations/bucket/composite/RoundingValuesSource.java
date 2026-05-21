@@ -62,7 +62,7 @@ class RoundingValuesSource extends ValuesSource.Numeric {
     }
 
     private SortedNumericLongValues longMultiValues(SortedNumericLongValues values) {
-        return new SortedNumericLongValues() {
+        return new SortedNumericLongValues(values.docIdIterator()) {
             @Override
             public long nextValue() throws IOException {
                 return round(values.nextValue());

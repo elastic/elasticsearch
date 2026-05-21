@@ -4,6 +4,11 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.transport-version-references'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 base {
   archivesName = 'x-pack-esql-compute'
@@ -608,6 +613,23 @@ tasks.named('stringTemplates').configure {
 
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), true, true, "All")
+
+  File legacyIrateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LegacyIrateAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateDoubleAggregator.java"
+  }
 
   File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
   template {
@@ -1244,6 +1266,7 @@ tasks.named('stringTemplates').configure {
     props.forEach { p ->
       def properties = [:]
       p.forEach { k, v -> properties["v_" + k] = v }
+      properties["v_TailArray"] = properties["v_boolean"] ? "ByteArray" : properties["v_Array"]
       template {
         it.properties = properties
         it.inputFile = inputFile

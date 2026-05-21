@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockCompletionRequestManager;
@@ -155,7 +154,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         );
     }
 
-    public static Sender createSender(AmazonBedrockRequestSender.Factory factory) {
-        return factory.createSender();
+    public static AmazonBedrockRequestSender createSender(AmazonBedrockRequestSender.Factory factory) {
+        return (AmazonBedrockRequestSender) factory.createSender();
     }
 }

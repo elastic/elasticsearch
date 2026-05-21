@@ -373,7 +373,11 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         } else {
             ReducedState state = getOrInitializeReducedState(group);
             for (int pos = from; pos < to; pos++) {
-                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.get$Type$(pos));
+                if (valueBlock.isNull(pos)) {
+                    continue;
+                }
+                assert valueBlock.getValueCount(pos) == 1 : "expected single-valued block " + valueBlock;
+                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.get$Type$(valueBlock.getFirstValueIndex(pos)));
             }
         }
     }

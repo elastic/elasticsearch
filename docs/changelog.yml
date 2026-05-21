@@ -1,0 +1,348 @@
+# Changelog Configuration
+# This file configures the valid values for changelog fields using the pivot structure.
+# Place this file as `changelog.yml` in the `docs/` directory
+
+# Filename strategy for generated changelog files.
+# Controls how files created by 'changelog add' are named.
+#   pr        — use the PR number (e.g., 12345.yaml).
+#   issue     — use the issue number (e.g., 67890.yaml).
+#   timestamp — use a Unix timestamp with a title slug (e.g., 1735689600-fix-search.yaml). Default.
+# Can be overridden per invocation with --use-pr-number or --use-issue-number CLI flags.
+filename: pr
+
+# Products configuration (optional)
+# If not specified, all products from products.yml are allowed
+products:
+  # List of available product IDs (empty = all from products.yml)
+  available:
+    - elasticsearch
+    - cloud-serverless
+  # Default products when --products not specified
+  default:
+    - product: elasticsearch
+  #     lifecycle: ga
+
+# Extraction configuration
+# Controls automatic extraction of information from PR descriptions
+extract:
+  # Auto-extract release notes from PR descriptions (default: true)
+  # Can be overridden by CLI --no-extract-release-notes
+  release_notes: true
+  # Auto-extract issues from PR body (default: true)
+  # Looks for patterns like "Fixes #123", "Closes #456", etc.
+  issues: true
+  # Remove square-bracket prefixes from PR titles (default: false)
+  # When enabled (true or via --strip-title-prefix), titles like "[ES|QL] Fix bug" become "Fix bug".
+  # Can be overridden by CLI --strip-title-prefix
+  strip_title_prefix: true
+
+# Available lifecycle values (strongly typed: preview, beta, ga)
+lifecycles:
+  - preview
+  - beta
+  - ga
+
+# Pivot configuration for types, subtypes, and areas with label mappings.
+# By default we render entries grouped by type > subtype > area.
+# NOTE: subtype and area are optional and either may be omitted.
+# Labels are specified in a "label -> value" format
+pivot:
+  # Type definitions with optional labels
+  # Keys are type names, values can be:
+  #   - simple string: comma-separated label list (e.g., ">bug, >fix")
+  #   - empty/null: no labels for this type
+  #   - object: { labels: "...", subtypes: {...} } for breaking-change type only
+  types:
+    # Complex object form with subtypes (ONLY allowed for breaking-change)
+    # Subtypes help categorize breaking changes by their nature
+    breaking-change:
+      labels: ">breaking"
+      subtypes:
+        api: 
+        behavioral: 
+        configuration: 
+        dependency: 
+        subscription: 
+        plugin: 
+        security: 
+        other: ">breaking-java"
+    # Simple string form: labels as comma-separated string
+    bug-fix: ">bug"
+    deprecation: ">deprecation"
+    docs: ">docs, documentation"
+    enhancement: "release_note:enhancement, >enhancement"
+    feature: ">feature"
+    known-issue:
+    regression: ">regression"
+    security: 
+    other: ">upgrade"
+
+  # Area definitions with labels
+  # Keys are area display names, values are label strings
+  # Multiple labels can be comma-separated
+  areas:
+    # Example mappings - customize based on your label naming conventions
+    Aggregations: ":Analytics/Aggregations"
+    Allocation: ":Distributed Coordination/Allocation"
+    Analysis: ":Search Relevance/Analysis"
+    Application: ":EnterpriseSearch/Application"
+    Audit: ":Security/Audit"
+    Authentication: ":Security/Authentication"
+    Authorization: ":Security/Authorization"
+    Autoscaling: ":Distributed Coordination/Autoscaling"
+    "CAT APIs": ":Data Management/CAT APIs"
+    CCR: ":Distributed Indexing/CCR"
+    CCS: ":Search Foundations/CCS"
+    CRUD: ":Distributed Indexing/CRUD"
+    Client: ":Security/Client"
+    "Cluster coordination": ":Distributed Coordination/Cluster Coordination"
+    Codec: ":StorageEngine/Codec"
+    "Data streams": ":Data Management/Data streams, :StorageEngine/Data streams"
+    DLM: ":Data Management/DLM"
+    "Discovery-Plugins": ":Distributed Coordination/Discovery-Plugins"
+    Distributed: ":Distributed Indexing/Distributed, :Distributed Coordination/Distributed"
+    Downsampling: ":StorageEngine/Downsampling"
+    Engine: ":Distributed Indexing/Engine, :Analytics/Compute Engine"
+    "ES|QL": ":Search Relevance/ES|QL, :StorageEngine/ES|QL, :ml/ES|QL, :Analytics/ES|QL"
+    EQL: ":Query Languages/EQL, :Analytics/EQL"
+    Experiences: ":SearchOrg/Experiences"
+    "Extract and transform": ":SearchOrg/Extract&Transform"
+    # Features: TBD
+    FIPS: ":Security/FIPS"
+    Geo: ":Analytics/Geo"
+    # Graph: TBD
+    Health: ":Distributed/Health"
+    Highlighting: ":Search Relevance/Highlighting"
+    "ILM": ":StorageEngine/ILM, :Data Management/ILM+SLM"
+    IdentityProvider: ":Security/IdentityProvider"
+    "Indices APIs": ":Data Management/Indices APIs"
+    Inference: ":SearchOrg/Inference"
+    "Infra/CLI": ":Core/Infra/CLI"
+    "Infra/Circuit breakers": ":Core/Infra/Circuit Breakers"
+    "Infra/Core": ":Core/Infra/Core"
+    # "Infra/Entitlements": ":Core/Infra/Entitlements"
+    "Infra/Logging": ":Core/Infra/Logging"
+    "Infra/Metrics": ":Core/Infra/Metrics"
+    "Infra/Node lifecycle": ":Core/Infra/Node Lifecycle"
+    "Infra/Plugins": ":Core/Infra/Plugins"
+    "Infra/REST API": ":Core/Infra/REST API"
+    "Infra/Resiliency": ":Core/Infra/Resiliency"
+    "Infra/Scripting": ":Core/Infra/Scripting"
+    "Infra/Settings": ":Core/Infra/Settings"
+    "Infra/Transport API": ":Core/Infra/Transport API"
+    # Ingest: TBD
+    "Ingest node": ":Distributed/Ingest Node"
+    "Java High Level REST Client": ":Clients/Java High Level REST Client"
+    "Java Low Level REST Client": ":Clients/Java Low Level REST Client"
+    License: ":Security/License"
+    # Logging: TBD
+    Logs: ":StorageEngine/Logs, StorageEngine/Logs"
+    "Machine learning": ":ml"
+    Mapping: ":StorageEngine/Mapping, :Search Foundations/Mapping"
+    Monitoring: ":Core/Infra/Monitoring"
+    Network: ":Distributed Coordination/Network"
+    Packaging: ":Delivery/Packaging"
+    Percolator: ":Search Relevance/Percolator"
+    Performance: ":Performance"
+    "Query languages": ":Query Languages/EQL, :Query Languages/SQL"
+    Ranking: ":Search Relevance/Ranking"
+    Recovery: ":Distributed Indexing/Recovery"
+    Reindex: ":Distributed Indexing/Reindex"
+    Relevance: ":Search Relevance/Search, :SearchOrg/Relevance"
+    Rollup: ":StorageEngine/Rollup"
+    Search: ":Search/Search, :Search Foundations/Search"
+    "Searchable snapshots": ":Distributed Indexing/Searchable Snapshots"
+    Security: ":Security/Security"
+    SLM: ":Distributed/SLM, :Data Management/ILM+SLM"
+    "Snapshot and restore": ":Distributed Coordination/Snapshot/Restore"
+    SQL: ":Query Languages/SQL, :Analytics/SQL"
+    Stats: ":Data Management/Stats"
+    Store: ":Distributed Indexing/Store"
+    Suggesters: ":Search Relevance/Suggesters"
+    "Task management": ":Distributed Coordination/Task Management"
+    TLS: ":Security/TLS"
+    Transform: ":ml/Transform"
+    TSDB: ":StorageEngine/TSDB"
+    "Vector search": ":Search Relevance/Vectors"
+    Watcher: ":Data Management/Watcher"
+
+  # Product definitions with labels (optional).
+  # Keys are product spec strings; values are label strings or lists that trigger that product.
+  # A product spec string is: "<product-id> [<target-version>] [<lifecycle>]"
+  #   - Product ID only:           "elasticsearch"
+  #   - Product + target:          "kibana 9.2.0"
+  #   - Full spec:                 "cloud-serverless 2025-06 ga"
+  # When a PR has labels matching any product entry, all matching products are added.
+  # Precedence: --products CLI option > pivot.products label mapping > products.default > repo inference.
+  #
+  # products:
+  #   'elasticsearch':
+  #     - ":stack/elasticsearch"
+  #   'cloud-serverless':
+  #     - ":cloud/serverless"
+  #   # Specify a target version if known:
+  #   # 'elasticsearch 9.2.0':
+  #   #   - ":feature/new-in-9.2"
+
+# Rules configuration — controls which PRs create changelogs and which changelogs are published.
+# All list-like fields (exclude, include, exclude_types) accept BOTH forms:
+#   - Comma-separated string: "value1, value2, value3"
+#   - YAML list: [value1, value2, value3]
+#
+# Global match default for multi-valued fields (labels, areas, products).
+#   any (default) = match if ANY item matches the list
+#   all           = match only if ALL items match the list
+# Inherited by create, bundle, publish, and all product overrides.
+rules:
+  # match: any
+
+  # Create — controls which PRs generate changelogs.
+  #   exclude: block PRs with these labels (string or list)
+  #   include: only create changelogs for PRs with these labels (string or list)
+  # Cannot specify both.
+  #
+  create:
+  #   exclude: ">non-issue, >test"
+  #   # Or equivalently:
+    exclude:
+      - ">non-issue"
+      - ">test"
+      - ">refactoring"
+      - ":Delivery/Build"
+      - ":Delivery/Tooling"
+  #   # match: any
+  #   products:
+  #     'elasticsearch, kibana':
+  #       exclude: ">test"
+  #     'cloud-serverless':
+  #       exclude: "ILM"
+
+  # Bundle — filtering applied during 'changelog bundle' and 'changelog gh-release'.
+  # Applied after the primary filter (--prs, --issues, --all, ...) has collected changelogs.
+  #
+  # Product filtering:
+  #   Skipped when the primary filter is already product-based
+  #   (--input-products option or a profile with bundle.profiles.<name>.products configured).
+  #   exclude_products / include_products (string or list) — cannot specify both.
+  #   match_products inherits from rules.match if not specified.
+  #
+  # Type and area filtering (replaces rules.publish):
+  #   Always applied, regardless of the primary filter.
+  #   exclude_types / include_types (string or list) — cannot specify both.
+  #   exclude_areas / include_areas (string or list) — cannot specify both.
+  #   match_areas inherits from rules.match if not specified.
+  #
+  # Per-product overrides:
+  #   products:
+  #     '<id>': override type/area filters for that product
+  #
+  #   When an entry belongs to multiple products, the applicable rule is resolved using
+  #   intersection + alphabetical first-match. See docs/contribute/changelog.md for details.
+  #
+  bundle:
+  #   # match_products: any
+  #   exclude_products: "cloud-enterprise"
+  #   # Or include only certain products:
+  #   # include_products:
+  #   #   - cloud-serverless
+  #   #   - cloud-hosted
+  #   # Type/area filtering:
+  #   # exclude_types: "docs"
+  #   # exclude_areas:
+  #   #   - "Internal"
+  #   # Per-product overrides:
+    products:
+      'elasticsearch':
+        exclude_types:
+          - docs
+      'cloud-serverless':
+        exclude_types:
+          - docs
+        match_areas: all
+        # Exclude changelog if all its areas are in this list
+        exclude_areas:
+          - Allocation
+          - Audit
+          - Authentication
+          - Autoscaling
+          - CCR
+          - CCS
+          - "Cluster coordination"
+          - Codec
+          - "Discovery-Plugins"
+          - Engine
+          - FIPS
+          - Health
+          - ILM
+          - IdentityProvider
+          - "Infra/CLI"
+          - "Infra/Logging"
+          - "Infra/Metrics"
+          - "Infra/Node lifecycle"
+          - "Infra/Plugins"
+          - "Infra/Transport API"
+          - License
+          - Monitoring
+          - Packaging
+          - "Searchable snapshots"
+          - SLM
+          - "Snapshot and restore"
+          - Stats
+          - Watcher
+# Bundle configuration (profiles and defaults)
+bundle:
+  # Input directory containing changelog YAML files
+  directory: docs/changelog
+  # Output directory for bundled changelog files
+  output_directory: docs/releases
+  # Whether to resolve (copy contents) by default
+  resolve: true
+  # Optional: default GitHub repo name applied to all profiles that do not specify their own.
+  # Used by the {changelog} directive to generate correct PR/issue links when the product ID
+  # differs from the GitHub repository name. Can be overridden per profile.
+  repo: elasticsearch
+  # Optional: default GitHub owner applied to all profiles that do not specify their own.
+  owner: elastic
+  # PR/issue link allowlist: when set (including []), only links to these owner/repo pairs are kept
+  # in bundle output; others are rewritten to '# PRIVATE:' sentinels (requires resolve: true).
+  link_allow_repos:
+    - elastic/elasticsearch
+    - elastic/fleet-server
+    - elastic/kibana
+    - elastic/roadmap
+  # Optional: control auto-population of release-date for all profiles by default.
+  release_dates: false
+  # Optional: default description text for bundles. Supports {version}, {lifecycle}, {owner}, and {repo} placeholders.
+  # Use YAML literal block scalar (|) for multiline descriptions. See docs/contribute/changelog.md for examples.
+  # description: |
+  #   Download the release binaries: https://github.com/{owner}/{repo}/releases/tag/v{version}
+  #   
+
+  # Named bundle profiles for different release scenarios.
+  # Profiles can be used with both 'changelog bundle' and 'changelog remove':
+  #   docs-builder changelog bundle elasticsearch-release 9.2.0
+  #   docs-builder changelog remove elasticsearch-release 9.2.0
+  # When used with 'changelog remove', only the 'products' field is applied.
+  # The 'output', 'output_products', 'repo', 'owner', and 'hide_features' fields are
+  # bundle-specific and are ignored for removal.
+  profiles:
+     # Example: Elasticsearch release profile (filter by changelog fields)
+    elasticsearch-release:
+    #   # Filter: which input changelogs to include ({version} and {lifecycle} are substituted at runtime)
+    #   products: "elasticsearch {version} {lifecycle}"
+    #   # Output filename ({version} is substituted at runtime)
+      output: "elasticsearch-{version}.yaml"
+    #   # Optional: override the products array written to the bundle output.
+      output_products: "elasticsearch {version}"
+    #   # Optional: profile-specific description (overrides bundle.description)
+    #   # description: |
+    #   #   Download the release binaries: https://github.com/{owner}/{repo}/releases/tag/v{version}
+
+    # Example: Serverless release profile (filter by promotion report, PR, or issue list)
+    serverless-release:
+      output: "serverless-{version}.yaml"
+      output_products: "cloud-serverless {version}"
+    #   # Feature IDs to hide when bundling with this profile (accepts string or list)
+    #   hide_features:
+    #     - feature-flag-1
+    #     - feature-flag-2

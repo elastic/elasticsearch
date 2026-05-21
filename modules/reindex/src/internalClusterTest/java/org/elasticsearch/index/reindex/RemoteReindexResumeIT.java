@@ -62,7 +62,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
@@ -132,7 +132,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
         }
 
         // Resume reindexing from the manual scroll with remote search
-        BulkByScrollTask.Status randomStats = randomStats();
+        BulkByPaginatedSearchTask.Status randomStats = randomStats();
         // random start time in the past to ensure that "took" is updated
         long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
@@ -142,6 +142,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
+            .setRequestsPerSecond(randomStats.getRequestsPerSecond())
             .setRemoteInfo(
                 new RemoteInfo(
                     "http",
@@ -205,7 +206,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
             assertNotNull(searchAfterValues);
 
             int remainingDocs = totalDocs - batchSize;
-            BulkByScrollTask.Status randomStats = randomStats();
+            BulkByPaginatedSearchTask.Status randomStats = randomStats();
             long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
 
             ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
@@ -214,6 +215,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
                 .setDestIndex(destIndex)
                 .setSourceBatchSize(batchSize)
                 .setRefresh(true)
+                .setRequestsPerSecond(randomStats.getRequestsPerSecond())
                 .setRemoteInfo(
                     new RemoteInfo(
                         "http",
@@ -293,7 +295,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
             assertEquals(MOCK_SCROLL_SESSION_ID, scrollId);
 
             int remainingDocs = totalDocs - batchSize;
-            BulkByScrollTask.Status randomStats = randomStats();
+            BulkByPaginatedSearchTask.Status randomStats = randomStats();
             long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
 
             ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
@@ -302,6 +304,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
                 .setDestIndex(destIndex)
                 .setSourceBatchSize(batchSize)
                 .setRefresh(true)
+                .setRequestsPerSecond(randomStats.getRequestsPerSecond())
                 .setRemoteInfo(
                     new RemoteInfo(
                         "http",
@@ -622,12 +625,12 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
         return (String) map.get("_scroll_id");
     }
 
-    private BulkByScrollTask.Status randomStats() {
+    private BulkByPaginatedSearchTask.Status randomStats() {
         return randomStats(null, randomNonNegativeLong());
     }
 
-    private BulkByScrollTask.Status randomStats(Integer sliceId, long total) {
-        return new BulkByScrollTask.Status(
+    private BulkByPaginatedSearchTask.Status randomStats(Integer sliceId, long total) {
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             randomNonNegativeLong(),
@@ -656,7 +659,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
 
     private static void assertStatus(
         TaskResult task,
-        BulkByScrollTask.Status resumeStatus,
+        BulkByPaginatedSearchTask.Status resumeStatus,
         long totalDocs,
         int batchSize,
         long remainingDocs

@@ -123,25 +123,25 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                     )
                 );
             }
-            return new AcrossSeriesAggregate(unresolved.source(), child, name, extraParams, grouping, unresolved.groupingKeys());
+            return new AcrossSeriesAggregate(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
         }
 
         return switch (metadata.functionType()) {
             case ACROSS_SERIES_AGGREGATION -> new AcrossSeriesAggregate(
                 unresolved.source(),
                 child,
-                name,
+                metadata,
                 extraParams,
                 AcrossSeriesAggregate.Grouping.NONE,
                 List.of()
             );
-            case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(unresolved.source(), child, name, extraParams);
-            case VALUE_TRANSFORMATION -> new ValueTransformationFunction(unresolved.source(), child, name, extraParams);
-            case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, name, extraParams);
-            case SCALAR_CONVERSION -> new ScalarConversionFunction(unresolved.source(), child, name, extraParams);
+            case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(unresolved.source(), child, metadata, extraParams);
+            case VALUE_TRANSFORMATION -> new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
+            case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, metadata, extraParams);
+            case SCALAR_CONVERSION -> new ScalarConversionFunction(unresolved.source(), child, metadata, extraParams);
             case SCALAR, TIME_EXTRACTION -> child == null
                 ? new ScalarFunction(unresolved.source(), name)
-                : new ValueTransformationFunction(unresolved.source(), child, name, extraParams);
+                : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );

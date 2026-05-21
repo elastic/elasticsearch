@@ -14,9 +14,17 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
@@ -75,7 +83,32 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             // TODO support appending BytesReference
-            ((BytesRefBuilder) builder).appendBytesRef(storedFields.source().internalSourceRef().toBytesRef());
+            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
+        }
+
+        /**
+         * The {@code _timeseries} keyword column is documented to contain a JSON-encoded object with the dimension
+         * key/value pairs identifying each group. {@link Source#internalSourceRef()} returns bytes in whatever XContent
+         * type the underlying {@code _source} happens to use: synthetic source always reconstructs as JSON, but stored
+         * source preserves the original encoding (e.g. CBOR for documents written via the Prometheus remote-write
+         * endpoint, which builds {@link org.elasticsearch.xcontent.XContentFactory#cborBuilder} requests). Normalize
+         * to JSON so the value is a valid keyword regardless of how {@code _source} is stored. When the underlying
+         * encoding is already JSON we return the bytes unchanged to avoid a parser/builder round-trip.
+         */
+        private static BytesReference toJson(Source source) throws IOException {
+            BytesReference bytes = source.internalSourceRef();
+            XContentType type = source.sourceContentType();
+            if (type == XContentType.JSON) {
+                return bytes;
+            }
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, type);
+                XContentBuilder json = XContentFactory.jsonBuilder()
+            ) {
+                parser.nextToken();
+                json.copyCurrentStructure(parser);
+                return BytesReference.bytes(json);
+            }
         }
 
         @Override

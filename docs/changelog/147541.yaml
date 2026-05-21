@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 117048
+pr: 147541
+summary: Reject `pathPrefix` containing consecutive slashes
+type: enhancement

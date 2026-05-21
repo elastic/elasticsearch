@@ -160,16 +160,6 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         return new Chunk(source, args.get(0), options);
     }
 
-    @Override
-    public void testFold() {
-        Expression expression = buildFieldExpression(testCase);
-        // Skip testFold if the expression is not foldable (e.g., when chunking_settings contains MapExpression)
-        if (expression.foldable() == false) {
-            return;
-        }
-        super.testFold();
-    }
-
     public void testDefaults() {
         // Default of 300 is huge, only one chunk returned in this case
         verifyChunks(null, 1);

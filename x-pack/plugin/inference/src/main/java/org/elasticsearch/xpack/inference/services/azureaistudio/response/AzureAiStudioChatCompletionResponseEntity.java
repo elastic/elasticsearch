@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -29,14 +29,14 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 public class AzureAiStudioChatCompletionResponseEntity extends BaseResponseEntity {
 
     @Override
-    protected InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
-        if (request instanceof AzureAiStudioChatCompletionRequest asChatCompletionRequest) {
+    protected InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+        if (outboundRequest instanceof AzureAiStudioChatCompletionRequest asChatCompletionRequest) {
             if (asChatCompletionRequest.isRealtimeEndpoint()) {
                 return parseRealtimeEndpointResponse(response);
             }
 
             // we can use the OpenAI chat completion type if it's not a realtime endpoint
-            return OpenAiChatCompletionResponseEntity.fromResponse(request, response);
+            return OpenAiChatCompletionResponseEntity.fromResponse(outboundRequest, response);
         }
 
         return null;

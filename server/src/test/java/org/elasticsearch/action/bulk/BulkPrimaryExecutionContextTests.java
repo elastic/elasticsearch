@@ -116,11 +116,15 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             }
 
             Translog.Location location = new Translog.Location(translogGen, translogOffset, randomInt(200));
+
+            final boolean noOpResult = failure && randomBoolean();
             switch (current.opType()) {
                 case INDEX, CREATE -> {
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, current.id());
+                        result = noOpResult
+                            ? new MockNoOpResult(new ElasticsearchException("bla"), 1, 1, location)
+                            : new Engine.IndexResult(new ElasticsearchException("bla"), 1, current.id());
                     } else {
                         result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
                     }
@@ -128,7 +132,9 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 case UPDATE -> {
                     context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1, current.id());
+                        result = noOpResult
+                            ? new MockNoOpResult(new ElasticsearchException("bla"), 1, 1, location)
+                            : new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1, current.id());
                     } else {
                         result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
                     }
@@ -143,7 +149,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                 }
                 default -> throw new AssertionError("unknown type:" + current.opType());
             }
-            if (failure == false) {
+            if (failure == false || (noOpResult && current.opType() != DocWriteRequest.OpType.DELETE)) {
                 expectedLocation = location;
             }
             context.markOperationAsExecuted(result);
@@ -151,6 +157,21 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         }
 
         assertThat(context.getLocationToSync(), equalTo(expectedLocation));
+    }
+
+    private static class MockNoOpResult extends Engine.NoOpResult {
+
+        private final Translog.Location location;
+
+        MockNoOpResult(Exception failure, long term, long seqNo, Translog.Location location) {
+            super(term, seqNo, failure);
+            this.location = location;
+        }
+
+        @Override
+        public Translog.Location getTranslogLocation() {
+            return location;
+        }
     }
 
     private ShardRouting newShardRouting(ShardId shardId, ShardRouting.Role role) {

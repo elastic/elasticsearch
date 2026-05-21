@@ -209,10 +209,10 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
     public void testThrottlingMetrics() throws Exception {
         final String indexName = randomIdentifier();
-        final int numShards = randomIntBetween(1, 10);
+        final int numShards = randomIntBetween(1, 3);
         final int numReplicas = randomIntBetween(0, 1);
         createIndex(indexName, numShards, numReplicas);
-        indexRandom(true, indexName, randomIntBetween(100, 120));
+        indexRandom(true, indexName, randomIntBetween(10, 50));
 
         // Create a repository with restrictive throttling settings
         final String repositoryName = randomIdentifier();
@@ -221,8 +221,8 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             ByteSizeValue.ofKb(2)
         )
             .put(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ofKb(2))
-            // Small chunk size ensures we don't get stuck throttling for too long
-            .put("chunk_size", ByteSizeValue.ofBytes(100));
+            // Small chunk size ensures we don't get stuck throttling for too long. But we don't want to overwhelm with too many chunks.
+            .put("chunk_size", ByteSizeValue.ofBytes(1000));
         createRepository(repositoryName, "mock", repositorySettings, false);
 
         final String snapshotName = randomIdentifier();

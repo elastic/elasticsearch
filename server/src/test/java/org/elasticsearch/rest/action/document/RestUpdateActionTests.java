@@ -166,4 +166,24 @@ public final class RestUpdateActionTests extends RestActionTestCase {
         );
         assertThat(e.getMessage(), containsString("invalid [_slice] value"));
     }
+
+    public void testSliceParamRejectedWhenCommaDelimited() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        String content = """
+            {
+                "doc" : {
+                    "name" : "new_name"
+                }
+            }""";
+        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("test/_update/1")
+            .withParams(Map.of("_slice", "s1,s2"))
+            .withContent(new BytesArray(content), XContentType.JSON)
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class))
+        );
+        assertThat(e.getMessage(), containsString("invalid [_slice] value"));
+    }
 }

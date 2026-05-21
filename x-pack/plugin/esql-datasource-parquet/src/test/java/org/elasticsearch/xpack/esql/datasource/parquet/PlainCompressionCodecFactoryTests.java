@@ -93,6 +93,76 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         assertArrayEquals("Direct ByteBuffer round-trip failed for " + codec, original, result);
     }
 
+    /**
+     * Exercises the {@code BytesInput.from(byte[], int, int)} input shape (a {@code ByteArrayBytesInput}
+     * with a non-zero offset). This is the dominant shape on the S3 prefetch path: column chunks
+     * arrive as byte arrays that may be sliced from a larger backing array.
+     *
+     * <p>Regression test for the fast path that calls {@code BytesInput.toByteBuffer()} and
+     * decompresses directly from the backing array, bypassing the BAOS-backed
+     * {@code BytesInput.toByteArray()} on the hot path.
+     */
+    public void testSnappyDecompressByteArrayWithOffset() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.SNAPPY);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        // Embed the compressed payload in a larger backing array with a non-zero leading offset
+        // and trailing slack, so BytesInput.from(byte[], offset, length) produces a non-trivial
+        // ByteArrayBytesInput.
+        int leadingSlack = between(1, 32);
+        int trailingSlack = between(0, 32);
+        byte[] backing = new byte[leadingSlack + compressed.length + trailingSlack];
+        System.arraycopy(compressed, 0, backing, leadingSlack, compressed.length);
+
+        BytesInput offsetInput = BytesInput.from(backing, leadingSlack, compressed.length);
+        BytesInput decompressed = decompressor.decompress(offsetInput, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Exercises {@link BytesInput#from(ByteBuffer, int, int)} with a heap-backed
+     * {@link ByteBuffer}. This produces a {@code ByteBufferBytesInput}, whose
+     * {@code toByteBuffer()} is overridden to return a no-copy slice that still has
+     * {@code hasArray() == true}; the fast path should pick that up.
+     */
+    public void testSnappyDecompressFromHeapByteBuffer() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.SNAPPY);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer compressedBuffer = ByteBuffer.wrap(compressed);
+        BytesInput heapBufferInput = BytesInput.from(compressedBuffer, 0, compressed.length);
+
+        BytesInput decompressed = decompressor.decompress(heapBufferInput, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
+    /**
+     * Exercises the fallback path: {@link BytesInput#from(ByteBuffer, int, int)} with a direct
+     * (off-heap) {@link ByteBuffer}. The resulting {@code ByteBufferBytesInput#toByteBuffer()}
+     * returns a slice with {@code hasArray() == false}, so the decompressor must fall back to
+     * the byte-array path. This guarantees we still handle off-heap inputs correctly.
+     */
+    public void testSnappyDecompressFromDirectByteBuffer() throws IOException {
+        BytesInputCompressor compressor = factory.getCompressor(CompressionCodecName.SNAPPY);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.SNAPPY);
+
+        byte[] original = randomByteArrayOfLength(between(100, 4096));
+        byte[] compressed = compressor.compress(BytesInput.from(original)).toByteArray();
+
+        ByteBuffer compressedDirect = ByteBuffer.allocateDirect(compressed.length);
+        compressedDirect.put(compressed).flip();
+        BytesInput directBufferInput = BytesInput.from(compressedDirect, 0, compressed.length);
+
+        BytesInput decompressed = decompressor.decompress(directBufferInput, original.length);
+        assertArrayEquals(original, decompressed.toByteArray());
+    }
+
     public void testHeapByteBufferDecompression() throws IOException {
         for (CompressionCodecName codec : new CompressionCodecName[] {
             CompressionCodecName.SNAPPY,
@@ -135,12 +205,49 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> factory.getCompressor(CompressionCodecName.BROTLI));
     }
 
-    public void testReleaseClears() {
-        factory.getDecompressor(CompressionCodecName.SNAPPY);
-        factory.getCompressor(CompressionCodecName.GZIP);
+    public void testReleaseIsNoop() {
+        BytesInputDecompressor before = factory.getDecompressor(CompressionCodecName.SNAPPY);
+        BytesInputCompressor compressorBefore = factory.getCompressor(CompressionCodecName.GZIP);
         factory.release();
-        BytesInputDecompressor d = factory.getDecompressor(CompressionCodecName.SNAPPY);
-        assertNotNull(d);
+        // The factory holds stateless adapters whose backing JNI libraries cannot be unloaded;
+        // release() is a no-op and the cached instances remain valid for reuse.
+        assertSame(before, factory.getDecompressor(CompressionCodecName.SNAPPY));
+        assertSame(compressorBefore, factory.getCompressor(CompressionCodecName.GZIP));
+    }
+
+    /**
+     * Regression test: the factory is shared across all driver threads of an ESQL query, so
+     * concurrent calls to {@link PlainCompressionCodecFactory#getDecompressor} and
+     * {@link PlainCompressionCodecFactory#getCompressor} must be safe and must return the same
+     * cached instance per codec. An earlier version backed the lookup with a plain {@code HashMap}
+     * + {@code computeIfAbsent}, which raced under load.
+     */
+    public void testConcurrentLookupReturnsSameInstance() {
+        int threads = 16;
+        int iterationsPerThread = 200;
+        CompressionCodecName[] codecs = new CompressionCodecName[] {
+            CompressionCodecName.UNCOMPRESSED,
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW };
+
+        startInParallel(threads, t -> {
+            for (int i = 0; i < iterationsPerThread; i++) {
+                CompressionCodecName codec = codecs[i % codecs.length];
+                BytesInputDecompressor d = factory.getDecompressor(codec);
+                BytesInputCompressor c = factory.getCompressor(codec);
+                assertNotNull(d);
+                assertNotNull(c);
+                // Identity must hold even mid-race; the holder must hand out the same instance to all callers.
+                assertSame(d, factory.getDecompressor(codec));
+                assertSame(c, factory.getCompressor(codec));
+            }
+        });
+        for (CompressionCodecName codec : codecs) {
+            assertSame(factory.getDecompressor(codec), factory.getDecompressor(codec));
+            assertSame(factory.getCompressor(codec), factory.getCompressor(codec));
+        }
     }
 
     private void assertRoundTrip(CompressionCodecName codec) throws IOException {

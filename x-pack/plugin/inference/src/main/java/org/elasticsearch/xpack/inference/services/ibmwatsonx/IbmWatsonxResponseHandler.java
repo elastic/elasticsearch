@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.response.IbmWatsonxErrorResponseEntity;
 
 public class IbmWatsonxResponseHandler extends BaseResponseHandler {
@@ -24,31 +24,31 @@ public class IbmWatsonxResponseHandler extends BaseResponseHandler {
      *
      * The IBM Cloud error codes for text_embedding are loosely
      * defined <a href="https://cloud.ibm.com/apidocs/watsonx-ai#text-embeddings">here</a>.
-     * @param request the http request
+     * @param outboundRequest the http request
      * @param result the http response and body
      * @throws RetryException thrown if status code is {@code >= 300 or < 200}
      */
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
 
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 404) {
-            throw new RetryException(false, buildError(resourceNotFoundError(request), request, result));
+            throw new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
         } else if (statusCode == 403) {
-            throw new RetryException(false, buildError(PERMISSION_DENIED, request, result));
+            throw new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, request, result));
+            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode == 400) {
-            throw new RetryException(false, buildError(BAD_REQUEST, request, result));
+            throw new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, request, result));
+            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
+            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 }

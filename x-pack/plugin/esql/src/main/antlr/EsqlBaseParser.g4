@@ -74,6 +74,7 @@ processingCommand
     | registeredDomainCommand
     | tsInfoCommand
     | userAgentCommand
+    | tsCollapseCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -309,7 +310,7 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)? (BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*)?
     ;
 
 forkCommand
@@ -368,6 +369,10 @@ metricsInfoCommand
 
 tsInfoCommand
     : TS_INFO
+    ;
+
+tsCollapseCommand
+    : TS_COLLAPSE
     ;
 
 //

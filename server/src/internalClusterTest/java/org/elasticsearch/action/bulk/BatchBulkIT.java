@@ -734,6 +734,53 @@ public class BatchBulkIT extends ESIntegTestCase {
         );
     }
 
+    public void testBulkWithExplicitRouting() throws IOException {
+        // Exercises RoutingFieldMapper.preParse on the batch path. A routing-aware GET would still
+        // succeed without the metadata hook running (sharding alone routes the GET to the right
+        // shard and the doc is found by id), so we assert via a term query on _routing — that field
+        // is only indexed if RoutingFieldMapper.preParse ran during parseRow.
+        String index = "test-batch-routing";
+        createBatchIndex(index, 3, 0);
+        String coordinatingNode = findCoordinatingNode();
+
+        int numRoutingKeys = 4;
+        int numDocs = randomIntBetween(20, 60);
+        int[] perRoute = new int[numRoutingKeys];
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            int route = i % numRoutingKeys;
+            perRoute[route]++;
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .routing("route-" + route)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "routed-" + i, "value", i, "message", "routing test"))
+            );
+        }
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+        refresh(index);
+
+        for (int route = 0; route < numRoutingKeys; route++) {
+            int expected = perRoute[route];
+            String routingValue = "route-" + route;
+            assertResponse(
+                prepareSearch(index).setQuery(QueryBuilders.termQuery("_routing", routingValue)).setSize(0).setTrackTotalHits(true),
+                searchResponse -> {
+                    assertNoFailures(searchResponse);
+                    assertThat(
+                        "_routing term query for " + routingValue + " should hit RoutingFieldMapper-indexed docs",
+                        searchResponse.getHits().getTotalHits().value(),
+                        equalTo((long) expected)
+                    );
+                }
+            );
+        }
+    }
+
     public void testTimeSeriesIndexViaBatchMode() throws IOException {
         String index = "test-batch-tsdb";
 

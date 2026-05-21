@@ -87,7 +87,9 @@ public class MockInferenceClient extends NoOpClient {
                 );
                 return;
             }
-            String input = embeddingRequest.getEmbeddingRequest().inputs().getFirst().textValue();
+            var firstInput = embeddingRequest.getEmbeddingRequest().inputs().getFirst().value();
+            // Use the string representation of the value as the mock input key, regardless of input type
+            String input = firstInput.isText() ? firstInput.value() : firstInput.dataType() + ":" + firstInput.value();
             executeInferenceAction(inferenceId, input, inferenceListener);
         } else if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
             @SuppressWarnings("unchecked")

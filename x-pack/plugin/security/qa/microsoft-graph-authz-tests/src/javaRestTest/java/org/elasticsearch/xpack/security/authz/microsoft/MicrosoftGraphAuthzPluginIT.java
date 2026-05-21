@@ -7,43 +7,43 @@
 
 package org.elasticsearch.xpack.security.authz.microsoft;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jose.jwk.OctetSequenceKey;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestTrustStore;
-import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.model.User;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.security.authc.saml.SamlIdpMetadataBuilder;
-import org.elasticsearch.xpack.security.authc.saml.SamlResponseBuilder;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.cert.CertificateException;
-import java.util.Base64;
+import java.time.Instant;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -96,28 +96,28 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         ? RuleChain.outerRule(graphFixture).around(trustStore).around(cluster)
         : RuleChain.outerRule(cluster);
 
-    private static final String IDP_ENTITY_ID = "http://idp.example.org/";
+    private static final String JWT_ISSUER = "test-issuer";
+    private static final String JWT_AUDIENCE = "test-audience";
+    private static final String JWT_HMAC_PASSPHRASE = "test-HMAC/secret passphrase-value-microsoft-graph-authz";
 
     private static ElasticsearchCluster initTestCluster() {
         final var clusterBuilder = ElasticsearchCluster.local()
             .module("analysis-common")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("xpack.security.authc.token.enabled", "true")
             .setting("xpack.security.http.ssl.enabled", "false")
             .plugin("microsoft-graph-authz")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("test_admin", "x-pack-test-password", User.ROOT_USER_ROLE, true)
             .user("rest_test", "rest_password", User.ROOT_USER_ROLE, true)
-            .configFile("metadata.xml", Resource.fromString(getIDPMetadata()))
-            .setting("xpack.security.authc.realms.saml.saml1.order", "1")
-            .setting("xpack.security.authc.realms.saml.saml1.idp.entity_id", IDP_ENTITY_ID)
-            .setting("xpack.security.authc.realms.saml.saml1.idp.metadata.path", "metadata.xml")
-            .setting("xpack.security.authc.realms.saml.saml1.attributes.principal", "urn:oid:2.5.4.3")
-            .setting("xpack.security.authc.realms.saml.saml1.sp.entity_id", "http://sp/default.example.org/")
-            .setting("xpack.security.authc.realms.saml.saml1.sp.acs", "http://acs/default")
-            .setting("xpack.security.authc.realms.saml.saml1.sp.logout", "http://logout/default")
-            .setting("xpack.security.authc.realms.saml.saml1.authorization_realms", "microsoft_graph1")
+            .setting("xpack.security.authc.realms.jwt.jwt1.order", "1")
+            .setting("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", JWT_ISSUER)
+            .setting("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", JWT_AUDIENCE)
+            .setting("xpack.security.authc.realms.jwt.jwt1.allowed_signature_algorithms", "HS256")
+            .setting("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub")
+            .setting("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE")
+            .setting("xpack.security.authc.realms.jwt.jwt1.authorization_realms", "microsoft_graph1")
+            .keystore("xpack.security.authc.realms.jwt.jwt1.hmac_key", JWT_HMAC_PASSPHRASE)
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.order", "2")
             .setting("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_id", CLIENT_ID)
             .keystore("xpack.security.authc.realms.microsoft_graph.microsoft_graph1.client_secret", CLIENT_SECRET)
@@ -139,16 +139,6 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         }
 
         return clusterBuilder.build();
-    }
-
-    private static String getIDPMetadata() {
-        try {
-            var signingCert = PathUtils.get(MicrosoftGraphAuthzPluginIT.class.getResource("/saml/signing.crt").toURI());
-            return new SamlIdpMetadataBuilder().entityId(IDP_ENTITY_ID).idpUrl(IDP_ENTITY_ID).sign(signingCert).asString();
-        } catch (URISyntaxException | CertificateException | IOException exception) {
-            fail(exception);
-        }
-        return null;
     }
 
     @Before
@@ -213,12 +203,11 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
 
     public void testAuthenticationSuccessful() throws Exception {
         final var listener = new PlainActionFuture<Map<String, Object>>();
-        samlAuthWithMicrosoftGraphAuthz(getSamlAssertionJsonBodyString(USERNAME), listener);
+        authenticateWithMicrosoftGraphAuthz(USERNAME, listener);
         final var resp = listener.get();
-        List<String> roles = new XContentTestUtils.JsonMapView(resp).get("authentication.roles");
         assertThat(resp.get("username"), equalTo(USERNAME));
-        assertThat(roles, contains("microsoft_graph_user"));
-        assertThat(ObjectPath.evaluate(resp, "authentication.authentication_realm.name"), equalTo("saml1"));
+        assertThat(ObjectPath.<List<String>>evaluate(resp, "roles"), contains("microsoft_graph_user"));
+        assertThat(ObjectPath.evaluate(resp, "authentication_realm.name"), equalTo("jwt1"));
     }
 
     public void testConcurrentAuthentication() throws Exception {
@@ -229,7 +218,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         final var groupedListener = new GroupedActionListener<>(TEST_USERS.size() * concurrentLogins, resultsListener);
         for (int i = 0; i < concurrentLogins; i++) {
             for (var user : TEST_USERS) {
-                samlAuthWithMicrosoftGraphAuthz(getSamlAssertionJsonBodyString(user.username()), groupedListener);
+                authenticateWithMicrosoftGraphAuthz(user.username(), groupedListener);
             }
         }
         final var allResponses = resultsListener.get();
@@ -240,30 +229,30 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
             assertThat(userResponses.size(), equalTo(concurrentLogins));
 
             for (var response : userResponses) {
-                final List<String> roles = new XContentTestUtils.JsonMapView(response).get("authentication.roles");
-                assertThat(roles, equalTo(user.roles()));
-                assertThat(ObjectPath.evaluate(response, "authentication.authentication_realm.name"), equalTo("saml1"));
+                assertThat(ObjectPath.evaluate(response, "roles"), equalTo(user.roles()));
+                assertThat(ObjectPath.evaluate(response, "authentication_realm.name"), equalTo("jwt1"));
             }
         }
     }
 
-    private String getSamlAssertionJsonBodyString(String username) throws Exception {
-        var message = new SamlResponseBuilder().spEntityId("http://sp/default.example.org/")
-            .idpEntityId(IDP_ENTITY_ID)
-            .acs(new URL("http://acs/default"))
-            .attribute("urn:oid:2.5.4.3", username)
-            .sign(getDataPath("/saml/signing.crt"), getDataPath("/saml/signing.key"), new char[0])
-            .asString();
-
-        final Map<String, Object> body = new HashMap<>();
-        body.put("content", Base64.getEncoder().encodeToString(message.getBytes(StandardCharsets.UTF_8)));
-        body.put("realm", "saml1");
-        return Strings.toString(JsonXContent.contentBuilder().map(body));
+    private static String buildSignedJwt(String principal) throws JOSEException {
+        final Instant now = Instant.now();
+        final JWTClaimsSet claims = new JWTClaimsSet.Builder().issuer(JWT_ISSUER)
+            .audience(JWT_AUDIENCE)
+            .subject(principal)
+            .issueTime(Date.from(now))
+            .expirationTime(Date.from(now.plusSeconds(600)))
+            .build();
+        final SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+        final OctetSequenceKey hmacKey = new OctetSequenceKey.Builder(JWT_HMAC_PASSPHRASE.getBytes(StandardCharsets.UTF_8)).build();
+        jwt.sign(new MACSigner(hmacKey));
+        return jwt.serialize();
     }
 
-    private void samlAuthWithMicrosoftGraphAuthz(String samlAssertion, ActionListener<Map<String, Object>> listener) {
-        var req = new Request("POST", "_security/saml/authenticate");
-        req.setJsonEntity(samlAssertion);
+    private void authenticateWithMicrosoftGraphAuthz(String principal, ActionListener<Map<String, Object>> listener) throws JOSEException {
+        final String jwt = buildSignedJwt(principal);
+        final var req = new Request("GET", "/_security/_authenticate");
+        req.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + jwt));
         client().performRequestAsync(req, ActionTestUtils.wrapAsRestResponseListener(listener.map(ESRestTestCase::entityAsMap)));
     }
 

@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -25,199 +24,161 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<OpenAiChatCompletionServiceSettings> {
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var modelId = "some model";
-        var url = "https://www.elastic.co";
-        var org = "organization";
-        var maxInputTokens = 8192;
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-model-id";
 
+    private static final URI TEST_URI = createUri("https://www.test.com");
+    private static final URI INITIAL_TEST_URI = createUri("https://www.initial.com");
+
+    private static final String TEST_ORGANIZATION_ID = "test-organization";
+    private static final String INITIAL_TEST_ORGANIZATION_ID = "initial-organization";
+
+    private static final int TEST_MAX_INPUT_TOKENS = 4096;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+
+    private static final int TEST_RATE_LIMIT = 250;
+    private static final int INITIAL_TEST_RATE_LIMIT = 100;
+    private static final int DEFAULT_RATE_LIMIT = 500;
+
+    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = OpenAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.URL,
-                    url,
-                    OpenAiServiceFields.ORGANIZATION,
-                    org,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(serviceSettings, is(new OpenAiChatCompletionServiceSettings(modelId, createUri(url), org, maxInputTokens, null)));
-    }
-
-    public void testFromMap_Request_CreatesSettingsCorrectly_WithRateLimit() {
-        var modelId = "some model";
-        var url = "https://www.elastic.co";
-        var org = "organization";
-        var maxInputTokens = 8192;
-        var rateLimit = 2;
-        var serviceSettings = OpenAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.URL,
-                    url,
-                    OpenAiServiceFields.ORGANIZATION,
-                    org,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit))
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), TEST_ORGANIZATION_ID, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
         );
 
         assertThat(
             serviceSettings,
-            is(new OpenAiChatCompletionServiceSettings(modelId, createUri(url), org, maxInputTokens, new RateLimitSettings(2)))
+            is(
+                new OpenAiChatCompletionServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_URI,
+                    TEST_ORGANIZATION_ID,
+                    TEST_MAX_INPUT_TOKENS,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
         );
     }
 
-    public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var modelId = "some model";
-        var organization = "org";
-        var maxInputTokens = 8192;
-
+    public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
         var serviceSettings = OpenAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    OpenAiServiceFields.ORGANIZATION,
-                    organization,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null),
+            randomFrom(ConfigurationParseContext.values())
         );
 
-        assertNull(serviceSettings.uri());
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.organizationId(), is(organization));
-        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
+        assertThat(serviceSettings, is(new OpenAiChatCompletionServiceSettings(TEST_MODEL_ID, (URI) null, null, null, null)));
     }
 
-    public void testFromMap_EmptyUrl_ThrowsError() {
+    public void testFromMap_NoModelId_ThrowsValidationError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.URL, "", ServiceFields.MODEL_ID, "model")),
-                ConfigurationParseContext.PERSISTENT
+                buildServiceSettingsMap(null, TEST_URI.toString(), TEST_ORGANIZATION_ID, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
             )
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    ServiceFields.URL
-                )
-            )
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", MODEL_ID))
         );
     }
 
-    public void testFromMap_MissingOrganization_DoesNotThrowException() {
-        var modelId = "some model";
-        var maxInputTokens = 8192;
-
-        var serviceSettings = OpenAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId, ServiceFields.MAX_INPUT_TOKENS, maxInputTokens)),
-            ConfigurationParseContext.PERSISTENT
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var settingsMap = buildServiceSettingsMap(
+            TEST_MODEL_ID,
+            TEST_URI.toString(),
+            TEST_ORGANIZATION_ID,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_RATE_LIMIT
         );
-
-        assertNull(serviceSettings.uri());
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
-    }
-
-    public void testFromMap_EmptyOrganization_ThrowsError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> OpenAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(Map.of(OpenAiServiceFields.ORGANIZATION, "", ServiceFields.MODEL_ID, "model")),
-                ConfigurationParseContext.PERSISTENT
-            )
+        var originalServiceSettings = new OpenAiChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
 
         assertThat(
-            thrownException.getMessage(),
-            containsString(
-                org.elasticsearch.common.Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    OpenAiServiceFields.ORGANIZATION
+            updatedServiceSettings,
+            is(
+                new OpenAiChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    TEST_ORGANIZATION_ID,
+                    TEST_MAX_INPUT_TOKENS,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
-    public void testFromMap_InvalidUrl_ThrowsError() {
-        var url = "https://www.abc^.com";
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> OpenAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.MODEL_ID, "model")),
-                ConfigurationParseContext.PERSISTENT
-            )
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new OpenAiChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_ORGANIZATION_ID,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
-            )
-        );
+        assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", "url", "org", 1024, null);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"model_id":"model","url":"url","organization_id":"org",""" + """
-            "max_input_tokens":1024,"rate_limit":{"requests_per_minute":500}}"""));
-    }
-
-    public void testToXContent_WritesAllValues_WithCustomRateLimit() throws IOException {
-        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", "url", "org", 1024, new RateLimitSettings(2));
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"model_id":"model","url":"url","organization_id":"org",""" + """
-            "max_input_tokens":1024,"rate_limit":{"requests_per_minute":2}}"""));
-    }
-
-    public void testToXContent_DoesNotWriteOptionalValues() throws IOException {
-        URI uri = null;
-
-        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", uri, null, null, null);
+        var serviceSettings = new OpenAiChatCompletionServiceSettings(
+            TEST_MODEL_ID,
+            TEST_URI,
+            TEST_ORGANIZATION_ID,
+            TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(TEST_RATE_LIMIT)
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"model","rate_limit":{"requests_per_minute":500}}"""));
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+            {
+                "model_id": "%s",
+                "url": "%s",
+                "organization_id": "%s",
+                "max_input_tokens": %d,
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, TEST_URI.toString(), TEST_ORGANIZATION_ID, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT)));
+    }
+
+    public void testToXContent_DoesNotWriteOptionalValues() throws IOException {
+        var serviceSettings = new OpenAiChatCompletionServiceSettings(TEST_MODEL_ID, (URI) null, null, null, null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
+            {
+                "model_id": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT)));
     }
 
     @Override
@@ -239,7 +200,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
         var rateLimitSettings = instance.rateLimitSettings();
         switch (randomInt(4)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
-            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri("https://" + randomAlphaOfLength(10) + ".example"));
             case 2 -> organizationId = randomValueOtherThan(organizationId, () -> randomAlphaOfLengthOrNull(15));
             case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 4096), null));
             case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
@@ -250,21 +211,40 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
     }
 
     private static OpenAiChatCompletionServiceSettings createRandomWithNonNullUrl() {
-        return createRandom(randomAlphaOfLength(15));
+        return createRandom(createUri("https://" + randomAlphaOfLength(10) + ".example"));
     }
 
-    private static OpenAiChatCompletionServiceSettings createRandom(String url) {
+    private static OpenAiChatCompletionServiceSettings createRandom(URI uri) {
         var modelId = randomAlphaOfLength(8);
-        var organizationId = randomFrom(randomAlphaOfLength(15), null);
+        var organizationId = randomAlphaOfLengthOrNull(15);
         var maxInputTokens = randomFrom(randomIntBetween(128, 4096), null);
 
-        return new OpenAiChatCompletionServiceSettings(
-            modelId,
-            createUri(url),
-            organizationId,
-            maxInputTokens,
-            RateLimitSettingsTests.createRandom()
-        );
+        return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens, RateLimitSettingsTests.createRandom());
     }
 
+    private static Map<String, Object> buildServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String url,
+        @Nullable String organizationId,
+        @Nullable Integer maxInputTokens,
+        @Nullable Integer rateLimit
+    ) {
+        var map = new HashMap<String, Object>();
+        if (modelId != null) {
+            map.put(MODEL_ID, modelId);
+        }
+        if (url != null) {
+            map.put(URL, url);
+        }
+        if (organizationId != null) {
+            map.put(ORGANIZATION, organizationId);
+        }
+        if (maxInputTokens != null) {
+            map.put(MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return map;
+    }
 }

@@ -21,7 +21,7 @@ import java.util.Locale;
  * Standalone CSV parser for fixture generation. Parses CSV files with bracket-aware
  * multi-value support, matching the behavior of {@link CsvFormatReader}.
  * <p>
- * Used by OrcFixtureGenerator, ParquetFixtureGenerator, and NdJsonFixtureGenerator to read CSV fixtures
+ * Used by OrcFixtureGenerator, ParquetFixtureGenerator, NdJsonFixtureGenerator, and TsvFixtureGenerator to read CSV fixtures
  * with correct multi-value handling (e.g. {@code [a,b,c]} as a list, not just first element).
  * <p>
  * Minimal dependencies: only java.util, java.io, java.nio. No esql-core or server.
@@ -103,19 +103,89 @@ public final class CsvFixtureParser {
         return new CsvFixtureResult(schema, rows);
     }
 
+    /**
+     * RFC-4180-style: a {@code "} only opens quoting at field start (after {@code ,} or line-start, optionally
+     * preceded by whitespace) and is ignored inside {@code [..]} MVC cells. Stray {@code "} chars in unquoted
+     * cells are literal bytes and must not cause multi-line gluing — kept consistent with
+     * {@link CsvFormatReader} so fixture parsing matches runtime parsing.
+     */
     private static boolean hasUnclosedQuote(String s, char quote) {
         boolean inQuotes = false;
+        int bracketDepth = 0;
+        boolean fieldHasNonWhitespace = false;
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            if (c == quote) {
-                if (i + 1 < s.length() && s.charAt(i + 1) == quote) {
-                    i++;
-                    continue;
+            if (inQuotes) {
+                if (c == quote) {
+                    if (i + 1 < s.length() && s.charAt(i + 1) == quote) {
+                        i++;
+                        continue;
+                    }
+                    inQuotes = false;
                 }
-                inQuotes = !inQuotes;
+                continue;
+            }
+            if (bracketDepth > 0) {
+                if (c == '[') {
+                    bracketDepth++;
+                } else if (c == ']') {
+                    bracketDepth--;
+                }
+                continue;
+            }
+            if (c == ',') {
+                fieldHasNonWhitespace = false;
+                continue;
+            }
+            if (c == quote && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+                continue;
+            }
+            if (c == '[' && fieldHasNonWhitespace == false) {
+                // No hasMvcBracketClose check here: see CsvFormatReader.CsvBatchIterator.hasUnclosedQuote
+                // for the rationale — unconditional bracket entry is safe and avoids false multi-line gluing.
+                bracketDepth = 1;
+                continue;
+            }
+            if (Character.isWhitespace(c) == false) {
+                fieldHasNonWhitespace = true;
             }
         }
         return inQuotes;
+    }
+
+    /** Same as {@link CsvFormatReader}: whitespace-only prefix still allows bracket MVC to open at {@code [}. */
+    private static boolean isWhitespaceOnlyFieldPrefix(StringBuilder current) {
+        for (int k = 0; k < current.length(); k++) {
+            if (Character.isWhitespace(current.charAt(k)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Whether {@code line} starting at {@code openBracketIndex} contains a balanced bracket suffix that closes the
+     * MVC cell. Only {@code [} and {@code ]} adjust depth — quote/escape/delimiter characters inside the bracket
+     * cell are treated as literal data, matching the splitter's {@code bracketDepth > 0} branch.
+     */
+    private static boolean hasMvcBracketClose(String line, int openBracketIndex) {
+        if (openBracketIndex < 0 || openBracketIndex >= line.length() || line.charAt(openBracketIndex) != '[') {
+            return false;
+        }
+        int depth = 0;
+        for (int j = openBracketIndex; j < line.length(); j++) {
+            char c = line.charAt(j);
+            if (c == '[') {
+                depth++;
+            } else if (c == ']') {
+                depth--;
+                if (depth == 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -125,7 +195,7 @@ public final class CsvFixtureParser {
         List<String> entries = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
-        boolean inBrackets = false;
+        int bracketDepth = 0;
         int i = 0;
         while (i < line.length()) {
             char c = line.charAt(i);
@@ -145,28 +215,23 @@ public final class CsvFixtureParser {
                     current.append(c);
                 }
                 i++;
-            } else if (inBrackets) {
+            } else if (bracketDepth > 0) {
+                // See {@link CsvFormatReader} for the rationale: keep accumulating after the cell closes,
+                // so a field like `[37] Title` stays a single field instead of producing a phantom column.
                 current.append(c);
-                if (c == ']') {
-                    inBrackets = false;
-                    entries.add(current.toString());
-                    current = new StringBuilder();
-                    i++;
-                    while (i < line.length() && line.charAt(i) == ' ') {
-                        i++;
-                    }
-                    if (i < line.length() && line.charAt(i) == delim) {
-                        i++;
-                        continue;
-                    }
-                    continue;
+                if (c == '[') {
+                    bracketDepth++;
+                } else if (c == ']') {
+                    bracketDepth--;
                 }
                 i++;
-            } else if (c == quote) {
+            } else if (c == quote && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
                 inQuotes = true;
                 i++;
-            } else if (c == '[' && current.length() == 0) {
-                inBrackets = true;
+            } else if (c == '[' && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
+                if (hasMvcBracketClose(line, i)) {
+                    bracketDepth = 1;
+                }
                 current.append(c);
                 i++;
             } else if (c == delim) {
@@ -185,14 +250,15 @@ public final class CsvFixtureParser {
         if (inQuotes) {
             throw new IllegalArgumentException("Unclosed quoted field in line [" + line + "]");
         }
-        if (inBrackets) {
+        if (bracketDepth > 0) {
             throw new IllegalArgumentException("Unclosed bracket cell in line [" + line + "]");
         }
         if (current.length() > 0) {
             entries.add(current.toString().trim());
         }
         // Trailing delimiter (RFC 4180): one more empty field after the last comma, unless escaped as \,
-        if (line.endsWith(String.valueOf(delim)) && inQuotes == false) {
+        // No inQuotes guard needed: if we reach here with an unclosed quote the throw above fires first.
+        if (line.length() > 0 && line.charAt(line.length() - 1) == delim) {
             int last = line.length() - 1;
             if (last == 0 || line.charAt(last - 1) != esc) {
                 entries.add("");

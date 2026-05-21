@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -1865,7 +1866,7 @@ public class AnalyzerTests extends ESTestCase {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
-                + "or dense_vector or exponential_histogram or geo_point "
+                + "or dense_vector or exponential_histogram or flattened or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
@@ -3501,8 +3502,9 @@ public class AnalyzerTests extends ESTestCase {
 
     /**
      * When a TS source is followed by STATS, the time series merge is enforced and conflicting
-     * dimension/metric types across indices produce an {@link InvalidMappedField}. The field
-     * resolves as {@link DataType#UNSUPPORTED} rather than the original KEYWORD type.
+     * dimension/metric roles across indices produce an {@link InvalidMappedTsField}. Because
+     * {@code mappingAsAttributes} converts it to an {@link UnsupportedAttribute} immediately,
+     * any query that references the field is rejected with a clear error message.
      */
     public void testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported() {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
@@ -3513,10 +3515,12 @@ public class AnalyzerTests extends ESTestCase {
             false,
             (p, r) -> Map.of()
         );
-        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
-        var plan = analyzer().addIndex(resolution).query("TS test | STATS avg(rate(bytes_in)) BY status");
-        var statusAttr = plan.output().stream().filter(a -> a.name().equals("status")).findFirst().orElseThrow();
-        assertThat(statusAttr.dataType(), equalTo(UNSUPPORTED));
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedTsField.class));
+        analyzer().addIndex(resolution)
+            .error(
+                "TS test | STATS avg(rate(bytes_in)) BY status",
+                containsString("Time Series Metadata conflict.  Cannot merge [METRIC] with [DIMENSION].")
+            );
     }
 
     /**
@@ -3553,7 +3557,7 @@ public class AnalyzerTests extends ESTestCase {
             false,
             (p, r) -> Map.of()
         );
-        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedTsField.class));
         var plan = analyzer().addIndex(resolution).query("""
             PROMQL index=test
                 step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
@@ -4695,7 +4699,6 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
@@ -4737,7 +4740,6 @@ public class AnalyzerTests extends ESTestCase {
             "union_index*",
             Map.of("id", idField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -5010,7 +5012,6 @@ public class AnalyzerTests extends ESTestCase {
             "k8s,k8s-downsampled",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
-            Map.of(),
             Map.of(),
             Map.of()
         );

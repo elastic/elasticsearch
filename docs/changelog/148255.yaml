@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148255
+summary: Bulk-decode Parquet definition levels
+type: enhancement

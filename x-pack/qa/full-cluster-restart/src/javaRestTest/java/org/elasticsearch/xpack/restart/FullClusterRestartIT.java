@@ -99,8 +99,8 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             client().performRequest(createDoc);
         }
 
-        Request getRequest = new Request("GET", docLocation);
-        assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
+        Map<String, Object> getResponse = entityAsMap(client().performRequest(new Request("GET", docLocation)));
+        assertThat(getResponse.get("_source"), equalTo(Map.of("test", "test")));
     }
 
     public void testSecurityNativeRealm() throws Exception {

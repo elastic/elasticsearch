@@ -39,6 +39,11 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }

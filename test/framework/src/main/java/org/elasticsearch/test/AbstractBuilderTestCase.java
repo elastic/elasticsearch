@@ -596,7 +596,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
-                idxSettings.getMode().idFieldMapperWithoutFieldData(),
+                () -> false,
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
                 MapperMetrics.NOOP,

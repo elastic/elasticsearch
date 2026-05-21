@@ -239,10 +239,12 @@
         - method: PUT
           path: /_index_template/{name}
           capabilities: [ "dlm.frozen_after" ]
-      test_runner_features: [ "capabilities" ]
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
       reason: "Frozen after added"
 
   - do:
+      allowed_warnings:
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
       indices.put_index_template:
         name: test-lifecycle
         body:

@@ -17,11 +17,11 @@ module org.elasticsearch.telemetry.apm {
     requires io.opentelemetry.context;
     requires io.opentelemetry.sdk;
     requires io.opentelemetry.sdk.metrics;
+    requires io.opentelemetry.sdk.trace;
     requires io.opentelemetry.exporter.otlp;
     requires io.opentelemetry.instrumentation.runtime_telemetry;
     requires io.opentelemetry.sdk.common;
     requires org.elasticsearch.logging;
 
     exports org.elasticsearch.telemetry.apm;
-    exports org.elasticsearch.telemetry.apm.metrics;
 }

@@ -91,7 +91,6 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
             mock(FeatureService.class)
         );
         assertNull(service.getActiveKey());
-        assertNull(service.getActiveKeyId());
         assertNull(service.getKey("anything"));
     }
 
@@ -119,9 +118,10 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
 
         listener.clusterChanged(new ClusterChangedEvent("test", newState, prevState));
 
-        assertEquals(pek.getActiveKeyId(), service.getActiveKeyId());
-        assertNotNull(service.getActiveKey());
-        assertEquals("AES", service.getActiveKey().getAlgorithm());
+        AesGcmEncryptionService.ActiveKey activeKey = service.getActiveKey();
+        assertNotNull(activeKey);
+        assertEquals(pek.getActiveKeyId(), activeKey.keyId());
+        assertEquals("AES", activeKey.key().getAlgorithm());
         assertNotNull(service.getKey(pek.getActiveKeyId()));
         assertNull(service.getKey("nonexistent"));
     }
@@ -144,7 +144,7 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
 
         listener.clusterChanged(new ClusterChangedEvent("test", blockedState, prevState));
 
-        assertNull(service.getActiveKeyId());
+        assertNull(service.getActiveKey());
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
     }
 
@@ -219,7 +219,7 @@ public class PrimaryEncryptionKeyServiceTests extends ESTestCase {
         ClusterState prevState = stateWithoutKey(nodes);
         ClusterState stateWithKey = stateWithKey(pek, nodes);
         listener.clusterChanged(new ClusterChangedEvent("test", stateWithKey, prevState));
-        assertNotNull(service.getActiveKeyId());
+        assertNotNull(service.getActiveKey());
 
         // Second event: no metadata change, master with cached key should not submit
         ClusterState nextState = ClusterState.builder(stateWithKey).build();

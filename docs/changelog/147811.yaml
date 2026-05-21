@@ -1,0 +1,5 @@
+area: Logs
+issues: []
+pr: 147811
+summary: Enable OTLP logs and traces by default
+type: enhancement

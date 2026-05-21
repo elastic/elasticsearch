@@ -47,13 +47,16 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -284,7 +287,10 @@ public abstract class FullTextFunction extends Function
                 lp -> (lp instanceof Limit == false)
                     && (lp instanceof Aggregate == false)
                     && (lp instanceof UnionAll == false)
-                    && (lp instanceof MvExpand == false),
+                    && (lp instanceof MvExpand == false)
+                    && (lp instanceof Fork == false)
+                    && (lp instanceof LimitBy == false)
+                    && (lp instanceof TopNBy == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -487,6 +493,55 @@ public abstract class FullTextFunction extends Function
                     }
                 }
             }
+
+            // Fork's own output exposes ReferenceAttributes, so to reach the underlying
+            // FieldAttribute we look inside each branch's output and match by name.
+            if (p instanceof Fork fork) {
+                String currentName = current.get().name();
+                // resolve when current field is part of the Fork output
+                boolean inForkOutput = fork.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
+                if (inForkOutput == false) {
+                    breakEarly.set(true);
+                    return;
+                }
+
+                // Every branch must contain this field, not just one
+                FieldAttribute candidate = null;
+                for (LogicalPlan branch : fork.children()) {
+                    FieldAttribute match = branch.output()
+                        .stream()
+                        .filter(a -> a.name().equals(currentName) && a instanceof FieldAttribute)
+                        .map(a -> (FieldAttribute) a)
+                        .findFirst()
+                        .orElse(null);
+                    if (match == null) {
+                        candidate = null;
+                        break;
+                    }
+                    candidate = match;
+                }
+                if (candidate != null) {
+                    resolved.set(candidate);
+                }
+                breakEarly.set(true);
+                return;
+            }
+
+            // Resolve the underlying FieldAttribute by stepping through MvExpand
+            // from its `expanded` output back to its `target`.
+            if (p instanceof MvExpand mvExpand && mvExpand.expanded().id().equals(current.get().id())) {
+                FieldAttribute candidate = fieldAsFieldAttribute(mvExpand.target());
+                if (candidate != null) {
+                    resolved.set(candidate);
+                    breakEarly.set(true);
+                } else if (mvExpand.target() instanceof Attribute next) {
+                    current.set(next);
+                } else {
+                    breakEarly.set(true);
+                }
+                return;
+            }
+
         });
         return resolved.get();
     }

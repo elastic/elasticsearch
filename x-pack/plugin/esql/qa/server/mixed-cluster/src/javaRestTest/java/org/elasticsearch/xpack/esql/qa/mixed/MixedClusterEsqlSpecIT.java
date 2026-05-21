@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.qa.mixed;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -46,20 +47,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
             : null
     );
-
-    private static TestFeatureService oldClusterTestFeatureService = null;
-
-    @Before
-    public void extractOldClusterFeatures() {
-        if (oldClusterTestFeatureService == null) {
-            oldClusterTestFeatureService = testFeatureService;
-        }
-    }
-
-    @AfterClass
-    public static void cleanUp() {
-        oldClusterTestFeatureService = null;
-    }
+    private static RestClient oldNodeClient = null;
 
     public MixedClusterEsqlSpecIT(
         String fileName,
@@ -72,10 +60,27 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
+    @AfterClass
+    public static void cleanUp() throws IOException {
+        IOUtils.close(oldNodeClient);
+        oldNodeClient = null;
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        CsvTestUtils.assumeTrueLogging(
+            "Old mixed-cluster node does not support required capabilities for " + testName,
+            testCase.requiredCapabilities.isEmpty() || hasCapabilities(oldNodeClient(), testCase.requiredCapabilities)
+        );
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
+    }
+
+    private RestClient oldNodeClient() throws IOException {
+        if (oldNodeClient == null) {
+            oldNodeClient = buildClient(restAdminSettings(), new HttpHost[] { HttpHost.create("http://" + cluster.getHttpAddress(0)) });
+        }
+        return oldNodeClient;
     }
 
     @Override

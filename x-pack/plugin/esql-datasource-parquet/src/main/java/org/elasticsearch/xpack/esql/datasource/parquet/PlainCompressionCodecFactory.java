@@ -15,12 +15,15 @@ import com.github.luben.zstd.Zstd;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -41,50 +44,75 @@ import java.util.zip.GZIPOutputStream;
  * is direct and {@code useOffHeapDecryptBuffer} is enabled; the current read path uses
  * {@code HeapByteBufferAllocator} so the {@code BytesInput} path is the hot path today, but the
  * direct path is ready for when we switch to a direct allocator.
+ *
+ * <p>This factory is shared across all driver threads of a query, so {@link #getDecompressor} and
+ * {@link #getCompressor} must be safe under concurrent access. Thread-safety is achieved without
+ * losing laziness by:
+ * <ul>
+ *   <li>Building the per-codec lookup tables once in the constructor as immutable {@link EnumMap}s,
+ *       so the hot path is a plain map read with no synchronization.</li>
+ *   <li>Wrapping each entry in a {@link LazyInitializable} which uses double-checked locking to
+ *       create the underlying (de)compressor on first use, so the JNI library backing each codec
+ *       is loaded exactly once per codec regardless of how many threads race for it.</li>
+ * </ul>
+ *
+ * <p>{@link #release()} is intentionally a no-op: the codec adapters here hold no resources that
+ * can be released (the underlying JNI native libraries cannot be unloaded), so there is nothing
+ * to clear. The method exists only because the {@link CompressionCodecFactory} SPI requires it.
  */
 final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
-    private final Map<CompressionCodecName, BytesInputDecompressor> decompressors = new HashMap<>();
-    private final Map<CompressionCodecName, BytesInputCompressor> compressors = new HashMap<>();
+    private final Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> decompressors;
+    private final Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> compressors;
+
+    PlainCompressionCodecFactory() {
+        Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> dec = new EnumMap<>(
+            CompressionCodecName.class
+        );
+        dec.put(CompressionCodecName.UNCOMPRESSED, lazy(NoopDecompressor::new));
+        dec.put(CompressionCodecName.SNAPPY, lazy(SnappyBytesDecompressor::new));
+        dec.put(CompressionCodecName.GZIP, lazy(GzipBytesDecompressor::new));
+        dec.put(CompressionCodecName.ZSTD, lazy(ZstdBytesDecompressor::new));
+        dec.put(CompressionCodecName.LZ4_RAW, lazy(Lz4RawBytesDecompressor::new));
+        this.decompressors = dec;
+
+        Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> com = new EnumMap<>(
+            CompressionCodecName.class
+        );
+        com.put(CompressionCodecName.UNCOMPRESSED, lazy(NoopCompressor::new));
+        com.put(CompressionCodecName.SNAPPY, lazy(SnappyBytesCompressor::new));
+        com.put(CompressionCodecName.GZIP, lazy(GzipBytesCompressor::new));
+        com.put(CompressionCodecName.ZSTD, lazy(ZstdBytesCompressor::new));
+        com.put(CompressionCodecName.LZ4_RAW, lazy(Lz4RawBytesCompressor::new));
+        this.compressors = com;
+    }
+
+    private static <T> LazyInitializable<T, RuntimeException> lazy(CheckedSupplier<T, RuntimeException> supplier) {
+        return new LazyInitializable<>(supplier);
+    }
 
     @Override
     public BytesInputDecompressor getDecompressor(CompressionCodecName codecName) {
-        return decompressors.computeIfAbsent(codecName, PlainCompressionCodecFactory::createDecompressor);
+        LazyInitializable<BytesInputDecompressor, RuntimeException> holder = decompressors.get(codecName);
+        if (holder == null) {
+            throw new UnsupportedOperationException("Unsupported Parquet decompression codec: " + codecName);
+        }
+        return holder.getOrCompute();
     }
 
     @Override
     public BytesInputCompressor getCompressor(CompressionCodecName codecName) {
-        return compressors.computeIfAbsent(codecName, PlainCompressionCodecFactory::createCompressor);
+        LazyInitializable<BytesInputCompressor, RuntimeException> holder = compressors.get(codecName);
+        if (holder == null) {
+            throw new UnsupportedOperationException("Unsupported Parquet compression codec: " + codecName);
+        }
+        return holder.getOrCompute();
     }
 
     @Override
     public void release() {
-        decompressors.values().forEach(BytesInputDecompressor::release);
-        decompressors.clear();
-        compressors.values().forEach(BytesInputCompressor::release);
-        compressors.clear();
-    }
-
-    private static BytesInputDecompressor createDecompressor(CompressionCodecName codec) {
-        return switch (codec) {
-            case UNCOMPRESSED -> new NoopDecompressor();
-            case SNAPPY -> new SnappyBytesDecompressor();
-            case GZIP -> new GzipBytesDecompressor();
-            case ZSTD -> new ZstdBytesDecompressor();
-            case LZ4_RAW -> new Lz4RawBytesDecompressor();
-            default -> throw new UnsupportedOperationException("Unsupported Parquet decompression codec: " + codec);
-        };
-    }
-
-    private static BytesInputCompressor createCompressor(CompressionCodecName codec) {
-        return switch (codec) {
-            case UNCOMPRESSED -> new NoopCompressor();
-            case SNAPPY -> new SnappyBytesCompressor();
-            case GZIP -> new GzipBytesCompressor();
-            case ZSTD -> new ZstdBytesCompressor();
-            case LZ4_RAW -> new Lz4RawBytesCompressor();
-            default -> throw new UnsupportedOperationException("Unsupported Parquet compression codec: " + codec);
-        };
+        // No-op: the codec adapters hold no resources, and the JNI native libraries backing them
+        // cannot be unloaded. Implementing this purely to satisfy the parquet-mr SPI.
     }
 
     /**
@@ -128,16 +156,35 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     }
 
     /**
-     * Snappy decompressor. The JNI {@code Snappy.uncompress(ByteBuffer, ByteBuffer)} requires both
-     * buffers to be direct; heap buffers fall back to the byte-array path. The JNI call returns the
-     * number of decompressed bytes written but does not advance the output buffer position, so we
-     * advance it manually.
+     * Snappy decompressor. Two JNI overloads are used depending on input shape:
+     * <ul>
+     *   <li>{@code Snappy.uncompress(byte[], int, int, byte[], int)} when the compressed input is
+     *       backed by a Java heap array (the common case for the prefetch path: column chunks
+     *       arrive as {@link ByteBuffer#wrap(byte[], int, int)}-style {@code BytesInput}s).</li>
+     *   <li>{@code Snappy.uncompress(ByteBuffer, ByteBuffer)} when both input and output are
+     *       direct buffers — the only case where the JNI binding can avoid a copy.</li>
+     * </ul>
+     * The JNI call returns the number of decompressed bytes written but does not advance the
+     * output buffer position; we advance it manually for the {@code ByteBuffer} overload.
      */
     private static class SnappyBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
-            Snappy.uncompress(bytes.toByteArray(), 0, (int) bytes.size(), out, 0);
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
+            // Fast path: avoid BytesInput.toByteArray() for byte-array- or heap-buffer-backed inputs
+            // (the hot path for S3-prefetched column chunks). The default toByteArray() for those
+            // BytesInput subtypes funnels bytes through a sized ByteArrayOutputStream, adding one
+            // allocation and one System.arraycopy that the JNI Snappy binding does not need.
+            ByteBuffer input = bytes.toByteBuffer();
+            if (input.hasArray()) {
+                Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);
+            } else {
+                // Off-heap inputs (rare on this path) fall back to a single byte[] copy via
+                // toByteArray(). The byte[] overload is preferred over the ByteBuffer overload
+                // because the latter would also need to copy into a direct output buffer.
+                byte[] in = bytes.toByteArray();
+                Snappy.uncompress(in, 0, in.length, out, 0);
+            }
             return BytesInput.from(out);
         }
 
@@ -163,7 +210,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     private static class GzipBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             try (GZIPInputStream gis = new GZIPInputStream(bytes.toInputStream())) {
                 int off = 0;
                 while (off < decompressedSize) {
@@ -194,7 +241,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     private static class ZstdBytesDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             try {
                 Zstd.decompress(out, bytes.toByteArray());
             } catch (RuntimeException e) {
@@ -233,7 +280,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] in = bytes.toByteArray();
-            byte[] out = new byte[decompressedSize];
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             lz4.decompress(in, 0, in.length, out, 0, decompressedSize);
             return BytesInput.from(out);
         }
@@ -326,7 +373,7 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput compress(BytesInput bytes) throws IOException {
             byte[] in = bytes.toByteArray();
-            byte[] out = new byte[lz4.maxCompressedLength(in.length)];
+            byte[] out = UninitializedArrays.newByteArray(lz4.maxCompressedLength(in.length));
             int compressedLen = lz4.compress(in, 0, in.length, out, 0, out.length);
             return BytesInput.from(out, 0, compressedLen);
         }

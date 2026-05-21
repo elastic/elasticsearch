@@ -50,8 +50,6 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
         "type \\[null\\] .* not supported",
         // https://github.com/elastic/elasticsearch/issues/145555
         "Multiple index patterns should be disabled with unmapped fields",
-        // https://github.com/elastic/elasticsearch/issues/145998
-        "illegal data type \\[keyword\\]",
         // https://github.com/elastic/elasticsearch/issues/146036
         "argument of \\[.*\\] must be \\[unsupported\\], found value",
         "LOOKUP JOIN is not supported with unmapped_fields=\\\"load\\\"",

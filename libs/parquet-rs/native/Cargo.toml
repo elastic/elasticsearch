@@ -1,0 +1,17 @@
+[package]
+name = "es-parquet-rs"
+version = "0.2.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+parquet = { version = "58", default-features = false, features = ["arrow"] }
+arrow = { version = "58", default-features = false, features = ["ffi"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

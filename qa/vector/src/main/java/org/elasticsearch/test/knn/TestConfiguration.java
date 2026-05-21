@@ -44,7 +44,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
-import static org.elasticsearch.test.knn.data.DatasetConfig.PartitionGenerated;
+import static org.elasticsearch.test.knn.data.DatasetConfig.RandomGenerated;
 
 /**
  * Command line arguments for the KNN index tester.
@@ -807,7 +807,7 @@ public record TestConfiguration(
             }
 
             switch (datasetConfig) {
-                case PartitionGenerated pg -> {
+                case RandomGenerated pg -> {
                     if (dimensions <= 0) {
                         throw new IllegalArgumentException("dimensions must be specified when using data generator");
                     }

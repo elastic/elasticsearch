@@ -13,7 +13,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -89,8 +91,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -151,8 +151,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -227,8 +225,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             // This will fail because the expected output is {"data": [{...}]}
             String responseJson = """
                 {
@@ -270,8 +266,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "results": [
@@ -298,7 +292,17 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, query),
+                    InferenceString.fromStringList(documents),
+                    null,
+                    topN,
+                    false
+                ),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -339,8 +343,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "results": [
@@ -368,7 +370,17 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = createAction(sender, model, createApplierFactory(secret));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, query),
+                    InferenceString.fromStringList(documents),
+                    null,
+                    topN,
+                    false
+                ),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -407,8 +419,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -462,8 +472,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -518,8 +526,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [
@@ -570,8 +576,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             // This will fail because the expected output is {"data": [[...]]}
             String responseJson = """
                 {
@@ -610,8 +614,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": []
@@ -644,8 +646,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJsonContentTooLarge = """
                 {
                     "error": "Input validation error: `input` must have less than 512 tokens. Given: 571",
@@ -710,8 +710,6 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "data": [

@@ -15,6 +15,19 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
+/*
+ * We only have bf16-bf16 implementations in SVE, not f32-bf16.
+ * In SVE we can use BFDOT to calculate the dot product of two bf16-bf16 vectors,
+ * but for f32-bf16 we need to convert to f32 first.
+ * NEON has the fast USHLL instruction, but because SVE doesn't specify vector widths explicitly,
+ * we can't easily process a 'half-width' bf16 vector.
+ * Instead, we would need to use the more expensive UUNPK + LSL instructions to convert bf16 to f32.
+ *
+ * This means that an SVE implementation is the same speed as
+ * or slower than NEON on all relevant processors (as of 2026),
+ * so just use the NEON implementation for f32-bf16.
+ */
+
 static inline f32_t dotDbf16Qbf16_inner_sve(const bfloat16_t* d, const bfloat16_t* q, const int32_t elementCount) {
     constexpr int batches = 8;
     int i = 0;

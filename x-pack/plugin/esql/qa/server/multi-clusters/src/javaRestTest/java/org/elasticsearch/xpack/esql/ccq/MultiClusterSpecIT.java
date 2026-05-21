@@ -81,7 +81,6 @@ import static org.mockito.Mockito.when;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
-
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(CSV_DATA_PATH, LOGGING_CLUSTER_SETTINGS);

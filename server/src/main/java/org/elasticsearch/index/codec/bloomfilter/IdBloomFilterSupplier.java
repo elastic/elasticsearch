@@ -36,10 +36,7 @@ public class IdBloomFilterSupplier implements Closeable {
     private final DocValuesProducer docValuesProducer;
     private final FieldInfo idFieldInfo;
 
-    public IdBloomFilterSupplier(SegmentReadState state) throws IOException {
-        var codec = state.segmentInfo.getCodec();
-        // Erase the segment suffix (used only for reading postings)
-        SegmentReadState segmentReadState = new SegmentReadState(state, "");
+    public IdBloomFilterSupplier(SegmentReadState state, DocValuesProducer docValuesProducer) {
         var idFieldInfo = state.fieldInfos.fieldInfo(IdFieldMapper.NAME);
         if (idFieldInfo == null) {
             throw new IllegalStateException(IdFieldMapper.NAME + " field not found");
@@ -49,7 +46,7 @@ public class IdBloomFilterSupplier implements Closeable {
         }
 
         this.idFieldInfo = idFieldInfo;
-        this.docValuesProducer = codec.docValuesFormat().fieldsProducer(segmentReadState);
+        this.docValuesProducer = docValuesProducer;
     }
 
     /**

@@ -59,7 +59,7 @@ final class ColumnChunkPrefetcher {
     static CompletableFuture<NavigableMap<Long, PrefetchedChunk>> prefetch(
         StorageObject storageObject,
         BlockMetaData block,
-        java.util.Set<String> projectedColumns
+        Set<String> projectedColumns
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
         if (ranges.isEmpty()) {
@@ -102,7 +102,7 @@ final class ColumnChunkPrefetcher {
     static CompletableFuture<NavigableMap<Long, PrefetchedChunk>> prefetchAsync(
         StorageObject storageObject,
         BlockMetaData block,
-        java.util.Set<String> projectedColumns
+        Set<String> projectedColumns
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
         if (ranges.isEmpty()) {
@@ -145,10 +145,32 @@ final class ColumnChunkPrefetcher {
     }
 
     /**
+     * Computes the total bytes that a prefetch would actually allocate for the given row group and
+     * projection. This accounts for coalescing gaps between column chunks (up to
+     * {@link CoalescedRangeReader#DEFAULT_MAX_COALESCE_GAP} bytes per gap) so the estimate matches
+     * what {@link CoalescedRangeReader#readCoalesced} will allocate.
+     */
+    static long computePrefetchBytes(BlockMetaData block, Set<String> projectedColumns) {
+        List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
+        if (ranges.isEmpty()) {
+            return 0;
+        }
+        List<CoalescedRangeReader.MergedRange> merged = CoalescedRangeReader.mergeRanges(
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+        );
+        long totalBytes = 0;
+        for (CoalescedRangeReader.MergedRange mr : merged) {
+            totalBytes += mr.length();
+        }
+        return totalBytes;
+    }
+
+    /**
      * Computes the byte ranges for column chunks in a row group. Each column chunk has a
      * starting position and total size in the file metadata.
      */
-    static List<CoalescedRangeReader.ByteRange> computeColumnChunkRanges(BlockMetaData block, java.util.Set<String> projectedColumns) {
+    static List<CoalescedRangeReader.ByteRange> computeColumnChunkRanges(BlockMetaData block, Set<String> projectedColumns) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         for (ColumnChunkMetaData col : block.getColumns()) {
             if (projectedColumns != null && projectedColumns.contains(col.getPath().toDotString()) == false) {
@@ -167,11 +189,6 @@ final class ColumnChunkPrefetcher {
      * Computes byte ranges for only the surviving data pages within each column chunk.
      * Pages whose row span does not overlap with {@code rowRanges} are excluded, reducing
      * the number of bytes fetched from remote storage.
-     *
-     * <p><b>Note:</b> The filtered variants ({@code computeFilteredPageRanges}, filtered
-     * {@code prefetch/prefetchAsync}) are not yet wired into the iterator — the current
-     * optimized path always prefetches full column chunks. These exist for a planned
-     * follow-up that integrates row-range-aware prefetch with page-index filtering.
      *
      * <p>Dictionary pages (which sit before data pages) are always included since they are
      * needed to decode any surviving page. Adjacent page ranges are merged by the caller

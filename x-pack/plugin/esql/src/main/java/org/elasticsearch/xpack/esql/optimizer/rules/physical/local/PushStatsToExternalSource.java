@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -17,7 +20,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -32,6 +37,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Pushes ungrouped aggregate functions (COUNT, MIN, MAX) to external sources when the
@@ -53,11 +59,18 @@ import java.util.List;
  * Statistics are merged across splits (sum row counts, min-of-mins, max-of-maxes).
  * Falls back to normal execution when any split lacks stats.
  * <p>
+ * Substitution from metadata statistics is skipped when {@link ExternalSourceExec} carries
+ * {@link ExternalSourceExec#pushedExpressions()} or {@link ExternalSourceExec#pushedFilter()}:
+ * those predicates narrow the scanned rows; footer split stats do not reflect them after
+ * {@link PushFiltersToSource} removes the enclosing {@code FilterExec}.
+ * <p>
  * Note: MIN/MAX pushdown uses raw values from file metadata. For DATE/TIMESTAMP columns,
  * the raw values may not match ESQL's millisecond representation. A future enhancement
  * should convert these values using the column's data type.
  */
 public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
+
+    private static final Logger logger = LogManager.getLogger(PushStatsToExternalSource.class);
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
@@ -80,12 +93,39 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return aggregateExec;
         }
 
+        // Row counts and column statistics in file metadata describe whole splits before scan-time predicates.
+        // COUNT(*), MIN/MAX from those stats ignore {@code pushedExpressions}/{@code pushedFilter} readers apply when
+        // {@link PushFiltersToSource} has already removed upstream FilterExec.
+        if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
+            logger.info(
+                () -> Strings.format(
+                    "PushStatsToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                        + " path=[{}] projections=[{}] type=[{}]",
+                    externalExec.sourcePath(),
+                    externalExec.pushedExpressions().size(),
+                    externalExec.sourceType()
+                )
+            );
+            return aggregateExec;
+        }
+
         Expression filterForClassification = filterCondition;
         if (filterCondition != null && aliasReplacedBy.isEmpty() == false) {
             filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
         }
 
-        SplitStats stats;
+        // SplitFilterClassifier reasons from file-level stats and treats columns physically absent from
+        // the file as "all null" (columnNullCount == rowCount). Partition columns live in the directory
+        // path, not the payload, so they are absent from every file's stats and would misclassify
+        // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
+        // normal scan path evaluates the partition predicate against the VirtualColumnInjector's
+        // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
+        Set<String> partitionColumnNames = partitionColumnNames(externalExec);
+        if (filterForClassification != null && referencesAnyColumn(filterForClassification, partitionColumnNames)) {
+            return aggregateExec;
+        }
+
+        org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats;
         if (filterForClassification != null) {
             stats = ExternalSourceAggregatePushdown.resolveFilteredStats(externalExec, filterForClassification);
         } else {
@@ -132,7 +172,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return new LocalSourceExec(aggregateExec.source(), outputAttrs, LocalSupplier.of(new Page(blocks)));
     }
 
-    private static Object resolveFromStats(Expression aggFunction, SplitStats stats) {
+    private static Object resolveFromStats(Expression aggFunction, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (aggFunction instanceof Count count) {
             return resolveCount(count, stats);
         } else if (aggFunction instanceof Min min) {
@@ -143,7 +183,15 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
-    private static Object resolveCount(Count count, SplitStats stats) {
+    /**
+     * Resolves {@code COUNT(col)} from split-level statistics as {@code rowCount - columnNullCount}.
+     * Correctness depends on the {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats}
+     * "implicit nulls" contract: {@code columnNullCount} includes rows from files where the column
+     * is physically absent (each such row is an implicit null), so the formula is correct for
+     * UNION_BY_NAME mixes where some files lack the column. A return of {@code -1} from
+     * {@code columnNullCount} signals the rare present-but-stats-less case and we bail out.
+     */
+    private static Object resolveCount(Count count, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (count.hasFilter()) {
             return null;
         }
@@ -160,7 +208,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
-    private static Object resolveMin(Min min, SplitStats stats) {
+    private static Object resolveMin(Min min, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (min.hasFilter()) {
             return null;
         }
@@ -171,7 +219,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         return null;
     }
 
-    private static Object resolveMax(Max max, SplitStats stats) {
+    private static Object resolveMax(Max max, org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats) {
         if (max.hasFilter()) {
             return null;
         }
@@ -199,5 +247,24 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             blocks[i] = PushAggregatesToExternalSource.buildBlock(blockFactory, values.get(i), dataTypes.get(i));
         }
         return blocks;
+    }
+
+    private static Set<String> partitionColumnNames(ExternalSourceExec externalExec) {
+        FileList fileList = externalExec.fileList();
+        if (fileList == null) {
+            return Set.of();
+        }
+        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
+            return Set.of();
+        }
+        return partitionMetadata.partitionColumns().keySet();
+    }
+
+    private static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+        if (columnNames.isEmpty()) {
+            return false;
+        }
+        return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 }

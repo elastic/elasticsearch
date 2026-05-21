@@ -178,7 +178,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createGaugeMetric("test.metric", "", List.of(createDoubleDataPoint(timestamp, startTimestamp, List.of()))))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             documentBuilder.buildMetricDocument(builder, dataPointGroup, new HashMap<>(), new HashMap<>(), indexVersion);
@@ -204,7 +204,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
 
         ExportMetricsServiceRequest metricsRequest = ExportMetricsServiceRequest.newBuilder().addResourceMetrics(resourceMetrics).build();
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
@@ -236,7 +236,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createExponentialHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
@@ -263,7 +263,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createExponentialHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
@@ -300,7 +300,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createExponentialHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
@@ -334,7 +334,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
@@ -361,7 +361,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
@@ -395,7 +395,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
@@ -429,7 +429,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createSummaryMetric("summary", "", List.of(dataPoint)))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();

@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.util.function.Supplier;
 
 public interface RequestSender {
     void send(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener

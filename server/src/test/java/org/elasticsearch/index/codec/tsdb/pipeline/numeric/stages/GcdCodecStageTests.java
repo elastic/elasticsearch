@@ -72,6 +72,14 @@ public class GcdCodecStageTests extends AbstractTransformStageTestCase {
         assertStageSkipped(GcdCodecStage.INSTANCE, new long[blockSize], blockSize);
     }
 
+    public void testSkipsWhenSingleValueIsZero() {
+        assertStageSkipped(GcdCodecStage.INSTANCE, new long[] { 0 }, 1);
+    }
+
+    public void testSkipsWhenSingleValueIsOne() {
+        assertStageSkipped(GcdCodecStage.INSTANCE, new long[] { 1 }, 1);
+    }
+
     public void testRoundTripWithZeros() throws IOException {
         for (int iter = 0; iter < 10; iter++) {
             final int blockSize = randomBlockSize();

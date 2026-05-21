@@ -1,5 +1,0 @@
-area: Downsampling
-issues: []
-pr: 145089
-summary: Collect dimensions only once per tsid when downsampling
-type: enhancement

@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -167,22 +168,31 @@ public final class VersionsAndSeqNoResolver {
         final int n = uids.length;
         assert results.length == n && loadSeqNo.length == n;
 
-        // Sort by UID so each segment can be scanned with a single forward pass.
-        // Insertion sort: batch sizes are small and this avoids boxing.
+        // Sort by UID so each segment can be scanned with a single forward pass
         final int[] order = new int[n];
         for (int i = 0; i < n; i++) {
             order[i] = i;
         }
-        for (int i = 1; i < n; i++) {
-            final int key = order[i];
-            final BytesRef keyUid = uids[key];
-            int j = i - 1;
-            while (j >= 0 && uids[order[j]].compareTo(keyUid) > 0) {
-                order[j + 1] = order[j];
-                j--;
+        new IntroSorter() {
+            private int pivot;
+
+            @Override
+            protected void setPivot(int i) {
+                this.pivot = i;
             }
-            order[j + 1] = key;
-        }
+
+            @Override
+            protected int comparePivot(int j) {
+                return Integer.compare(order[pivot], order[j]);
+            }
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = order[i];
+                order[i] = order[j];
+                order[j] = tmp;
+            }
+        }.sort(0, n);
 
         final BytesRef[] sortedUids = new BytesRef[n];
         final boolean[] sortedLoadSeqNo = new boolean[n];

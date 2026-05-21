@@ -382,11 +382,11 @@ public class SynonymsAnalysisTests extends ESTestCase {
     }
 
     /**
-     * Regression test for #140026. Without the fix, A is active while B parses its rules,
-     * so A rewrites B's LHSes (cat/dog/bird → animal) and B's SynonymMap collapses to one
-     * phantom entry: {@code animal → [meows, barks, sings]}. At runtime that one input
-     * fans out to three outputs the user didn't intend, potentially leading to OOMs on large
-     * synonym sets.
+     * Test a fix for OOM when chaining synonym graph filters. Without the fix, A is active
+     * while B parses its rules, so A rewrites B's LHSes (cat/dog/bird → animal) and B's
+     * SynonymMap collapses to one phantom entry: {@code animal → [meows, barks, sings]}.
+     * At runtime that one input fans out to three outputs the user didn't intend,
+     * potentially leading to OOMs on large synonym sets.
      */
     public void testChainedSynonymGraphFilterBuildIsIsolated() throws IOException {
         Settings settings = Settings.builder()
@@ -402,7 +402,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
-        // Without the #140026, syn_b's three rules collapse to one phantom entry (animal → meows/barks/sings),
+        // Without the IDENTITY_FILTER fix, syn_b's three rules would collapse to one phantom entry
+        // (animal → meows/barks/sings)
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "animal", new String[] { "animal" });
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "cat", new String[] { "animal" });
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "dog", new String[] { "animal" });

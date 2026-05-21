@@ -34,8 +34,6 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             throw new IllegalArgumentException("can't preallocate negative or zero bytes but got [" + bytesToPreallocate + "]");
         }
         CircuitBreaker nextBreaker = next.getBreaker(breakerToPreallocate);
-        // Compose the preallocation label once so the admit on construction and the release on close()
-        // share the exact same metric attribute and the per-category es.breaker.memory.held gauge balances.
         final String preallocateLabel = "preallocate[" + label + "]";
         nextBreaker.addEstimateBytesAndMaybeBreak(bytesToPreallocate, preallocateLabel);
         this.next = next;

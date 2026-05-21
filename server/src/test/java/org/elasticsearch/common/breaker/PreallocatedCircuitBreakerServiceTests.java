@@ -135,7 +135,6 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
                 "test"
             )
         ) {
-            // close() runs without exhausting the buffer, exercising the release path.
             assertThat(preallocated.getBreaker(CircuitBreaker.REQUEST).getName(), equalTo(CircuitBreaker.REQUEST));
         }
 
@@ -157,12 +156,8 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
             .stream()
             .collect(Collectors.groupingBy(Measurement::attributes, Collectors.summingLong(Measurement::getLong)));
 
-        // The +preallocated admit on construction must be exactly cancelled by the -preallocated release in close()
-        // under the same preallocate[<label>] category - i.e. the per-category gauge balances.
         assertEquals(Long.valueOf(0L), heldByAttrs.getOrDefault(preallocateAttrs, 0L));
-        // No release should have leaked into the "uncategorized" bucket.
         assertNull("preallocate close() must not bucket releases under \"uncategorized\"", heldByAttrs.get(uncategorizedAttrs));
-        // And the underlying breaker is back to zero used bytes.
         assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 

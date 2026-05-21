@@ -594,6 +594,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         private static class IdDocValuesReader extends BlockDocValuesReader {
 
             private final TrackingBinaryDocValues dvs;
+            private final BytesRef scratch = new BytesRef();
 
             IdDocValuesReader(CircuitBreaker breaker, LeafReaderContext ctx) throws IOException {
                 super(null);
@@ -626,8 +627,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     builder.appendNull();
                     return;
                 }
-                BytesRef encoded = dvs.docValues().binaryValue();
-                builder.appendBytesRef(new BytesRef(Uid.decodeId(encoded)));
+                BytesRef encodedId = dvs.docValues().binaryValue();
+                String decodedId = Uid.decodeId(encodedId);
+                builder.appendBytesRef(BlockSourceReader.toBytesRef(scratch, decodedId));
             }
 
             @Override

@@ -465,9 +465,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  method: testConcurrentRolloverDuringTransition
-  issue: https://github.com/elastic/elasticsearch/issues/149039
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/149040
@@ -596,3 +593,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
   method: testBlockLoaderForFieldInObjectWithCranky {params=Params[syntheticSource=false, preference=STORED, binaryDocValues=true]}
   issue: https://github.com/elastic/elasticsearch/issues/149604
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/147850
+- class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
+  method: testBackgroundMergeCanRetainDeletedGenerationalFile
+  issue: https://github.com/elastic/elasticsearch/issues/149626

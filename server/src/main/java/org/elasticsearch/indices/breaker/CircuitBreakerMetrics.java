@@ -80,27 +80,10 @@ public class CircuitBreakerMetrics {
         return tripCount;
     }
 
-    /**
-     * Up-down counter incremented on admit and decremented on (labeled) release. Sum across categories within a given {@code type} equals
-     * the current value of {@code es.breaker.memory.estimated} as long as all release call sites pass the same label as the admit; releases
-     * via {@link org.elasticsearch.common.breaker.CircuitBreaker#addWithoutBreaking(long)} (no label) bucket into
-     * {@code category="uncategorized"}, which can drive a category's value temporarily negative if the admit was labeled differently. The
-     * {@code uncategorized} bucket therefore acts as the catch-all reconciliation row.
-     */
     public LongUpDownCounter getMemoryHeld() {
         return memoryHeld;
     }
 
-    /**
-     * Register the asynchronous gauges that mirror {@code GET /_nodes/stats/breaker} per breaker.
-     * <p>
-     * Must be invoked at most once per {@link CircuitBreakerMetrics} instance (a second call would register a duplicate gauge against the
-     * underlying {@link MeterRegistry}). The suppliers are invoked once per metric reporting interval and must be safe to call from
-     * different threads.
-     *
-     * @param limitSupplier     supplies the configured limit per breaker, one {@link LongWithAttributes} per breaker name.
-     * @param estimatedSupplier supplies the currently charged bytes per breaker.
-     */
     public void registerMemoryGauges(
         final Supplier<Collection<LongWithAttributes>> limitSupplier,
         final Supplier<Collection<LongWithAttributes>> estimatedSupplier

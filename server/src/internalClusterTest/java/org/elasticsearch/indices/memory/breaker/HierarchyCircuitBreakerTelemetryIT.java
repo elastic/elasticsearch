@@ -99,9 +99,6 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
             final Measurement measurement = allMeasurements.get(0);
             assertThat(1L, Matchers.equalTo(measurement.getLong()));
             assertThat(1L, Matchers.equalTo(measurement.value()));
-            // The category attribute carries the breaker label verbatim; the exact value depends on which internal allocation tripped the
-            // inflight_requests breaker (e.g. a transport request body label), so we only assert that the attribute is present and
-            // non-empty.
             assertThat(measurement.attributes(), Matchers.hasEntry(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests"));
             assertThat(measurement.attributes(), Matchers.hasKey(CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE));
             assertThat(

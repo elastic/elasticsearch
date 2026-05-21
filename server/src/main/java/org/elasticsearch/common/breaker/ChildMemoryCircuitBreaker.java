@@ -40,7 +40,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
     public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "category";
-    /** Bucket used by {@link #addWithoutBreaking(long)} (the unlabeled release variant) when reporting to {@code es.breaker.memory.held}. */
     public static final String UNCATEGORIZED_RELEASE = "uncategorized";
 
     /**
@@ -109,11 +108,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * Add a number of bytes, tripping the circuit breaker if the aggregated estimates are above the limit. Automatically trips the breaker
      * if the memory limit is set to 0. Will never trip the breaker if the limit is set to -1, but can still be used to aggregate
      * estimations.
-     * <p>
-     * When the addition is admitted (positive bytes, breaker did not trip, parent breaker did not trip), the bytes are also reported to
-     * {@code es.breaker.memory.held} (up-down counter / gauge) with the {@code category} attribute set to {@code label} verbatim.
-     * Callers should keep that label low-cardinality (avoid embedding field names, shard ids, or other dynamic content) so the metric
-     * stays aggregatable.
      *
      * @param bytes number of bytes to add to the breaker
      */
@@ -141,9 +135,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         try {
             parent.checkParentLimit((long) (bytes * overheadConstant), label);
         } catch (CircuitBreakingException e) {
-            // If the parent breaker is tripped, this breaker has to be adjusted back down because the allocation is "blocked" but the
-            // breaker has already been incremented. The per-category held gauge has not been touched yet (we update it only after the
-            // parent check succeeds), so the rollback must not decrement it either - use the meter-agnostic helper.
+            // If the parent breaker is tripped, this breaker has to be
+            // adjusted back down because the allocation is "blocked" but the
+            // breaker has already been incremented
             this.adjustUsedBytes(-bytes);
             throw e;
         }
@@ -239,11 +233,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.memoryHeldMeter.add(bytes, Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
     }
 
-    /**
-     * Meter-agnostic helper that bumps the internal {@code used} counter only. Used by the parent-trip rollback path in
-     * {@link #addEstimateBytesAndMaybeBreak(long, String)} where the per-category held gauge has not yet been incremented and therefore
-     * must not be decremented.
-     */
     private void adjustUsedBytes(long bytes) {
         long u = used.addAndGet(bytes);
         if (logger.isTraceEnabled()) {

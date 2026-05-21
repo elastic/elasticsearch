@@ -267,8 +267,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
         this.parentTripCountTotalMetric = metrics.getTripCount();
 
-        // Expose per-breaker limit and estimated-usage as async gauges so they can be visualized in Kibana without going through
-        // GET /_nodes/stats/breaker (which is not exposed in serverless deployments).
         metrics.registerMemoryGauges(this::collectMemoryLimits, this::collectMemoryEstimates);
     }
 
@@ -434,9 +432,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     /**
-     * Checks whether the parent breaker has been tripped. The {@code es.breaker.trip.total} attribute {@code category} is populated with
-     * {@code label} verbatim so that parent-level trips can be attributed to the calling sub-system in dashboards. Callers are responsible
-     * for keeping the label low-cardinality.
+     * Checks whether the parent breaker has been tripped.
      */
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
         final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);

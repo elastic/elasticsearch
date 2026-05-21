@@ -190,7 +190,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, circuitBreaker)
                 : AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
             reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-            context.addCircuitBreakerMemory(reservation, "wildcard" + name());
+            context.addCircuitBreakerMemory(reservation, "wildcard:" + name());
 
             if (caseInsensitive) {
                 query = method == null
@@ -238,7 +238,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (circuitBreaker != null) {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
             reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-            context.addCircuitBreakerMemory(reservation, "regexp" + name());
+            context.addCircuitBreakerMemory(reservation, "regexp:" + name());
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
                 : new AutomatonQuery(term, dfa, false, method);
@@ -247,7 +247,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
                 : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp" + name());
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp:" + name());
         return query;
     }
 

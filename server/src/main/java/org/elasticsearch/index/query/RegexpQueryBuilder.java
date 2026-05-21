@@ -302,7 +302,7 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
                 context.getCircuitBreaker()
             );
             reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-            context.addCircuitBreakerMemory(reservation, "regexp" + fieldName);
+            context.addCircuitBreakerMemory(reservation, "regexp:" + fieldName);
             query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
         } else {
             query = method == null

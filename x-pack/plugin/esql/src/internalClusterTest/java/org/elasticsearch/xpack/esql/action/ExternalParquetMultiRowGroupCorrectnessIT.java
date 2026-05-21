@@ -148,11 +148,7 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
                 // a property of the Parquet writer / external splitter, not the bug under test.
                 long dataCount = driverDescriptions.stream().filter("data"::equals).count();
                 long finalCount = driverDescriptions.stream().filter("final"::equals).count();
-                assertThat(
-                    "coordinator must contribute exactly one 'final' driver, got " + driverDescriptions,
-                    finalCount,
-                    equalTo(1L)
-                );
+                assertThat("coordinator must contribute exactly one 'final' driver, got " + driverDescriptions, finalCount, equalTo(1L));
                 assertThat(
                     "at least one data-node 'data' driver must be present (this is what was lost pre-fix), got " + driverDescriptions,
                     dataCount,

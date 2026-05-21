@@ -72,6 +72,21 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     /**
+     * Backwards-compatible constructor preserving the pre-telemetry-overhaul signature for out-of-tree callers that only have a
+     * trip {@link LongCounter}. 
+     */
+    @Deprecated(forRemoval = true)
+    public ChildMemoryCircuitBreaker(
+        LongCounter trippedCountMeter,
+        BreakerSettings settings,
+        Logger logger,
+        HierarchyCircuitBreakerService parent,
+        String name
+    ) {
+        this(CircuitBreakerMetrics.fromTripCount(trippedCountMeter), settings, logger, parent, name);
+    }
+
+    /**
      * Method used to trip the breaker, delegates to the parent to determine whether to trip the breaker or not. The {@code category}
      * metric attribute is set to {@code fieldName} verbatim; call sites are responsible for keeping that label low-cardinality if they
      * want the metric to be aggregatable.

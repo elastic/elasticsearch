@@ -76,6 +76,14 @@ public class CircuitBreakerMetrics {
         );
     }
 
+    /**
+     * Backwards-compatible factory for callers that only have a trip {@link LongCounter}
+     */
+    @Deprecated(forRemoval = true)
+    public static CircuitBreakerMetrics fromTripCount(final LongCounter tripCount) {
+        return new CircuitBreakerMetrics(MeterRegistry.NOOP, tripCount, LongUpDownCounter.NOOP);
+    }
+
     public LongCounter getTripCount() {
         return tripCount;
     }

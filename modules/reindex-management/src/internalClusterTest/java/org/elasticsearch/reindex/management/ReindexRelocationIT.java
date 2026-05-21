@@ -207,7 +207,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final boolean isRemote,
         final int shards
     ) throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
 
         final String nodeAName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
@@ -267,7 +266,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
      * The source's CREATE actually executes but is a no-op since the document already exists.
      */
     public void testTasksIndexDestinationWritesFirstThenSourceIsNoOp() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
         final var expectedDescription = localReindexDescription();
 
@@ -327,7 +325,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
      * the source's document, bumping the version to 2.
      */
     public void testTasksIndexSourceWritesFirstThenDestinationOverwrites() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
         final var expectedDescription = localReindexDescription();
 
@@ -377,7 +374,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
      * node, so only the destination's write (in {@code Reindexer.storeRelocationSourceTaskResult}) succeeds.
      */
     public void testTasksIndexDestinationWrites() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
         final var expectedDescription = localReindexDescription();
 

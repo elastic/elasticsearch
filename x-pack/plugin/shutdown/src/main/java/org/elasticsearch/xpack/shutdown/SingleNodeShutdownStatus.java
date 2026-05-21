@@ -106,7 +106,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override

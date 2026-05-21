@@ -75,9 +75,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                                 // Aggs cannot produce pages with 0 columns, so retain one grouping.
                                 Attribute attribute = Expressions.attribute(aggregate.groupings().get(0));
                                 NamedExpression firstAggregate = aggregate.aggregates().get(0);
-                                remaining = List.of(
-                                    new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id())
-                                );
+                                remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, attribute.id()));
                                 p = aggregate.with(aggregate.groupings(), remaining);
                             }
                         } else {

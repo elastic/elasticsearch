@@ -71,7 +71,6 @@ public class VectorSystemPropertyTests extends ESTestCase {
 
         public class Test {
             static {
-                LogConfigurator.loadLog4jPlugins();
                 LogConfigurator.configureESLogging(); // native access requires logging to be initialized
             }
 

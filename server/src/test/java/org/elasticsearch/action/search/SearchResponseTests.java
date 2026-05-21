@@ -406,7 +406,7 @@ public class SearchResponseTests extends ESTestCase {
                         "hits": [ { "_id": "id1", "_score": 2.0 } ]
                       }
                     }""");
-                assertEquals(expectedString, Strings.toString(response));
+                assertEquals(expectedString, Strings.toTruncatedString(response));
             } finally {
                 response.decRef();
             }
@@ -456,7 +456,7 @@ public class SearchResponseTests extends ESTestCase {
                         "hits": [ { "_id": "id1", "_score": 2.0 } ]
                       }
                     }""");
-                assertEquals(expectedString, Strings.toString(response));
+                assertEquals(expectedString, Strings.toTruncatedString(response));
             } finally {
                 response.decRef();
             }
@@ -600,7 +600,7 @@ public class SearchResponseTests extends ESTestCase {
                         ]
                       }
                     }""");
-                assertEquals(expectedString, Strings.toString(response));
+                assertEquals(expectedString, Strings.toTruncatedString(response));
             } finally {
                 response.decRef();
             }

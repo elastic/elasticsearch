@@ -281,6 +281,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             throwInvalidIndexNameException(index, BLANK_INDEX_ERROR_MESSAGE, ctx);
         }
 
+        boolean startsWithStar = index.startsWith("*");
         hasSeenStar = hasSeenStar || index.contains(WILDCARD);
         index = index.replace(WILDCARD, "").strip();
         if (index.isBlank()) {
@@ -304,6 +305,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         } catch (InvalidIndexNameException e) {
             // ignore invalid index name if it has exclusions and there is an index with wildcard before it
             if (hasSeenStar && hasExclusion) {
+                return;
+            }
+
+            // The "must not start with ..." rules do not apply if the pattern begins with '*'.
+            if (startsWithStar && e.getMessage().contains("must not start with")) {
                 return;
             }
 

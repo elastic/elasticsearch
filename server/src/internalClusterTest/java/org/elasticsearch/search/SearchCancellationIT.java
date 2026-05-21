@@ -73,7 +73,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         awaitForBlock(plugins);
         cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
-        logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
+        logger.info("Segments {}", Strings.toTruncatedString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
 
@@ -91,7 +91,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         awaitForBlock(plugins);
         cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
-        logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
+        logger.info("Segments {}", Strings.toTruncatedString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
 

@@ -24,6 +24,7 @@ module org.elasticsearch.xcore {
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
     requires org.slf4j;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

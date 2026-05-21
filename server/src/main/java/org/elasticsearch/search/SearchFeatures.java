@@ -31,6 +31,13 @@ public final class SearchFeatures implements FeatureSpecification {
     private static final NodeFeature KNN_QUERY_BUGFIX_130254 = new NodeFeature("search.knn.query.bugfix.130254", true);
     public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
     public static final NodeFeature DATE_FORMAT_MISSING_AS_NULL = new NodeFeature("search.sort.date_format_missing_as_null");
+    /**
+     * A non-top-level {@code date_histogram} with {@code hard_bounds} that excludes every fixed rounding point
+     * produced from the data no longer throws {@code ArrayIndexOutOfBoundsException}; it returns an empty histogram.
+     */
+    public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
+        "search.aggs.date_histogram.hard_bounds_outside_data_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -41,7 +48,8 @@ public final class SearchFeatures implements FeatureSpecification {
             MULTI_MATCH_CHECKS_POSITIONS,
             KNN_QUERY_BUGFIX_130254,
             SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
-            DATE_FORMAT_MISSING_AS_NULL
+            DATE_FORMAT_MISSING_AS_NULL,
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX
         );
     }
 }

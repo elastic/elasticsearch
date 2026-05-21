@@ -93,6 +93,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             List.of(ctx),
             c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             dataPartitioning,
+            1,
             between(1, 8),
             limit
         );

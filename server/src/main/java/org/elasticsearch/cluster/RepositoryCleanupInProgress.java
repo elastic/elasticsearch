@@ -88,7 +88,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override

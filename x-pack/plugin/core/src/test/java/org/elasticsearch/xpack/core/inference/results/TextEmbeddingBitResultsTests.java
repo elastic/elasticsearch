@@ -45,7 +45,7 @@ public class TextEmbeddingBitResultsTests extends AbstractWireSerializingTestCas
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new TextEmbeddingBitResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding_bits" : [
@@ -66,7 +66,7 @@ public class TextEmbeddingBitResultsTests extends AbstractWireSerializingTestCas
             )
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding_bits" : [

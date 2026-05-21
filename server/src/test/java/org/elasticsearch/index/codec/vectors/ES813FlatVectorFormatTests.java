@@ -18,7 +18,6 @@ import org.elasticsearch.common.logging.LogConfigurator;
 public class ES813FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

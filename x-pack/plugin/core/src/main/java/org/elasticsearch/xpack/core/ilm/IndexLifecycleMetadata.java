@@ -154,7 +154,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, false, true);
+        return Strings.toTruncatedString(this, false, true);
     }
 
     public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {

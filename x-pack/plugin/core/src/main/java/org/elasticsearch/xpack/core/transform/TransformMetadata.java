@@ -164,7 +164,7 @@ public class TransformMetadata implements Metadata.Custom {
 
     @Override
     public final String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override

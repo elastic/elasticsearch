@@ -489,7 +489,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             );
 
         AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 5));
-        final var json = Strings.toString(sip, false, true);
+        final var json = Strings.toTruncatedString(sip, false, true);
         assertThat(
             json,
             anyOf(

@@ -74,7 +74,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final SearchService searchService;
     private final TransportService transportService;
     private final ExchangeService exchangeService;
-    private final Executor esqlExecutor;
+    private final Executor searchExecutor;
     private final ThreadPool threadPool;
 
     DataNodeComputeHandler(
@@ -83,16 +83,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
-        Executor esqlExecutor
+        Executor searchExecutor
     ) {
         this.computeService = computeService;
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.transportService = transportService;
         this.exchangeService = exchangeService;
-        this.esqlExecutor = esqlExecutor;
+        this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
-        transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, esqlExecutor, DataNodeRequest::new, this);
+        transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
     void startComputeOnDataNodes(
@@ -113,7 +113,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         new DataNodeRequestSender(
             clusterService,
             transportService,
-            esqlExecutor,
+            searchExecutor,
             parentTask,
             originalIndices,
             PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), dataNodePlan),
@@ -152,7 +152,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     connection,
                     childSessionId,
                     queryPragmas.exchangeBufferSize(),
-                    esqlExecutor,
+                    searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
@@ -197,7 +197,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
                                     return r.completionInfo();
-                                }), DataNodeComputeResponse::new, esqlExecutor)
+                                }), DataNodeComputeResponse::new, searchExecutor)
                             );
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
@@ -364,7 +364,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final AtomicBoolean waitedForRefreshes = new AtomicBoolean();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
                 if (waitedForRefreshes.get()) {
-                    esqlExecutor.execute(doAcquire);
+                    searchExecutor.execute(doAcquire);
                 } else {
                     doAcquire.run();
                 }
@@ -441,7 +441,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 task.addListener(
                     () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
                 );
-                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
+                var exchangeSource = new ExchangeSourceHandler(1, searchExecutor);
                 exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(

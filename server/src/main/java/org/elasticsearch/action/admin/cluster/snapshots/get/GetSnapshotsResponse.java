@@ -159,6 +159,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

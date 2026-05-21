@@ -167,7 +167,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.mergePages = mergePages;
         transportService.registerRequestHandler(
             actionName,
-            transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
             in -> readRequest.apply(in, blockFactory),
             new TransportHandler()
         );

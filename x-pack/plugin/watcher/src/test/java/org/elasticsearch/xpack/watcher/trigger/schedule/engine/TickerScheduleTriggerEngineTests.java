@@ -35,14 +35,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.IntStream.range;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
-public class TickerScheduleEngineTests extends ESTestCase {
+public class TickerScheduleTriggerEngineTests extends ESTestCase {
 
     private TickerScheduleTriggerEngine engine;
     protected ClockMock clock = ClockMock.frozen();
@@ -109,6 +113,51 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
         engine.stop();
         assertThat(bits.cardinality(), is(count));
+    }
+
+    /**
+     * When a cluster state changes and watches are restarted, the engine should clean up any previous watches because they may change
+     * the node they are running on. When not cleaned up, they may start triggering on more nodes than they should.
+     */
+    public void testStartsShouldCleanUpPreviousWatches() {
+        final List<Watch> initialWatches = createRandomWatches(2);
+        engine.start(initialWatches);
+        assertThat(
+            "Assumed initial watches added",
+            engine.getSchedules().keySet(),
+            is(initialWatches.stream().map(Watch::id).collect(toSet()))
+        );
+
+        final List<Watch> newWatches = createRandomWatches(3);
+
+        engine.start(newWatches);
+        assertThat(
+            "Only new watches should be visible after engine restart",
+            engine.getSchedules().keySet(),
+            is(newWatches.stream().map(Watch::id).collect(toSet()))
+        );
+    }
+
+    /**
+     * While the engine is paused (between {@code pauseExecution} and {@code start}), {@code add()} must not insert into
+     * the schedules map: the engine is between reloads and {@code WatcherService} owns the pending-watch tracking that
+     * gets merged in by the next {@code loadWatches}. Any add during this window would just get cleared on start().
+     */
+    public void testAddWhilePausedIsNoOp() {
+        engine.start(List.of());
+        engine.pauseExecution();
+
+        engine.add(createWatch("ignored_while_paused", interval("1s")));
+        assertThat("add() must be a no-op while paused", engine.getSchedules().keySet(), is(empty()));
+
+        // After start(), the engine again accepts adds
+        engine.start(List.of());
+        engine.add(createWatch("accepted_after_start", interval("1s")));
+        assertThat(engine.getSchedules(), hasKey("accepted_after_start"));
+    }
+
+    private List<Watch> createRandomWatches(int watchesToCreate) {
+        return range(0, watchesToCreate).mapToObj(__ -> createWatch(randomAlphanumericOfLength(5), interval("1s"))).toList();
     }
 
     public void testAddHourly() throws Exception {

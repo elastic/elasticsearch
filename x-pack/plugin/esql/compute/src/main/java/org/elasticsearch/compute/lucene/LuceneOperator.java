@@ -48,6 +48,12 @@ public abstract class LuceneOperator extends SourceOperator {
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
+    /**
+     * {@link DataPartitioning#AUTO} resolves to {@link LuceneSliceQueue.PartitioningStrategy#SHARD} for indices
+     * with fewer than this many documents.
+     */
+    public static final int SMALL_INDEX_BOUNDARY = LuceneSliceQueue.MAX_DOCS_PER_SLICE;
+
     protected final BlockFactory blockFactory;
 
     /**
@@ -96,6 +102,7 @@ public abstract class LuceneOperator extends SourceOperator {
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
             int taskConcurrency,
             int limit,
             boolean needsScore,
@@ -108,6 +115,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 queryFunction,
                 dataPartitioning,
                 autoStrategy,
+                docThresholdForAutoStrategy,
                 taskConcurrency,
                 scoreModeFunction
             );

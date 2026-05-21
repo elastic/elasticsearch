@@ -126,7 +126,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {

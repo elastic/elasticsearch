@@ -252,6 +252,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContexts,
             querySupplier(queryBuilder),
             context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             context.queryPragmas().taskConcurrency(),
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );

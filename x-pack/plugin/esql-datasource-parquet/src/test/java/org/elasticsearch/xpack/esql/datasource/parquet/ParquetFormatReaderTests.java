@@ -39,6 +39,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -79,6 +81,13 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFormatReaderTests extends ESTestCase {
+
+    @BeforeClass
+    public static void assertUninitializedArraysFastPath() {
+        // The parquet read path relies on UninitializedArrays' Unsafe-backed allocation;
+        // fail loudly rather than silently exercising the zero-initialized fallback.
+        UninitializedArrays.ensureUnsafeEnabled();
+    }
 
     private BlockFactory blockFactory;
 
@@ -326,6 +335,60 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Empty projection (e.g. EXTERNAL parquet | STATS COUNT(*) — or a query that only references
+     * {@code _file.*} virtual columns) must not allocate any column reader. The reader emits
+     * row-count-only pages directly from the row group metadata, and the request circuit breaker
+     * stays at zero because no buffer is ever charged. Regression test for the ~44KB-per-query
+     * leak in https://github.com/elastic/elasticsearch/issues/149393.
+     */
+    public void testReadWithEmptyProjectionEmitsCountOnlyPagesAndDoesNotAllocate() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new java.util.ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("name", "row" + i);
+                g.add("score", (double) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        var trackingBreaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        var localFactory = new BlockFactory(trackingBreaker, this.blockFactory.bigArrays());
+        ParquetFormatReader reader = new ParquetFormatReader(localFactory);
+
+        long beforeRead = trackingBreaker.getUsed();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of(), 10)) {
+            long afterOpen = trackingBreaker.getUsed();
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                assertEquals("count-only path must emit zero blocks", 0, page.getBlockCount());
+                totalRows += page.getPositionCount();
+            }
+            assertEquals(5, totalRows);
+            // After open, only the parquet I/O window buffer / footer parsing may have been charged
+            // — the count-only path must not grow the breaker further per row group / page. (Iterating
+            // pages allocates no column readers, no decode buffers, no value blocks.)
+            assertEquals("count-only iteration must not allocate per-page; breaker must not grow", afterOpen, trackingBreaker.getUsed());
+        }
+        // After close everything allocated during open is released and the breaker returns to its initial level.
+        assertEquals("count-only path must release all allocations on close", beforeRead, trackingBreaker.getUsed());
+    }
+
     public void testCircuitBreaker() throws IOException {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
@@ -359,7 +422,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         {
-            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(1000)), this.blockFactory.bigArrays());
+            // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the limit
+            // must be large enough to accommodate the window plus leave headroom to trip on page allocation.
+            var limitedFactory = new BlockFactory(
+                new LimitedBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1000)),
+                this.blockFactory.bigArrays()
+            );
             var reader = new ParquetFormatReader(limitedFactory);
 
             // Read the schema is now ok
@@ -441,7 +509,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // 2. Breaker fits the footer but cannot accommodate the prefetcher reservation →
         // iterator falls back to sync I/O, still produces all rows, releases all bytes on close.
         {
-            var smallBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(32));
+            // The window buffer is now tracked by the circuit breaker; add DEFAULT_WINDOW_SIZE so the
+            // window fits and the remaining 32 KB budget still cannot accommodate the prefetcher reservation.
+            var smallBreaker = new LimitedBreaker(
+                "test",
+                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 32 * 1024)
+            );
             var smallFactory = new BlockFactory(smallBreaker, this.blockFactory.bigArrays());
             var pageCount = new AtomicInteger();
             int totalRows = 0;

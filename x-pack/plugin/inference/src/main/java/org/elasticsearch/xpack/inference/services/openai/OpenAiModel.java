@@ -13,10 +13,12 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretsFactory;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -28,6 +30,7 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
 
     private final OpenAiRateLimitServiceSettings rateLimitServiceSettings;
     private final SecureString apiKey;
+    private final SecretsApplier secretsApplier;
     private final URI uri;
 
     public OpenAiModel(
@@ -41,6 +44,7 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        secretsApplier = OpenAiSecretsFactory.createSecretsApplier(apiKeySecrets);
         this.uri = Objects.requireNonNull(uri);
     }
 
@@ -49,6 +53,7 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        secretsApplier = model.secretsApplier;
         uri = model.uri;
     }
 
@@ -57,11 +62,16 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        secretsApplier = model.secretsApplier;
         uri = model.uri;
     }
 
     public SecureString apiKey() {
         return apiKey;
+    }
+
+    public SecretsApplier secretsApplier() {
+        return secretsApplier;
     }
 
     public OpenAiRateLimitServiceSettings rateLimitServiceSettings() {

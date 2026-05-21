@@ -11,7 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -19,11 +19,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -38,6 +41,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
@@ -46,10 +50,14 @@ import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShi
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModel;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModelTests;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +66,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
@@ -66,6 +75,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_API_KEY;
 import static org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceParameterizedTestConfiguration.API_KEY_VALUE;
 import static org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceParameterizedTestConfiguration.DIMENSIONS_VALUE;
 import static org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceParameterizedTestConfiguration.MODEL_VALUE;
@@ -79,6 +89,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
     static final String INPUT_FIELD_NAME = "input";
@@ -141,7 +152,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new OpenShiftAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
@@ -261,7 +272,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new OpenShiftAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenShiftAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
                 UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
@@ -336,6 +347,114 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
             {"completion":[{"delta":"Deep"}]}""");
     }
 
+    public void testRerankInfer() throws IOException {
+        var responseJson = """
+            {
+                "results": [
+                    {
+                        "index": 1,
+                        "relevance_score": 0.9921875
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.4921875
+                    }
+                ]
+            }
+            """;
+
+        try (var service = createInferenceService()) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = randomAlphaOfLengthOrNull(8);
+            var model = OpenShiftAiRerankModelTests.createModel(getUrl(webServer), TEST_API_KEY, modelId, null, null);
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            var inputOne = "abc";
+            var inputTwo = "def";
+            var query = "some query";
+            var topN = randomNonNegativeIntOrNull();
+            var returnDocuments = randomOptionalBoolean();
+            var request = new RerankRequest(
+                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
+                new InferenceString(DataType.TEXT, query),
+                topN,
+                returnDocuments,
+                new HashMap<>()
+            );
+            service.rerankInfer(model, request, null, listener);
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+            assertThat(result, CoreMatchers.instanceOf(RankedDocsResults.class));
+
+            var rankedDocsResults = (RankedDocsResults) result;
+            var rankedDocs = rankedDocsResults.getRankedDocs();
+            assertThat(rankedDocs.size(), is(2));
+            assertThat(rankedDocs.get(0).relevanceScore(), is(0.9921875F));
+            assertThat(rankedDocs.get(0).index(), is(1));
+            assertThat(rankedDocs.get(1).relevanceScore(), is(0.4921875F));
+            assertThat(rankedDocs.get(1).index(), is(0));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+            );
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", TEST_API_KEY)));
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            Map<String, Object> expectedRequestMap = new HashMap<>(Map.of("query", query, "documents", List.of(inputOne, inputTwo)));
+            if (modelId != null) {
+                expectedRequestMap.put("model", modelId);
+            }
+            if (topN != null) {
+                expectedRequestMap.put("top_n", topN);
+            }
+            if (returnDocuments != null) {
+                expectedRequestMap.put("return_documents", returnDocuments);
+            }
+            assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var model = mock(OpenShiftAiRerankModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                is("The openshift_ai service does not support rerank with non-text inputs or queries")
+            );
+        }
+    }
+
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = OpenShiftAiEmbeddingsModelTests.createModel(
             getUrl(webServer),
@@ -370,7 +489,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenShiftAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
@@ -419,7 +538,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
@@ -544,7 +663,7 @@ public class OpenShiftAiServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new OpenShiftAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenShiftAiChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.infer(
                 model,
                 null,

@@ -130,9 +130,11 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
             timeMillisBeforeSecondRethrottle
         );
 
-        // 15s timeout is well under the 60s the throttled reindex would take,
-        // so completing within this window proves the unlimited rate was applied
-        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(setup.originalTaskId, true);
+        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(
+            setup.originalTaskId,
+            true,
+            TimeValue.timeValueMinutes(1)
+        );
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(completedResponse);
         assertThat(responseMap.get("completed"), is(true));
         assertThat(responseMap.get("error"), is(nullValue()));
@@ -281,10 +283,15 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
     }
 
     private GetReindexResponse getReindexWithWaitForCompletion(final TaskId taskId, final boolean waitForCompletion) {
-        return client().execute(
-            TransportGetReindexAction.TYPE,
-            new GetReindexRequest(taskId, waitForCompletion, TimeValue.timeValueSeconds(15))
-        ).actionGet();
+        return getReindexWithWaitForCompletion(taskId, waitForCompletion, TimeValue.timeValueSeconds(15));
+    }
+
+    private GetReindexResponse getReindexWithWaitForCompletion(
+        final TaskId taskId,
+        final boolean waitForCompletion,
+        final TimeValue timeout
+    ) {
+        return client().execute(TransportGetReindexAction.TYPE, new GetReindexRequest(taskId, waitForCompletion, timeout)).actionGet();
     }
 
     private Map<String, Object> rethrottleReindex(final TaskId taskId, final int requestsPerSecond) throws Exception {

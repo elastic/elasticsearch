@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponse
 
 public final class IbmWatsonxRequestUtils {
 
-    static void decorateWithBearerToken(HttpPost httpPost, DefaultSecretSettings secretSettings, String inferenceId) {
+    public static void decorateWithBearerToken(HttpPost httpPost, DefaultSecretSettings secretSettings, String inferenceId) {
         String bearerTokenGenUrl = "https://iam.cloud.ibm.com/identity/token";
         String bearerToken = "";
 

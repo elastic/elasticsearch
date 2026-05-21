@@ -54,7 +54,10 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        shouldSkipForkTest(testCase);
+    }
 
+    static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase) {
         assumeFalse(
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
@@ -92,8 +95,9 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
-            "Tests using query approximation are skipped since query approximation is not supported with FORK",
+            "Tests using query approximation are skipped since they contain FORKs",
             testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
+                || testCase.requiredCapabilitiesLocalCluster.contains(APPROXIMATION_V7.capabilityName())
         );
 
         assumeFalse(

@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /** Integration tests for <code>POST _reindex/{taskId}/_cancel</code> endpoint. */
 public class ReindexCancelIT extends ESIntegTestCase {
@@ -148,7 +149,8 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
         final RawTaskStatus parentTaskStatus = (RawTaskStatus) getCompletedTaskResult(parentTaskId).getTask().status();
         final String cancelledReason = (String) parentTaskStatus.toMap().get("canceled");
-        assertThat(cancelledReason, equalTo("by user request"));
+        // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+        assertThat(cancelledReason, notNullValue());
     }
 
     /** Same test as above but calling _cancel asynchronously and wrapping assertions after cancellation in assertBusy. */
@@ -207,7 +209,8 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertBusy(() -> {
             final RawTaskStatus parentTaskStatus = (RawTaskStatus) getCompletedTaskResult(parentTaskId).getTask().status();
             final String cancelledReason = (String) parentTaskStatus.toMap().get("canceled");
-            assertThat(cancelledReason, equalTo("by user request"));
+            // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+            assertThat(cancelledReason, notNullValue());
         });
 
         final var notFoundException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexAsynchronously(parentTaskId));

@@ -450,9 +450,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
-- class: org.elasticsearch.xpack.ml.integration.MlDailyMaintenanceServiceIT
-  method: testTriggerCloseIdleJobsWithStoppedDatafeeds
-  issue: https://github.com/elastic/elasticsearch/issues/148758
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testRelocateIndexingShardWithActionFailures
   issue: https://github.com/elastic/elasticsearch/issues/148782
@@ -471,12 +468,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
   issue: https://github.com/elastic/elasticsearch/issues/147517
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:flattened.casePicksPerRow}
-  issue: https://github.com/elastic/elasticsearch/issues/149027
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:field_extract.caseWithFieldExtractInCondition}
-  issue: https://github.com/elastic/elasticsearch/issues/149028
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
@@ -567,18 +558,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testDynamicStringMappingWithoutAutoTextSubfield
   issue: https://github.com/elastic/elasticsearch/issues/149374
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  method: testStatsBlowupNdjsonZstd
-  issue: https://github.com/elastic/elasticsearch/issues/149432
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  method: testStatsBlowupNdjson
-  issue: https://github.com/elastic/elasticsearch/issues/149434
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  method: testStatsBlowupCsvZstd
-  issue: https://github.com/elastic/elasticsearch/issues/149437
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
-  method: testStatsBlowupCsv
-  issue: https://github.com/elastic/elasticsearch/issues/149444
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
   methods:
     - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}

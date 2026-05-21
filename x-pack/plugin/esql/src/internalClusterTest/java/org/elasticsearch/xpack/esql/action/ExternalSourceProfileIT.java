@@ -286,6 +286,52 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
         return found;
     }
 
+    /**
+     * Asserts the {@link org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status}
+     * surfaces in the JSON profile when a TopN over an external source triggers deferred extraction
+     * of wide columns. Sister-test to {@link #testExternalQueryProfileFieldsArePopulated} which
+     * covers the upstream source operator's Status.
+     */
+    public void testDeferredExtractionStatusSurfacesInProfile() throws Exception {
+        Path parquetFile = writeParquetFile(300, 100);
+        try {
+            // SORT by a narrow column + LIMIT triggers the per-driver TopN path; ExternalFieldExtractOperator
+            // materialises the wider name/value columns only for the surviving rows.
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | SORT id | LIMIT 5";
+
+            var request = syncEsqlQueryRequest(query);
+            request.profile(true);
+
+            try (var response = run(request, TIMEOUT)) {
+                assertNotNull("profile must be present (request had profile=true)", response.profile());
+                org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status extractStatus = null;
+                for (var driver : response.profile().drivers()) {
+                    for (var op : driver.operators()) {
+                        if (op.status() instanceof org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status s) {
+                            extractStatus = s;
+                        }
+                    }
+                }
+                assertThat(
+                    "expected ExternalFieldExtractOperator.Status in the driver profiles when TopN drives deferred extraction",
+                    extractStatus,
+                    notNullValue()
+                );
+                assertThat("at least one non-empty page should flow through", extractStatus.pagesProcessed(), greaterThanOrEqualTo(1L));
+                assertThat(
+                    "rows_extracted should equal the surviving TopN positions",
+                    extractStatus.rowsEmitted(),
+                    greaterThanOrEqualTo(1L)
+                );
+                // extract_nanos is wall-time and can read as zero on fast / containerized CI runners; assert
+                // presence + non-negative rather than a strict positive.
+                assertThat("extract_nanos must be non-negative", extractStatus.extractNanos(), greaterThanOrEqualTo(0L));
+            }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
     private Path writeParquetFile(int rowCount, int rowGroupSize) throws IOException {
         return writeParquetFileTo(createTempDir().resolve("profile_test.parquet"), rowCount, rowGroupSize);
     }

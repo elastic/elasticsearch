@@ -86,12 +86,17 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
 
+        // CompressionCodecName.LZ4 is the deprecated Hadoop-framed codec, supported on the read
+        // path only — see Lz4HadoopFramedBytesDecompressor. The writer side is provided by
+        // LegacyLz4HadoopFramedCodecFactory in tests so the existing in-memory codec sweep covers
+        // legacy-LZ4 fixtures without checking in binary files.
         CompressionCodecName[] codecs = {
             CompressionCodecName.UNCOMPRESSED,
             CompressionCodecName.SNAPPY,
             CompressionCodecName.GZIP,
             CompressionCodecName.ZSTD,
-            CompressionCodecName.LZ4_RAW };
+            CompressionCodecName.LZ4_RAW,
+            CompressionCodecName.LZ4 };
 
         // V1 retains the original RG/page-size matrix so all prior coverage stays intact.
         for (CompressionCodecName codec : codecs) {
@@ -183,7 +188,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
                 .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
                 .withType(schema)
                 .withCompressionCodec(codec)
                 .withWriterVersion(writerVersion)

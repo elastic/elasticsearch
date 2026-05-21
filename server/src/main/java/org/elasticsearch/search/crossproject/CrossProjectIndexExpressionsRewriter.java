@@ -161,9 +161,6 @@ public class CrossProjectIndexExpressionsRewriter {
             projectRouting
         );
 
-        // A "project-wildcard" full exclusion has the shape `-X:*`. It removes every resolved project from the target set
-        // (mirroring RemoteClusterAware#groupClusterIndices, which treats only this exact shape as a full cluster exclusion).
-        // Any other exclusion shape (e.g. `-X:logs`, `X:-logs`, `X:-*`) is an index-level narrowing and still implies inclusion of X.
         final boolean isProjectWildcardExclusion = isExclusion && "*".equals(indexExpression);
 
         String localExpression = null;
@@ -243,19 +240,6 @@ public class CrossProjectIndexExpressionsRewriter {
         return expression.charAt(0) == EXCLUSION_PREFIX;
     }
 
-    /**
-     * A container for a local expression and a list of remote expressions, along with the set of projects this single
-     * input expression positively targets and the set of projects it fully excludes via the project-wildcard form
-     * {@code -X:*}.
-     *
-     * <p>Callers walking a list of input expressions can accumulate these sets left-to-right (mirroring
-     * {@link RemoteClusterAware#groupClusterIndices(Set, String[])}) to determine the final target project set,
-     * including re-inclusion via a later positive expression.
-     *
-     * <p>Only the {@code -X:*} shape contributes to {@code excludedProjects}. Other exclusion shapes (such as
-     * {@code -X:logs}, {@code X:-logs}, {@code X:-*}) are index-level narrowings and still contribute to
-     * {@code includedProjects}.
-     */
     public record IndexRewriteResult(
         @Nullable String localExpression,
         Set<String> remoteExpressions,

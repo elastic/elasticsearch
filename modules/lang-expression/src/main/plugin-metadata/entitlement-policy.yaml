@@ -1,2 +1,3 @@
 org.apache.lucene.expressions:
   - create_class_loader
+  - define_class

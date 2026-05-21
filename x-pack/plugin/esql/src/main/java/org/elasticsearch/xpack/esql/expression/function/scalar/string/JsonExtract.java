@@ -107,7 +107,17 @@ public class JsonExtract extends EsqlScalarFunction {
 
             This function does not support wildcards (`*`), recursive descent
             (`..`), array slicing (`[0:3]`), filter expressions
-            (`?(@.price<10)`), or negative array indices (`[-1]`).""",
+            (`?(@.price<10)`), or negative array indices (`[-1]`).
+
+            When called with `_source`, the function operates on `_source` as
+            the index currently materializes it. On indices using
+            [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source),
+            `_source` is reconstructed from doc values and may differ from the
+            originally indexed JSON — see
+            [synthetic `_source` modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-modifications)
+            for the specific ways the reconstruction can change (notably, leaf
+            arrays are moved, fields use their mapped names, and object keys
+            are sorted alphabetically).""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_dollar", description = """

@@ -408,7 +408,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testIdBasedScriptFields() throws Exception {
-        prepareCreate("test").setMapping("num1", "type=long").get();
+        prepareCreate("test").setSettings(Settings.builder().put("index.skip.random_columnar_mode", true))
+            .setMapping("num1", "type=long")
+            .get();
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];

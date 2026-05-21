@@ -119,6 +119,11 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean randomizeColumnarIdMode() {
+        return false;
+    }
+
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();

@@ -377,6 +377,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     assert task == null || task instanceof ReplicationTask;
                     if (task != null && ((ReplicationTask) task).isCancelled()) {
                         cancelExecuteBulkItemRequest((ReplicationTask) task, context);
+                        context.getPrimary().getBulkOperationListener().recordCancelledBulkItems(1);
                         continue;
                     }
 

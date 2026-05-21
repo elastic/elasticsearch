@@ -37,9 +37,15 @@ public class ShardBulkStats implements BulkOperationListener {
         totalStats.sizeInBytes.addValue(shardBulkSizeInBytes);
     }
 
+    @Override
+    public void recordCancelledBulkItems(long cancelledItems) {
+        totalStats.totalCancelledItems.inc(cancelledItems);
+    }
+
     static final class StatsHolder {
         final MeanMetric shardBulkMetric = new MeanMetric();
         final CounterMetric totalSizeInBytes = new CounterMetric();
+        final CounterMetric totalCancelledItems = new CounterMetric();
         ExponentiallyWeightedMovingAverage timeInMillis = new ExponentiallyWeightedMovingAverage(ALPHA, 0.0);
         ExponentiallyWeightedMovingAverage sizeInBytes = new ExponentiallyWeightedMovingAverage(ALPHA, 0.0);
 
@@ -49,7 +55,8 @@ public class ShardBulkStats implements BulkOperationListener {
                 TimeUnit.NANOSECONDS.toMillis(shardBulkMetric.sum()),
                 totalSizeInBytes.count(),
                 TimeUnit.NANOSECONDS.toMillis((long) timeInMillis.getAverage()),
-                (long) sizeInBytes.getAverage()
+                (long) sizeInBytes.getAverage(),
+                totalCancelledItems.count()
             );
         }
     }

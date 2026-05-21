@@ -147,6 +147,7 @@ public final class ShardBatchIndexer {
                     );
                     context.markAsCompleted(context.getExecutionResult());
                 }
+                context.getPrimary().getBulkOperationListener().recordCancelledBulkItems(operations.size());
                 continue;
             }
 

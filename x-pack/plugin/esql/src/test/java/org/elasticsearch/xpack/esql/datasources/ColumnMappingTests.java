@@ -6,12 +6,16 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -22,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.List;
 
@@ -165,6 +170,40 @@ public class ColumnMappingTests extends ESTestCase {
         assertEquals(1, adapted.size());
     }
 
+    public void testMapFiltersDropsConjunctOnKeywordCast() {
+        // The UBN KEYWORD fallback installs a stringify cast that has no safe inverse — "1" < "10"
+        // is lexicographic, not numeric, so a pushed literal would produce wrong row-group skips.
+        // `mapFilters` must withhold the column name from the per-file allowlist so
+        // {@link FilterAdaptation} drops the conjunct entirely; RECHECK reruns the original
+        // predicate against the unified-shape page. The downstream AND-collapse semantics in
+        // FilterAdaptation treat a value comparison on a withheld column as unsatisfiable, so
+        // the whole pushdown empties for this file — equivalent to the missing-column case in
+        // {@link #testMapFiltersDropsAllWhenValueComparisonOnMissingColumn}. The empty pushdown
+        // is correct: RECHECK still runs the predicate post-stringification.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.KEYWORD });
+        ExternalSchema query = new ExternalSchema(List.of(intAttr("id"), intAttr("col")));
+        Expression idFilter = greaterThan(query.get(0), 10);
+        Expression colFilter = greaterThan(query.get(1), 5);
+
+        List<Expression> adapted = mapping.mapFilters(List.of(idFilter, colFilter), query);
+
+        assertTrue("filter on KEYWORD-cast column collapses pushdown; RECHECK is the backstop", adapted.isEmpty());
+    }
+
+    public void testMapFiltersKeywordCastWithoutReferencingFilterLeavesPushdownUnchanged() {
+        // A KEYWORD cast on `col` should NOT affect a filter that doesn't reference `col`.
+        // Withholding the column from the allowlist only matters when a filter mentions it; an
+        // id-only filter still pushes through.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.KEYWORD });
+        ExternalSchema query = new ExternalSchema(List.of(intAttr("id"), intAttr("col")));
+        Expression idFilter = greaterThan(query.get(0), 10);
+
+        List<Expression> adapted = mapping.mapFilters(List.of(idFilter), query);
+
+        assertEquals("id-only filter pushes through unchanged", 1, adapted.size());
+        assertSame(idFilter, adapted.get(0));
+    }
+
     // ===== Four-schema combinatorial matrix =====
     //
     // pruneToPerFileQuery is the seam where the four-schema model meets a single per-file mapping.
@@ -272,6 +311,276 @@ public class ColumnMappingTests extends ESTestCase {
         assertTrue("wrapped under mapPage's catch", e.getMessage() != null && e.getMessage().contains("Failed to map page"));
         assertTrue("underlying cause surfaces", e.getCause() != null && e.getCause() instanceof UnsupportedOperationException);
         filePage.releaseBlocks();
+    }
+
+    // ===== KEYWORD-cast (UBN fallback) =====
+    //
+    // These exercise the new {@link ColumnMapping#castBlock} branches added in Stage 2. The
+    // bytes must match {@code TO_STRING(col)} exactly (so equal-by-string semantics survive
+    // GROUP BY / JOIN), which is why every assertion compares against the canonical
+    // {@code EsqlDataTypeConverter} helpers used by {@code TO_STRING} itself rather than to a
+    // hard-coded literal — if the canonical format ever changes the test moves with it.
+
+    public void testCastIntToKeyword() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(4)) {
+            b.appendInt(1);
+            b.appendInt(2);
+            b.appendNull();
+            b.appendInt(3);
+            IntBlock intBlock = b.build();
+            Page filePage = new Page(4, new Block[] { intBlock });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.INTEGER });
+                try {
+                    BytesRefBlock result = out.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    assertEquals("1", result.getBytesRef(0, scratch).utf8ToString());
+                    assertEquals("2", result.getBytesRef(1, scratch).utf8ToString());
+                    assertTrue(result.isNull(2));
+                    assertEquals("3", result.getBytesRef(result.getFirstValueIndex(3), scratch).utf8ToString());
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastLongToKeyword() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        long[] values = { 0L, Long.MAX_VALUE, Long.MIN_VALUE, -1L };
+        try (LongBlock.Builder b = blockFactory.newLongBlockBuilder(values.length)) {
+            for (long v : values) {
+                b.appendLong(v);
+            }
+            LongBlock src = b.build();
+            Page filePage = new Page(values.length, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.LONG });
+                try {
+                    BytesRefBlock result = out.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 0; i < values.length; i++) {
+                        assertEquals(
+                            "long stringification must match numericBooleanToString for value " + values[i],
+                            EsqlDataTypeConverter.numericBooleanToString(values[i]).utf8ToString(),
+                            result.getBytesRef(result.getFirstValueIndex(i), scratch).utf8ToString()
+                        );
+                    }
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastDoubleToKeyword() {
+        // NaN, -0.0, infinities, and Double.MAX_VALUE go through numericBooleanToString unchanged;
+        // String.valueOf(double) defines the canonical bytes the engine uses everywhere else.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        double[] values = { 1.5, Double.NaN, -0.0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.MAX_VALUE };
+        try (DoubleBlock.Builder b = blockFactory.newDoubleBlockBuilder(values.length)) {
+            for (double v : values) {
+                b.appendDouble(v);
+            }
+            DoubleBlock src = b.build();
+            Page filePage = new Page(values.length, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DOUBLE });
+                try {
+                    BytesRefBlock result = out.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 0; i < values.length; i++) {
+                        assertEquals(
+                            "double stringification must match numericBooleanToString for value " + values[i],
+                            EsqlDataTypeConverter.numericBooleanToString(values[i]).utf8ToString(),
+                            result.getBytesRef(result.getFirstValueIndex(i), scratch).utf8ToString()
+                        );
+                    }
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastBooleanToKeyword() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        try (BooleanBlock.Builder b = blockFactory.newBooleanBlockBuilder(2)) {
+            b.appendBoolean(true);
+            b.appendBoolean(false);
+            BooleanBlock src = b.build();
+            Page filePage = new Page(2, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.BOOLEAN });
+                try {
+                    BytesRefBlock result = out.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    assertEquals("true", result.getBytesRef(0, scratch).utf8ToString());
+                    assertEquals("false", result.getBytesRef(1, scratch).utf8ToString());
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastDatetimeToKeyword() {
+        // millis epoch → strict_date_optional_time (the formatter used by TO_STRING(TO_DATETIME(...))).
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        long millis = 1_711_800_000_000L;
+        LongBlock src = blockFactory.newConstantLongBlockWith(millis, 1);
+        Page filePage = new Page(1, new Block[] { src });
+        try {
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME });
+            try {
+                BytesRefBlock result = out.getBlock(0);
+                BytesRef scratch = new BytesRef();
+                assertEquals(EsqlDataTypeConverter.dateTimeToString(millis), result.getBytesRef(0, scratch).utf8ToString());
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testCastDateNanosToKeyword() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        long nanos = 1_711_800_000_000_000_000L;
+        LongBlock src = blockFactory.newConstantLongBlockWith(nanos, 1);
+        Page filePage = new Page(1, new Block[] { src });
+        try {
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATE_NANOS });
+            try {
+                BytesRefBlock result = out.getBlock(0);
+                BytesRef scratch = new BytesRef();
+                assertEquals(EsqlDataTypeConverter.nanoTimeToString(nanos), result.getBytesRef(0, scratch).utf8ToString());
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testCastMultiValueIntToKeyword() {
+        // A single position with three packed values is the typical "MV" shape on the read path —
+        // the new cast methods must call beginPositionEntry/endPositionEntry exactly around the
+        // inner loop, mirroring castIntToLong's shape.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(3)) {
+            b.beginPositionEntry();
+            b.appendInt(1);
+            b.appendInt(2);
+            b.appendInt(3);
+            b.endPositionEntry();
+            IntBlock src = b.build();
+            Page filePage = new Page(1, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.INTEGER });
+                try {
+                    BytesRefBlock result = out.getBlock(0);
+                    assertEquals("one position with three packed values", 1, result.getPositionCount());
+                    assertEquals(3, result.getValueCount(0));
+                    BytesRef scratch = new BytesRef();
+                    int first = result.getFirstValueIndex(0);
+                    assertEquals("1", result.getBytesRef(first, scratch).utf8ToString());
+                    assertEquals("2", result.getBytesRef(first + 1, scratch).utf8ToString());
+                    assertEquals("3", result.getBytesRef(first + 2, scratch).utf8ToString());
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCastBytesRefToKeywordIsRefBumpPassthrough() {
+        // A BytesRefBlock source under a KEYWORD target must be a ref-bumped passthrough so the
+        // happy path does not allocate a new block. Verified by reference equality between input
+        // and output, and by the input block surviving the output page's release.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        BytesRefBlock src = blockFactory.newConstantBytesRefBlockWith(new BytesRef("hello"), 2);
+        Page filePage = new Page(2, new Block[] { src });
+        try {
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.KEYWORD });
+            try {
+                BytesRefBlock returned = out.getBlock(0);
+                assertSame("KEYWORD → KEYWORD must be a ref-bumped passthrough, not a copy", src, returned);
+            } finally {
+                out.releaseBlocks();
+            }
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testCastLongToKeywordWithoutSourceTypeAsserts() {
+        // The LongBlock cast must know whether the source was LONG, DATETIME, or DATE_NANOS to
+        // pick the right stringifier (numericBooleanToString vs dateTimeToString vs
+        // nanoTimeToString). Callers from the UBN path always thread fileColumnTypes; the
+        // assertion guards against future callers slipping through the two-arg overload.
+        // mapPage's catch is scoped to Exception, so the AssertionError surfaces directly — that
+        // is intentional, the assertion is a programmer-error tripwire, not a runtime failure to
+        // be recovered. Verify the message names the missing contract so the next developer who
+        // hits it knows what to fix.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        LongBlock src = blockFactory.newConstantLongBlockWith(42L, 1);
+        Page filePage = new Page(1, new Block[] { src });
+        try {
+            AssertionError e = expectThrows(AssertionError.class, () -> mapping.mapPage(filePage, blockFactory));
+            assertTrue(
+                "assertion message names the missing fileColumnTypes contract, got: " + e.getMessage(),
+                e.getMessage() != null && e.getMessage().contains("sourceType")
+            );
+        } finally {
+            filePage.releaseBlocks();
+        }
+    }
+
+    public void testCastDoubleToKeywordPinsCanonicalEdgeFormats() {
+        // The canonical bytes for NaN, -0.0, and +Infinity are part of the ES|QL user-visible
+        // contract — TO_STRING(double) must produce these strings so a stringified column under
+        // UBN compares equal to a TO_STRING(col). Pin them here against drift in
+        // EsqlDataTypeConverter.
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.KEYWORD });
+        double[] values = { Double.NaN, -0.0, Double.POSITIVE_INFINITY };
+        String[] expected = { "NaN", "-0.0", "Infinity" };
+        try (DoubleBlock.Builder b = blockFactory.newDoubleBlockBuilder(values.length)) {
+            for (double v : values) {
+                b.appendDouble(v);
+            }
+            DoubleBlock src = b.build();
+            Page filePage = new Page(values.length, new Block[] { src });
+            try {
+                Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DOUBLE });
+                try {
+                    BytesRefBlock result = out.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 0; i < values.length; i++) {
+                        assertEquals(
+                            "canonical double edge format must be pinned for value " + values[i],
+                            expected[i],
+                            result.getBytesRef(result.getFirstValueIndex(i), scratch).utf8ToString()
+                        );
+                    }
+                } finally {
+                    out.releaseBlocks();
+                }
+            } finally {
+                filePage.releaseBlocks();
+            }
+        }
     }
 
     private static Expression greaterThan(Attribute attr, Object literalValue) {

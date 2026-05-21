@@ -10,8 +10,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 
@@ -61,6 +63,15 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
      * page so deferred extraction continues to work after schema reconciliation.
      */
     private final int rowPositionInputIndex;
+    /**
+     * File-side ES|QL type per reader-emitted block, in reader-natural (projected) order, or
+     * {@code null} when no caller cares to disambiguate. Used exclusively by
+     * {@link ColumnMapping#mapPage(Page, BlockFactory, DataType[])} to tell apart
+     * {@code LongBlock} sources (DATETIME / DATE_NANOS / LONG share one block class) when
+     * casting to KEYWORD.
+     */
+    @Nullable
+    private final DataType[] perFileColumnTypes;
 
     SchemaAdaptingIterator(
         CloseableIterator<Page> delegate,
@@ -68,7 +79,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         ColumnMapping mapping,
         BlockFactory blockFactory
     ) {
-        this(delegate, outputSchema, mapping, blockFactory, -1);
+        this(delegate, outputSchema, mapping, blockFactory, -1, null);
     }
 
     SchemaAdaptingIterator(
@@ -77,6 +88,17 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         ColumnMapping mapping,
         BlockFactory blockFactory,
         int rowPositionInputIndex
+    ) {
+        this(delegate, outputSchema, mapping, blockFactory, rowPositionInputIndex, null);
+    }
+
+    SchemaAdaptingIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> outputSchema,
+        ColumnMapping mapping,
+        BlockFactory blockFactory,
+        int rowPositionInputIndex,
+        @Nullable DataType[] perFileColumnTypes
     ) {
         if (outputSchema.size() != mapping.width()) {
             throw new IllegalArgumentException(
@@ -92,6 +114,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         this.mapping = mapping;
         this.blockFactory = blockFactory;
         this.rowPositionInputIndex = rowPositionInputIndex;
+        this.perFileColumnTypes = perFileColumnTypes;
     }
 
     @Override
@@ -106,7 +129,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         }
         Page filePage = delegate.next();
         try {
-            Page schemaAdapted = mapping.mapPage(filePage, blockFactory);
+            Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes);
             if (rowPositionInputIndex < 0) {
                 return schemaAdapted;
             }

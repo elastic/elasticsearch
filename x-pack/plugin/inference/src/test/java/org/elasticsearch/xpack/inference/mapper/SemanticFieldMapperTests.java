@@ -76,7 +76,6 @@ public class SemanticFieldMapperTests extends MapperTestCase {
         threadPool.close();
     }
 
-
     private void registerMultiModalEisEndpoint() {
         globalModelRegistry.putDefaultIdIfAbsent(
             new InferenceService.DefaultConfigId(

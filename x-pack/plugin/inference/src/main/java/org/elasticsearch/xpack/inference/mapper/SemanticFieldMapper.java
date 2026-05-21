@@ -161,7 +161,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.indexSettings = indexSettings;
             this.indexVersionCreated = indexSettings.getIndexVersionCreated();
             this.experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings());
-            this.isFieldIncludedInSource = IndexSettings.INDEX_MAPPING_INCLUDE_SEMANTIC_FIELDS_IN_SOURCE_SETTING.get(indexSettings.getSettings());
+            this.isFieldIncludedInSource = IndexSettings.INDEX_MAPPING_INCLUDE_SEMANTIC_FIELDS_IN_SOURCE_SETTING.get(
+                indexSettings.getSettings()
+            );
             this.vectorsFormatProviders = vectorsFormatProviders;
 
             this.inferenceId = configureInferenceIdParam();

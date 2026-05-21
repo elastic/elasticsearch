@@ -36,11 +36,11 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
+public class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static final ParseField DATABASES = new ParseField("databases");
 
-    static final EnterpriseGeoIpTaskState EMPTY = new EnterpriseGeoIpTaskState(Map.of());
+    public static final EnterpriseGeoIpTaskState EMPTY = new EnterpriseGeoIpTaskState(Map.of());
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnterpriseGeoIpTaskState, Void> PARSER = new ConstructingObjectParser<>(
@@ -145,7 +145,7 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
      * @return the geoip downloader's task state or null if there is not a state to read
      */
     @Nullable
-    static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ProjectMetadata projectMetadata) {
+    public static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ProjectMetadata projectMetadata) {
         PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(
             projectMetadata,
             EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER

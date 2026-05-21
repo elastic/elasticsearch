@@ -2,7 +2,9 @@
   "priority": 2147483647,
   "version" : ${xpack.ml.version.id},
   "index_patterns" : [
-    ".ml-state*"
+    ".ml-state*",
+    ".reindexed-v7-ml-state*",
+    ".reindexed-v8-ml-state*"
   ],
   "template" : {
     "settings" : {

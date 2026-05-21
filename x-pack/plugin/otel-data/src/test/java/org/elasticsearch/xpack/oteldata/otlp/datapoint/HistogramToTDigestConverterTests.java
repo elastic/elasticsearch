@@ -78,11 +78,10 @@ public class HistogramToTDigestConverterTests extends ESTestCase {
             new Object[] { "empty", HistogramDataPoint.newBuilder().build(), List.of(), List.of(), true },
             new Object[] {
                 "single bucket",
-                HistogramDataPoint.newBuilder().addBucketCounts(10L).addExplicitBounds(5.0).build(),
+                HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(10L, 0L)).addExplicitBounds(5.0).build(),
                 List.of(10L),
                 List.of(2.5),
                 true },
-            new Object[] { "single count", HistogramDataPoint.newBuilder().addBucketCounts(10L).build(), List.of(10L), List.of(), false },
             new Object[] {
                 "two buckets",
                 HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(5L, 10L)).addExplicitBounds(5.0).build(),

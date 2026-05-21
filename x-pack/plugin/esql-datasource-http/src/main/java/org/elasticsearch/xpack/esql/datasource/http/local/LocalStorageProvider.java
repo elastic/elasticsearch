@@ -124,6 +124,14 @@ public final class LocalStorageProvider implements StorageProvider {
             throw new IllegalArgumentException("Path cannot be empty for file:// scheme");
         }
 
+        if (storagePath.isPattern()) {
+            throw new IllegalArgumentException(
+                "LocalStorageProvider received a glob pattern: ["
+                    + pathStr
+                    + "]; glob expansion must be performed via listObjects() before resolving a single object"
+            );
+        }
+
         return PathUtils.get(pathStr);
     }
 

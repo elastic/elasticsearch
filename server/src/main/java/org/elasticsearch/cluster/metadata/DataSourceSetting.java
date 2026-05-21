@@ -100,7 +100,7 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
             // Not a constraint on what a secret may be — a V1 value *is* the ciphertext, which is
             // bytes by construction. Failing here beats a ClassCastException deep in the decrypt seam.
             throw new IllegalArgumentException(
-                "an encrypted (V1) data source setting value must be a byte[] ciphertext blob; got ["
+                "an encrypted data source setting value must be a byte[] ciphertext blob; got ["
                     + (value == null ? "null" : value.getClass().getName())
                     + "]"
             );

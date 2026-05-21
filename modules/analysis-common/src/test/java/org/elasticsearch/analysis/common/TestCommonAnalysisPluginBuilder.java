@@ -11,7 +11,9 @@ package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -91,6 +94,15 @@ public class TestCommonAnalysisPluginBuilder {
             clusterService = mock(ClusterService.class);
             when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
             when(clusterService.state()).thenReturn(clusterState);
+            // Immediately invoke registered ClusterStateListeners so services (e.g.
+            // SynonymsManagementAPIService) initialize their feature flags at startup.
+            doAnswer(invocation -> {
+                ClusterStateListener listener = invocation.getArgument(0);
+                ClusterChangedEvent event = mock(ClusterChangedEvent.class);
+                when(event.state()).thenReturn(clusterState);
+                listener.clusterChanged(event);
+                return null;
+            }).when(clusterService).addListener(any(ClusterStateListener.class));
         }
 
         FeatureService featureService;

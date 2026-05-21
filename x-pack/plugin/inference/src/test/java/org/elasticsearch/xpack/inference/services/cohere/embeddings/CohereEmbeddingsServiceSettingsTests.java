@@ -745,6 +745,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
     protected CohereEmbeddingsServiceSettings doParseInstance(XContentParser parser) throws IOException {
         return CohereEmbeddingsServiceSettings.createParser(ignoreUnknownFields, PARSE_CONTEXT)
             .apply(parser, PARSE_CONTEXT)
-            .build(PARSE_CONTEXT);
+            .build();
     }
 }

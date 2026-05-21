@@ -211,6 +211,6 @@ public class CohereCompletionServiceSettingsTests extends AbstractCohereServiceS
     protected CohereCompletionServiceSettings doParseInstance(XContentParser parser) throws IOException {
         return CohereCompletionServiceSettings.createParser(ignoreUnknownFields, PARSE_CONTEXT)
             .apply(parser, PARSE_CONTEXT)
-            .build(PARSE_CONTEXT);
+            .build();
     }
 }

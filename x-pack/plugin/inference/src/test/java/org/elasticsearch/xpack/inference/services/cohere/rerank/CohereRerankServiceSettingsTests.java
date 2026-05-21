@@ -210,6 +210,6 @@ public class CohereRerankServiceSettingsTests extends AbstractCohereServiceSetti
     protected CohereRerankServiceSettings doParseInstance(XContentParser parser) throws IOException {
         return CohereRerankServiceSettings.createParser(ignoreUnknownFields, PARSE_CONTEXT)
             .apply(parser, PARSE_CONTEXT)
-            .build(PARSE_CONTEXT);
+            .build();
     }
 }

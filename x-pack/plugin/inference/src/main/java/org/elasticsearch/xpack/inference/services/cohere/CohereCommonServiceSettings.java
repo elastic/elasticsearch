@@ -249,11 +249,11 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
 
         protected abstract T build(CohereCommonServiceSettings commonSettings);
 
-        public final T build(ConfigurationParseContext context) {
-            return build(buildCommonSettings(context));
+        public final T build() {
+            return build(buildCommonSettings());
         }
 
-        private CohereCommonServiceSettings buildCommonSettings(ConfigurationParseContext context) {
+        private CohereCommonServiceSettings buildCommonSettings() {
             boolean isRequest = context == ConfigurationParseContext.REQUEST;
             var apiVersion = CohereCommonServiceSettings.resolveApiVersion(apiVersionRaw, isRequest);
             if (apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2 && modelId == null) {
@@ -278,7 +278,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
     ) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            return parser.parse(xParser, context).build(context);
+            return parser.parse(xParser, context).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }

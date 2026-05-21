@@ -1,0 +1,41 @@
+// =========================================================================================
+// UNION_BY_NAME end-to-end coverage for CSV multi-file globs with divergent per-file schemas.
+//
+// Two fixture files under iceberg-fixtures/multifile_ubn/:
+//   multifile_ubn_a.csv — typed header [name:keyword, age:integer]; rows: alice,30 / bob,40
+//   multifile_ubn_b.csv — typed header [age:long, name:keyword, city:keyword];
+//                         rows: 50,charlie,paris / 60,dave,london
+//
+// Unified schema under UNION_BY_NAME is the column-name union with widening:
+//   name:keyword  (in both files)
+//   age:long      (widened from INTEGER in file A to LONG in file B)
+//   city:keyword  (only in file B; null-filled for file A's rows)
+//
+// File-local readSchema for each file is its own narrowed physical layout (NOT the unified
+// schema). The reader emits a page in that local shape. SchemaAdaptingIterator then applies
+// the per-file ColumnMapping recipe to produce a page in the unified shape:
+//   File A page [name, age:int]      → adapter reorders to [name, age:long-cast, city:null-fill]
+//   File B page [age:long, name, city] → adapter reorders to [name, age, city]
+//
+// This is the end-to-end repro for Costin's Run #44 ask: UBN × CSV covering missing columns,
+// reordered columns, and widening, exercising the full resolver → planner → reader → adapter
+// pipeline against actual fixture files (not synthetic in-memory inputs).
+// =========================================================================================
+
+multiFileUnionByNameRecipe
+required_capability: external_command
+required_capability: external_csv_header_row_option
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+| SORT name ASC
+| LIMIT 10
+;
+
+name:keyword | age:long | city:keyword
+alice        | 30       | null
+bob          | 40       | null
+charlie      | 50       | paris
+dave         | 60       | london
+;

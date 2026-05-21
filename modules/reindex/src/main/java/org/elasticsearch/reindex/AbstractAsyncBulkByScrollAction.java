@@ -39,8 +39,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
@@ -94,7 +94,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     Action extends TransportAction<Request, ?>> {
 
     protected final Logger logger;
-    protected final BulkByScrollTask task;
+    protected final BulkByPaginatedSearchTask task;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
     protected final ScriptService scriptService;
@@ -166,7 +166,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
 
     AbstractAsyncBulkByScrollAction(
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
         boolean needsVectors,
@@ -204,7 +204,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     AbstractAsyncBulkByScrollAction(
-        BulkByScrollTask task,
+        BulkByPaginatedSearchTask task,
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm,
         boolean needsVectors,

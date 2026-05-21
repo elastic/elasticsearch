@@ -254,7 +254,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
             new InsertFromAggregateMetricDouble(),
-            new TimeSeriesGroupByAll(),
+            new ResolveImplicitTimeSeriesIdentityGrouping(),
             new ResolveUnionTypesInUnionAll(),
             new ResolveUnmapped()
         ),
@@ -544,7 +544,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileList());
+            return new ExternalRelation(
+                plan.source(),
+                tablePath,
+                metadata,
+                metadata.schema(),
+                resolvedSource.fileList(),
+                resolvedSource.schemaMap()
+            );
         }
 
         private String extractTablePath(Expression tablePath) {

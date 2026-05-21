@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -167,7 +168,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, LogicalOptimizerContext context) {
+        TimeSeriesAggregate aggregate = replaceSurrogateTimeseriesAggs(inputAggregate);
         Holder<Attribute> tsid = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
             for (Attribute attr : r.output()) {
@@ -245,8 +247,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tstep");
                     }
-                    Bucket bucket = tstep.timeBucketSpecRef();
-                    timeBucketRef.set(new Alias(e.source(), e.name(), tstep.surrogate(), e.id()));
+                    Bucket bucket = (Bucket) tstep.surrogate();
+                    timeBucketRef.set(new Alias(e.source(), e.name(), bucket, e.id()));
                     timeBucketSpecRef.set(bucket);
                 } else if (child instanceof DateTrunc dateTrunc && aggregate.timestamp().semanticEquals(dateTrunc.field())) {
                     if (timeBucketRef.get() != null) {
@@ -372,6 +374,18 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
             return new Project(newChild.source(), unpackValues, projects);
         }
+    }
+
+    private TimeSeriesAggregate replaceSurrogateTimeseriesAggs(TimeSeriesAggregate aggregate) {
+        return (TimeSeriesAggregate) aggregate.transformExpressionsOnly(TimeSeriesAggregateFunction.class, aggFunc -> {
+            if (aggFunc instanceof SurrogateExpression) {
+                Expression replacement = ((SurrogateExpression) aggFunc).surrogate();
+                if (replacement != null) {
+                    return replacement;
+                }
+            }
+            return aggFunc;
+        });
     }
 
     private void addBucket(
@@ -528,7 +542,16 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             );
         }
         Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
-        return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());
+        return new Bucket(
+            userBucket.source(),
+            userBucket.field(),
+            gcdInterval,
+            null,
+            null,
+            userBucket.configuration(),
+            userBucket.offset(),
+            userBucket.roundingConfiguration()
+        );
     }
 
     private long getTimeBucketInMillis(final Bucket bucket) {

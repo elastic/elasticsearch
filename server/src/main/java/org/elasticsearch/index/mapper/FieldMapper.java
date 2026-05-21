@@ -66,7 +66,7 @@ public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
         IndexMode mode = IndexSettings.MODE.get(settings);
-        if ((mode == IndexMode.LOGSDB || mode == IndexMode.COLUMNAR_LOGSDB)
+        if ((mode == IndexMode.LOGSDB || mode == IndexMode.LOGSDB_COLUMNAR)
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
             return "true";
         } else {

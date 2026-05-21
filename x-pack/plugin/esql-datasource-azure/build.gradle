@@ -60,6 +60,12 @@ dependencies {
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  // azure-core's listBlobs XML response is parsed by jackson-dataformat-xml, which requires
+  // woodstox-core + stax2-api at runtime. Without them, deserialization fails inside azure-core
+  // and is reported as a misleading "Package versions ..." LinkageError; the real cause is
+  // NoClassDefFoundError: org/codehaus/stax2/XMLInputFactory2.
+  implementation "com.fasterxml.woodstox:woodstox-core:6.7.0"
+  implementation "org.codehaus.woodstox:stax2-api:4.2.2"
   implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   testImplementation project(':test:framework')
@@ -129,15 +135,12 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.codec.haproxy.HAProxyMessage',
     'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
 
-    // from jackson-dataformat-xml (woodstox/stax2)
-    'org.codehaus.stax2.LocationInfo',
-    'org.codehaus.stax2.XMLStreamLocation2',
-    'org.codehaus.stax2.XMLStreamReader2',
-    'org.codehaus.stax2.XMLStreamWriter2',
-    'org.codehaus.stax2.ri.Stax2ReaderAdapter',
-    'org.codehaus.stax2.ri.Stax2WriterAdapter',
-    'org.codehaus.stax2.typed.Base64Variant',
-    'org.codehaus.stax2.typed.Base64Variants',
+    // from com.ctc.wstx.osgi.WstxBundleActivator (woodstox-core)
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+
+    // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
 
     // Optional dependency of nimbus-jose-jwt
     'com.google.crypto.tink.subtle.Ed25519Sign',

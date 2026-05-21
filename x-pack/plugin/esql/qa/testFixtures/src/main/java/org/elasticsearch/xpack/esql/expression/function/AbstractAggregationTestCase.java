@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
@@ -180,17 +181,13 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
         assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
 
-        if (expression instanceof AggregateFunction && expression instanceof SurrogateExpression) {
-            var filter = ((AggregateFunction) expression).filter();
-
-            var surrogate = ((SurrogateExpression) expression).surrogate();
-
-            if (surrogate != null) {
-                surrogate.forEachDown(AggregateFunction.class, child -> {
-                    var surrogateFilter = child.filter();
-                    assertEquals(filter, surrogateFilter);
-                });
-            }
+        if (expression instanceof AggregateFunction agg) {
+            Expression resolved = resolveSubstitutions(agg);
+            var filter = agg.filter();
+            resolved.forEachDown(AggregateFunction.class, child -> {
+                var resolvedFilter = child.filter();
+                assertEquals(filter, resolvedFilter);
+            });
         }
     }
 
@@ -361,6 +358,20 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             return;
         }
 
+        // Inject a constant-null temporality into TemporalityAware aggregations, simulating InjectTemporality.
+        // TemporalityAware aggs may be introduced during surrogate replacement (e.g. DeltaOnlyHistogramMergeOverTime).
+        Expression temporalityField = null;
+        if (testCase.injectNullTemporality()) {
+            temporalityField = AbstractFunctionTestCase.field("_temporality", DataType.KEYWORD);
+            Expression tf = temporalityField;
+            expression = expression.transformUp(AggregateFunction.class, agg -> {
+                if (agg instanceof TemporalityAware ta && ta.temporality() == null) {
+                    return ta.withTemporality(tf);
+                }
+                return agg;
+            });
+        }
+
         boolean isExecutableAgg = expression instanceof AggregateFunction
             && expression.children()
                 .stream()
@@ -400,6 +411,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 } else {
                     literalsByField.put(field, data.asLiteral());
                 }
+            }
+
+            // Provide a constant-null block for the injected temporality field if required
+            if (temporalityField != null) {
+                int rowCount = testCase.getMultiRowFields().getFirst().multiRowData().size();
+                blocksByField.put(temporalityField, driverContext().blockFactory().newConstantNullBlock(rowCount));
             }
 
             // Resolve agg children and store their results in the literal/blocks maps
@@ -598,7 +615,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
 
     private List<Integer> initialInputChannels() {
         // TODO: Randomize channels. If surrogated, channels may change
-        return IntStream.range(0, testCase.getMultiRowFields().size()).boxed().toList();
+        int count = testCase.getMultiRowFields().size();
+        if (testCase.injectNullTemporality()) {
+            count++;
+        }
+        return IntStream.range(0, count).boxed().toList();
     }
 
     private List<Integer> intermediaryInputChannels(int intermediaryStates, int offset) {
@@ -608,6 +629,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     /**
      * Resolves substitutions of aggregations. This simulates the {@link LogicalPlanOptimizer} rules and order:
      * <ul>
+     *     <li>Time series aggregate functions resolved via {@link TimeSeriesAggregateFunction#perTimeSeriesAggregation()}</li>
      *     <li>Aggregation surrogates ({@link SubstituteSurrogateAggregations}). Executed twice, like in the optimizer.</li>
      *     <li>Expression surrogates ({@link SubstituteSurrogateExpressions})</li>
      *     <li>TransportVersionAware expressions {@link SubstituteTransportVersionAwareExpressions}</li>
@@ -617,6 +639,19 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     private Expression resolveSubstitutions(Expression expression) {
+        // first do a single surrogate replacement of TimeSeriesAggregateFunction just like TranslateTimeseriesAggregate
+        expression = expression.transformUp(TimeSeriesAggregateFunction.class, tsAgg -> {
+            if (tsAgg instanceof SurrogateExpression se) {
+                var surrogate = se.surrogate();
+                if (surrogate != null) {
+                    return surrogate;
+                }
+            }
+            return tsAgg;
+        });
+        // and now resolve the TimeSeriesAggregateFunction to it's actual, per-series aggregations
+        expression = expression.transformUp(TimeSeriesAggregateFunction.class, TimeSeriesAggregateFunction::perTimeSeriesAggregation);
+
         for (int i = 0; i < 2; i++) {
             expression = expression.transformUp(AggregateFunction.class, agg -> {
                 if (agg instanceof SurrogateExpression se) {

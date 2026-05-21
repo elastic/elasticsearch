@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
-    static Optional<org.elasticsearch.simdvec.VectorScorerFactory> factory;
+    static Optional<VectorScorerFactory> factory;
 
     protected static final float DELTA = 1e-6f;
 
@@ -37,7 +37,9 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
 
     @BeforeClass
     public static void getVectorScorerFactory() {
-        factory = org.elasticsearch.simdvec.VectorScorerFactory.instance();
+        // the default factory just returns Optional.empty for everything, so filter that out
+        factory = Optional.of(ESVectorizationProvider.getInstance().getVectorScorerFactory())
+            .filter(f -> f instanceof DefaultVectorScorerFactory == false);
     }
 
     protected AbstractVectorTestCase() {

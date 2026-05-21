@@ -133,7 +133,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         natural ordering, make sure to test sorting and the other binary
  *         comparisons. Make sure these functions all have CSV tests that run
  *         against indexed data. When you add support to the function, add
- *         a new {@link FunctionDefinition.Builder#capabilities(String...) capability}.</li>
+ *         a new {@link FunctionDefinition.Builder#capabilities(String...) capability}.
+ *         As you add support for more functions, run the tests in normal
+ *         mode <strong>and</strong> release mode. See {@code Testing.asciidoc}
+ *         for instructions on how to run the release build.</li>
  *     <li>
  *         Add conversion functions as appropriate.  Almost all types should
  *         support {@link ToString}, and should have a "ToType" function that
@@ -829,7 +832,13 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE || t == FLATTENED);
+        return false == (t == SOURCE
+            || isCounter(t)
+            || isSpatialOrGrid(t)
+            || t == AGGREGATE_METRIC_DOUBLE
+            || t == FLATTENED
+            || t == HISTOGRAM
+            || t == TSID_DATA_TYPE);
     }
 
     public String nameUpper() {

@@ -792,7 +792,7 @@ public class FollowingEngineTests extends ESTestCase {
                 break;
             case LOGSDB:
             case COLUMNAR:
-            case COLUMNAR_LOGSDB:
+            case LOGSDB_COLUMNAR:
                 settingsBuilder.put("index.mode", indexMode.getName());
                 settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");

@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
@@ -130,9 +130,11 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
             timeMillisBeforeSecondRethrottle
         );
 
-        // 15s timeout is well under the 60s the throttled reindex would take,
-        // so completing within this window proves the unlimited rate was applied
-        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(setup.originalTaskId, true);
+        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(
+            setup.originalTaskId,
+            true,
+            TimeValue.timeValueMinutes(1)
+        );
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(completedResponse);
         assertThat(responseMap.get("completed"), is(true));
         assertThat(responseMap.get("error"), is(nullValue()));
@@ -198,11 +200,9 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
      */
     private void assertRethrottledRps(final TaskId relocatedTaskId, final int expectedTotalRps) {
         if (numOfSlices == 1) {
-            final BulkByScrollTask.Status status = (BulkByScrollTask.Status) clusterAdmin().prepareGetTask(relocatedTaskId)
-                .get()
-                .getTask()
-                .getTask()
-                .status();
+            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(
+                relocatedTaskId
+            ).get().getTask().getTask().status();
             assertThat("non-sliced task should have the new RPS", (double) status.getRequestsPerSecond(), closeTo(expectedTotalRps, 0.001));
         } else {
             final ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();
@@ -214,7 +214,7 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
             assertThat("all slices should be registered", group.childTasks().size(), equalTo(numOfSlices));
             final float expectedPerSlice = (float) expectedTotalRps / numOfSlices;
             for (TaskGroup child : group.childTasks()) {
-                final BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) child.task().status();
+                final BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) child.task().status();
                 assertThat(
                     "slice " + sliceStatus + " should have the rethrottled RPS",
                     (double) sliceStatus.getRequestsPerSecond(),
@@ -283,10 +283,15 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
     }
 
     private GetReindexResponse getReindexWithWaitForCompletion(final TaskId taskId, final boolean waitForCompletion) {
-        return client().execute(
-            TransportGetReindexAction.TYPE,
-            new GetReindexRequest(taskId, waitForCompletion, TimeValue.timeValueSeconds(15))
-        ).actionGet();
+        return getReindexWithWaitForCompletion(taskId, waitForCompletion, TimeValue.timeValueSeconds(15));
+    }
+
+    private GetReindexResponse getReindexWithWaitForCompletion(
+        final TaskId taskId,
+        final boolean waitForCompletion,
+        final TimeValue timeout
+    ) {
+        return client().execute(TransportGetReindexAction.TYPE, new GetReindexRequest(taskId, waitForCompletion, timeout)).actionGet();
     }
 
     private Map<String, Object> rethrottleReindex(final TaskId taskId, final int requestsPerSecond) throws Exception {

@@ -76,6 +76,7 @@ dependencies {
   testImplementation project(path: xpackModule('esql-datasource-snappy'))
   testImplementation project(path: xpackModule('esql-datasource-brotli'))
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
   testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')

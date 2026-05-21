@@ -296,9 +296,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         if (query.contains(MULTIFILE_SUFFIX)) {
             // HTTP does not support directory listing, so skip multi-file glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
-            // CSV format does not yet support multi-file glob patterns
-            assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
-
         }
 
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
@@ -433,16 +430,21 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /** Suffix that triggers multi-file glob resolution */
     private static final String MULTIFILE_SUFFIX = "_multifile";
+    /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
+    private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
-     * @param templateName the template name (e.g., "employees" or "employees_multifile")
+     * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_SUFFIX)) {
+        if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
+            // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
+            relativePath = "multifile_ubn/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
         } else {

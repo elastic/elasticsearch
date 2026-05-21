@@ -22,6 +22,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -45,10 +48,12 @@ import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -86,7 +91,7 @@ import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.
  * @see AsyncExternalSourceBuffer
  * @see AsyncExternalSourceOperator
  */
-public class AsyncExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
+public class AsyncExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory, DeferredExtractionCapable {
 
     private static final Logger logger = LogManager.getLogger(AsyncExternalSourceOperatorFactory.class);
 
@@ -94,11 +99,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
+    /**
+     * {@link #attributes} minus the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}, used when
+     * we hand a "file's resolved schema" to a reader (e.g. {@link RangeReadContext#resolvedAttributes()}
+     * or {@link FormatReadContext#readSchema()}). The synthetic is an optimizer-injected channel,
+     * not a real column the file has — passing it to readers as a resolved file attribute invites
+     * collision-style guards to misfire (see the production regression on the Parquet range path).
+     * Equal to {@link #attributes} when deferred extraction is off.
+     */
+    private final List<Attribute> readerResolvedAttributes;
     private final int batchSize;
     private final int maxBufferSize;
     private final int rowLimit;
     private final Executor executor;
     private final FileList fileList;
+    // Per-file planner-resolved schemas; always non-null (empty for unresolved paths).
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     private final ExternalSliceQueue sliceQueue;
@@ -108,6 +124,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
+    /**
+     * Refcount controlling when {@link #onClose} runs when {@link #deferredExtraction} is on.
+     * Increments: one for the factory itself (held while any source operator is in flight; released
+     * when {@link #operatorRefCount} drops to zero) plus one per {@link SourceExtractors} registry
+     * created (released when the registry is closed by the paired
+     * {@link ExternalFieldExtractOperator}). The last release closes {@code onClose}. This keeps
+     * the per-query concurrency budget alive across the seam between the source's last produced
+     * page and the late materialization read that runs after TopN — see
+     * {@link #attachOnCloseToRegistry}.
+     */
+    private final AtomicInteger deferredCloseRefCount = new AtomicInteger(0);
     /** Number of driver instances created for this factory. Used for batch-size heuristics. */
     private final int parallelism;
     /**
@@ -117,6 +144,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link RangeAwareFormatReader#readRange} calls.
      */
     private final boolean batchReadCapable;
+
+    /**
+     * When set, the producer paths request the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}
+     * column from the reader and re-encode it via {@link SourceExtractors#encode(int, long)} so
+     * downstream {@link ExternalFieldExtractOperator}s can locate the source extractor by id. The
+     * source's {@code attributes} are expected to already contain a long-typed attribute named
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN} at this point (added by
+     * {@code InsertExternalFieldExtraction} during local physical optimization).
+     * <p>
+     * Requires the configured {@link FormatReader} to implement {@link ColumnExtractorAware}; the
+     * {@link Builder#build} validates this invariant.
+     */
+    private final boolean deferredExtraction;
+
+    /**
+     * Per-driver source-extractor registries. Lazily created the first time
+     * {@link #sourceExtractorsFor} is called for a given driver, so the registry is shared
+     * between this factory's source operator and the {@link ExternalFieldExtractOperator}'s
+     * factory created from the same driver context.
+     */
+    private final Map<DriverContext, SourceExtractors> sourceExtractorsPerDriver = new ConcurrentHashMap<>();
 
     private AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -128,6 +176,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int rowLimit,
         Executor executor,
         FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue,
@@ -136,7 +185,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
-        int parallelism
+        int parallelism,
+        boolean deferredExtraction
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -164,11 +214,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.formatReader = formatReader;
         this.path = path;
         this.attributes = attributes;
+        this.readerResolvedAttributes = stripRowPosition(attributes);
         this.executor = executor;
         this.batchSize = batchSize;
         this.maxBufferSize = maxBufferSize;
         this.rowLimit = rowLimit;
         this.fileList = fileList;
+        this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.sliceQueue = sliceQueue;
@@ -178,7 +230,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
         this.parallelism = Math.max(1, parallelism);
-        this.batchReadCapable = formatReader instanceof RangeAwareFormatReader rr
+        this.deferredExtraction = deferredExtraction;
+        if (deferredExtraction && onClose != null) {
+            // Hold one ref on behalf of the factory; released when operatorRefCount hits zero.
+            // Each registry creation (one per driver) takes an additional ref. See deferredCloseRefCount.
+            deferredCloseRefCount.incrementAndGet();
+        }
+        if (deferredExtraction && (formatReader instanceof ColumnExtractorAware) == false) {
+            throw new IllegalArgumentException(
+                "deferredExtraction was enabled but format reader ["
+                    + formatReader.formatName()
+                    + "] does not implement ColumnExtractorAware"
+            );
+        }
+        // Batch-read reads multiple files in a single iterator and would not let us register
+        // one ColumnExtractor per file. Disable when deferred extraction is enabled.
+        this.batchReadCapable = deferredExtraction == false
+            && formatReader instanceof RangeAwareFormatReader rr
             && rr.supportsBatchRead()
             && this.partitionColumnNames.isEmpty();
     }
@@ -213,6 +281,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         private int rowLimit = FormatReader.NO_LIMIT;
         private FileList fileList;
+        private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         private Set<String> partitionColumnNames;
         private Map<String, Object> partitionValues;
         private ExternalSliceQueue sliceQueue;
@@ -222,6 +291,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
         private int parallelism = 1;
+        private boolean deferredExtraction = false;
 
         private Builder(
             StorageProvider storageProvider,
@@ -248,6 +318,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         public Builder fileList(@Nullable FileList fileList) {
             this.fileList = fileList;
+            return this;
+        }
+
+        public Builder schemaMap(@Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap) {
+            this.schemaMap = schemaMap;
             return this;
         }
 
@@ -304,6 +379,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * Opt into deferred field extraction: the source emits a synthetic
+         * {@link ColumnExtractor#ROW_POSITION_COLUMN} column in encoded form (extractor id packed
+         * with file-local position) and registers a {@link ColumnExtractor} per opened file. The
+         * caller (typically {@code InsertExternalFieldExtraction} via {@code LocalExecutionPlanner})
+         * pairs this with an {@link ExternalFieldExtractOperator} that resolves the extractor
+         * by id and materializes the deferred columns post-TopN.
+         * <p>
+         * The configured {@link FormatReader} must implement {@link ColumnExtractorAware} —
+         * verified at {@link #build} time.
+         */
+        public Builder deferredExtraction(boolean deferredExtraction) {
+            this.deferredExtraction = deferredExtraction;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -315,6 +406,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 rowLimit,
                 executor,
                 fileList,
+                schemaMap,
                 partitionColumnNames,
                 partitionValues,
                 sliceQueue,
@@ -323,7 +415,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
-                parallelism
+                parallelism,
+                deferredExtraction
             );
         }
     }
@@ -360,6 +453,81 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
     }
 
+    /**
+     * Resolves (or lazily creates) the {@link SourceExtractors} registry shared between this
+     * factory's source operator and a paired {@link ExternalFieldExtractOperator} for the same
+     * driver. The registry is populated as files are opened and read via the registered
+     * {@link ColumnExtractor#extract} contract.
+     * <p>
+     * Only meaningful when {@link Builder#deferredExtraction} was enabled. Calls during the
+     * non-deferred mode return a fresh empty registry; callers in that mode should not depend on
+     * its contents.
+     */
+    @Override
+    public SourceExtractors sourceExtractorsFor(DriverContext driverContext) {
+        return sourceExtractorsPerDriver.computeIfAbsent(driverContext, ctx -> {
+            SourceExtractors registry = new SourceExtractors();
+            attachOnCloseToRegistry(registry);
+            return registry;
+        });
+    }
+
+    /**
+     * If deferred extraction is enabled and an {@link #onClose} resource is attached, hand it to
+     * the registry as a trailing closeable. The registry is the natural rendezvous between the
+     * source side (writes to it during the producer loop) and the
+     * {@link ExternalFieldExtractOperator} side (reads from it during driver runtime, after the
+     * source has already finished producing). Closing the registry then closes the resource only
+     * once the last user has gone away — see {@link #deferredCloseRefCount} for the refcounting.
+     */
+    private void attachOnCloseToRegistry(SourceExtractors registry) {
+        if (deferredExtraction == false || onClose == null) {
+            return;
+        }
+        deferredCloseRefCount.incrementAndGet();
+        // The releaser is registered LIFO via SourceExtractors#registerTrailingCloseable, so it
+        // runs after every ColumnExtractor has been closed (and thus after the storage objects
+        // they own have flushed any final permit releases through the budget).
+        registry.registerTrailingCloseable(this::releaseDeferredCloseRef);
+    }
+
+    /**
+     * Decrement the deferred-close refcount; once it hits zero the {@link #onClose} resource
+     * (typically the per-query concurrency budget) is closed. Called from two places:
+     * <ul>
+     *   <li>{@link #releaseOperator} when the last source operator finishes — releases the
+     *       factory's own ref;</li>
+     *   <li>{@link SourceExtractors#close()} via the trailing closeable attached in
+     *       {@link #attachOnCloseToRegistry} — releases each registry's ref.</li>
+     * </ul>
+     */
+    private void releaseDeferredCloseRef() {
+        if (deferredCloseRefCount.decrementAndGet() == 0) {
+            closeQuietly(onClose);
+        }
+    }
+
+    /**
+     * Whether deferred field extraction is enabled on this factory. See
+     * {@link Builder#deferredExtraction(boolean)} for semantics.
+     */
+    public boolean deferredExtractionEnabled() {
+        return deferredExtraction;
+    }
+
+    /**
+     * Build a {@link ColumnExtractor} from the iterator and register it with the given driver's
+     * {@link SourceExtractors}. Returns the assigned extractor id, which the caller hands back to
+     * the iterator via {@link ColumnExtractorProducer#setExtractorId(int)} so the iterator can
+     * pre-encode every {@code _rowPosition} value it emits with that id. Caller must ensure the
+     * reader implements {@link ColumnExtractorAware}; this is validated at
+     * {@link Builder#build} time.
+     */
+    private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
+        ColumnExtractor extractor = producer.createColumnExtractor();
+        return sourceExtractorsFor(driverContext).register(extractor);
+    }
+
     private VirtualColumnInjector buildInjector(DriverContext driverContext) {
         if (partitionColumnNames.isEmpty() == false) {
             return new VirtualColumnInjector(attributes, partitionColumnNames, partitionValues, driverContext.blockFactory());
@@ -378,6 +546,136 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return cols;
     }
 
+    /**
+     * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns} (the
+     * post-projection, pre-injector channel layout); {@code -1} when the column is absent.
+     * Used by deferred-extraction wiring to know which channel the encoder must rewrite.
+     */
+    private static int rowPositionChannelIndex(List<String> projectedColumns) {
+        return projectedColumns == null ? -1 : projectedColumns.indexOf(ColumnExtractor.ROW_POSITION_COLUMN);
+    }
+
+    /**
+     * Performs the deferred-extraction handshake when active and the projection contains
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN}: registers the iterator's matching
+     * {@link ColumnExtractor} with the driver's {@link SourceExtractors} and hands the assigned
+     * id back to the iterator via {@link ColumnExtractorProducer#setExtractorId(int)} so it can
+     * pre-encode every {@code _rowPosition} value it emits. Returns {@code pages} unchanged in
+     * every case — there is no per-page wrapper iterator on the deferred path. Off the deferred
+     * path, or when the optimizer hasn't injected {@code _rowPosition}, the call is a no-op.
+     * <p>
+     * Historically this method wrapped {@code pages} in an {@code EncodingRowRefIterator} that
+     * rebuilt the {@code _rowPosition} block on every page; pushing the encoding into the
+     * iterator removes a per-page allocation and a thread-safety hazard around the local
+     * circuit breaker.
+     */
+    private CloseableIterator<Page> wrapWithEncoderIfNeeded(
+        CloseableIterator<Page> pages,
+        List<String> projectedColumns,
+        DriverContext driverContext
+    ) throws IOException {
+        if (deferredExtraction == false) {
+            return pages;
+        }
+        int rpChannel = rowPositionChannelIndex(projectedColumns);
+        if (rpChannel < 0) {
+            // Optimizer hasn't injected _rowPosition into the projection. This can happen on
+            // sub-plans the rule chose not to rewrite (e.g. no TopN above this source). Pass
+            // through unchanged.
+            return pages;
+        }
+        // Producer handshake: the iterator that emitted the synthetic _rowPosition is also the
+        // authority on its addressing space (full file, range-restricted row groups, etc.). Use
+        // its produced extractor so the lookup table is scoped exactly the same way as the
+        // running counter — see {@link ColumnExtractor} for the contract this preserves. We
+        // register the extractor first, then hand its id back to the iterator: from this point
+        // on every page the iterator returns carries already-encoded values, no wrapping needed.
+        if (pages instanceof ColumnExtractorProducer producer) {
+            int id = registerExtractorFromProducer(producer, driverContext);
+            producer.setExtractorId(id);
+            return pages;
+        }
+        throw new IllegalStateException(
+            "deferred extraction enabled but reader iterator ["
+                + pages.getClass().getName()
+                + "] does not implement ColumnExtractorProducer"
+        );
+    }
+
+    /**
+     * Translates the unified query projection (column names in unified-schema shape, identical for every
+     * file in the query) into a per-file query projection (the subset present in this file's schema,
+     * ordered to match the file's natural layout).
+     * <p>
+     * Under UBN the unified projection may name columns that are missing from a given file. Handing
+     * those names to the reader would throw "Column not found in schema"; the reader is the wrong
+     * place to handle missing columns. The {@link SchemaAdaptingIterator} wrapping the reader output
+     * does the null-filling via the per-file {@code ColumnMapping}. This narrowing matches the
+     * adapter's input contract: the reader produces only columns that exist in the file, in the
+     * file's natural order.
+     * <p>
+     * Under FFW and STRICT (and single-file), {@code perFileReadSchema} either equals or contains
+     * every name in {@code queryProjection}, so the result equals {@code queryProjection} (modulo
+     * order). When {@code perFileReadSchema} is null (no pin from the coordinator), the original
+     * projection passes through unchanged.
+     */
+    static List<String> perFileQueryProjection(List<String> queryProjection, @Nullable List<Attribute> perFileReadSchema) {
+        if (perFileReadSchema == null || perFileReadSchema.isEmpty() || queryProjection == null || queryProjection.isEmpty()) {
+            return queryProjection;
+        }
+        Set<String> wanted = new HashSet<>(queryProjection);
+        List<String> result = new ArrayList<>(Math.min(queryProjection.size(), perFileReadSchema.size()));
+        for (Attribute attr : perFileReadSchema) {
+            if (wanted.contains(attr.name())) {
+                result.add(attr.name());
+            }
+        }
+        // The synthetic deferred-extraction signal is never present in the file's read schema (it
+        // is optimizer-inserted and resolved at read time by the format reader). Preserve it at the
+        // tail of the per-file projection so the reader's _rowPosition emission path fires for
+        // every file, regardless of how many of the user's data columns the file is missing.
+        if (wanted.contains(ColumnExtractor.ROW_POSITION_COLUMN)) {
+            // Defensive: only append once. If a future caller decides _rowPosition should also be
+            // present in perFileReadSchema, the loop above would already have added it and we
+            // skip the appender to keep the projection unique.
+            if (result.contains(ColumnExtractor.ROW_POSITION_COLUMN) == false) {
+                result.add(ColumnExtractor.ROW_POSITION_COLUMN);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Returns {@code attributes} without the synthetic deferred-extraction marker so a reader's
+     * {@code resolvedAttributes} / {@code readSchema} reflect only real file columns. Returns the
+     * input list unchanged when the marker is absent (deferred extraction off, or the optimizer
+     * never injected the synthetic), so callers without deferred extraction pay nothing.
+     * <p>
+     * Package-private for unit tests.
+     */
+    static List<Attribute> stripRowPosition(List<Attribute> attributes) {
+        if (attributes == null || attributes.isEmpty()) {
+            return attributes;
+        }
+        int idx = -1;
+        for (int i = 0; i < attributes.size(); i++) {
+            if (ColumnExtractor.ROW_POSITION_COLUMN.equals(attributes.get(i).name())) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 0) {
+            return attributes;
+        }
+        List<Attribute> result = new ArrayList<>(attributes.size() - 1);
+        for (int i = 0; i < attributes.size(); i++) {
+            if (i != idx) {
+                result.add(attributes.get(i));
+            }
+        }
+        return result;
+    }
+
     private CloseableIterator<Page> adaptSchema(
         CloseableIterator<Page> pages,
         SchemaReconciliation.ColumnMapping mapping,
@@ -387,7 +685,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return pages;
         }
         List<Attribute> dataColumns = attributes.subList(0, mapping.columnCount());
-        return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory());
+        // When deferred extraction is enabled for this factory, the reader appends the synthetic
+        // {@link ColumnExtractor#ROW_POSITION_COLUMN} to the file's data columns (see
+        // {@link #perFileQueryProjection}). Tell the adapter where to find it so the block flows
+        // through to downstream operators unchanged. When deferred extraction is off, the
+        // reader's output has only data columns and the adapter ignores this slot.
+        int rowPositionInputIndex = deferredExtraction ? mapping.columnCount() : -1;
+        return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory(), rowPositionInputIndex);
     }
 
     /**
@@ -473,7 +777,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
         ActionListener<Void> completionListener = ActionListener.assertOnce(ActionListener.wrap(v -> {
             buffer.finish(false);
             driverContext.removeAsyncAction();
@@ -484,7 +787,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         }));
         ProducerState state = new ProducerState(null, fileList, projectedColumns, injector, buffer, driverContext, rowLimit);
-        state.schemaInfo = schemaInfo;
+        state.schemaInfo = schemaMap;
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -774,7 +1077,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     : storageProvider.newObject(fileSplit.path());
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
-                RangeReadContext rangeCtx = new RangeReadContext(cols, batchSize, fileSplit.offset(), rangeEnd, attributes, errorPolicy);
+                // Pass {@link #readerResolvedAttributes} — i.e. {@link #attributes} minus the
+                // deferred-extraction synthetic — so the reader's view of "the file's resolved
+                // schema" stays free of optimizer-injected channels.
+                RangeReadContext rangeCtx = new RangeReadContext(
+                    cols,
+                    batchSize,
+                    fileSplit.offset(),
+                    rangeEnd,
+                    readerResolvedAttributes,
+                    errorPolicy
+                );
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
                 }
@@ -802,23 +1115,36 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         state.lastBoundSchema = cachedSchema;
                     }
                 }
-                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro, firstSplit);
+                // The reader is pinned to the per-file schema the coordinator inferred for this file.
+                // Sourced from FileSplit; null when no pin is set (reader falls back to per-file inference).
+                List<Attribute> perFileReadSchema = fileSplit.readSchema();
+                // Narrow the unified query projection to this file's own columns before reaching the reader.
+                // Under UBN, the query projection may include columns missing from this file; the adapter
+                // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
+                List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
+                pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, recordAlignedMacro, firstSplit, perFileReadSchema);
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
-                        .projectedColumns(cols)
+                        .projectedColumns(perFileCols)
                         .batchSize(batchSize)
                         .rowLimit(FormatReader.NO_LIMIT)
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
+                        .readSchema(perFileReadSchema)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
             }
             CloseableIterator<Page> adapted = adaptSchema(pages, fileSplit.columnMapping(), state.driverContext);
-            state.pages = wrapWithInjector(adapted, injector);
+            // Deferred extraction: register one extractor per opened file split. Range-splits of
+            // the same file therefore register multiple extractors; this is benign — each row's
+            // encoded id maps back to the registered extractor that produced it, addressing the
+            // split's owned row groups in extractor-local coordinates (see {@link ColumnExtractor}).
+            CloseableIterator<Page> encoded = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
+            state.pages = wrapWithInjector(encoded, injector);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -896,26 +1222,33 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
-            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false, true);
-            if (pages == null) {
-                int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
-                FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(cols)
-                    .batchSize(batchSize)
-                    .rowLimit(fileBudget)
-                    .errorPolicy(errorPolicy)
-                    .build();
-                pages = formatReader.read(obj, ctx);
-            }
+            // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
+            // reader is pinned to the same inference the per-file ColumnMapping was built against.
             SchemaReconciliation.ColumnMapping mapping = null;
+            List<Attribute> perFileReadSchema = null;
             if (state.schemaInfo != null) {
                 SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
                 if (info != null) {
                     mapping = info.mapping();
+                    perFileReadSchema = info.fileSchema();
                 }
             }
+            List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
+            pages = openWithParallelism(formatReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
+            if (pages == null) {
+                int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
+                FormatReadContext ctx = FormatReadContext.builder()
+                    .projectedColumns(perFileCols)
+                    .batchSize(batchSize)
+                    .rowLimit(fileBudget)
+                    .errorPolicy(errorPolicy)
+                    .readSchema(perFileReadSchema)
+                    .build();
+                pages = formatReader.read(obj, ctx);
+            }
             CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext);
-            state.pages = wrapWithInjector(adapted, state.multiFileInjector);
+            CloseableIterator<Page> encoded = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
+            state.pages = wrapWithInjector(encoded, state.multiFileInjector);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -939,7 +1272,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .errorPolicy(errorPolicy)
             .build();
         formatReader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
-            consumePagesInBackground(iterator, buffer, driverContext, injector);
+            consumePagesInBackground(iterator, buffer, driverContext, injector, storageObject, projectedColumns);
         }, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
@@ -956,7 +1289,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy, false, true);
+            CloseableIterator<Page> pages = openWithParallelism(
+                formatReader,
+                storageObject,
+                projectedColumns,
+                errorPolicy,
+                false,
+                true,
+                null
+            );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -968,7 +1309,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             CloseableIterator<Page> wrapped;
             try {
-                wrapped = wrapWithInjector(pages, injector);
+                CloseableIterator<Page> encoded = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
+                wrapped = wrapWithInjector(encoded, injector);
             } catch (Exception e) {
                 closeQuietly(pages);
                 throw e;
@@ -990,7 +1332,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages,
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext,
-        VirtualColumnInjector injector
+        VirtualColumnInjector injector,
+        StorageObject storageObject,
+        List<String> projectedColumns
     ) {
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(pages);
@@ -999,7 +1343,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         });
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> wrapped = wrapWithInjector(pages, injector);
+            CloseableIterator<Page> encoded = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
+            CloseableIterator<Page> wrapped = wrapWithInjector(encoded, injector);
             drainPagesAsync(
                 wrapped,
                 buffer,
@@ -1081,7 +1426,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     private void releaseOperator() {
         if (operatorRefCount.decrementAndGet() == 0 && onClose != null) {
-            closeQuietly(onClose);
+            if (deferredExtraction) {
+                // Don't close onClose here — the deferred extraction path keeps using the storage
+                // (and thus the per-query budget) after the last source operator finishes
+                // producing. Release the factory's ref instead; the budget closes once every
+                // SourceExtractors registry has also been closed.
+                releaseDeferredCloseRef();
+            } else {
+                closeQuietly(onClose);
+            }
         }
     }
 
@@ -1148,7 +1501,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> cols,
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
-        boolean splitIncludesFileLeader
+        boolean splitIncludesFileLeader,
+        @Nullable List<Attribute> perFileReadSchema
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -1169,7 +1523,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     executor,
                     policy,
                     recordAlignedMacroSplit,
-                    splitIncludesFileLeader
+                    splitIncludesFileLeader,
+                    perFileReadSchema
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -1196,7 +1551,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         batchSize,
                         parsingParallelism,
                         executor,
-                        policy
+                        policy,
+                        perFileReadSchema
                     );
                 } catch (Exception e) {
                     decompressed.close();

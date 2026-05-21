@@ -1205,7 +1205,7 @@ public class IndexSettingsTests extends ESTestCase {
 
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.addAll(List.of(IndexMode.COLUMNAR_LOGSDB, IndexMode.COLUMNAR));
+            modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
         }
         IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
@@ -1262,12 +1262,12 @@ public class IndexSettingsTests extends ESTestCase {
         IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
         assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
 
-        // Test COLUMNAR_LOGSDB mode
-        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
+        // Test LOGSDB_COLUMNAR mode
+        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
         IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
         IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
         assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR_LOGSDB mode",
+            "DISABLE_SEQUENCE_NUMBERS should be true for LOGSDB_COLUMNAR mode",
             columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
             is(true)
         );

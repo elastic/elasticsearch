@@ -1157,9 +1157,9 @@ FROM flattened_otel_logs
 ;
 
 @timestamp:date          | resource.attributes.host.name:null
+2020-01-01T00:00:00.000Z | null
 2020-01-01T00:02:48.461Z | null
-2020-01-01T00:07:43.000Z | null
-2020-01-01T00:31:18.303Z | null
+2020-01-01T00:04:00.000Z | null
 ;
 
 propagateNullableOrDisjunctionUnmappedField

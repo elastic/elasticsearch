@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,26 +16,34 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -48,8 +57,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     exactly the dotted key as it is stored in doc values for the flattened root (for example
  *     {@code "host.name"}).
  * </p>
+ * <p>
+ *     When the path is a foldable literal key on a real {@code flattened} {@link FieldAttribute},
+ *     the call is fused into the field load via {@link BlockLoaderExpression}. The keyed sub-field's
+ *     doc values are read directly instead of materializing the whole flattened JSON and re-parsing
+ *     it per row. The path is the flat sub-field name as is (no parsing), so any path that passes
+ *     verifier-time validation is eligible for pushdown.
+ * </p>
  */
-public class FieldExtract extends EsqlScalarFunction {
+public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpression {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
     private static final BytesRef FALSE_BYTES = new BytesRef("false");
 
@@ -248,4 +264,62 @@ public class FieldExtract extends EsqlScalarFunction {
     Expression path() {
         return path;
     }
+
+    /**
+     * Whether {@code field_extract} is part of the active function set for this build, matching
+     * the {@code fn_field_extract} entry emitted by {@link EsqlFunctionRegistry#addCapabilities}.
+     * Block-loader fusion and Lucene query pushdown use the same gate so they stay aligned with
+     * function registration (snapshot-only until the function is promoted to the main registry).
+     */
+    public static boolean isFnFieldExtractCapabilityMet() {
+        return EsqlFunctionRegistry.isSnapshotOnly("field_extract") == false || Build.current().isSnapshot();
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        // Pushdown requires a real flattened field reference and a constant literal key. The
+        // path argument is already the flat storage key (verifier rejects brackets and indices),
+        // so we hand it to the keyed sub-field loader as is.
+        if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
+            return null;
+        }
+        return foldedKeyForFlattenedRoot().map(
+            keyForRoot -> new PushedBlockLoaderExpression(keyForRoot.root(), new ExtractFlattenedSubfieldConfig(keyForRoot.key()))
+        ).orElse(null);
+    }
+
+    /**
+     * If this {@code field_extract} can be pushed to a Lucene query against the keyed sub-field,
+     * returns the synthetic data-node field name (e.g. {@code "resource.attributes.host.name"}).
+     * The data node's {@code FieldTypeLookup} resolves this name to a
+     * {@code KeyedFlattenedFieldType} which handles the key-prefix encoding in
+     * {@code indexedValueForSearch}. The caller is responsible for wrapping the produced query
+     * in a {@code SingleValueQuery} to preserve ES|QL's single-value comparison semantics.
+     */
+    public Optional<String> tryAsKeyedSubfieldName(LucenePushdownPredicates pushdownPredicates) {
+        if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
+            return Optional.empty();
+        }
+        return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
+            .map(k -> k.root().name() + "." + k.key());
+    }
+
+    /**
+     * Common precondition check for both block-loader and query pushdown: the field must be a real
+     * {@link FieldAttribute} of {@link DataType#FLATTENED} type, and the path must fold to a literal
+     * flat key. {@link #resolveType} has already validated the key shape via
+     * {@link #validateFieldExtractPath} for any foldable path, so by the time we reach pushdown the
+     * key is guaranteed to be a non-empty literal sub-field name (no brackets, no array indices).
+     */
+    private Optional<RootAndKey> foldedKeyForFlattenedRoot() {
+        if (field instanceof FieldAttribute fa
+            && fa.dataType() == DataType.FLATTENED
+            && path.foldable()
+            && path.fold(FoldContext.small()) instanceof BytesRef foldedPath) {
+            return Optional.of(new RootAndKey(fa, foldedPath.utf8ToString()));
+        }
+        return Optional.empty();
+    }
+
+    private record RootAndKey(FieldAttribute root, String key) {}
 }

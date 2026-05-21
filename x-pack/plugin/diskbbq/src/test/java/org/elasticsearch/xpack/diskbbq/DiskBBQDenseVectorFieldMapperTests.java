@@ -13,6 +13,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.CodecService;
@@ -89,6 +90,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDefaultsToBBQDiskInVectordbDocumentIndexMode() throws IOException {
+        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(
             getVersion(),

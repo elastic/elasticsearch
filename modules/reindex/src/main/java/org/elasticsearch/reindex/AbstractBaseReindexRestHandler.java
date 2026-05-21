@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -50,8 +50,8 @@ public abstract class AbstractBaseReindexRestHandler<
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
             Map<String, String> params = new HashMap<>();
-            params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
-            params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
+            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
+            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
             return channel -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
         } else {

@@ -51,6 +51,9 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec");
+        // csv-headerless.csv-spec covers the read-schema multi-file glob test that exercises
+        // StreamingParallelParsingCoordinator on compressed inputs — the path that previously
+        // crashed with "Expected [BYTES_REF] but was [INT]" on gzip multi-file globs.
+        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec", "/csv-headerless.csv-spec");
     }
 }

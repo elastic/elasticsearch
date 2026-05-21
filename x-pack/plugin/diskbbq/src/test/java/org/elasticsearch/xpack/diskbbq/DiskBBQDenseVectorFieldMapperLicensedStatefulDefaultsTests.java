@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.diskbbq;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -57,6 +58,7 @@ public class DiskBBQDenseVectorFieldMapperLicensedStatefulDefaultsTests extends 
     }
 
     public void testDefaultsToBBQHnswInVectordbDocumentIndexModeWhenLicensedOnStatefulNodeAndDimensionsAreHigh() throws IOException {
+        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(
             getVersion(),
@@ -84,6 +86,7 @@ public class DiskBBQDenseVectorFieldMapperLicensedStatefulDefaultsTests extends 
     }
 
     public void testDefaultsToInt8HnswInVectordbDocumentIndexModeWhenLicensedOnStatefulNodeAndDimensionsAreLow() throws IOException {
+        assumeTrue("vectordb_document index mode requires snapshot build", IndexMode.VECTORDB_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(
             getVersion(),

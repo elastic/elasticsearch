@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramT
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
@@ -188,6 +189,15 @@ public final class CsvAssert {
                     blockType
                 );
             }
+        }
+    }
+
+    public static void assertDocumentsFound(String expected, long actual) {
+        if (expected != null) {
+            assertTrue(
+                format(null, "Different numbers of documents found; expected {} but actual was {}", expected, actual),
+                CsvAssert.equals(CsvTestUtils.Type.LONG.convert(expected), actual, false)
+            );
         }
     }
 

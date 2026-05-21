@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -101,7 +101,7 @@ public class RethrottleTests extends ReindexTestCase {
             assertThat(taskGroupToRethrottle.childTasks(), hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(numSlices))));
             // Wait for all of the sub tasks to start (or finish, some might finish early, all that matters is that not all do)
             assertBusy(() -> {
-                BulkByScrollTask.Status parent = (BulkByScrollTask.Status) clusterAdmin().prepareGetTask(taskToRethrottle)
+                BulkByPaginatedSearchTask.Status parent = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(taskToRethrottle)
                     .get()
                     .getTask()
                     .getTask()
@@ -117,7 +117,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Now rethrottle it so it'll finish
         float newRequestsPerSecond = randomBoolean() ? Float.POSITIVE_INFINITY : between(1, 1000) * 100000; // No throttle or "very fast"
         ListTasksResponse rethrottleResponse = rethrottleTask(taskToRethrottle, newRequestsPerSecond);
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).status();
+        BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) rethrottleResponse.getTasks().get(0).status();
 
         // Now check the resulting requests per second.
         if (numSlices == 1) {
@@ -139,14 +139,14 @@ public class RethrottleTests extends ReindexTestCase {
                 : (newRequestsPerSecond / numSlices) * 0.99F;
             boolean oneSliceRethrottled = false;
             float totalRequestsPerSecond = 0;
-            for (BulkByScrollTask.StatusOrException statusOrException : status.getSliceStatuses()) {
+            for (BulkByPaginatedSearchTask.StatusOrException statusOrException : status.getSliceStatuses()) {
                 if (statusOrException == null) {
                     /* The slice can be null here because it was completed but hadn't reported its success back to the task when the
                      * rethrottle request came through. */
                     continue;
                 }
                 assertNull(statusOrException.getException());
-                BulkByScrollTask.Status slice = statusOrException.getStatus();
+                BulkByPaginatedSearchTask.Status slice = statusOrException.getStatus();
                 if (slice.getTotal() > slice.getSuccessfullyProcessed()) {
                     // This slice reports as not having completed so it should have been processed.
                     assertThat(
@@ -231,7 +231,7 @@ public class RethrottleTests extends ReindexTestCase {
             }
             TaskGroup taskGroup = tasks.getTaskGroups().get(0);
             if (sliceCount != 1) {
-                BulkByScrollTask.Status status = (BulkByScrollTask.Status) taskGroup.taskInfo().status();
+                BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) taskGroup.taskInfo().status();
                 /*
                  * If there are child tasks wait for all of them to start. It
                  * is possible that we'll end up with some very small slices

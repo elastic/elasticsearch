@@ -95,7 +95,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
         var indexMode = c.getIndexSettings().getMode();
         boolean slicesEnabled = c.getIndexSettings().isSliceEnabled();
-        return new Builder(slicesEnabled, slicesEnabled || indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB);
+        return new Builder(slicesEnabled, slicesEnabled || indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR);
     });
 
     /**
@@ -334,13 +334,17 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) {
         String routing = context.routing();
         if (routing != null) {
-            if (docValues) {
-                context.doc().add(SortedDocValuesField.indexedField(fieldType().name(), new BytesRef(routing)));
-                // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
-            } else {
-                context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
-                context.addToFieldNames(fieldType().name());
-            }
+            addRoutingField(context, context.doc(), routing);
+        }
+    }
+
+    void addRoutingField(DocumentParserContext context, LuceneDocument targetDoc, String routing) {
+        if (docValues) {
+            targetDoc.add(SortedDocValuesField.indexedField(fieldType().name(), new BytesRef(routing)));
+            // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
+        } else {
+            targetDoc.add(new StringField(fieldType().name(), routing, Field.Store.YES));
+            context.addToFieldNames(fieldType().name());
         }
     }
 

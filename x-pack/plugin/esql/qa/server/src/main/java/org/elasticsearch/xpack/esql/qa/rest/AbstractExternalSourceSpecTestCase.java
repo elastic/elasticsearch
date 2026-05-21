@@ -430,6 +430,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /** Suffix that triggers multi-file glob resolution */
     private static final String MULTIFILE_SUFFIX = "_multifile";
+    /** Suffix that triggers multi-file split glob resolution (same schema, split from a single file) */
+    private static final String MULTIFILE_SPLIT_SUFFIX = "_multifile_split";
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
@@ -455,6 +457,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_SPLIT_SUFFIX)) {
+            // Same-schema multi-file split: employees_multifile_split -> multifile_split/*.<format>
+            // When fixturesBase() is overridden for compressed codecs (e.g. "standalone-gzip"),
+            // the suffix is applied to the multifile_split directory too (e.g. "multifile_split-gzip").
+            String base = fixturesBase();
+            String multifileSplitDir = FIXTURES_BASE.equals(base)
+                ? "multifile_split"
+                : "multifile_split" + base.substring(FIXTURES_BASE.length());
+            relativePath = multifileSplitDir + "/*." + format;
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;

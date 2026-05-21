@@ -99,6 +99,21 @@ tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_type_drift")
 }
 
+// Generate multifile CSV fixtures by splitting employees.csv into 3 parts (analogous to
+// the Parquet 3-way split in esql-datasource-parquet/qa/build.gradle). This enables the
+// shared external-multifile.csv-spec tests to run for CSV format.
+def multifileSplitDir = file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_split")
+def multifileEmployeesCsv = testFixturesProject.file('src/main/resources/data/employees.csv')
+tasks.register('generateMultifileCsvSplit_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileCsvSplitFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.csvSplitFixtureGenerator + serverProject.sourceSets.csvSplitFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.CsvSplitFixtureGenerator'
+  args = [multifileEmployeesCsv.path, multifileSplitDir.path, '3']
+  inputs.file(multifileEmployeesCsv)
+  outputs.dir(multifileSplitDir)
+}
+
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
 def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
 
@@ -132,11 +147,11 @@ sourceSets.javaRestTest.resources {
 }
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

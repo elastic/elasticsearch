@@ -1593,6 +1593,33 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A signed INT32 value of -1 in Parquet must be sign-extended to -1L when the planner schema
+     * declares the column as LONG. Zero-extension would produce 4294967295L — incorrect.
+     */
+    public void testSignedInt32WideningToLong() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", -1);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                storageObject,
+                FormatReadContext.builder().projectedColumns(List.of("x")).batchSize(10).readSchema(plannerSchema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(-1L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
      * Parquet string-annotated BINARY maps to KEYWORD; planner KEYWORD is still readable (both ESQL strings).
      */
     public void testPlannerKeywordCompatibleWithTextParquetColumnReadRange() throws Exception {

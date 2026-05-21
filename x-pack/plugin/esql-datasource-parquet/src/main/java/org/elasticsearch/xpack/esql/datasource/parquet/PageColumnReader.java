@@ -154,7 +154,9 @@ final class PageColumnReader implements Releasable {
             case INTEGER -> readIntBatch(maxRows, blockFactory);
             case LONG, UNSIGNED_LONG -> {
                 if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                    yield readInt32AsLongBatch(maxRows, blockFactory);
+                    var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
+                    // A plain INT32 with no logical-type annotation is historically "signed"
+                    yield readInt32AsLongBatch(maxRows, blockFactory, logicalType == null || logicalType.isSigned());
                 }
                 yield readLongBatch(maxRows, blockFactory);
             }
@@ -802,10 +804,10 @@ final class PageColumnReader implements Releasable {
 
     // --- Int32 widened to Long ---
 
-    private Block readInt32AsLongBatch(int maxRows, BlockFactory blockFactory) {
+    private Block readInt32AsLongBatch(int maxRows, BlockFactory blockFactory, boolean signed) {
         long[] values = new long[maxRows];
         if (maxDefLevel == 0) {
-            int produced = readNonNullInt32AsLong(values, 0, maxRows);
+            int produced = readNonNullInt32AsLong(values, 0, maxRows, signed);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
             if (constant != null) return constant;
             if (produced < maxRows) values = Arrays.copyOf(values, produced);
@@ -817,7 +819,7 @@ final class PageColumnReader implements Releasable {
         while (remaining > 0 && ensurePage()) {
             int fromPage = Math.min(remaining, availableInPage());
             int nonNull = defDecoder.readBatch(fromPage, nulls, produced);
-            readInt32AsLongValues(values, nulls, produced, fromPage, nonNull);
+            readInt32AsLongValues(values, nulls, produced, fromPage, nonNull, signed);
             advancePosition(fromPage);
             produced += fromPage;
             remaining -= fromPage;
@@ -836,7 +838,7 @@ final class PageColumnReader implements Releasable {
         return blockFactory.newLongArrayBlock(values, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
     }
 
-    private int readNonNullInt32AsLong(long[] values, int offset, int maxRows) {
+    private int readNonNullInt32AsLong(long[] values, int offset, int maxRows, boolean signed) {
         int produced = 0;
         int remaining = maxRows;
         while (remaining > 0 && ensurePage()) {
@@ -844,7 +846,7 @@ final class PageColumnReader implements Releasable {
             int[] intValues = buffers.ints(fromPage);
             readIntsDispatch(intValues, 0, fromPage);
             for (int i = 0; i < fromPage; i++) {
-                values[offset + produced + i] = Integer.toUnsignedLong(intValues[i]);
+                values[offset + produced + i] = signed ? intValues[i] : Integer.toUnsignedLong(intValues[i]);
             }
             advancePosition(fromPage);
             produced += fromPage;
@@ -853,7 +855,7 @@ final class PageColumnReader implements Releasable {
         return produced;
     }
 
-    private void readInt32AsLongValues(long[] values, WordMask nulls, int offset, int totalRows, int nonNullCount) {
+    private void readInt32AsLongValues(long[] values, WordMask nulls, int offset, int totalRows, int nonNullCount, boolean signed) {
         if (nonNullCount == 0) {
             return;
         }
@@ -861,13 +863,13 @@ final class PageColumnReader implements Releasable {
         readIntsDispatch(intPacked, 0, nonNullCount);
         if (nonNullCount == totalRows) {
             for (int i = 0; i < nonNullCount; i++) {
-                values[offset + i] = Integer.toUnsignedLong(intPacked[i]);
+                values[offset + i] = signed ? intPacked[i] : Integer.toUnsignedLong(intPacked[i]);
             }
         } else {
             int pi = 0;
             for (int i = 0; i < totalRows; i++) {
                 if (nulls.get(offset + i) == false) {
-                    values[offset + i] = Integer.toUnsignedLong(intPacked[pi++]);
+                    values[offset + i] = signed ? intPacked[i] : Integer.toUnsignedLong(intPacked[pi++]);
                 }
             }
         }

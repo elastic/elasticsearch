@@ -254,35 +254,36 @@ public class Reindexer {
         final boolean isRemote = request.getRemoteInfo() != null;
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
 
+        // Point-in-time searching is disabled, so default to scroll
         if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false || DISABLE_PIT_SEARCH) {
-            // Point-in-time searching is disabled, so default to scroll
             executePaginatedSearch(task, request, responseListener, workerAction, null);
-        } else {
-            if (isRemote) {
-                // Point-in-time searching is enabled and this is a request to reindex from remote.
-                // We need to determine the remote version prior to execution.
-                // NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice.
-                // If slicing for remote is enabled, we could change this to prevent duplicate remote version look-ups.
-                assert request.getSlices() == 1 : "remote reindex must use slices==1";
-                lookupRemoteVersionAndExecute(task, request, bulkClient, responseListener, workerAction);
+        }
+        /**
+         * Point-in-time searching is enabled
+         * As this is a request to reindex from remote, we need to determine the remote version prior to execution
+         * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice.
+         * Once slicing for remote is enabled, we'll need to change this to prevent duplicate remote version look-ups
+         */
+        else if (isRemote) {
+            assert request.getSlices() == 1 : "remote reindex must use slices==1";
+            lookupRemoteVersionAndExecute(task, request, bulkClient, responseListener, workerAction);
+        }
+        // Point-in-time searching is enabled, and this is a local request
+        else {
+            // If PIT is already set (worker received sliced request from leader), skip opening a new PIT
+            if (request.getSearchRequest().source() != null && request.getSearchRequest().source().pointInTimeBuilder() != null) {
+                ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
+                    request.getSearchRequest().source().pointInTimeBuilder().getEncodedId(),
+                    responseListener,
+                    this::closeLocalPit,
+                    task,
+                    shouldNotClosePitOnResponse(task)
+                );
+                Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
+                executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
             } else {
-                // Point-in-time searching is enabled, and this is a local request.
-                // If PIT is already set (child request for auto-sliced operation, or worker received sliced request from leader), skip
-                // opening a new PIT.
-                if (request.getSearchRequest().source() != null && request.getSearchRequest().source().pointInTimeBuilder() != null) {
-                    ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
-                        request.getSearchRequest().source().pointInTimeBuilder().getEncodedId(),
-                        responseListener,
-                        this::closeLocalPit,
-                        task,
-                        shouldNotClosePitOnResponse(task)
-                    );
-                    Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
-                    executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
-                } else {
-                    normalizeRequestOnOpeningPit(request);
-                    openPitAndExecute(task, request, bulkClient, responseListener);
-                }
+                normalizeRequestOnOpeningPit(request);
+                openPitAndExecute(task, request, bulkClient, responseListener);
             }
         }
     }

@@ -90,7 +90,6 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -260,11 +259,7 @@ public class InternalEngine extends Engine {
         } else {
             useTsdbSyntheticId = false;
         }
-        ProvidedIdFieldMapper idMapper = engineConfig.getMapperService()
-            .mappingLookup()
-            .getMapping()
-            .getMetadataMapperByClass(ProvidedIdFieldMapper.class);
-        useColumnarId = idMapper != null && idMapper.isColumnarMode();
+        useColumnarId = engineConfig.getMapperService().isUseColumnarId();
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();

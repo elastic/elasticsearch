@@ -569,7 +569,19 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 repo.setName(repoName);
                 repo.setUrl(draBaseUrl);
                 repo.patternLayout(p -> {
-                    if (gradleClassifier.isEmpty()) {
+                    if (mavenGroup.isEmpty() == false) {
+                        // Maven-coordinated artifacts (e.g. JDBC jar) live under the /maven/ tree
+                        // using the standard Maven group-path layout rather than the flat
+                        // /downloads/elasticsearch/ path used for distribution archives.
+                        String groupPath = effectiveMavenGroup.replace(".", "/");
+                        p.artifact(
+                            "/elasticsearch/"
+                                + buildId
+                                + "/maven/"
+                                + groupPath
+                                + "/[module]/[revision]/[module]-[revision].[ext]"
+                        );
+                    } else if (gradleClassifier.isEmpty()) {
                         p.artifact("/elasticsearch/" + buildId + "/downloads/elasticsearch/[module]-[revision].[ext]");
                     } else {
                         p.artifact("/elasticsearch/" + buildId + "/downloads/elasticsearch/[module]-[revision]-[classifier].[ext]");

@@ -224,8 +224,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         def shortHash = "abc12345"
         def buildId = "${bwcVersion}-${shortHash}"
         def manifestPath = "/elasticsearch/${buildId}/manifest-${bwcVersion}-SNAPSHOT.json"
-        def jdbcArtifactPath = "/elasticsearch/${buildId}/downloads/elasticsearch/" +
-            "x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar"
+        def jdbcArtifactPath = "/elasticsearch/${buildId}/maven/org/elasticsearch/plugin/" +
+            "x-pack-sql-jdbc/${bwcVersion}-SNAPSHOT/x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar"
 
         def wireMock = new WireMockServer(0)
         wireMock.start()

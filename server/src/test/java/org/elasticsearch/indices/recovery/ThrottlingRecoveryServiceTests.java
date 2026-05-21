@@ -16,18 +16,19 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -402,8 +403,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                         peakRunning,
                                         totalTasksFinished,
                                         taskLatch,
-                                        random().nextBoolean(),
-                                        threadPool
+                                        random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
                                     )
                                 );
                             }
@@ -421,8 +421,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                         peakRunning,
                                         totalTasksFinished,
                                         taskLatch,
-                                        random().nextBoolean(),
-                                        threadPool
+                                        random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
                                     )
                                 );
                             }
@@ -456,15 +455,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         AtomicInteger peakRunning,
         AtomicInteger totalTasksFinished,
         RefCounted refCounted,
-        boolean async,
-        ThreadPool threadPool
+        ExecutorService executorService
     ) {
-        if (async) {
-            threadPool.generic()
-                .execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted));
-        } else {
-            doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted);
-        }
+        executorService.execute(
+            () -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted)
+        );
     }
 
     private static void doRunStressInboundRecoveryTask(

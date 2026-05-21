@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
@@ -190,6 +191,7 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
+    private final String clusterUuid;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -239,6 +241,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.clusterUuid = services.clusterService().state().metadata().clusterUUID();
         this.projectMetadata = projectMetadata;
     }
 
@@ -641,8 +644,26 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            // execute main plan
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
+            ActionListener<Result> wrapped = ActionListener.runAfter(listener, () -> logAnonymizedPlans(optimizedPlan, physicalPlan));
+            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, wrapped);
+        }
+    }
+
+    private void logAnonymizedPlans(LogicalPlan logical, PhysicalPlan physical) {
+        if (LOGGER.isInfoEnabled() == false) {
+            return;
+        }
+        try {
+            var anonymized = PlanAnonymizer.forSubmission(clusterUuid).anonymize(logical, physical);
+            LOGGER.info(
+                "ESQL anonymized plans for session [{}]\nmapping:\n{}\nlogical:\n{}\nphysical:\n{}",
+                sessionId,
+                anonymized.schema(),
+                anonymized.logicalPlan(),
+                anonymized.physicalPlan()
+            );
+        } catch (Exception e) {
+            LOGGER.warn("Plan anonymization failed for session [{}]", sessionId, e);
         }
     }
 

@@ -36,7 +36,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final HierarchyCircuitBreakerService parent;
     private final String name;
     private final LongCounter trippedCountMeter;
-    private final LongCounter memoryReservedMeter;
     private final LongUpDownCounter memoryHeldMeter;
 
     public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
@@ -49,7 +48,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * bytes grows above the limit. All estimations will be multiplied by
      * the given overheadConstant. Uses the given oldBreaker to initialize
      * the starting offset.
-     * @param metrics the metrics container used to report trip count and reserved-bytes metrics
+     * @param metrics the metrics container used to report trip count and held-bytes metrics
      * @param settings settings to configure this breaker
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
@@ -70,7 +69,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
         this.trippedCountMeter = metrics.getTripCount();
-        this.memoryReservedMeter = metrics.getMemoryReservedTotal();
         this.memoryHeldMeter = metrics.getMemoryHeld();
     }
 
@@ -113,9 +111,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * estimations.
      * <p>
      * When the addition is admitted (positive bytes, breaker did not trip, parent breaker did not trip), the bytes are also reported to
-     * {@code es.breaker.memory.reserved.total} (counter) and {@code es.breaker.memory.held} (up-down counter / gauge) with the
-     * {@code category} attribute set to {@code label} verbatim. Callers should keep that label low-cardinality (avoid embedding field
-     * names, shard ids, or other dynamic content) so the metrics stay aggregatable.
+     * {@code es.breaker.memory.held} (up-down counter / gauge) with the {@code category} attribute set to {@code label} verbatim.
+     * Callers should keep that label low-cardinality (avoid embedding field names, shard ids, or other dynamic content) so the metric
+     * stays aggregatable.
      *
      * @param bytes number of bytes to add to the breaker
      */
@@ -150,9 +148,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             throw e;
         }
         if (bytes > 0) {
-            final Map<String, Object> attrs = Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label);
-            this.memoryReservedMeter.incrementBy(bytes, attrs);
-            this.memoryHeldMeter.add(bytes, attrs);
+            this.memoryHeldMeter.add(bytes, Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
         }
         assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
     }

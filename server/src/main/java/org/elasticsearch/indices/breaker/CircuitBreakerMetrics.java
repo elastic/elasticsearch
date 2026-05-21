@@ -31,9 +31,6 @@ import java.util.function.Supplier;
  *
  * <p>In addition to {@link #ES_BREAKER_TRIP_COUNT_TOTAL}, this class exposes:
  * <ul>
- *     <li>{@link #ES_BREAKER_MEMORY_RESERVED_TOTAL} - synchronous counter of bytes admitted by child breakers, broken down by
- *     {@code type} (breaker name) and {@code category} (the label passed to
- *     {@link org.elasticsearch.common.breaker.CircuitBreaker#addEstimateBytesAndMaybeBreak(long, String)} verbatim).</li>
  *     <li>{@link #ES_BREAKER_MEMORY_HELD} - up-down counter (gauge-like) of currently held bytes, broken down by {@code type} and
  *     {@code category}. Incremented on admit, decremented on labeled release. Releases that go through
  *     {@link org.elasticsearch.common.breaker.CircuitBreaker#addWithoutBreaking(long)} (the unlabeled variant) bucket under
@@ -49,25 +46,17 @@ import java.util.function.Supplier;
 public class CircuitBreakerMetrics {
     public static final CircuitBreakerMetrics NOOP = new CircuitBreakerMetrics(TelemetryProvider.NOOP);
     public static final String ES_BREAKER_TRIP_COUNT_TOTAL = "es.breaker.trip.total";
-    public static final String ES_BREAKER_MEMORY_RESERVED_TOTAL = "es.breaker.memory.reserved.total";
     public static final String ES_BREAKER_MEMORY_HELD = "es.breaker.memory.held";
     public static final String ES_BREAKER_MEMORY_LIMIT = "es.breaker.memory.limit";
     public static final String ES_BREAKER_MEMORY_ESTIMATED = "es.breaker.memory.estimated";
 
     private final MeterRegistry meterRegistry;
     private final LongCounter tripCount;
-    private final LongCounter memoryReservedTotal;
     private final LongUpDownCounter memoryHeld;
 
-    private CircuitBreakerMetrics(
-        final MeterRegistry meterRegistry,
-        final LongCounter tripCount,
-        final LongCounter memoryReservedTotal,
-        final LongUpDownCounter memoryHeld
-    ) {
+    private CircuitBreakerMetrics(final MeterRegistry meterRegistry, final LongCounter tripCount, final LongUpDownCounter memoryHeld) {
         this.meterRegistry = meterRegistry;
         this.tripCount = tripCount;
-        this.memoryReservedTotal = memoryReservedTotal;
         this.memoryHeld = memoryHeld;
     }
 
@@ -79,11 +68,6 @@ public class CircuitBreakerMetrics {
         this(
             meterRegistry,
             meterRegistry.registerLongCounter(ES_BREAKER_TRIP_COUNT_TOTAL, "Circuit breaker trip count", "count"),
-            meterRegistry.registerLongCounter(
-                ES_BREAKER_MEMORY_RESERVED_TOTAL,
-                "Total bytes admitted by child circuit breakers, broken down by breaker type and category",
-                "By"
-            ),
             meterRegistry.registerLongUpDownCounter(
                 ES_BREAKER_MEMORY_HELD,
                 "Currently held bytes per circuit breaker type and category (admit/release-balanced)",
@@ -94,20 +78,6 @@ public class CircuitBreakerMetrics {
 
     public LongCounter getTripCount() {
         return tripCount;
-    }
-
-    /**
-     * Counter incremented (synchronously) when a child circuit breaker admits a memory reservation. Attributes:
-     * <ul>
-     *     <li>{@code type} - the breaker name (e.g. {@code request}, {@code fielddata}, {@code inflight_requests}).</li>
-     *     <li>{@code category} - the label passed to
-     *     {@link org.elasticsearch.common.breaker.CircuitBreaker#addEstimateBytesAndMaybeBreak(long, String)} verbatim. Call sites are
-     *     responsible for keeping the label low-cardinality (avoid embedding field names, shard ids, or other dynamic content); otherwise
-     *     this attribute can blow up the metric storage cardinality.</li>
-     * </ul>
-     */
-    public LongCounter getMemoryReservedTotal() {
-        return memoryReservedTotal;
     }
 
     /**
@@ -154,25 +124,17 @@ public class CircuitBreakerMetrics {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CircuitBreakerMetrics that = (CircuitBreakerMetrics) o;
-        return Objects.equals(tripCount, that.tripCount)
-            && Objects.equals(memoryReservedTotal, that.memoryReservedTotal)
-            && Objects.equals(memoryHeld, that.memoryHeld);
+        return Objects.equals(tripCount, that.tripCount) && Objects.equals(memoryHeld, that.memoryHeld);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tripCount, memoryReservedTotal, memoryHeld);
+        return Objects.hash(tripCount, memoryHeld);
     }
 
     @Override
     public String toString() {
-        return "CircuitBreakerMetrics{tripCount="
-            + tripCount
-            + ", memoryReservedTotal="
-            + memoryReservedTotal
-            + ", memoryHeld="
-            + memoryHeld
-            + '}';
+        return "CircuitBreakerMetrics{tripCount=" + tripCount + ", memoryHeld=" + memoryHeld + '}';
     }
 
 }

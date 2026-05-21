@@ -1007,54 +1007,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
-    public void testReservedTotalCounterCarriesTypeAndLabelVerbatimAsCategory() {
-        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
-        final CircuitBreakerMetrics metrics = new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
-            @Override
-            public MeterRegistry getMeterRegistry() {
-                return meter;
-            }
-        });
-        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
-            metrics,
-            Settings.EMPTY,
-            Collections.emptyList(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-
-        service.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(42L, "wildcard");
-        service.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(7L, "regexp");
-
-        final List<Measurement> reserved = meter.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_RESERVED_TOTAL);
-
-        final Map<Map<String, Object>, Long> totalsByAttrs = reserved.stream()
-            .collect(Collectors.groupingBy(Measurement::attributes, Collectors.summingLong(Measurement::getLong)));
-
-        assertEquals(
-            Long.valueOf(42L),
-            totalsByAttrs.get(
-                Map.of(
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
-                    CircuitBreaker.REQUEST,
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    "wildcard"
-                )
-            )
-        );
-        assertEquals(
-            Long.valueOf(7L),
-            totalsByAttrs.get(
-                Map.of(
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
-                    CircuitBreaker.REQUEST,
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    "regexp"
-                )
-            )
-        );
-    }
-
     public void testMemoryHeldBalancesPerCategoryAcrossAdmitAndLabeledRelease() {
         final RecordingMeterRegistry meter = new RecordingMeterRegistry();
         final CircuitBreakerMetrics metrics = new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {

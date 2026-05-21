@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `JSON_EXTRACT` function [esql-json_extract]
 
-:::{include} ../../_snippets/functions/layout/json_extract.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/json_extract.md
 :::

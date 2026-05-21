@@ -28,7 +28,7 @@ template:
         priority: 20
         time_series_dimension: true
         properties:
-          # Explicitly map http.response.status_code to workaround mapping conflict caused by non-semconv-compliant clients
+          # Explicitly map http.response.status_code to work around mapping conflict caused by non-semconv-compliant clients
           http.response.status_code:
             type: long
     dynamic_templates:

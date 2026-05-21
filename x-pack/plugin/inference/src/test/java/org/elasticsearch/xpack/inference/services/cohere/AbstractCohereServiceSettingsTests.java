@@ -59,7 +59,7 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
     public void testFromMap_Request_DeprecatedModelField() {
         var serviceSettings = createGivenCommonSettings(
             new HashMap<>(Map.of(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, "old-model")),
-            ConfigurationParseContext.REQUEST
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(serviceSettings.commonSettings().modelId(), is("old-model"));
@@ -80,6 +80,16 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
 
         assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereCommonServiceSettings.CohereApiVersion.V2));
         assertThat(serviceSettings.commonSettings().modelId(), is("m"));
+    }
+
+    public void testFromMap_GivenBothDeprecatedAndNewModelId_UsesNewModelId() {
+        var serviceSettings = createGivenCommonSettings(
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, "new-model", CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, "old-model")),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(serviceSettings.commonSettings().modelId(), is("new-model"));
+        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereCommonServiceSettings.CohereApiVersion.V2));
     }
 
     public void testToXContent_ExposedFields_DoesNotContainApiVersion() throws IOException {

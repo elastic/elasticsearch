@@ -85,12 +85,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         AbstractObjectParser<B, ConfigurationParseContext> parser,
         ConfigurationParseContext context
     ) {
-        parser.declareString((b, v) -> {
-            if (context == ConfigurationParseContext.REQUEST) {
-                logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
-            }
-            b.setModelId(v);
-        }, new ParseField(OLD_MODEL_ID_FIELD));
+        parser.declareString(Builder::setDeprecatedModelId, new ParseField(OLD_MODEL_ID_FIELD));
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(URL));
         parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
@@ -222,9 +217,10 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     public abstract static class Builder<T> {
         protected final ConfigurationParseContext context;
 
-        protected String url;
-        protected String modelId;
-        protected String apiVersionRaw;
+        private String url;
+        private String modelId;
+        private String deprecatedModelId;
+        private String apiVersionRaw;
         protected RateLimitSettings rateLimitSettings;
 
         protected Builder(ConfigurationParseContext context) {
@@ -237,6 +233,13 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
 
         public void setModelId(String modelId) {
             this.modelId = modelId;
+        }
+
+        public void setDeprecatedModelId(String deprecatedModelId) {
+            this.deprecatedModelId = deprecatedModelId;
+            if (deprecatedModelId != null && context == ConfigurationParseContext.REQUEST) {
+                logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
+            }
         }
 
         public void setApiVersion(String apiVersion) {
@@ -256,11 +259,12 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         private CohereCommonServiceSettings buildCommonSettings() {
             boolean isRequest = context == ConfigurationParseContext.REQUEST;
             var apiVersion = CohereCommonServiceSettings.resolveApiVersion(apiVersionRaw, isRequest);
-            if (apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2 && modelId == null) {
+            String resolvedModelId = modelId != null ? modelId : deprecatedModelId;
+            if (apiVersion == CohereCommonServiceSettings.CohereApiVersion.V2 && resolvedModelId == null) {
                 throw new IllegalArgumentException(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API);
             }
             var uri = createOptionalUri(url);
-            return new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
+            return new CohereCommonServiceSettings(uri, resolvedModelId, rateLimitSettings, apiVersion);
         }
     }
 

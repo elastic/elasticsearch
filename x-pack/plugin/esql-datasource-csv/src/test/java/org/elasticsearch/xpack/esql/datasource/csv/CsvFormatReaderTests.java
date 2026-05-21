@@ -53,6 +53,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -5152,5 +5153,161 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             assertEquals(new BytesRef("hello\nworld"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
         }
+    }
+
+    // --- Stream drain prevention (issue #806) ---
+
+    /**
+     * Regression guard for issue #806: {@code readSchema} must not drain the full stream body
+     * when closing after reading a typed header. Apache HttpClient's
+     * {@code ContentLengthInputStream.close()} drains all remaining bytes to reuse the
+     * connection; for large uncompressed S3 files this blocks the search thread for minutes.
+     * The fix must abort the stream before the drain can occur.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code (because {@code close()} drains the entire body) and
+     * passes once the fix ensures the stream is aborted after the header is read.
+     */
+    public void testReadSchemaDoesNotDrainStream_typedHeader() throws IOException {
+        // Typed-header CSV: the schema is fully encoded in the header line so readSchema
+        // needs only that one line. The rest of the file should never be consumed.
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,value:double\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be >> reader buffer size to be meaningful", bytes.length, Matchers.greaterThan(1_000_000));
+
+        AtomicLong bytesConsumed = new AtomicLong();
+        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // Only the header line was needed. The BufferedReader pre-fills up to 64 KB on
+        // the first readLine(), so allow 2x that as a generous upper bound — but the vast
+        // majority of the multi-MB file must not have been touched.
+        assertThat(
+            "readSchema must not drain the stream after reading a typed header; consumed "
+                + bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
+    }
+
+    /**
+     * Regression guard for issue #806: for plain (untyped) headers, type inference reads
+     * a bounded sample of rows, but the remaining file body must not be drained on close.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code and passes once the fix aborts the stream after the
+     * sample rows are consumed.
+     */
+    public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
+        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // The file contains 200 000 rows so most of it should remain unread after schema().
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
+
+        AtomicLong bytesConsumed = new AtomicLong();
+        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // The sample covers at most DEFAULT_SAMPLE_SIZE rows, which is a small fraction
+        // of the 200 000-row file. The remaining body must not be drained.
+        assertThat(
+            "readSchema must not drain beyond the schema sample; consumed " + bytesConsumed.get() + " of " + bytes.length + " bytes",
+            bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
+    }
+
+    /**
+     * Creates a {@link StorageObject} backed by {@code bytes} whose stream simulates the
+     * Apache HttpClient drain behaviour on close: any unread bytes are consumed before the
+     * underlying stream is released. {@code bytesConsumed} accumulates all bytes that pass
+     * through the stream, including those drained during {@code close()}.
+     * <p>
+     * {@code newStream(long, long)} returns a range-bounded stream so that a fix based on
+     * bounded reads (e.g. {@code object.newStream(0, schemaLimit)}) also produces accurate
+     * counts.
+     */
+    private StorageObject drainSimulatingStorageObject(byte[] bytes, AtomicLong bytesConsumed) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return drainTrackingStream(new ByteArrayInputStream(bytes), bytesConsumed);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int from = (int) position;
+                int to = (int) Math.min(position + length, bytes.length);
+                return drainTrackingStream(new ByteArrayInputStream(bytes, from, to - from), bytesConsumed);
+            }
+
+            @Override
+            public long length() {
+                return bytes.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://test-drain.csv");
+            }
+        };
+    }
+
+    /**
+     * Wraps {@code delegate} in a tracking stream whose {@code close()} simulates the
+     * Apache HttpClient drain: all remaining bytes are read before the stream is closed.
+     * Every byte that passes through — whether read normally or drained — is counted in
+     * {@code bytesConsumed}.
+     */
+    private static InputStream drainTrackingStream(ByteArrayInputStream delegate, AtomicLong bytesConsumed) {
+        return new InputStream() {
+            @Override
+            public int read() {
+                int b = delegate.read();
+                if (b >= 0) bytesConsumed.incrementAndGet();
+                return b;
+            }
+
+            @Override
+            public int read(byte[] buf, int off, int len) {
+                int n = delegate.read(buf, off, len);
+                if (n > 0) bytesConsumed.addAndGet(n);
+                return n;
+            }
+
+            @Override
+            public void close() throws IOException {
+                // Simulate Apache HttpClient ContentLengthInputStream.close(): drain all
+                // remaining bytes to allow connection reuse. We read directly from the
+                // delegate (not through our read() overrides) to avoid double-counting.
+                byte[] drain = new byte[8192];
+                int n;
+                while ((n = delegate.read(drain)) != -1) {
+                    bytesConsumed.addAndGet(n);
+                }
+            }
+        };
     }
 }

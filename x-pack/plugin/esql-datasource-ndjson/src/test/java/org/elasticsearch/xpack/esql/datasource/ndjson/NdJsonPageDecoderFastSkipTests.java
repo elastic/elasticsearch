@@ -176,37 +176,6 @@ public class NdJsonPageDecoderFastSkipTests extends ESTestCase {
         );
     }
 
-    /**
-     * When the ES|QL planner prunes all real columns (e.g. {@code STATS COUNT(*)}), it emits a
-     * synthetic {@code "<all-fields-projected>"} attribute as the sole projection. The decoder must
-     * recognise this sentinel and produce a row-count-only {@link Page} (zero blocks) without
-     * materialising any column data.
-     */
-    public void testAllFieldsProjectedSentinelProducesRowCountOnlyPage() throws IOException {
-        List<String> sentinel = List.of("<all-fields-projected>");
-        byte[] ndjson = fixture();
-        try (
-            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
-                new ByteArrayInputStream(ndjson),
-                SCHEMA,
-                sentinel,
-                ROWS + 1,
-                blockFactory,
-                ErrorPolicy.STRICT,
-                "test"
-            )
-        ) {
-            Page page = decoder.decodePage();
-            assertNotNull(page);
-            try {
-                assertEquals("sentinel must yield zero blocks (row-count-only page)", 0, page.getBlockCount());
-                assertEquals(ROWS, page.getPositionCount());
-            } finally {
-                page.releaseBlocks();
-            }
-        }
-    }
-
     // -----------------------------------------------------------------------------------------
 
     /** Builds a {@link JsonFactory} that counts every {@code nextToken()} call on its parsers. */

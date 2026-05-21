@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -233,7 +232,7 @@ public class NdJsonPageDecoder implements Closeable {
 
         List<Attribute> fullSchema = attributes;
         // Three projection cases:
-        // - null  : caller has no projection info (e.g. metadata path); materialize every attribute.
+        // - null : caller has no projection info (e.g. metadata path); materialize every attribute.
         // - empty : optimizer pruned every column (COUNT(*) and similar); produce row-count-only Pages.
         // - other : project the listed columns in the requested order, with NULL for missing names.
         List<Attribute> projectedAttributes;
@@ -806,9 +805,13 @@ public class NdJsonPageDecoder implements Closeable {
                     }
                 }
                 case KEYWORD -> {
-                    char[] chars = parser.getTextCharacters();
-                    CharBuffer charBuffer = CharBuffer.wrap(chars, parser.getTextOffset(), parser.getTextLength());
-                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(charBuffer));
+                    // Be lenient, this is a catch-all type
+                    var str = parser.getValueAsString();
+                    if (str != null) {
+                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(str));
+                    } else {
+                        unexpectedValue(blockBuilder, parser, inArray);
+                    }
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             }

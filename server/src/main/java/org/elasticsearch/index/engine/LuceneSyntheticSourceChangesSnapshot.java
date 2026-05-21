@@ -98,8 +98,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, forceSequentialReader);
         RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
         this.routingDocValues = routingMapper != null && routingMapper.docValues();
-        IdFieldMapper idFieldMapper = (IdFieldMapper) mapperService.mappingLookup().getMapper(IdFieldMapper.NAME);
-        columnarId = idFieldMapper != null && idFieldMapper.isColumnarMode();
+        columnarId = mapperService.isUseColumnarId();
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 

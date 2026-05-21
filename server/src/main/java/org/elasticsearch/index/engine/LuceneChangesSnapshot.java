@@ -86,8 +86,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
-        IdFieldMapper idFieldMapper = (IdFieldMapper) mapperService.mappingLookup().getMapper(IdFieldMapper.NAME);
-        boolean columnarId = idFieldMapper != null && idFieldMapper.isColumnarMode();
+        boolean columnarId = mapperService.isUseColumnarId();
         this.parallelArray = new ParallelArray(this.searchBatchSize, columnarId);
         this.lastSeenSeqNo = fromSeqNo - 1;
         final TopDocs topDocs = nextTopDocs();

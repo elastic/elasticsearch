@@ -702,6 +702,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         Settings newIndexSettings = Settings.builder()
             .put("refresh_interval", "5s")
             .put("index.analysis.analyzer.my_analyzer.type", "standard")
+            // TODO: I think LuceneChangesSnapshot shouldn't rely on settings / mappings to know the id is columnar
+            // (this test removes all index setting upon restore)
+            .put("index.mapping.use_colulmnar_id_mode_by_default", true)
             .build();
 
         Settings newIncorrectIndexSettings = Settings.builder()

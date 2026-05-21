@@ -109,15 +109,16 @@ public class JsonExtract extends EsqlScalarFunction {
             (`..`), array slicing (`[0:3]`), filter expressions
             (`?(@.price<10)`), or negative array indices (`[-1]`).
 
-            When called with `_source`, the function operates on `_source` as
-            the index currently materializes it. On indices using
+            When called with `_source`, this function reads `_source` as
+            Elasticsearch returns it. On indices using
             [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source),
-            `_source` is reconstructed from doc values and may differ from the
-            originally indexed JSON — see
+            Elasticsearch reconstructs `_source` from stored data when
+            documents are retrieved, so the JSON the function sees can
+            differ from the original document. See
             [synthetic `_source` modifications](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-modifications)
-            for the specific ways the reconstruction can change (notably, leaf
-            arrays are moved, fields use their mapped names, and object keys
-            are sorted alphabetically).""",
+            for the changes that apply — for example, arrays are moved to
+            leaves, fields are named as in the mapping, and object keys are
+            sorted alphabetically.""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_dollar", description = """

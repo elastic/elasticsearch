@@ -35,6 +35,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.simdvec;
     requires org.elasticsearch.entitlement;
+    requires org.elasticsearch.sslconfig;
 
     requires hppc;
     requires HdrHistogram;

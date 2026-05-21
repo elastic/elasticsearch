@@ -2747,7 +2747,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
 
         /**
          * Support query approximation with INLINE STATS
@@ -2829,6 +2829,12 @@ public class EsqlCapabilities {
          * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Support for using a {@code flattened} field as a grouping key in
+         * {@code STATS … BY} and {@code LIMIT N BY}.
+         */
+        GROUP_BY_FLATTENED(Build.current().isSnapshot()),
 
         /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping

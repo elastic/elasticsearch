@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MATCH` function [esql-match]
 
-:::{include} ../../_snippets/functions/layout/match.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/match.md
 :::

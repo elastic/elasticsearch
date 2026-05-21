@@ -92,16 +92,22 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         indexDocuments(10, BOOSTED_IDX, 1_000, boostWindowStartInMillis, boostWindowEndInMillis);
 
         final StatelessSharedBlobCacheService cacheService = getCacheService();
-        logger.info("cache regions after ingesting docs: boosted={}, non-boosted={}",
-            cacheRegionsForIndex(cacheService, BOOSTED_IDX), cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX));
+        logger.info(
+            "cache regions after ingesting docs: boosted={}, non-boosted={}",
+            cacheRegionsForIndex(cacheService, BOOSTED_IDX),
+            cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX)
+        );
 
         // Step 1 — populate the cache with boosted data via a single on-demand search.
         // All boosted regions start at LFU frequency 1 (written once, not yet promoted).
         searchBoostedData(BOOSTED_IDX);
 
         final SharedBlobCacheService.Stats statsAfterBoostSearch = cacheService.getStats();
-        logger.info("boosted cache regions after searching boosted docs: boosted={}, non-boosted={}",
-            cacheRegionsForIndex(cacheService, BOOSTED_IDX), cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX));
+        logger.info(
+            "boosted cache regions after searching boosted docs: boosted={}, non-boosted={}",
+            cacheRegionsForIndex(cacheService, BOOSTED_IDX),
+            cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX)
+        );
 
         assertThat("boosted data should have been loaded into the cache", statsAfterBoostSearch.writeBytes(), greaterThan(0L));
         assertThat("boosted cache regions should be resident", cacheRegionsForIndex(cacheService, BOOSTED_IDX), greaterThan(0L));
@@ -112,8 +118,11 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // boosted regions are evicted first under the LFU clock.
         searchNonBoostedData(NON_BOOSTED_IDX);
 
-        logger.info("boosted cache regions after searching non-boosted docs: boosted={}, non-boosted={}",
-            cacheRegionsForIndex(cacheService, BOOSTED_IDX), cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX));
+        logger.info(
+            "boosted cache regions after searching non-boosted docs: boosted={}, non-boosted={}",
+            cacheRegionsForIndex(cacheService, BOOSTED_IDX),
+            cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX)
+        );
         assertThat(
             "boosted regions must have been fully evicted by non-boosted searches",
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),
@@ -153,7 +162,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     private void createIndexes(String boostedIdx, String nonBoostedIdx) {
         final Settings idxSettings = ESTestCase.indexSettings(1, 1)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE)
-            .put(IndexSettings.MODE.getKey() , IndexMode.TIME_SERIES)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
             .build();
@@ -173,8 +182,10 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         range(0, numDocs).mapToObj(
             i -> client().prepareIndex(indexName)
                 .setSource(
-                    DataStream.TIMESTAMP_FIELD_NAME, randomLongBetween(minTimestamp, maxTimestamp),
-                    "hostname", "host-" + randomIntBetween(1, 5)
+                    DataStream.TIMESTAMP_FIELD_NAME,
+                    randomLongBetween(minTimestamp, maxTimestamp),
+                    "hostname",
+                    "host-" + randomIntBetween(1, 5)
                 )
         ).forEach(bulk::add);
         assertNoFailures(bulk.get());

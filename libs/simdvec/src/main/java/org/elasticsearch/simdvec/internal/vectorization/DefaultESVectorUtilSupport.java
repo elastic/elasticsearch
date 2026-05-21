@@ -21,7 +21,7 @@ import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.nio.ByteOrder;
 
-final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
+public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {
         if (Constants.HAS_FAST_SCALAR_FMA) {
@@ -86,14 +86,31 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return VectorUtil.dotProduct(a, b);
     }
 
-    @Override
-    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+    static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         float sum = 0f;
         for (float[] floats : query) {
             float max = Float.NEGATIVE_INFINITY;
             var vectorValues = source.vectorValues();
             while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
             }
             sum += max;
         }
@@ -102,12 +119,16 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         float sum = 0f;
-        for (float[] floats : query) {
+        for (byte[] bytes : query) {
             float max = Float.NEGATIVE_INFINITY;
             var vectorValues = source.vectorValues();
             while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+                max = Math.max(max, VectorUtil.dotProduct(bytes, vectorValues.next()));
             }
             sum += max;
         }
@@ -116,16 +137,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
-        float sum = 0f;
-        for (byte[] bytes : query) {
-            float max = Float.NEGATIVE_INFINITY;
-            var vectorValues = source.vectorValues();
-            while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(bytes, vectorValues.next()));
-            }
-            sum += max;
-        }
-        return sum;
+        return maxSimDotProductImpl(source, query, scoresScratch);
     }
 
     @Override

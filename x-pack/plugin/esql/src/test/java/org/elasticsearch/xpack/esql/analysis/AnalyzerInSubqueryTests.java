@@ -10,14 +10,17 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -38,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -584,8 +588,10 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | WHERE 10001 IN (FROM employees | KEEP emp_no)
             """);
 
-        // Project on top strips the synthetic constant column from the output
+        // The synthetic Eval column is stripped by a top-level Project added by the analyzer.
         Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
         Limit limit = as(topProject.child(), Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
@@ -612,6 +618,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             """);
 
         Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
         Limit limit = as(topProject.child(), Limit.class);
         AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
@@ -637,17 +645,21 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             """);
 
         Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
         Limit limit = as(topProject.child(), Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
 
-        Eval eval = as(semiJoin.left(), Eval.class);
-        Filter filter = as(eval.child(), Filter.class);
+        // The remaining `salary > 50000` filter sits between the SemiJoin and the synthetic Eval that
+        // materializes the constant LHS for the IN subquery.
+        Filter filter = as(semiJoin.left(), Filter.class);
         GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
         FieldAttribute salary = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("salary", salary.name());
-        EsRelation leftRelation = as(filter.child(), EsRelation.class);
+        Eval eval = as(filter.child(), Eval.class);
+        EsRelation leftRelation = as(eval.child(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
         Project rightProject = as(semiJoin.right(), Project.class);
@@ -662,6 +674,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             """);
 
         Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
         Limit limit = as(topProject.child(), Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
@@ -1036,35 +1050,35 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testDoubleNotInSubqueryOrOneMorePredicate() {
-        // Reordered: [salary > 50000, NOT(NOT IN emp_no)] (complexity 0, 1)
         LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE NOT (emp_no NOT IN (FROM employees | KEEP emp_no))
                OR salary > 50000
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
+        // emp_no NOT IN parses as Not(InSubquery); the outer NOT yields Not(Not(InSubquery)).
+        // Inside OR, the InSubquery is replaced by a LeftSemiJoin's mark attribute, leaving the
+        // surrounding double-NOT in place.
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Not outerNot = as(or.left(), Not.class);
+        Not innerNot = as(outerNot.field(), Not.class);
+        as(innerNot.field(), Attribute.class);
+        as(or.right(), GreaterThan.class);
 
-        // Branch 1: salary > 50000 → Project -> Filter
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        Filter branch1Filter = as(branch1Project.child(), Filter.class);
-        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
-        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
-        assertEquals("salary", branch1Salary.name());
-        EsRelation branch1Left = as(branch1Filter.child(), EsRelation.class);
-        assertEquals("test", branch1Left.indexPattern());
-
-        // Branch 2: NOT(salary > 50000) AND NOT(NOT IN emp_no) → Project -> SemiJoin with exclusion filter
-        Project branch2Project = as(unionAll.children().get(1), Project.class);
-        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-        Filter branch2Filter = as(branch2Semi.left(), Filter.class);
-        EsRelation branch2Left = as(branch2Filter.child(), EsRelation.class);
-        assertEquals("test", branch2Left.indexPattern());
+        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
+        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project subqueryProject = as(lsj.right(), Project.class);
+        EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("employees", subqueryRelation.indexPattern());
+        EsRelation main = as(lsj.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
     }
 
     public void testDoubleNotInSubqueryOrInSubquery() {
@@ -1074,28 +1088,35 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR salary IN (FROM employees | KEEP salary)
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
+        // Both InSubquery operands of OR become LeftSemiJoins; the rewritten Filter references their marks.
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        // emp_no NOT IN inside outer NOT: parses as Not(Not(InSubquery)); the inner InSubquery
+        // becomes a LeftSemiJoin mark, leaving the double NOT in place.
+        Not outerNot = as(or.left(), Not.class);
+        Not innerNot = as(outerNot.field(), Not.class);
+        as(innerNot.field(), Attribute.class);
+        as(or.right(), Attribute.class);
 
-        // Branch 1: Project -> SemiJoin (double NOT → IN)
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        SemiJoin branch1Semi = as(branch1Project.child(), SemiJoin.class);
-        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch1Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-        EsRelation branch1Left = as(branch1Semi.left(), EsRelation.class);
-        assertEquals("test", branch1Left.indexPattern());
+        LeftSemiJoin salaryJoin = as(filter.child(), LeftSemiJoin.class);
+        assertThat(salaryJoin.config().leftFields().get(0).name(), equalTo("salary"));
+        assertThat(salaryJoin.config().rightFields().get(0).name(), equalTo("salary"));
+        Project subqueryProject = as(salaryJoin.right(), Project.class);
+        EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("employees", subqueryRelation.indexPattern());
 
-        // Branch 2: Project -> SemiJoin for salary IN sub2, with AntiJoin exclusion (NOT IN sub1) below
-        Project branch2Project = as(unionAll.children().get(1), Project.class);
-        SemiJoin branch2Outer = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Outer.config().leftFields().get(0).name(), equalTo("salary"));
-        assertThat(branch2Outer.config().rightFields().get(0).name(), equalTo("salary"));
-        AntiJoin branch2Inner = as(branch2Outer.left(), AntiJoin.class);
-        assertThat(branch2Inner.config().leftFields().get(0).name(), equalTo("emp_no"));
-        EsRelation branch2Left = as(branch2Inner.left(), EsRelation.class);
-        assertEquals("test", branch2Left.indexPattern());
+        LeftSemiJoin empNoJoin = as(salaryJoin.left(), LeftSemiJoin.class);
+        assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        subqueryProject = as(empNoJoin.right(), Project.class);
+        subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("employees", subqueryRelation.indexPattern());
+        EsRelation main = as(empNoJoin.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
     }
 
     public void testDoubleNotInSubqueryAndOneMorePredicate() {
@@ -1110,6 +1131,9 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project subqueryProject = as(semiJoin.right(), Project.class);
+        EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("employees", subqueryRelation.indexPattern());
 
         Filter filter = as(semiJoin.left(), Filter.class);
         GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
@@ -1147,6 +1171,17 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     // -- disjunctive IN/NOT IN subquery tests --
+    //
+    // These now produce LeftSemiJoin per InSubquery; each LeftSemiJoin emits a synthetic boolean
+    // mark attribute that the rewritten WHERE condition references. The plan shape is:
+    // Project (drop marks)
+    // Filter (mark1 OR mark2 OR ...) -- referencing the mark attributes
+    // LeftSemiJoin (last InSubquery → mark)
+    // LeftSemiJoin (...)
+    // ...
+    // EsRelation
+    // This preserves SQL three-valued logic across the disjunction (the previous UnionAll rewrite
+    // dropped rows when NULLs were involved).
 
     public void testDisjunctiveInSubqueries() {
         LogicalPlan plan = analyzeInSubquery("""
@@ -1155,26 +1190,24 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR salary IN (FROM employees | KEEP salary)
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        as(or.right(), Attribute.class);
 
-        // Branch 1: Project -> SemiJoin for emp_no IN (...)
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        SemiJoin branch1Semi = as(branch1Project.child(), SemiJoin.class);
-        assertThat(branch1Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch1Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch1Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-        EsRelation branch1Left = as(branch1Semi.left(), EsRelation.class);
-        assertEquals("test", branch1Left.indexPattern());
-
-        // Branch 2: Project -> SemiJoin for salary IN (...), with AntiJoin exclusion below
-        Project branch2Project = as(unionAll.children().get(1), Project.class);
-        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("salary"));
-        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("salary"));
-        AntiJoin branch2Anti = as(branch2Semi.left(), AntiJoin.class);
-        assertThat(branch2Anti.config().leftFields().get(0).name(), equalTo("emp_no"));
+        LeftSemiJoin salaryJoin = as(filter.child(), LeftSemiJoin.class);
+        assertThat(salaryJoin.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(salaryJoin.config().leftFields().get(0).name(), equalTo("salary"));
+        assertThat(salaryJoin.config().rightFields().get(0).name(), equalTo("salary"));
+        LeftSemiJoin empNoJoin = as(salaryJoin.left(), LeftSemiJoin.class);
+        assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        EsRelation main = as(empNoJoin.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
     }
 
     public void testDisjunctiveInAndNotInSubqueries() {
@@ -1184,29 +1217,36 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR emp_no IN (FROM employees | WHERE salary > 50000 | KEEP emp_no)
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Not leftNot = as(or.left(), Not.class);
+        as(leftNot.field(), Attribute.class);
+        as(or.right(), Attribute.class);
 
-        // Branch 1: Project -> AntiJoin for emp_no NOT IN (...)
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        AntiJoin branch1Anti = as(branch1Project.child(), AntiJoin.class);
-        assertThat(branch1Anti.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(branch1Anti.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch1Anti.config().rightFields().get(0).name(), equalTo("emp_no"));
-        EsRelation branch1Left = as(branch1Anti.left(), EsRelation.class);
-        assertEquals("test", branch1Left.indexPattern());
+        // Outer LeftSemiJoin for the second IN (right-hand emp_no IN sub2)
+        LeftSemiJoin innerJoin = as(filter.child(), LeftSemiJoin.class);
+        assertThat(innerJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(innerJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        // Subquery has WHERE salary > 50000
+        Project innerRightProject = as(innerJoin.right(), Project.class);
+        Filter innerRightFilter = as(innerRightProject.child(), Filter.class);
+        as(innerRightFilter.condition(), GreaterThan.class);
+        EsRelation subqueryRelation = as(innerRightFilter.child(), EsRelation.class);
+        assertEquals("employees", subqueryRelation.indexPattern());
 
-        // Branch 2: Project -> SemiJoin for emp_no IN (sub2), with SemiJoin exclusion below
-        // NOT(NOT IN sub1) simplifies to IN sub1, so the exclusion is a SemiJoin
-        Project branch2Project = as(unionAll.children().get(1), Project.class);
-        SemiJoin branch2Outer = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Outer.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch2Outer.config().rightFields().get(0).name(), equalTo("emp_no"));
-        SemiJoin branch2Inner = as(branch2Outer.left(), SemiJoin.class);
-        assertThat(branch2Inner.config().leftFields().get(0).name(), equalTo("emp_no"));
-        EsRelation branch2Left = as(branch2Inner.left(), EsRelation.class);
-        assertEquals("test", branch2Left.indexPattern());
+        // Inner LeftSemiJoin for the first NOT IN (which became NOT $mark below).
+        LeftSemiJoin outerJoin = as(innerJoin.left(), LeftSemiJoin.class);
+        assertThat(outerJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(outerJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project outerRightProject = as(outerJoin.right(), Project.class);
+        EsRelation outerRightRelation = as(outerRightProject.child(), EsRelation.class);
+        assertEquals("employees", outerRightRelation.indexPattern());
+        EsRelation main = as(outerJoin.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
     }
 
     public void testDisjunctiveInSubqueryWithOtherPredicate() {
@@ -1216,27 +1256,24 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR emp_no IN (FROM employees | KEEP emp_no)
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), GreaterThan.class);
+        as(or.right(), Attribute.class);
 
-        // Branch 1: Project -> Filter for salary > 50000
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        Filter branch1Filter = as(branch1Project.child(), Filter.class);
-        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
-        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
-        assertEquals("salary", branch1Salary.name());
-        EsRelation branch1Left = as(branch1Filter.child(), EsRelation.class);
-        assertEquals("test", branch1Left.indexPattern());
-
-        // Branch 2: Project -> SemiJoin for emp_no IN (...) with NOT(salary > 50000) filter below
-        Project branch2Project = as(unionAll.children().get(1), Project.class);
-        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-        Filter branch2Filter = as(branch2Semi.left(), Filter.class);
-        EsRelation branch2Left = as(branch2Filter.child(), EsRelation.class);
-        assertEquals("test", branch2Left.indexPattern());
+        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
+        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project innerProject = as(lsj.right(), Project.class);
+        EsRelation innerRelation = as(innerProject.child(), EsRelation.class);
+        assertEquals("employees", innerRelation.indexPattern());
+        EsRelation main = as(lsj.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
     }
 
     // -- disjunctive OR chain with IN/NOT IN subqueries --
@@ -1244,51 +1281,46 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     /**
      * {@code WHERE emp_no IN (FROM employees | KEEP emp_no) OR (salary > 50000 OR (languages < 3 OR gender NOT IN (...)))}
      * <p>
-     * Nested ORs flatten into four disjuncts. Branch 1 is a SemiJoin for emp_no IN.
-     * Branches 2-4 carry an AntiJoin exclusion for NOT(emp_no IN sub) from the first disjunct.
-     * Branch 4 additionally has an AntiJoin for gender NOT IN.
+     * Both InSubqueries appear under {@code OR}, so each is rewritten to a {@link LeftSemiJoin}
+     * with a mark attribute and the entire boolean expression is preserved unchanged in a single
+     * Filter on top of the join stack.
      */
     public void testDisjunctiveOrChainWithNotInSubquery() {
-        // Reordered: [salary > 50000, languages < 3, emp_no IN ..., gender NOT IN ...]
         LogicalPlan plan = analyzeInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM employees | KEEP emp_no)
                OR (salary > 50000 OR (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(4, unionAll.children().size());
-
-        // Branch 1: salary > 50000 → Project -> Filter
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        Filter branch1Filter = as(branch1Project.child(), Filter.class);
-        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
-        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
-        assertEquals("salary", branch1Salary.name());
-        EsRelation branch1Left = as(branch1Filter.child(), EsRelation.class);
-        assertEquals("test", branch1Left.indexPattern());
-
-        // Branch 3: ...AND emp_no IN (...) → Project -> SemiJoin
-        Project branch3Project = as(unionAll.children().get(2), Project.class);
-        SemiJoin branch3Semi = as(branch3Project.child(), SemiJoin.class);
-        assertThat(branch3Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch3Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch3Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        // Branch 4: ...AND gender NOT IN (...) → Project -> AntiJoin
-        Project branch4Project = as(unionAll.children().get(3), Project.class);
-        AntiJoin branch4Anti = as(branch4Project.child(), AntiJoin.class);
-        assertThat(branch4Anti.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(branch4Anti.config().leftFields().get(0).name(), equalTo("gender"));
-        assertThat(branch4Anti.config().rightFields().get(0).name(), equalTo("gender"));
-        Project branch4Right = as(branch4Anti.right(), Project.class);
-        EsRelation branch4RightRel = as(branch4Right.child(), EsRelation.class);
-        assertEquals("employees", branch4RightRel.indexPattern());
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        or = as(or.right(), Or.class);
+        as(or.left(), GreaterThan.class);
+        or = as(or.right(), Or.class);
+        as(or.left(), LessThan.class);
+        Not not = as(or.right(), Not.class);
+        as(not.field(), Attribute.class);
+        // Two LeftSemiJoins (emp_no first, gender on top).
+        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        assertThat(genderJoin.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
+        assertThat(genderJoin.config().rightFields().get(0).name(), equalTo("gender"));
+        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        EsRelation main = as(empNoJoin.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
     }
 
     /**
-     * Reordered: [salary > 50000, emp_no IN ..., languages &lt; 3 AND gender NOT IN ...] (complexity 0, 1, 2)
+     * Inner {@code AND} containing a NOT IN is itself a child of OR — the NOT IN is in boolean
+     * position, so it becomes a {@link LeftSemiJoin}. Previous rewrite required a special
+     * "complexity 2" disjunct ordering trick; the LeftSemiJoin path handles it uniformly.
      */
     public void testDisjunctiveOrChainWithConjunctiveNotInSubquery() {
         LogicalPlan plan = analyzeInSubquery("""
@@ -1297,37 +1329,29 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR (salary > 50000 OR (languages < 3 AND gender NOT IN (FROM employees | KEEP gender)))
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(3, unionAll.children().size());
-
-        // Branch 1: salary > 50000 → Project -> Filter
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        Filter branch1Filter = as(branch1Project.child(), Filter.class);
-        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
-        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
-        assertEquals("salary", branch1Salary.name());
-
-        // Branch 2: NOT(salary > 50000) AND emp_no IN (...) → Project -> SemiJoin
-        Project branch2Project = as(unionAll.children().get(1), Project.class);
-        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        // Branch 3: ...AND languages < 3 AND gender NOT IN (...) → Project -> AntiJoin
-        Project branch3Project = as(unionAll.children().get(2), Project.class);
-        AntiJoin branch3Anti = as(branch3Project.child(), AntiJoin.class);
-        assertThat(branch3Anti.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(branch3Anti.config().leftFields().get(0).name(), equalTo("gender"));
-        assertThat(branch3Anti.config().rightFields().get(0).name(), equalTo("gender"));
-        Project branch3Right = as(branch3Anti.right(), Project.class);
-        EsRelation branch3RightRel = as(branch3Right.child(), EsRelation.class);
-        assertEquals("employees", branch3RightRel.indexPattern());
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        or = as(or.right(), Or.class);
+        as(or.left(), GreaterThan.class);
+        And and = as(or.right(), And.class);
+        as(and.left(), LessThan.class);
+        Not not = as(and.right(), Not.class);
+        as(not.field(), Attribute.class);
+        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
+        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
     }
 
     /**
-     * Reordered: [salary > 50000, languages &lt; 3, emp_no IN ..., gender NOT IN ...] (complexity 0, 0, 1, 1)
+     * NOT IN appears in the middle of the OR chain. With the new rewrite this still produces a
+     * single Filter over a stack of two LeftSemiJoins; the order of OR operands does not affect
+     * the structural outcome.
      */
     public void testDisjunctiveOrChainWithNotInSubqueryInMiddle() {
         LogicalPlan plan = analyzeInSubquery("""
@@ -1336,30 +1360,59 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR (salary > 50000 OR (gender NOT IN (FROM employees | KEEP gender)) OR languages < 3)
             """);
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(4, unionAll.children().size());
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        or = as(or.right(), Or.class);
+        as(or.right(), LessThan.class);
+        or = as(or.left(), Or.class);
+        as(or.left(), GreaterThan.class);
+        Not not = as(or.right(), Not.class);
+        as(not.field(), Attribute.class);
+        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
+        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+    }
 
-        // Branch 1: salary > 50000 → Project -> Filter
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        as(branch1Project.child(), Filter.class);
+    /**
+     * {@code WHERE emp_no IN (...) OR (salary > 50000 AND (languages < 3 OR gender NOT IN (...)))}
+     * <p>
+     * Previously rejected as "Complicated IN subquery". The {@code OR}/{@code AND}/{@code NOT}
+     * tree above each {@code InSubquery} is all boolean operators, so each becomes a
+     * {@link LeftSemiJoin} and the whole condition is evaluated by the standard expression
+     * machinery. This preserves SQL three-valued logic.
+     */
+    public void testNestedConjunctiveAndDisjunctiveInSubquery() {
+        LogicalPlan plan = analyzeInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM employees | KEEP emp_no)
+               OR (salary > 50000 AND (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))
+            """);
 
-        // Branch 3: ...AND emp_no IN (...) → Project -> SemiJoin
-        Project branch3Project = as(unionAll.children().get(2), Project.class);
-        SemiJoin branch3Semi = as(branch3Project.child(), SemiJoin.class);
-        assertThat(branch3Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch3Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch3Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-
-        // Branch 4: ...AND gender NOT IN (...) → Project -> AntiJoin
-        Project branch4Project = as(unionAll.children().get(3), Project.class);
-        AntiJoin branch4Anti = as(branch4Project.child(), AntiJoin.class);
-        assertThat(branch4Anti.config().type(), equalTo(JoinTypes.ANTI));
-        assertThat(branch4Anti.config().leftFields().get(0).name(), equalTo("gender"));
-        assertThat(branch4Anti.config().rightFields().get(0).name(), equalTo("gender"));
-        Project branch4Right = as(branch4Anti.right(), Project.class);
-        EsRelation branch4RightRel = as(branch4Right.child(), EsRelation.class);
-        assertEquals("employees", branch4RightRel.indexPattern());
+        Project topProject = as(plan, Project.class);
+        assertEquals(11, topProject.projections().size());
+        assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        And and = as(or.right(), And.class);
+        as(and.left(), GreaterThan.class);
+        or = as(and.right(), Or.class);
+        as(or.left(), LessThan.class);
+        Not not = as(or.right(), Not.class);
+        as(not.field(), Attribute.class);
+        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
+        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        EsRelation main = as(empNoJoin.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
     }
 
     // data types on join keys related tests
@@ -1627,25 +1680,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     // -- negative test cases
-
-    /**
-     * {@code WHERE emp_no IN (...) OR (salary > 50000 AND (languages < 3 OR gender NOT IN (...)))}
-     * <p>
-     * The inner OR ({@code languages < 3 OR gender NOT IN (...)}) is an AND-conjunct that is not a bare
-     * InSubquery, so the NOT IN inside it cannot be extracted. This is rejected.
-     */
-    public void testRejectsNestedConjunctiveAndDisjunctiveInSubquery() {
-        errorInSubquery(
-            """
-                FROM test
-                | WHERE emp_no IN (FROM employees | KEEP emp_no)
-                   OR (salary > 50000 AND (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))
-                """,
-            containsString(
-                "Complicated IN subquery is not yet supported in the WHERE command [WHERE emp_no IN (FROM employees | KEEP emp_no)"
-            )
-        );
-    }
 
     /**
      * Verifies that an IN subquery in STATS WHERE filter is rejected.
@@ -2638,7 +2672,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     private void assertApproximationRejects(String query) {
         LogicalPlan plan = analyzeInSubquery(query);
         // verifyPlan returns null when the plan is incompatible with approximation (and adds a warning)
-        assertThat("Approximation should reject this query", Approximation.verifyPlan(plan), nullValue());
+        assertThat("Approximation should reject this query", ApproximationVerifier.verifyPlan(plan), nullValue());
     }
 
 }

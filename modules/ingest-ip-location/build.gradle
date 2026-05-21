@@ -1,0 +1,44 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description = 'Ingest processors for IP geolocation enrichment'
+  classname = 'org.elasticsearch.ingest.iplocation.IngestIpLocationPlugin'
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.ingest.geoip.AbstractGeoIpIT'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+dependencies {
+  clusterModules project(':modules:reindex')
+  clusterModules project(':modules:ip-location')
+  testImplementation project(':modules:ip-location')
+  testImplementation(testArtifact(project(":modules:ip-location")))
+  yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
+  yamlRestTestImplementation(testArtifact(project(":modules:ip-location"), "yamlRestTest"))
+  internalClusterTestImplementation project(':modules:reindex')
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}

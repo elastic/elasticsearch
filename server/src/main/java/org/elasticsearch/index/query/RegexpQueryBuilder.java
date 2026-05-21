@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -291,6 +292,7 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
         AutomatonQuery query;
         String safeValue = AutomatonQueries.collapseConsecutiveQuantifiers(value);
         Term term = new Term(fieldName, BytesRefs.toBytesRef(safeValue));
+        long reservation = 0;
         if (context.getCircuitBreaker() != null) {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(
                 term,
@@ -299,13 +301,15 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
                 maxDeterminizedStates,
                 context.getCircuitBreaker()
             );
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+            context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + fieldName);
             query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
         } else {
             query = method == null
                 ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)
                 : new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + fieldName);
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp:" + fieldName);
         return query;
     }
 

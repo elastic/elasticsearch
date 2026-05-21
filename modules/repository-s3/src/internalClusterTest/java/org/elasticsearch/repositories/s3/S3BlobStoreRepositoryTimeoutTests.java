@@ -42,6 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -217,6 +218,11 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
 
         void setStallLatchRef(CountDownLatch latch) {
             stallLatchRef.set(latch);
+        }
+
+        @Override
+        public Set<String> blobsKeyset() {
+            return blobs().keySet();
         }
     }
 }

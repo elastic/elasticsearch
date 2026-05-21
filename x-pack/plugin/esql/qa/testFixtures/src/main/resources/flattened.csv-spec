@@ -1,6 +1,6 @@
 load
 required_capability: flattened_datatype
-request_stored: skip
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -12,7 +12,7 @@ FROM flattened_otel_logs
 
 sort
 required_capability: flattened_datatype
-request_stored: skip
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | SORT @timestamp ASC
@@ -26,7 +26,7 @@ FROM flattened_otel_logs
 
 rename
 required_capability: flattened_datatype
-request_stored: skip
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -40,6 +40,7 @@ FROM flattened_otel_logs
 
 drop
 required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
@@ -211,4 +212,44 @@ FROM flattened_otel_logs
 @timestamp:date          | neq:boolean
 2020-01-01T00:00:00.000Z | false
 2020-01-01T00:02:48.461Z | true
+;
+
+countDistinct
+required_capability: flattened_datatype
+required_capability: fn_count_distinct_flattened
+
+FROM flattened_otel_logs
+| STATS c = COUNT_DISTINCT(attributes)
+;
+
+c:long
+11
+;
+
+values dupe
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_values_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z" OR @timestamp == "2020-01-01T11:38:54.751Z"
+| STATS v = VALUES(resource.attributes)
+;
+
+v:flattened
+"{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;
+
+values
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_values_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T11:38:54.751Z" OR @timestamp == "2020-01-01T21:38:06.655Z"
+| STATS v = MV_SORT(VALUES(resource.attributes))
+;
+
+v:flattened
+"[{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37""\,""agent.type"":""filebeat""\,""host.name"":""infra-filebeat-cpcmv""},{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25""\,""agent.type"":""filebeat""\,""host.name"":""infra-filebeat-6vjxr""}]"
 ;

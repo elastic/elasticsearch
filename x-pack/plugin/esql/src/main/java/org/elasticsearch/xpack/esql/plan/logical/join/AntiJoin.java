@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -50,8 +51,8 @@ public class AntiJoin extends SemiJoin {
     }
 
     @Override
-    protected Expression emptyRightSideCondition() {
-        return Literal.TRUE;
+    protected LogicalPlan buildEmptyRightSidePlan(Source source) {
+        return new Filter(source, left(), Literal.TRUE);
     }
 
     @Override

@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
@@ -25,10 +25,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAllFromDisjunctiveInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.junit.Before;
 
@@ -38,8 +38,17 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for {@link InSubqueryResolver}, which converts {@link InSubquery} expressions in
- * {@link Filter} conditions into {@link SemiJoin}/{@link AntiJoin} nodes, and rejects
- * {@link InSubquery} in unsupported positions (EVAL, SORT, STATS BY, etc.).
+ * {@link Filter} conditions into:
+ * <ul>
+ *   <li>{@link SemiJoin}/{@link AntiJoin} nodes for AND-conjunct {@code IN}/{@code NOT IN}
+ *       (the row-filtering shape, most efficient for the common case);</li>
+ *   <li>{@link LeftSemiJoin} nodes for {@code InSubquery} occurrences embedded in {@code OR}
+ *       (or under {@code NOT}/{@code AND} below {@code OR}); each emits a synthetic boolean
+ *       mark attribute that the rewritten {@code WHERE} condition references, so SQL
+ *       three-valued logic flows through the surrounding boolean expression naturally.</li>
+ * </ul>
+ * The resolver also rejects {@link InSubquery} in unsupported positions (EVAL, SORT, STATS BY,
+ * function arguments, IS NOT NULL, etc.).
  */
 public class InSubqueryResolverTests extends ESTestCase {
 
@@ -120,9 +129,6 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     // ---- positive: constant left-hand side ----
 
-    /**
-     * SemiJoin[left=Eval[$$in_subquery_const$...=42][UnresolvedRelation[main]], right=Keep[y][UnresolvedRelation[sub]]]
-     */
     public void testConstantLeftSide() {
         LogicalPlan plan = resolve("FROM main | WHERE 42 IN (FROM sub | KEEP y)");
         SemiJoin semiJoin = as(plan, SemiJoin.class);
@@ -416,151 +422,138 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals("main", main.indexPattern().indexPattern());
     }
 
-    // ---- positive: OR disjuncts with IN subquery → UnionAllFromDisjunctiveInSubquery ----
+    // ---- positive: OR disjuncts with IN subquery → LeftSemiJoin per InSubquery + Filter on marks ----
 
+    /**
+     * {@code WHERE x IN (FROM sub1) OR y IN (FROM sub2)} rewrites to (from top down):
+     * <pre>
+     * Project[main.output]
+     *   Filter[$m1 OR $m2]
+     *     LeftSemiJoin[?y → $m2, left=LeftSemiJoin[?x → $m1, left=main, right=sub1], right=sub2]
+     * </pre>
+     */
     public void testDisjunctiveInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR y IN (FROM sub2)");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(2, unionAll.children().size());
-        SemiJoin first = as(unionAll.children().get(0), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, first.config().type());
-        assertEquals("x", first.config().leftFields().get(0).name());
-        UnresolvedRelation firstRight = as(first.right(), UnresolvedRelation.class);
-        assertEquals("sub1", firstRight.indexPattern().indexPattern());
-        UnresolvedRelation left = as(first.left(), UnresolvedRelation.class);
-        assertEquals("main", left.indexPattern().indexPattern());
-        SemiJoin second = as(unionAll.children().get(1), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, second.config().type());
-        assertEquals("y", second.config().leftFields().get(0).name());
-        UnresolvedRelation secondRight = as(second.right(), UnresolvedRelation.class);
-        assertEquals("sub2", secondRight.indexPattern().indexPattern());
-        left = as(first.left(), UnresolvedRelation.class);
-        assertEquals("main", left.indexPattern().indexPattern());
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Attribute leftMark = as(or.left(), Attribute.class);
+        Attribute rightMark = as(or.right(), Attribute.class);
+        // Outer (latest stacked) join is sub2 ($m2 is the right operand of OR)
+        LeftSemiJoin outer = as(filter.child(), LeftSemiJoin.class);
+        assertEquals(JoinTypes.LEFT_SEMI, outer.config().type());
+        assertEquals("y", outer.config().leftFields().get(0).name());
+        assertEquals(rightMark.id(), outer.markAttribute().id());
+        UnresolvedRelation outerRight = as(outer.right(), UnresolvedRelation.class);
+        assertEquals("sub2", outerRight.indexPattern().indexPattern());
+        // Inner (first stacked) join is sub1
+        LeftSemiJoin inner = as(outer.left(), LeftSemiJoin.class);
+        assertEquals(JoinTypes.LEFT_SEMI, inner.config().type());
+        assertEquals("x", inner.config().leftFields().get(0).name());
+        assertEquals(leftMark.id(), inner.markAttribute().id());
+        UnresolvedRelation innerRight = as(inner.right(), UnresolvedRelation.class);
+        assertEquals("sub1", innerRight.indexPattern().indexPattern());
+        UnresolvedRelation main = as(inner.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
     }
 
     // ---- positive: OR with NOT IN subquery ----
 
+    /**
+     * {@code WHERE x NOT IN (FROM sub1) OR y NOT IN (FROM sub2)}: each {@code NOT IN} is rewritten as
+     * {@code NOT $mN}, where {@code $mN} is the mark from a {@link LeftSemiJoin}. The {@code NOT}s and
+     * the {@code OR} are evaluated by the standard expression machinery — three-valued logic falls
+     * out for free.
+     */
     public void testDisjunctiveNotInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE x NOT IN (FROM sub1) OR y NOT IN (FROM sub2)");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(2, unionAll.children().size());
-        AntiJoin first = as(unionAll.children().get(0), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, first.config().type());
-        assertEquals("x", first.config().leftFields().get(0).name());
-        UnresolvedRelation firstRight = as(first.right(), UnresolvedRelation.class);
-        assertEquals("sub1", firstRight.indexPattern().indexPattern());
-        UnresolvedRelation left = as(first.left(), UnresolvedRelation.class);
-        assertEquals("main", left.indexPattern().indexPattern());
-        AntiJoin second = as(unionAll.children().get(1), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, second.config().type());
-        assertEquals("y", second.config().leftFields().get(0).name());
-        UnresolvedRelation secondRight = as(second.right(), UnresolvedRelation.class);
-        assertEquals("sub2", secondRight.indexPattern().indexPattern());
-        left = as(first.left(), UnresolvedRelation.class);
-        assertEquals("main", left.indexPattern().indexPattern());
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Not leftNot = as(or.left(), Not.class);
+        Attribute leftMark = as(leftNot.field(), Attribute.class);
+        Not rightNot = as(or.right(), Not.class);
+        Attribute rightMark = as(rightNot.field(), Attribute.class);
+        LeftSemiJoin outer = as(filter.child(), LeftSemiJoin.class);
+        assertEquals("y", outer.config().leftFields().get(0).name());
+        assertEquals(rightMark.id(), outer.markAttribute().id());
+        LeftSemiJoin inner = as(outer.left(), LeftSemiJoin.class);
+        assertEquals("x", inner.config().leftFields().get(0).name());
+        assertEquals(leftMark.id(), inner.markAttribute().id());
+        UnresolvedRelation main = as(inner.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
     }
 
     // ---- positive: OR mixing IN and NOT IN ----
 
     public void testDisjunctiveInAndNotInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR y NOT IN (FROM sub2)");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(2, unionAll.children().size());
-        SemiJoin first = as(unionAll.children().get(0), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, first.config().type());
-        assertEquals("x", first.config().leftFields().get(0).name());
-        UnresolvedRelation firstRight = as(first.right(), UnresolvedRelation.class);
-        assertEquals("sub1", firstRight.indexPattern().indexPattern());
-        UnresolvedRelation left = as(first.left(), UnresolvedRelation.class);
-        assertEquals("main", left.indexPattern().indexPattern());
-        AntiJoin second = as(unionAll.children().get(1), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, second.config().type());
-        assertEquals("y", second.config().leftFields().get(0).name());
-        UnresolvedRelation secondRight = as(second.right(), UnresolvedRelation.class);
-        assertEquals("sub2", secondRight.indexPattern().indexPattern());
-        left = as(first.left(), UnresolvedRelation.class);
-        assertEquals("main", left.indexPattern().indexPattern());
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Attribute leftMark = as(or.left(), Attribute.class);
+        Not rightNot = as(or.right(), Not.class);
+        Attribute rightMark = as(rightNot.field(), Attribute.class);
+        LeftSemiJoin outer = as(filter.child(), LeftSemiJoin.class);
+        assertEquals("y", outer.config().leftFields().get(0).name());
+        assertEquals(rightMark.id(), outer.markAttribute().id());
+        LeftSemiJoin inner = as(outer.left(), LeftSemiJoin.class);
+        assertEquals("x", inner.config().leftFields().get(0).name());
+        assertEquals(leftMark.id(), inner.markAttribute().id());
+        UnresolvedRelation main = as(inner.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
     }
 
     // ---- positive: OR with IN subquery and regular predicate ----
 
     /**
-     * UnionAllFromDisjunctiveInSubquery[
-     *   SemiJoin[?x, left=UnresolvedRelation[main], right=UnresolvedRelation[sub]],
-     *   AntiJoin[?x, left=Filter[GreaterThan][UnresolvedRelation[main]], right=UnresolvedRelation[sub]]
-     * ]
-     * The second branch is NOT(x IN sub) AND a > 5, which becomes AntiJoin on top of Filter[a > 5].
+     * {@code WHERE x IN (FROM sub) OR a > 5} rewrites to:
+     * <pre>
+     * Project[main.output]
+     *   Filter[$m OR a > 5]
+     *     LeftSemiJoin[?x → $m, left=main, right=sub]
+     * </pre>
      */
     public void testDisjunctiveInSubqueryWithOtherPredicate() {
-        // Reordering puts "a > 5" (no InSubquery, complexity 0) before "x IN sub" (complexity 1)
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub) OR a > 5");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(2, unionAll.children().size());
-        // Branch 1: a > 5 → Filter
-        Filter first = as(unionAll.children().get(0), Filter.class);
-        as(first.condition(), GreaterThan.class);
-        UnresolvedRelation firstLeft = as(first.child(), UnresolvedRelation.class);
-        assertEquals("main", firstLeft.indexPattern().indexPattern());
-        // Branch 2: NOT(a > 5) AND x IN sub → SemiJoin with exclusion filter below
-        SemiJoin second = as(unionAll.children().get(1), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, second.config().type());
-        assertEquals("x", second.config().leftFields().get(0).name());
-        UnresolvedRelation secondRight = as(second.right(), UnresolvedRelation.class);
-        assertEquals("sub", secondRight.indexPattern().indexPattern());
-        Filter secondFilter = as(second.left(), Filter.class);
-        UnresolvedRelation secondLeft = as(secondFilter.child(), UnresolvedRelation.class);
-        assertEquals("main", secondLeft.indexPattern().indexPattern());
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Attribute mark = as(or.left(), Attribute.class);
+        as(or.right(), GreaterThan.class);
+        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
+        assertEquals(JoinTypes.LEFT_SEMI, lsj.config().type());
+        assertEquals("x", lsj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), lsj.markAttribute().id());
+        UnresolvedRelation right = as(lsj.right(), UnresolvedRelation.class);
+        assertEquals("sub", right.indexPattern().indexPattern());
+        UnresolvedRelation main = as(lsj.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
     }
 
     // ---- positive: three-way OR with IN subqueries ----
 
     public void testMultipleDisjunctiveInSubqueries() {
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR y IN (FROM sub2) OR z IN (FROM sub3)");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(3, unionAll.children().size());
-        SemiJoin first = as(unionAll.children().get(0), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, first.config().type());
-        assertEquals("x", first.config().leftFields().get(0).name());
-        UnresolvedRelation firstRight = as(first.right(), UnresolvedRelation.class);
-        assertEquals("sub1", firstRight.indexPattern().indexPattern());
-        UnresolvedRelation main = as(first.left(), UnresolvedRelation.class);
-        assertEquals("main", main.indexPattern().indexPattern());
-        SemiJoin second = as(unionAll.children().get(1), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, second.config().type());
-        assertEquals("y", second.config().leftFields().get(0).name());
-        UnresolvedRelation secondRight = as(second.right(), UnresolvedRelation.class);
-        assertEquals("sub2", secondRight.indexPattern().indexPattern());
-        AntiJoin antiJoin = as(second.left(), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, antiJoin.config().type());
-        assertEquals("x", antiJoin.config().leftFields().get(0).name());
-        firstRight = as(antiJoin.right(), UnresolvedRelation.class);
-        assertEquals("sub1", firstRight.indexPattern().indexPattern());
-        main = as(antiJoin.left(), UnresolvedRelation.class);
-        assertEquals("main", main.indexPattern().indexPattern());
-        SemiJoin third = as(unionAll.children().get(2), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, third.config().type());
-        assertEquals("z", third.config().leftFields().get(0).name());
-        UnresolvedRelation thirdRight = as(third.right(), UnresolvedRelation.class);
-        assertEquals("sub3", thirdRight.indexPattern().indexPattern());
-        antiJoin = as(third.left(), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, antiJoin.config().type());
-        assertEquals("y", antiJoin.config().leftFields().get(0).name());
-        secondRight = as(antiJoin.right(), UnresolvedRelation.class);
-        assertEquals("sub2", secondRight.indexPattern().indexPattern());
-        antiJoin = as(antiJoin.left(), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, antiJoin.config().type());
-        assertEquals("x", antiJoin.config().leftFields().get(0).name());
-        firstRight = as(antiJoin.right(), UnresolvedRelation.class);
-        assertEquals("sub1", firstRight.indexPattern().indexPattern());
-        main = as(antiJoin.left(), UnresolvedRelation.class);
+        Filter filter = as(plan, Filter.class);
+        // The original parser produces left-associative ORs: ((x IN sub1) OR (y IN sub2)) OR (z IN sub3)
+        Or topOr = as(filter.condition(), Or.class);
+        Attribute zMark = as(topOr.right(), Attribute.class);
+        Or innerOr = as(topOr.left(), Or.class);
+        Attribute xMark = as(innerOr.left(), Attribute.class);
+        Attribute yMark = as(innerOr.right(), Attribute.class);
+        // Stacking order matches expression-tree traversal order: x → y → z (z is outermost).
+        LeftSemiJoin zJoin = as(filter.child(), LeftSemiJoin.class);
+        assertEquals("z", zJoin.config().leftFields().get(0).name());
+        assertEquals(zMark.id(), zJoin.markAttribute().id());
+        LeftSemiJoin yJoin = as(zJoin.left(), LeftSemiJoin.class);
+        assertEquals("y", yJoin.config().leftFields().get(0).name());
+        assertEquals(yMark.id(), yJoin.markAttribute().id());
+        LeftSemiJoin xJoin = as(yJoin.left(), LeftSemiJoin.class);
+        assertEquals("x", xJoin.config().leftFields().get(0).name());
+        assertEquals(xMark.id(), xJoin.markAttribute().id());
+        UnresolvedRelation main = as(xJoin.left(), UnresolvedRelation.class);
         assertEquals("main", main.indexPattern().indexPattern());
     }
 
     // ---- positive: constant NOT IN subquery ----
 
-    /**
-     * AntiJoin[left=Eval[$$in_subquery_const$...=42][UnresolvedRelation[main]], right=Keep[y][UnresolvedRelation[sub]]]
-     */
     public void testConstantNotInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE 42 NOT IN (FROM sub | KEEP y)");
         AntiJoin antiJoin = as(plan, AntiJoin.class);
@@ -577,212 +570,165 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals("sub", sub.indexPattern().indexPattern());
     }
 
-    // ---- positive: fully disjunctive OR chain with NOT IN subquery ----
+    // ---- positive: fully disjunctive OR chain mixing IN/NOT IN with regular predicates ----
 
     /**
      * {@code WHERE x IN (FROM sub1) OR (y == 1 OR (z < 0 OR w NOT IN (FROM sub2)))}
      * <p>
-     * The nested ORs flatten into four disjuncts: {@code x IN sub1}, {@code y == 1}, {@code z < 0},
-     * {@code w NOT IN sub2}. Each becomes a branch in the UnionAll. Branches containing InSubquery
-     * are resolved to SemiJoin/AntiJoin; the others stay as Filters.
+     * The boolean expression has every {@link InSubquery} replaced by a fresh mark attribute, and
+     * each rewrite stacks one {@link LeftSemiJoin} below the {@link Filter}. The plain comparison
+     * predicates ({@code y == 1}, {@code z < 0}) survive untouched in the boolean tree.
      */
     public void testDisjunctiveOrChainWithInSubquery() {
-        // Reordering puts plain predicates (y==1, z<0) before InSubquery predicates (x IN sub1, w NOT IN sub2)
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR (y == 1 OR (z < 0 OR w NOT IN (FROM sub2)))");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(4, unionAll.children().size());
+        Filter filter = as(plan, Filter.class);
 
-        // Branch 1: y == 1 → Filter[main]
-        Filter branch1 = as(unionAll.children().get(0), Filter.class);
-        Equals equals = as(branch1.condition(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch1Left = as(branch1.child(), UnresolvedRelation.class);
-        assertEquals("main", branch1Left.indexPattern().indexPattern());
+        // The explicit parens force right-associative ORs:
+        // (x IN sub1) OR ((y == 1) OR ((z < 0) OR (w NOT IN sub2)))
+        Or topOr = as(filter.condition(), Or.class);
+        Attribute xMark = as(topOr.left(), Attribute.class);
+        Or or2 = as(topOr.right(), Or.class);
+        as(or2.left(), Equals.class);
+        Or or3 = as(or2.right(), Or.class);
+        as(or3.left(), LessThan.class);
+        Not wNot = as(or3.right(), Not.class);
+        Attribute wMark = as(wNot.field(), Attribute.class);
 
-        // Branch 2: NOT(y==1) AND z < 0 → Filter[...][main]
-        Filter branch2 = as(unionAll.children().get(1), Filter.class);
-        And and = as(branch2.condition(), And.class);
-        LessThan lessThan = as(and.right(), LessThan.class);
-        as(lessThan.left(), UnresolvedAttribute.class);
-        Not not = as(and.left(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch2Left = as(branch2.child(), UnresolvedRelation.class);
-        assertEquals("main", branch2Left.indexPattern().indexPattern());
-
-        // Branch 3: NOT(y==1) AND NOT(z<0) AND x IN sub1 → SemiJoin[x, left=Filter[...][main], right=sub1]
-        SemiJoin branch3 = as(unionAll.children().get(2), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, branch3.config().type());
-        assertEquals("x", branch3.config().leftFields().get(0).name());
-        Filter branch3Filter = as(branch3.left(), Filter.class);
-        and = as(branch3Filter.condition(), And.class);
-        not = as(and.right(), Not.class);
-        lessThan = as(not.field(), LessThan.class);
-        as(lessThan.left(), UnresolvedAttribute.class);
-        not = as(and.left(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch3Left = as(branch3Filter.child(), UnresolvedRelation.class);
-        assertEquals("main", branch3Left.indexPattern().indexPattern());
-        UnresolvedRelation branch3Right = as(branch3.right(), UnresolvedRelation.class);
-        assertEquals("sub1", branch3Right.indexPattern().indexPattern());
-
-        // Branch 4: ...AND NOT(x IN sub1) AND w NOT IN sub2
-        // → AntiJoin[w, left=AntiJoin[x, left=Filter[...][main], right=sub1], right=sub2]
-        AntiJoin branch4 = as(unionAll.children().get(3), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, branch4.config().type());
-        assertEquals("w", branch4.config().leftFields().get(0).name());
-        UnresolvedRelation branch4Right = as(branch4.right(), UnresolvedRelation.class);
-        assertEquals("sub2", branch4Right.indexPattern().indexPattern());
-        AntiJoin branch4Exclusion = as(branch4.left(), AntiJoin.class);
-        assertEquals("x", branch4Exclusion.config().leftFields().get(0).name());
-        UnresolvedRelation branch4ExclRight = as(branch4Exclusion.right(), UnresolvedRelation.class);
-        assertEquals("sub1", branch4ExclRight.indexPattern().indexPattern());
-        Filter branch4Filter = as(branch4Exclusion.left(), Filter.class);
-        and = as(branch4Filter.condition(), And.class);
-        not = as(and.right(), Not.class);
-        lessThan = as(not.field(), LessThan.class);
-        as(lessThan.left(), UnresolvedAttribute.class);
-        not = as(and.left(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
+        // Two LeftSemiJoins, stacked in declaration order: x first, w on top.
+        LeftSemiJoin wJoin = as(filter.child(), LeftSemiJoin.class);
+        assertEquals("w", wJoin.config().leftFields().get(0).name());
+        assertEquals(wMark.id(), wJoin.markAttribute().id());
+        UnresolvedRelation wRight = as(wJoin.right(), UnresolvedRelation.class);
+        assertEquals("sub2", wRight.indexPattern().indexPattern());
+        LeftSemiJoin xJoin = as(wJoin.left(), LeftSemiJoin.class);
+        assertEquals("x", xJoin.config().leftFields().get(0).name());
+        assertEquals(xMark.id(), xJoin.markAttribute().id());
+        UnresolvedRelation xRight = as(xJoin.right(), UnresolvedRelation.class);
+        assertEquals("sub1", xRight.indexPattern().indexPattern());
+        UnresolvedRelation main = as(xJoin.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
     }
 
     // ---- positive: mixed OR chain with AND containing NOT IN subquery ----
 
     /**
      * {@code WHERE x IN (FROM sub1) OR (y == 1 OR (z < 0 AND w NOT IN (FROM sub2)))}
-     * Reordered: [y == 1, x IN sub1, z &lt; 0 AND w NOT IN sub2] (complexity 0, 1, 2)
+     * <p>
+     * Both {@link InSubquery}s sit under {@code OR} (the inner {@code AND} is itself a child of
+     * {@code OR}), so each becomes a {@link LeftSemiJoin} feeding a single {@link Filter}.
      */
     public void testDisjunctiveOrChainWithConjunctiveInSubquery() {
         LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR (y == 1 OR (z < 0 AND w NOT IN (FROM sub2)))");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(3, unionAll.children().size());
+        Filter filter = as(plan, Filter.class);
 
-        // Branch 1: y == 1 → Filter[main]
-        Filter branch1 = as(unionAll.children().get(0), Filter.class);
-        Equals equals = as(branch1.condition(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch1Left = as(branch1.child(), UnresolvedRelation.class);
-        assertEquals("main", branch1Left.indexPattern().indexPattern());
+        // Right-associative due to parens:
+        // (x IN sub1) OR ((y == 1) OR (z < 0 AND w NOT IN sub2))
+        Or topOr = as(filter.condition(), Or.class);
+        Attribute xMark = as(topOr.left(), Attribute.class);
+        Or innerOr = as(topOr.right(), Or.class);
+        as(innerOr.left(), Equals.class);
+        And rightAnd = as(innerOr.right(), And.class);
+        as(rightAnd.left(), LessThan.class);
+        Not wNot = as(rightAnd.right(), Not.class);
+        Attribute wMark = as(wNot.field(), Attribute.class);
 
-        // Branch 2: NOT(y==1) AND x IN sub1 → SemiJoin[x, left=Filter[...][main], right=sub1]
-        SemiJoin branch2 = as(unionAll.children().get(1), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, branch2.config().type());
-        assertEquals("x", branch2.config().leftFields().get(0).name());
-        Filter branch2Filter = as(branch2.left(), Filter.class);
-        Not not = as(branch2Filter.condition(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch2Right = as(branch2.right(), UnresolvedRelation.class);
-        assertEquals("sub1", branch2Right.indexPattern().indexPattern());
-
-        // Branch 3: NOT(y==1) AND NOT(x IN sub1) AND z < 0 AND w NOT IN sub2
-        // → AntiJoin[w, left=AntiJoin[x, left=Filter[...][main], right=sub1], right=sub2]
-        AntiJoin branch3 = as(unionAll.children().get(2), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, branch3.config().type());
-        assertEquals("w", branch3.config().leftFields().get(0).name());
-        UnresolvedRelation branch3Right = as(branch3.right(), UnresolvedRelation.class);
-        assertEquals("sub2", branch3Right.indexPattern().indexPattern());
-        AntiJoin branch3AntiJoin = as(branch3.left(), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, branch3AntiJoin.config().type());
-        assertEquals("x", branch3AntiJoin.config().leftFields().get(0).name());
-        branch3Right = as(branch3AntiJoin.right(), UnresolvedRelation.class);
-        assertEquals("sub1", branch3Right.indexPattern().indexPattern());
-        Filter branch3Filter = as(branch3AntiJoin.left(), Filter.class);
-        And and = as(branch3Filter.condition(), And.class);
-        not = as(and.left(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        LessThan lessThan = as(and.right(), LessThan.class);
-        as(lessThan.left(), UnresolvedAttribute.class);
+        LeftSemiJoin wJoin = as(filter.child(), LeftSemiJoin.class);
+        assertEquals("w", wJoin.config().leftFields().get(0).name());
+        assertEquals(wMark.id(), wJoin.markAttribute().id());
+        LeftSemiJoin xJoin = as(wJoin.left(), LeftSemiJoin.class);
+        assertEquals("x", xJoin.config().leftFields().get(0).name());
+        assertEquals(xMark.id(), xJoin.markAttribute().id());
     }
 
-    // ---- positive: OR chain with NOT IN subquery in the middle ----
+    // ---- positive: AND-conjunct with disjunctive IN subquery in the OR sub-expression ----
 
     /**
-     * {@code WHERE x IN (FROM sub1) OR (y == 1 OR (w NOT IN (FROM sub2)) OR z < 0)}
-     * Reordered: [y == 1, z &lt; 0, x IN sub1, w NOT IN sub2] (complexity 0, 0, 1, 1)
+     * {@code WHERE a > 0 AND (x IN (FROM sub1) OR y == 1)}: the first conjunct is a plain predicate
+     * and survives in the final {@link Filter}; the second conjunct contains an {@code OR} with an
+     * {@link InSubquery} inside, so the {@code IN} is replaced by a mark attribute and a
+     * {@link LeftSemiJoin} is stacked below the filter.
      */
-    public void testDisjunctiveOrChainWithNotInSubqueryInMiddle() {
-        LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR (y == 1 OR (w NOT IN (FROM sub2)) OR z < 0)");
-        UnionAllFromDisjunctiveInSubquery unionAll = as(plan, UnionAllFromDisjunctiveInSubquery.class);
-        assertEquals(4, unionAll.children().size());
+    public void testConjunctOfPredicateAndDisjunctiveInSubquery() {
+        LogicalPlan plan = resolve("FROM main | WHERE a > 0 AND (x IN (FROM sub1) OR y == 1)");
+        Filter filter = as(plan, Filter.class);
 
-        // Branch 1: y == 1 → Filter[main]
-        Filter branch1 = as(unionAll.children().get(0), Filter.class);
-        Equals equals = as(branch1.condition(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch1Left = as(branch1.child(), UnresolvedRelation.class);
-        assertEquals("main", branch1Left.indexPattern().indexPattern());
+        And and = as(filter.condition(), And.class);
+        as(and.left(), GreaterThan.class);
+        Or or = as(and.right(), Or.class);
+        Attribute xMark = as(or.left(), Attribute.class);
+        as(or.right(), Equals.class);
 
-        // Branch 2: NOT(y==1) AND z < 0 → Filter[...][main]
-        Filter branch2 = as(unionAll.children().get(1), Filter.class);
-        And and = as(branch2.condition(), And.class);
-        Not not = as(and.left(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        LessThan lessThan = as(and.right(), LessThan.class);
-        as(lessThan.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch2Left = as(branch2.child(), UnresolvedRelation.class);
-        assertEquals("main", branch2Left.indexPattern().indexPattern());
-
-        // Branch 3: ...AND x IN sub1 → SemiJoin[x, left=Filter[...][main], right=sub1]
-        SemiJoin branch3 = as(unionAll.children().get(2), SemiJoin.class);
-        assertEquals(JoinTypes.SEMI, branch3.config().type());
-        assertEquals("x", branch3.config().leftFields().get(0).name());
-        UnresolvedRelation branch3Right = as(branch3.right(), UnresolvedRelation.class);
-        assertEquals("sub1", branch3Right.indexPattern().indexPattern());
-        Filter branch3Filter = as(branch3.left(), Filter.class);
-        and = as(branch3Filter.condition(), And.class);
-        not = as(and.left(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        not = as(and.right(), Not.class);
-        lessThan = as(not.field(), LessThan.class);
-        as(lessThan.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch3Left = as(branch3Filter.child(), UnresolvedRelation.class);
-        assertEquals("main", branch3Left.indexPattern().indexPattern());
-
-        // Branch 4: ...AND NOT(x IN sub1) AND w NOT IN sub2
-        // → AntiJoin[w, left=AntiJoin[x, ...], right=sub2]
-        AntiJoin branch4 = as(unionAll.children().get(3), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, branch4.config().type());
-        assertEquals("w", branch4.config().leftFields().get(0).name());
-        UnresolvedRelation branch4Right = as(branch4.right(), UnresolvedRelation.class);
-        assertEquals("sub2", branch4Right.indexPattern().indexPattern());
-        AntiJoin branch4AntiJoin = as(branch4.left(), AntiJoin.class);
-        assertEquals(JoinTypes.ANTI, branch4AntiJoin.config().type());
-        assertEquals("x", branch4AntiJoin.config().leftFields().get(0).name());
-        Filter branch4Filter = as(branch4AntiJoin.left(), Filter.class);
-        and = as(branch4Filter.condition(), And.class);
-        not = as(and.left(), Not.class);
-        equals = as(not.field(), Equals.class);
-        as(equals.left(), UnresolvedAttribute.class);
-        not = as(and.right(), Not.class);
-        lessThan = as(not.field(), LessThan.class);
-        as(lessThan.left(), UnresolvedAttribute.class);
-        UnresolvedRelation branch4Left = as(branch3Filter.child(), UnresolvedRelation.class);
-        assertEquals("main", branch4Left.indexPattern().indexPattern());
+        LeftSemiJoin xJoin = as(filter.child(), LeftSemiJoin.class);
+        assertEquals("x", xJoin.config().leftFields().get(0).name());
+        assertEquals(xMark.id(), xJoin.markAttribute().id());
+        UnresolvedRelation main = as(xJoin.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
     }
 
-    // ---- negative: nested OR with NOT IN subquery inside AND ----
+    // ---- positive: mixing AND-conjunct IN subquery (SemiJoin) with OR-context IN subquery (LeftSemiJoin) ----
+
+    /**
+     * {@code WHERE x IN (FROM sub1) AND (y IN (FROM sub2) OR a > 0)} mixes both rewrite paths:
+     * <ul>
+     *   <li>{@code x IN (FROM sub1)} is a top-level AND conjunct → {@link SemiJoin} stacked on top</li>
+     *   <li>{@code y IN (FROM sub2)} is inside an {@code OR} → {@link LeftSemiJoin} stacked below the
+     *       remaining filter</li>
+     * </ul>
+     */
+    public void testMixedSemiJoinAndLeftSemiJoin() {
+        LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) AND (y IN (FROM sub2) OR a > 0)");
+        // SemiJoin for x is stacked on TOP of Filter on TOP of LeftSemiJoin for y.
+        // The synthetic mark attribute introduced by the LeftSemiJoin is stripped by the analyzer's
+        // planWithoutSyntheticAttributes (post-resolution); the resolver itself does not add a Project.
+        SemiJoin xJoin = as(plan, SemiJoin.class);
+        assertEquals(JoinTypes.SEMI, xJoin.config().type());
+        assertEquals("x", xJoin.config().leftFields().get(0).name());
+        UnresolvedRelation xRight = as(xJoin.right(), UnresolvedRelation.class);
+        assertEquals("sub1", xRight.indexPattern().indexPattern());
+
+        Filter filter = as(xJoin.left(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Attribute yMark = as(or.left(), Attribute.class);
+        as(or.right(), GreaterThan.class);
+
+        LeftSemiJoin yJoin = as(filter.child(), LeftSemiJoin.class);
+        assertEquals(JoinTypes.LEFT_SEMI, yJoin.config().type());
+        assertEquals("y", yJoin.config().leftFields().get(0).name());
+        assertEquals(yMark.id(), yJoin.markAttribute().id());
+        UnresolvedRelation yRight = as(yJoin.right(), UnresolvedRelation.class);
+        assertEquals("sub2", yRight.indexPattern().indexPattern());
+        UnresolvedRelation main = as(yJoin.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
+    }
+
+    // ---- positive: nested OR within a top-level AND conjunct (compound non-bare conjunct) ----
 
     /**
      * {@code WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))}
      * <p>
-     * The top-level OR triggers a disjunctive rewrite into two branches. The second branch's condition
-     * is {@code NOT(x IN sub1) AND y == 1 AND (z < 0 OR w NOT IN sub2)}. The inner OR
-     * ({@code z < 0 OR w NOT IN sub2}) is an AND-conjunct that is not a bare InSubquery, so it stays
-     * as a remaining Filter condition. The {@code w NOT IN sub2} inside it is not resolvable and is
-     * rejected by the post-resolution validation. Nested {@code UnionAll} is not supported yet.
+     * The whole expression is a single AND-conjunct (top-level OR). Both {@link InSubquery}s reach
+     * boolean position through {@code OR}/{@code AND}/{@code NOT} only, so both become
+     * {@link LeftSemiJoin}s. The previous resolver rejected this query as "Complicated IN subquery";
+     * with the LEFT SEMI rewrite it is supported.
      */
-    public void testRejectsNestedConjunctiveAndDisjunctiveInSubquery() {
-        assertResolveError(
-            "FROM main | WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))",
-            "line 1:61: Complicated IN subquery is not yet supported in the WHERE command "
-                + "[WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))]"
-        );
+    public void testNestedConjunctiveAndDisjunctiveInSubquery() {
+        LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))");
+        Filter filter = as(plan, Filter.class);
+        Or topOr = as(filter.condition(), Or.class);
+        Attribute xMark = as(topOr.left(), Attribute.class);
+        And rightAnd = as(topOr.right(), And.class);
+        as(rightAnd.left(), Equals.class);
+        Or innerOr = as(rightAnd.right(), Or.class);
+        as(innerOr.left(), LessThan.class);
+        Not wNot = as(innerOr.right(), Not.class);
+        Attribute wMark = as(wNot.field(), Attribute.class);
+
+        LeftSemiJoin wJoin = as(filter.child(), LeftSemiJoin.class);
+        assertEquals("w", wJoin.config().leftFields().get(0).name());
+        assertEquals(wMark.id(), wJoin.markAttribute().id());
+        LeftSemiJoin xJoin = as(wJoin.left(), LeftSemiJoin.class);
+        assertEquals("x", xJoin.config().leftFields().get(0).name());
+        assertEquals(xMark.id(), xJoin.markAttribute().id());
     }
 
     // ---- negative: IN subquery in EVAL ----

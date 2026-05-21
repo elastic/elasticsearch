@@ -2156,3 +2156,169 @@ FROM employees
 
 c:long | languages:integer
 ;
+
+// -- complex disjunctive IN/NOT IN subqueries mixed with AND/OR and other predicates --
+//
+// These exercise the LeftSemiJoin rewrite for InSubquery expressions that are nested under
+// arbitrary boolean shapes (AND inside OR, OR inside AND, NOT, multi-way OR). The plan stacks
+// one LeftSemiJoin per InSubquery and lets the standard expression engine evaluate the
+// surrounding AND/OR/NOT — including SQL three-valued logic when NULLs are involved.
+
+// (IN sub1 AND salary > 60000) OR (NOT IN sub2 AND gender == "F")
+// Branch A picks rows whose emp_no is in the sub1 set (languages == 1) AND salary > 60000.
+// Branch B picks rows not in sub2 (salary > 50000) AND gender == "F".
+disjunctiveInSubqueriesEachUnderAnd
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | WHERE languages == 1 | KEEP emp_no) AND salary > 60000)
+     OR (emp_no NOT IN (FROM employees | WHERE salary > 50000 | KEEP emp_no) AND gender == "F")
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 15
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10005          | M              | 1                 | 63528
+10009          | F              | 1                 | 66174
+10019          | null           | 1                 | 73717
+10023          | F              | null              | 47896
+10033          | M              | 1                 | 70011
+10040          | F              | 4                 | 37112
+10042          | F              | 3                 | 30404
+10044          | F              | 1                 | 39728
+10049          | F              | 5                 | 37853
+10056          | F              | 2                 | 33370
+10057          | F              | 4                 | 27215
+10059          | F              | 2                 | 44307
+10069          | F              | 5                 | 41933
+10074          | F              | 5                 | 38992
+10079          | F              | 2                 | 32263
+;
+
+// (IN sub1 OR languages == 1) AND (NOT IN sub2 OR salary > 65000)
+// Conjunction of two disjunctions, each containing an IN/NOT IN subquery — the LeftSemiJoin
+// approach evaluates each mark separately and the outer AND/OR machinery composes the result.
+conjunctionOfDisjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) OR languages == 1)
+     AND (emp_no NOT IN (FROM employees | WHERE gender == "M" | KEEP emp_no) OR salary > 65000)
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 20
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10007          | F              | 4                 | 74572
+10009          | F              | 1                 | 66174
+10013          | null           | 1                 | 48735
+10019          | null           | 1                 | 73717
+10027          | F              | null              | 73851
+10029          | M              | null              | 74999
+10033          | M              | 1                 | 70011
+10041          | F              | 1                 | 56415
+10044          | F              | 1                 | 39728
+10045          | M              | 3                 | 74970
+10086          | M              | 1                 | 68547
+10092          | F              | 1                 | 25976
+10097          | M              | 3                 | 71165
+10099          | F              | 2                 | 73578
+;
+
+// emp_no <= 10020 AND NOT (emp_no IN sub1 AND salary > 60000)
+// NOT applied to a conjunction containing an IN subquery; combined with a normal predicate.
+// The IN subquery inside NOT(...) lifts to a LeftSemiJoin and NOT is evaluated by the engine.
+negatedConjunctionWithInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no <= 10020
+     AND NOT (emp_no IN (FROM employees | WHERE languages > 3 | KEEP emp_no) AND salary > 60000)
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10001          | M              | 2                 | 57305
+10002          | F              | 5                 | 56371
+10004          | M              | 5                 | 36174
+10005          | M              | 1                 | 63528
+10006          | F              | 3                 | 60335
+10008          | M              | 2                 | 43906
+10009          | F              | 1                 | 66174
+10010          | null           | 4                 | 45797
+10011          | null           | 5                 | 31120
+10012          | null           | 5                 | 48942
+10013          | null           | 1                 | 48735
+10014          | null           | 5                 | 37137
+10015          | null           | 5                 | 25324
+10016          | null           | 2                 | 61358
+10017          | null           | 2                 | 58715
+10018          | null           | 2                 | 56760
+10019          | null           | 1                 | 73717
+10020          | M              | null              | 40031
+;
+
+// emp_no IN sub1 OR (gender == "F" AND (salary > 70000 OR emp_no NOT IN sub2))
+// Three boolean operators above the second InSubquery (OR > AND > OR > NOT IN); each of the
+// two subqueries becomes its own LeftSemiJoin and the resulting expression is evaluated as-is.
+deeplyNestedDisjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 73000 | KEEP emp_no)
+     OR (gender == "F" AND (salary > 70000 OR emp_no NOT IN (FROM employees | WHERE languages > 1 | KEEP emp_no)))
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 15
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10007          | F              | 4                 | 74572
+10009          | F              | 1                 | 66174
+10019          | null           | 1                 | 73717
+10023          | F              | null              | 47896
+10024          | F              | null              | 64675
+10027          | F              | null              | 73851
+10029          | M              | null              | 74999
+10041          | F              | 1                 | 56415
+10044          | F              | 1                 | 39728
+10045          | M              | 3                 | 74970
+10092          | F              | 1                 | 25976
+10099          | F              | 2                 | 73578
+;
+
+// (IN sub1 AND gender == "M") OR (IN sub2 AND salary > 70000) OR (NOT IN sub3 AND gender == "F")
+// Three disjuncts, each containing an IN/NOT IN subquery wrapped in AND with an extra predicate.
+// Produces three LeftSemiJoin nodes stacked below a single Filter that ORs the three marks.
+threeWayDisjunctiveInSubqueriesWithPredicates
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | WHERE languages == 1 | KEEP emp_no) AND gender == "M")
+     OR (emp_no IN (FROM employees | WHERE salary > 73000 | KEEP emp_no) AND salary > 70000)
+     OR (emp_no NOT IN (FROM employees | WHERE salary > 30000 | KEEP emp_no) AND gender == "F")
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 15
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10005          | M              | 1                 | 63528
+10007          | F              | 4                 | 74572
+10019          | null           | 1                 | 73717
+10027          | F              | null              | 73851
+10029          | M              | null              | 74999
+10033          | M              | 1                 | 70011
+10034          | M              | 1                 | 39878
+10043          | M              | 1                 | 34341
+10045          | M              | 3                 | 74970
+10052          | M              | 1                 | 55360
+10057          | F              | 4                 | 27215
+10061          | M              | 1                 | 49095
+10083          | M              | 1                 | 39110
+10084          | M              | 1                 | 28035
+10086          | M              | 1                 | 68547
+;

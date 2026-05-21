@@ -55,7 +55,7 @@ import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -131,7 +131,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -270,26 +269,30 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
-        BiFunction<String, String, LogicalPlan> viewParser = (query, viewName) -> parser.parseView(
-            query,
-            request.params(),
-            SettingsValidationContext.from(remoteClusterService),
-            inferenceService.inferenceSettings(),
-            viewName
-        ).plan();
-        viewResolver.replaceViews(statement.plan(), viewParser, listener.delegateFailureAndWrap((l, viewResolution) -> {
-            viewResolutionProfile.stop();
-            // InSubquery resolution runs immediately after view resolution. Views referenced from inside
-            // an IN subquery are not handled here yet — that requires alternating the two resolvers,
-            // which will be reintroduced in a follow-up.
-            InSubqueryResolver.resolve(viewResolution.plan(), l.delegateFailureAndWrap((ll, resolvedPlan) -> {
-                ViewResolver.ViewResolutionResult resolvedResult = new ViewResolver.ViewResolutionResult(
-                    resolvedPlan,
-                    viewResolution.viewQueries()
-                );
-                analyseAndExecute(request, executionInfo, planRunner, statement, resolvedResult, ll);
-            }));
-        }));
+        viewResolver.replaceViews(
+            statement.plan(),
+            projectRouting(request, statement),
+            (query, viewName) -> parser.parseView(
+                query,
+                request.params(),
+                SettingsValidationContext.from(remoteClusterService),
+                inferenceService.inferenceSettings(),
+                viewName
+            ).plan(),
+            listener.delegateFailureAndWrap((l, viewResolution) -> {
+                viewResolutionProfile.stop();
+                // InSubquery resolution runs immediately after view resolution. Views referenced from inside
+                // an IN subquery are not handled here yet — that requires alternating the two resolvers,
+                // which will be reintroduced in a follow-up.
+                InSubqueryResolver.resolve(viewResolution.plan(), l.delegateFailureAndWrap((ll, resolvedPlan) -> {
+                    ViewResolver.ViewResolutionResult resolvedResult = new ViewResolver.ViewResolutionResult(
+                        resolvedPlan,
+                        viewResolution.viewQueries()
+                    );
+                    analyseAndExecute(request, executionInfo, planRunner, statement, resolvedResult, ll);
+                }));
+            })
+        );
     }
 
     private void analyseAndExecute(
@@ -398,7 +401,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                new Holder<>(),
+                                new Holder<ApproximationDriver>(),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -447,7 +450,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -618,7 +621,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
@@ -670,7 +673,7 @@ public class EsqlSession {
     private SubPlanAndCallback firstSubPlan(
         LogicalPlan mainPlan,
         Configuration configuration,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         Set<LocalRelation> subPlansResults
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
@@ -717,18 +720,16 @@ public class EsqlSession {
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan() : mainPlan;
         if (ApproximationPlan.is(plan)) {
             if (approximation.get() == null) {
-                approximation.set(new Approximation(plan, configuration.approximationSettings()));
+                approximation.set(ApproximationDriver.create(plan, configuration.approximationSettings()));
             }
-            LogicalPlan approxSubPlan = approximation.get().firstSubPlan();
-            if (approxSubPlan != null) {
-                subPlanAndCallback = new SubPlanAndCallback(approxSubPlan, result -> {
-                    Double sampleProbability = approximation.get().processResult(result);
-                    if (sampleProbability != null) {
-                        return ApproximationPlan.substituteSampleProbability(mainPlan, sampleProbability);
-                    } else {
-                        return mainPlan;
-                    }
-                }, () -> {}, false);
+            LogicalPlan subPlan = approximation.get().firstSubPlan();
+            if (subPlan != null) {
+                subPlanAndCallback = new SubPlanAndCallback(
+                    subPlan,
+                    result -> approximation.get().newMainPlan(mainPlan, result),
+                    () -> {},
+                    false
+                );
             }
         }
 
@@ -771,7 +772,7 @@ public class EsqlSession {
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
-        Holder<Approximation> approximation,
+        Holder<ApproximationDriver> approximation,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,

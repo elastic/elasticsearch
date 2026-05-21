@@ -199,7 +199,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return false;
     }
 
-    protected FlattenedFieldSyntheticWriterHelper getWriter() throws IOException {
+    protected FlattenedFieldSyntheticWriterHelper getWriter(List<SourceLoader.SyntheticFieldLoader> subFieldLoaders) throws IOException {
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
         TreeSet<BytesRef> ignoredValuesSet = collectIgnoredValues();
         if (ignoredValuesSet != null) {
@@ -211,7 +211,15 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             return value != null ? FlattenedFieldArrayContext.parseOffsetField(value) : null;
         };
 
-        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier);
+        String parentPrefix = fieldFullPath + ".";
+        List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFieldEntries = new ArrayList<>();
+        for (SourceLoader.SyntheticFieldLoader loader : subFieldLoaders) {
+            if (loader.hasValue()) {
+                sortedSubFieldEntries.add(Map.entry(loader.fieldName().substring(parentPrefix.length()), loader));
+            }
+        }
+
+        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier, sortedSubFieldEntries);
     }
 
     private TreeSet<BytesRef> collectIgnoredValues() throws IOException {
@@ -247,15 +255,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         }
 
         b.startObject(leafName);
-        if (hasFlattenedValues) {
-            var writer = getWriter();
-            writer.write(b, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED);
-        }
-        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
-            if (loader.hasValue()) {
-                loader.write(b);
-            }
-        }
+        getWriter(mappedSubFieldLoaders).writeNested(b);
         b.endObject();
     }
 

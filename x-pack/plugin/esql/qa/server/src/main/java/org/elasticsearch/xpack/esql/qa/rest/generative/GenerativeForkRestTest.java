@@ -55,7 +55,10 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        shouldSkipForkTest(testCase);
+    }
 
+    static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase) {
         assumeFalse(
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())

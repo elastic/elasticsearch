@@ -13,7 +13,11 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -22,10 +26,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InS
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAllFromDisjunctiveInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.ArrayList;
@@ -37,24 +41,36 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Resolves {@link InSubquery} expressions in {@link Filter} conditions by rewriting them into
- * {@link SemiJoin} or {@link AntiJoin} nodes.
+ * {@link SemiJoin}, {@link AntiJoin}, or {@link LeftSemiJoin} nodes depending on where the
+ * {@link InSubquery} sits inside the boolean expression:
+ * <ul>
+ *   <li>An {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an AND-conjunct
+ *       becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
+ *       remaining filter — the most efficient shape, used for the common conjunctive case.</li>
+ *   <li>An {@code InSubquery} that appears as a child of {@link Or} (or of {@link Not} below an
+ *       {@link Or}) is replaced with a synthetic boolean attribute and a {@link LeftSemiJoin}
+ *       is stacked below the rewritten {@link Filter}; the mark attribute carries the
+ *       three-valued {@code IN} result up into normal boolean evaluation.</li>
+ *   <li>An {@code InSubquery} wrapped in any other expression (a function argument, an
+ *       {@code IS NOT NULL}, an arithmetic operator, etc.) is left in place; the post-resolution
+ *       {@link #verify} step rejects the query with a {@link VerificationException}.</li>
+ * </ul>
  * <p>
- * This runs before {@link PreAnalyzer} so that the subquery plans, which were embedded inside
- * {@link InSubquery} expressions, become children of join nodes and are visible to standard plan
- * tree traversals. This eliminates the need for separate InSubquery-aware traversals in
+ * This runs before {@link PreAnalyzer} so the subquery plans, originally embedded inside
+ * {@link InSubquery} expressions, become children of join nodes and visible to standard plan
+ * traversals. This eliminates the need for separate InSubquery-aware traversals in
  * {@link PreAnalyzer}, {@link org.elasticsearch.xpack.esql.session.FieldNameUtils FieldNameUtils},
- * and {@link org.elasticsearch.xpack.esql.inference.InferenceResolver InferenceResolver} etc.
+ * and {@link org.elasticsearch.xpack.esql.inference.InferenceResolver InferenceResolver}.
  * <p>
- * The join's rightFields are left empty at this stage because the subquery output is not yet resolved.
- * The Analyzer's {@code ResolveRefs} fills them in during the Resolution batch.
+ * The join's {@code rightFields} are left empty at this stage because the subquery output is not
+ * yet resolved. The Analyzer's {@code ResolveRefs} fills them in during the Resolution batch.
  */
 public class InSubqueryResolver {
 
     /**
-     * Resolves all {@link InSubquery} expressions in {@link Filter} conditions by rewriting them
-     * into {@link SemiJoin} or {@link AntiJoin} nodes. After resolution, validates that no
-     * {@link InSubquery} expressions remain in the plan. Any remaining expressions indicate
-     * unsupported usage (e.g. in EVAL, SORT, STATS BY) and cause a {@link VerificationException}.
+     * Resolves all {@link InSubquery} expressions in {@link Filter} conditions and validates the
+     * result. {@link InSubquery} occurrences that survived rewriting (e.g. inside an EVAL, SORT,
+     * STATS BY clause, or wrapped in a non-boolean expression) cause a {@link VerificationException}.
      *
      * @param listener receives the resolved plan on success, or a {@link VerificationException} on failure
      */
@@ -82,194 +98,217 @@ public class InSubqueryResolver {
         return plan.transformUp(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
     }
 
+    /**
+     * Spec for a {@link SemiJoin} / {@link AntiJoin} stacked on top of the remaining filter for
+     * an {@link InSubquery} that appears as a top-level AND conjunct.
+     */
+    private record SemiOrAntiJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, boolean anti) {}
+
+    /**
+     * Spec for a {@link LeftSemiJoin} stacked below the remaining filter for an {@link InSubquery}
+     * that appears under {@code OR}/{@code NOT}/{@code AND} but not as a top-level AND conjunct.
+     * The mark attribute is referenced from the rewritten boolean expression.
+     */
+    private record LeftSemiJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, Attribute markAttribute) {}
+
     private static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
         Expression condition = filter.condition();
-
-        // Handle OR disjuncts containing IN subqueries by rewriting to exclusive UnionAll branches.
-        // Each branch gets AND-conjunct conditions that the existing SemiJoin extraction can handle.
-        List<Expression> disjuncts = Predicates.splitOr(condition);
-        if (disjuncts.size() > 1 && disjuncts.stream().anyMatch(InSubqueryResolver::containsInSubquery)) {
-            return rewriteDisjunctiveInSubquery(filter, disjuncts);
-        }
 
         List<Expression> conjuncts = Predicates.splitAnd(condition);
 
         List<Expression> remaining = new ArrayList<>();
-        // Collect subquery joins to be placed on top
-        record SemiOrAntiJoin(Source source, LogicalPlan subquery, JoinConfig config, boolean anti) {}
-        List<SemiOrAntiJoin> semiOrAntiJoins = new ArrayList<>();
-        // Synthetic Eval aliases for constant left-hand side expressions (e.g. WHERE 10001 IN (subquery))
+        // Joins applied AFTER the remaining filter. SemiJoin/AntiJoin filter out rows that don't
+        // satisfy the original IN/NOT IN predicate; they are correct only when the predicate is
+        // an AND-conjunct.
+        List<SemiOrAntiJoinSpec> semiOrAntiJoins = new ArrayList<>();
+        // Joins applied BEFORE the remaining filter. LeftSemiJoins emit a boolean mark attribute
+        // referenced from the rewritten remaining condition; the mark carries the three-valued
+        // IN result through the normal boolean evaluation in the surrounding OR/AND/NOT shape.
+        List<LeftSemiJoinSpec> leftSemiJoins = new ArrayList<>();
+        // Synthetic Eval aliases for constant left-hand side expressions (e.g. WHERE 10001 IN (subquery)).
+        // Materialized as an Eval below the joins; the synthetic attributes are projected away above.
         List<Alias> syntheticEvals = new ArrayList<>();
 
         for (Expression conjunct : conjuncts) {
-            boolean negated = false;
-            Expression expr = conjunct;
-            while (expr instanceof Not not) {
-                expr = not.field();
-                negated = !negated;
+            if (tryResolveAsSemiOrAntiJoin(conjunct, semiOrAntiJoins, syntheticEvals)) {
+                continue;
             }
-
-            if (expr instanceof InSubquery inSubquery) {
-                Expression leftValue = inSubquery.value();
-
-                List<Attribute> leftFields;
-                if (leftValue instanceof Attribute leftAttr) {
-                    leftFields = singletonList(leftAttr);
-                } else if (leftValue.foldable()) {
-                    // Constant expression: wrap in a synthetic Eval so it can be used as a join key.
-                    // The synthetic Eval and its attribute are removed after the join by a Project.
-                    var syntheticAlias = new Alias(
-                        leftValue.source(),
-                        syntheticName(leftValue, inSubquery.subquery()),
-                        leftValue,
-                        null,
-                        true
-                    );
-                    syntheticEvals.add(syntheticAlias);
-                    leftFields = singletonList(syntheticAlias.toAttribute());
-                } else {
-                    remaining.add(conjunct);
-                    continue;
-                }
-
-                // Recursively resolve any nested IN subqueries within the subquery plan
-                LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
-
-                if (negated) {
-                    JoinConfig config = new JoinConfig(JoinTypes.ANTI, leftFields, emptyList(), null);
-                    semiOrAntiJoins.add(new SemiOrAntiJoin(inSubquery.source(), subquery, config, true));
-                } else {
-                    JoinConfig config = new JoinConfig(JoinTypes.SEMI, leftFields, emptyList(), null);
-                    semiOrAntiJoins.add(new SemiOrAntiJoin(inSubquery.source(), subquery, config, false));
-                }
-            } else {
-                remaining.add(conjunct);
-            }
+            // Either no InSubquery in the conjunct (passes through unchanged), or InSubquery is
+            // nested inside OR (rewritten with LeftSemiJoin), or InSubquery sits under a
+            // non-boolean wrapper (left as-is for {@link #verify} to reject).
+            Expression rewritten = rewriteOrContextInSubqueries(conjunct, leftSemiJoins, syntheticEvals);
+            remaining.add(rewritten);
         }
 
-        if (semiOrAntiJoins.isEmpty()) {
+        if (semiOrAntiJoins.isEmpty() && leftSemiJoins.isEmpty()) {
             return filter;
         }
 
-        // Build the left side: remaining filter conditions on top of the original child, or just the child
-        LogicalPlan current = remaining.isEmpty()
-            ? filter.child()
-            : new Filter(filter.source(), filter.child(), Predicates.combineAnd(remaining));
+        LogicalPlan current = filter.child();
 
-        // If any constants need materialization, insert an Eval to create the synthetic attributes
+        // If any constants need materialization, insert an Eval to create the synthetic attributes.
         if (syntheticEvals.isEmpty() == false) {
             current = new Eval(filter.source(), current, syntheticEvals);
         }
 
-        // Stack SemiJoin/AntiJoin on top
-        for (SemiOrAntiJoin sj : semiOrAntiJoins) {
+        // Stack LeftSemiJoins first — they are applied before the remaining filter so the mark
+        // attributes are available to the rewritten boolean expression.
+        for (LeftSemiJoinSpec ls : leftSemiJoins) {
+            current = new LeftSemiJoin(ls.source, current, ls.subquery, ls.config, ls.markAttribute);
+        }
+
+        // Apply remaining filter conditions on top of LeftSemiJoins (so mark attributes are in scope).
+        if (remaining.isEmpty() == false) {
+            current = new Filter(filter.source(), current, Predicates.combineAnd(remaining));
+        }
+
+        // Stack SemiJoins / AntiJoins on top — they filter rows but don't modify columns.
+        for (SemiOrAntiJoinSpec sj : semiOrAntiJoins) {
             current = sj.anti
                 ? new AntiJoin(sj.source, current, sj.subquery, sj.config)
                 : new SemiJoin(sj.source, current, sj.subquery, sj.config);
         }
 
+        // The mark attributes from LeftSemiJoins (and any synthetic constant Eval columns introduced
+        // for foldable LHS) are flagged synthetic so the analyzer's default output projection
+        // (planWithoutSyntheticAttributes) drops them — preserving the filter's apparent schema.
         return current;
     }
 
     /**
+     * Attempts to handle {@code conjunct} as a top-level {@link InSubquery} (optionally wrapped in
+     * one or more {@link Not}s) with an attribute or foldable LHS. On success appends the
+     * corresponding {@link SemiOrAntiJoinSpec} (and any synthetic Eval Alias) and returns
+     * {@code true}; otherwise returns {@code false} and leaves the accumulators untouched.
+     */
+    private static boolean tryResolveAsSemiOrAntiJoin(
+        Expression conjunct,
+        List<SemiOrAntiJoinSpec> semiOrAntiJoins,
+        List<Alias> syntheticEvals
+    ) {
+        boolean negated = false;
+        Expression expr = conjunct;
+        while (expr instanceof Not not) {
+            expr = not.field();
+            negated = !negated;
+        }
+
+        if (expr instanceof InSubquery inSubquery) {
+            Expression leftValue = inSubquery.value();
+            List<Attribute> leftFields;
+            if (leftValue instanceof Attribute leftAttr) {
+                leftFields = singletonList(leftAttr);
+            } else if (leftValue.foldable()) {
+                var syntheticAlias = new Alias(
+                    leftValue.source(),
+                    syntheticConstName(leftValue, inSubquery.subquery()),
+                    leftValue,
+                    null,
+                    true
+                );
+                syntheticEvals.add(syntheticAlias);
+                leftFields = singletonList(syntheticAlias.toAttribute());
+            } else {
+                // Non-attribute, non-foldable LHS — leave it for the verifier to surface a clear error.
+                return false;
+            }
+
+            LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
+            JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
+            semiOrAntiJoins.add(new SemiOrAntiJoinSpec(inSubquery.source(), subquery, config, negated));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Walks the boolean expression replacing every {@link InSubquery} reachable through
+     * {@link And}/{@link Or}/{@link Not} (i.e. boolean position) with a fresh synthetic mark
+     * attribute, recording a {@link LeftSemiJoinSpec} per replacement. {@link InSubquery}
+     * occurrences that sit under a non-boolean wrapper (function argument, comparison, etc.) are
+     * left in place for {@link #verify} to reject. Any expression with no eligible
+     * {@link InSubquery} below it is returned unchanged.
+     */
+    private static Expression rewriteOrContextInSubqueries(Expression expr, List<LeftSemiJoinSpec> joins, List<Alias> syntheticEvals) {
+        if (expr instanceof And and) {
+            Expression left = rewriteOrContextInSubqueries(and.left(), joins, syntheticEvals);
+            Expression right = rewriteOrContextInSubqueries(and.right(), joins, syntheticEvals);
+            return left == and.left() && right == and.right() ? and : new And(and.source(), left, right);
+        }
+        if (expr instanceof Or or) {
+            Expression left = rewriteOrContextInSubqueries(or.left(), joins, syntheticEvals);
+            Expression right = rewriteOrContextInSubqueries(or.right(), joins, syntheticEvals);
+            return left == or.left() && right == or.right() ? or : new Or(or.source(), left, right);
+        }
+        if (expr instanceof Not not) {
+            Expression child = rewriteOrContextInSubqueries(not.field(), joins, syntheticEvals);
+            return child == not.field() ? not : new Not(not.source(), child);
+        }
+        if (expr instanceof InSubquery inSubquery) {
+            return rewriteAsLeftSemiJoin(inSubquery, joins, syntheticEvals);
+        }
+        // Non-boolean expression (function call, comparison, IS NOT NULL, etc.). Do NOT recurse:
+        // any nested InSubquery should be reported as unsupported by the verifier rather than
+        // silently lifted out into a join that would change the expression's semantics.
+        return expr;
+    }
+
+    /**
+     * Allocates a synthetic boolean mark attribute for {@code inSubquery}, records a
+     * {@link LeftSemiJoinSpec}, and returns the mark attribute as the replacement expression.
+     * Returns the original {@link InSubquery} unchanged when the LHS is neither an attribute
+     * nor foldable — those cases are surfaced as errors by {@link #verify}.
+     */
+    private static Expression rewriteAsLeftSemiJoin(InSubquery inSubquery, List<LeftSemiJoinSpec> joins, List<Alias> syntheticEvals) {
+        Expression leftValue = inSubquery.value();
+        List<Attribute> leftFields;
+        if (leftValue instanceof Attribute leftAttr) {
+            leftFields = singletonList(leftAttr);
+        } else if (leftValue.foldable()) {
+            var syntheticAlias = new Alias(leftValue.source(), syntheticConstName(leftValue, inSubquery.subquery()), leftValue, null, true);
+            syntheticEvals.add(syntheticAlias);
+            leftFields = singletonList(syntheticAlias.toAttribute());
+        } else {
+            return inSubquery;
+        }
+
+        LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
+        Attribute markAttribute = new ReferenceAttribute(
+            inSubquery.source(),
+            null,
+            syntheticMarkName(inSubquery),
+            DataType.BOOLEAN,
+            Nullability.TRUE,
+            new NameId(),
+            true
+        );
+        JoinConfig config = new JoinConfig(JoinTypes.LEFT_SEMI, leftFields, emptyList(), null);
+        joins.add(new LeftSemiJoinSpec(inSubquery.source(), subquery, config, markAttribute));
+        return markAttribute;
+    }
+
+    /**
      * Recursively transforms a subquery plan, converting any nested IN/NOT IN subquery expressions
-     * into SemiJoin/AntiJoin nodes. This is needed because nested subquery plans are embedded inside
-     * InSubquery expressions and not reachable by the top-level transformUp.
+     * into SemiJoin/AntiJoin/LeftSemiJoin nodes. This is needed because nested subquery plans are
+     * embedded inside InSubquery expressions and not reachable by the top-level transformUp.
      */
     private static LogicalPlan resolveNestedInSubqueries(LogicalPlan subqueryPlan) {
         return subqueryPlan.transformUp(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
     }
 
     /**
-     * Rewrites a Filter with OR disjuncts containing InSubquery into an exclusive UnionAll.
-     * For {@code WHERE d1 OR d2 OR d3}, produces:
-     * <pre>
-     * UnionAll(
-     *   Filter(d1, child),
-     *   Filter(NOT(d1) AND d2, child),
-     *   Filter(NOT(d1) AND NOT(d2) AND d3, child)
-     * )
-     * </pre>
-     * Each branch has only AND-conjunct conditions, which the existing SemiJoin extraction handles.
-     * The exclusive partitioning ensures no duplicate rows across branches.
+     * Generates a unique synthetic name for a constant on the left-hand side of an IN subquery.
      */
-    private static LogicalPlan rewriteDisjunctiveInSubquery(Filter filter, List<Expression> disjuncts) {
-        LogicalPlan child = filter.child();
-        Source source = filter.source();
-
-        // Reorder disjuncts by complexity so that the exclusive-partitioning exclusions (NOT(d_i))
-        // only negate expressions the resolver can handle:
-        // 0 — no InSubquery at all (simplest, negation is trivial)
-        // 1 — bare InSubquery or NOT(InSubquery) (negation flips IN/NOT IN, still handleable)
-        // 2 — composite AND containing InSubquery (negation produces NOT(AND(...)) which the
-        // resolver cannot decompose; placed last so their negation is never needed)
-        List<Expression> reordered = new ArrayList<>(disjuncts);
-        reordered.sort((a, b) -> Integer.compare(disjunctComplexity(a), disjunctComplexity(b)));
-
-        List<LogicalPlan> branches = new ArrayList<>();
-        List<Expression> exclusions = new ArrayList<>();
-
-        for (Expression disjunct : reordered) {
-            Expression branchCondition;
-            if (exclusions.isEmpty()) {
-                branchCondition = disjunct;
-            } else {
-                List<Expression> parts = new ArrayList<>();
-                for (Expression ex : exclusions) {
-                    parts.add(negate(ex));
-                }
-                parts.add(disjunct);
-                branchCondition = Predicates.combineAnd(parts);
-            }
-            // Each branch's Filter may contain InSubquery in AND position — resolve them now
-            LogicalPlan branch = resolveInSubqueryInFilter(new Filter(source, child, branchCondition));
-            branches.add(branch);
-            exclusions.add(disjunct);
-        }
-
-        return new UnionAllFromDisjunctiveInSubquery(source, branches, List.of());
-    }
-
-    /**
-     * Returns a complexity score for ordering disjuncts in the exclusive query rewrite:
-     * <ul>
-     *   <li>0 — no InSubquery (plain predicate, not expensive to negate)</li>
-     *   <li>1 — contains InSubquery but is not a composite AND (bare InSubquery or NOT(InSubquery), not expensive to negate)</li>
-     *   <li>2 — composite AND containing InSubquery (NOT(AND(...)) are the last)</li>
-     * </ul>
-     */
-    private static int disjunctComplexity(Expression expr) {
-        if (containsInSubquery(expr) == false) {
-            return 0;
-        }
-        return Predicates.splitAnd(expr).size() > 1 ? 2 : 1;
-    }
-
-    /**
-     * Negates an expression, simplifying double negation: NOT(NOT(x)) → x.
-     */
-    private static Expression negate(Expression expr) {
-        if (expr instanceof Not not) {
-            return not.field();
-        }
-        return new Not(expr.source(), expr);
-    }
-
-    /**
-     * Generates a unique synthetic name for the constant on the left-hand side of IN subquery.
-     */
-    private static String syntheticName(Expression value, LogicalPlan subquery) {
+    private static String syntheticConstName(Expression value, LogicalPlan subquery) {
         return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode();
     }
 
-    private static boolean containsInSubquery(Expression expr) {
-        if (expr instanceof InSubquery) {
-            return true;
-        }
-        if (expr instanceof Not not) {
-            return containsInSubquery(not.field());
-        }
-        return expr.children().stream().anyMatch(InSubqueryResolver::containsInSubquery);
+    /**
+     * Generates a unique synthetic name for the boolean mark attribute produced by a
+     * {@link LeftSemiJoin} in place of an {@link InSubquery}.
+     */
+    private static String syntheticMarkName(InSubquery inSubquery) {
+        return "$$in_subquery_mark$" + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode();
     }
 
     public static void verify(LogicalPlan plan) {
@@ -295,13 +334,12 @@ public class InSubqueryResolver {
 
     /**
      * Walks the {@code WHERE} condition tree to validate IN subquery usage that the
-     * {@link InSubqueryResolver} could not rewrite into a {@link SemiJoin}/{@link AntiJoin}.
+     * {@link InSubqueryResolver} could not rewrite into a {@link SemiJoin}/{@link AntiJoin}/{@link LeftSemiJoin}.
      * <p>
      * If the IN subquery sits at the top of the boolean condition (i.e. only {@link And} /
      * {@link Or} / {@link Not} above it) the resolver normally rewrites it; if one survives here
-     * it means the surrounding boolean shape is not yet supported (e.g. an IN subquery hidden
-     * inside an unresolvable {@code OR} branch). In that case we report the whole filter source
-     * (the entire {@code WHERE} clause) so the user can see the unsupported predicate.
+     * it means the surrounding boolean shape is not yet supported (e.g. an unsupported LHS shape).
+     * In that case we report the whole filter source (the entire {@code WHERE} clause).
      * <p>
      * Otherwise (the IN subquery is nested inside a non-boolean expression such as a scalar
      * function or {@code IS NOT NULL}), we report the immediately enclosing expression.

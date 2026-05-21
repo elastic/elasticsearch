@@ -15,7 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
@@ -46,9 +45,10 @@ public class ESVectorUtil {
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+    private static final VectorScorerFactory SCORERS = ESVectorizationProvider.getInstance().getVectorScorerFactory();
 
     public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
@@ -60,12 +60,11 @@ public class ESVectorUtil {
         int bulkSize,
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
-        return ESVectorizationProvider.getInstance()
-            .newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return SCORERS.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
+        return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
@@ -73,7 +72,7 @@ public class ESVectorUtil {
         int dimension,
         int vectorLengthInBytes
     ) throws IOException {
-        return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+        return SCORERS.newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }
 
     public static void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {

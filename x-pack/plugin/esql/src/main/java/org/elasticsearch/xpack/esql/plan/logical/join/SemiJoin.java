@@ -113,26 +113,88 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         return false;
     }
 
-    // -- Hooks for SEMI vs ANTI variation in the inlineData transformation. --
-    // Each hook captures one place where the SQL semantics of IN vs NOT IN diverge. AntiJoin
-    // overrides them; SemiJoin's defaults implement IN.
+    // -- Hooks for SEMI / ANTI / LEFT_SEMI variation in the inlineData transformation. --
+    // The shared dedup pipeline calls these to build the terminal plan. SemiJoin's defaults
+    // implement IN. AntiJoin flips a couple of hooks for NOT IN. LeftSemiJoin (in OR-context
+    // rewrites) returns Eval-based plans that preserve every left row and produce a boolean
+    // mark attribute with three-valued logic.
 
     /**
-     * Filter condition to substitute when the right side has no rows. {@code x IN ()} ≡ FALSE
-     * for SEMI; {@code x NOT IN ()} ≡ TRUE for ANTI.
+     * Build the terminal plan when the right side has zero rows. {@code x IN ()} ≡ FALSE for
+     * SEMI / LEFT_SEMI; {@code x NOT IN ()} ≡ TRUE for ANTI. LeftSemiJoin produces an Eval
+     * that sets the mark attribute to FALSE.
      */
-    protected Expression emptyRightSideCondition() {
-        return Literal.FALSE;
+    protected LogicalPlan buildEmptyRightSidePlan(Source source) {
+        return new Filter(source, left(), Literal.FALSE);
+    }
+
+    /**
+     * Build the terminal plan when the right side contains a NULL value that forces the
+     * predicate to a constant for every left row. For SEMI this only fires when every right
+     * value is NULL ({@code allRightNull == true}) and produces {@code Filter(FALSE)}.
+     * For ANTI any NULL on the right is fatal, so it overrides {@link #shortCircuitOnAnyRightNull()}
+     * and likewise produces {@code Filter(FALSE)}. LeftSemiJoin does not short-circuit on any
+     * NULL — it keeps the row counts unchanged and emits {@code Eval($m = NULL)} when every
+     * right value is NULL.
+     */
+    protected LogicalPlan buildShortCircuitPlan(Source source, boolean allRightNull) {
+        return new Filter(source, left(), Literal.FALSE);
     }
 
     /**
      * Whether any NULL on the right side makes the predicate non-TRUE for every left row. For
      * ANTI ({@code x NOT IN (..., NULL, ...)}) this is always the case, so we short-circuit to
      * {@code Filter(FALSE)} without dedup. For SEMI we instead drop the NULLs from the dedup
-     * input since {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} under WHERE semantics.
+     * input since {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} under WHERE semantics. For
+     * LEFT_SEMI we keep track of the right-had-NULLs flag and feed it into the mark expression.
      */
     protected boolean shortCircuitOnAnyRightNull() {
         return false;
+    }
+
+    /**
+     * Build the terminal plan for the small-dedup "filter" path. {@code dedupKeys} contains
+     * non-NULL distinct values pulled from the right side. {@code rightHadNulls} is true if
+     * the original right side contained at least one NULL value (already stripped from
+     * {@code dedupKeys}). SEMI returns {@code Filter(In(...))}, ANTI returns
+     * {@code Filter(NOT In(...))} and LeftSemiJoin builds an Eval whose IN list includes a
+     * NULL literal when {@code rightHadNulls} so the natural three-valued semantics of
+     * {@link In} produce the correct mark.
+     */
+    protected LogicalPlan buildFilterPathPlan(
+        Block dedupKeys,
+        DataType keyType,
+        Attribute leftField,
+        Source source,
+        boolean rightHadNulls
+    ) {
+        int positionCount = dedupKeys.getPositionCount();
+        List<Expression> literals = new ArrayList<>(positionCount);
+        for (int i = 0; i < positionCount; i++) {
+            literals.add(new Literal(source, toJavaObject(dedupKeys, i), keyType));
+        }
+        return new Filter(source, left(), wrapInExpression(source, new In(source, leftField, literals)));
+    }
+
+    /**
+     * Build the terminal plan for the large-dedup "hash-join" path. The deduplicated key
+     * column has already been wrapped in a {@link LocalRelation} alongside a constant TRUE
+     * sentinel column. SEMI/ANTI add a sentinel filter and Project that drops the right-side
+     * column; LeftSemiJoin instead computes the mark via a CASE expression and projects the
+     * mark column out alongside the original left output.
+     */
+    protected LogicalPlan buildHashJoinPathPlan(
+        LogicalPlan leftSide,
+        LocalRelation deduplicatedData,
+        JoinConfig leftJoinConfig,
+        Attribute sentinelAttr,
+        Source source,
+        boolean rightHadNulls
+    ) {
+        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig);
+        Filter filter = new Filter(source, leftJoin, sentinelFilterCondition(source, sentinelAttr));
+        List<NamedExpression> leftOutput = new ArrayList<>(left().output());
+        return new Project(source, filter, leftOutput);
     }
 
     /**
@@ -149,6 +211,17 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      */
     protected Expression sentinelFilterCondition(Source source, Attribute sentinel) {
         return new IsNotNull(source, sentinel);
+    }
+
+    /**
+     * Whether the hash-join path needs to drop NULL-keyed left rows before the join. SEMI/ANTI
+     * filter on the sentinel after the join; ANTI in particular would otherwise keep NULL-keyed
+     * rows (sentinel NULL → "no match") even though {@code NULL NOT IN (...)} should yield NULL.
+     * LEFT_SEMI keeps every left row and handles the NULL-key case explicitly inside the CASE
+     * expression that produces the mark, so it suppresses the filter.
+     */
+    protected boolean filterNullLeftKeysBeforeHashJoin() {
+        return true;
     }
 
     @Override
@@ -270,7 +343,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
 
         if (page == null || page.getBlockCount() == 0 || schema.isEmpty() || page.getPositionCount() == 0) {
             releaseSourcePage(pageHolder);
-            return new Filter(source, semiJoin.left(), semiJoin.emptyRightSideCondition());
+            return semiJoin.buildEmptyRightSidePlan(source);
         }
 
         Block keyBlock = page.getBlock(0);
@@ -281,16 +354,20 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         // when it's false we skip both the scan and the filter() copy entirely.
         Block dedupInput = keyBlock;
         Block filteredKeyBlock = null;
+        boolean rightHadNulls = false;
         if (keyBlock.mayHaveNulls()) {
             int[] nonNullPositions = collectNonNullPositions(keyBlock);
             if (nonNullPositions.length < keyBlock.getPositionCount()) {
+                rightHadNulls = true;
                 // ANTI: any NULL on the right is fatal. SEMI: only fatal when every value is NULL
-                // (no candidate match key remains). Both collapse to Filter(FALSE).
+                // (no candidate match key remains). LEFT_SEMI: never short-circuits on a NULL alone,
+                // but routes the all-NULL case through {@link #buildShortCircuitPlan} so the mark
+                // becomes a constant NULL.
                 if (semiJoin.shortCircuitOnAnyRightNull() || nonNullPositions.length == 0) {
                     releaseSourcePage(pageHolder);
-                    return new Filter(source, semiJoin.left(), Literal.FALSE);
+                    return semiJoin.buildShortCircuitPlan(source, nonNullPositions.length == 0);
                 }
-                // SEMI: dedup only the non-null subset. filter(false, ...) returns a new owned Block.
+                // SEMI / LEFT_SEMI: dedup only the non-null subset. filter(false, ...) returns a new owned Block.
                 filteredKeyBlock = keyBlock.filter(false, nonNullPositions);
                 dedupInput = filteredKeyBlock;
             }
@@ -311,14 +388,14 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
             if (dedupPositions <= hashJoinThreshold) {
                 // Filter path: copy dedup keys into Java-object Literals; dedup blocks are released
                 // by the outer finally and the source page is released eagerly here.
-                LogicalPlan plan = inlineAsFilter(semiJoin, dedupKeys[0], keyType, leftField, source);
+                LogicalPlan plan = semiJoin.buildFilterPathPlan(dedupKeys[0], keyType, leftField, source, rightHadNulls);
                 releaseSourcePage(pageHolder);
                 return plan;
             }
 
             // Hash-join path: hands ownership of dedupKeys[0] off to the new dedup page (and
             // nulls dedupKeys[0] on success), so the outer finally is a no-op for it.
-            return inlineAsHashJoin(semiJoin, dedupKeys, dedupPositions, schema, source, blockFactory, pageHolder);
+            return inlineAsHashJoin(semiJoin, dedupKeys, dedupPositions, schema, source, blockFactory, pageHolder, rightHadNulls);
         } finally {
             if (dedupKeys != null) {
                 Releasables.closeExpectNoException(dedupKeys);
@@ -369,22 +446,13 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         }
     }
 
-    private static LogicalPlan inlineAsFilter(SemiJoin semiJoin, Block block, DataType dataType, Attribute leftField, Source source) {
-        int positionCount = block.getPositionCount();
-        List<Expression> literals = new ArrayList<>(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            literals.add(new Literal(source, toJavaObject(block, i), dataType));
-        }
-        Expression condition = semiJoin.wrapInExpression(source, new In(source, leftField, literals));
-        return new Filter(source, semiJoin.left(), condition);
-    }
-
     /**
      * Wraps the already-deduplicated key block from {@code dedupKeys[0]} into a {@link LocalRelation}
-     * with a sentinel TRUE column, builds a LEFT {@link Join} on the original join keys, and filters
-     * on the sentinel ({@code IS NOT NULL} for SEMI, {@code IS NULL} for ANTI). On success
-     * {@code dedupKeys[0]} is set to {@code null} so the caller's cleanup doesn't double-release the
-     * key block now owned by the new page. See {@link #inlineData} for SQL NULL semantics.
+     * with a sentinel TRUE column, builds a LEFT {@link Join} on the original join keys, and delegates
+     * to {@link #buildHashJoinPathPlan} for the join-type-specific terminal shape (sentinel filter +
+     * Project for SEMI / ANTI; CASE-Eval for LEFT_SEMI). On success {@code dedupKeys[0]} is set to
+     * {@code null} so the caller's cleanup doesn't double-release the key block now owned by the new
+     * page. See {@link #inlineData} for SQL NULL semantics.
      */
     private static LogicalPlan inlineAsHashJoin(
         SemiJoin semiJoin,
@@ -393,7 +461,8 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         List<Attribute> schema,
         Source source,
         BlockFactory blockFactory,
-        AtomicReference<Page> pageHolder
+        AtomicReference<Page> pageHolder,
+        boolean rightHadNulls
     ) {
         Block sentinel = null;
         Page dedupPage;
@@ -431,19 +500,17 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         JoinConfig leftJoinConfig = new JoinConfig(LEFT, semiJoin.config().leftFields(), semiJoin.config().rightFields(), null);
         // Drop NULL-keyed left rows before the LEFT join so the runtime BlockHash lookup can
         // never spuriously match `null = null` against a NULL group on the right side. See the
-        // SQL NULL semantics note on inlineData.
-        LogicalPlan filteredLeft = semiJoin.left();
-        for (Attribute leftField : semiJoin.config().leftFields()) {
-            filteredLeft = new Filter(source, filteredLeft, new IsNotNull(source, leftField));
+        // SQL NULL semantics note on inlineData. LEFT_SEMI suppresses this filter so that
+        // NULL-keyed rows survive into the output with their mark set to NULL by the CASE
+        // expression in {@link #buildHashJoinPathPlan}.
+        LogicalPlan leftSide = semiJoin.left();
+        if (semiJoin.filterNullLeftKeysBeforeHashJoin()) {
+            for (Attribute leftField : semiJoin.config().leftFields()) {
+                leftSide = new Filter(source, leftSide, new IsNotNull(source, leftField));
+            }
         }
-        Join leftJoin = new Join(source, filteredLeft, deduplicatedData, leftJoinConfig);
 
-        // Filter on sentinel: IS NOT NULL for SEMI (keep matches), IS NULL for ANTI (keep non-matches)
-        Filter filter = new Filter(source, leftJoin, semiJoin.sentinelFilterCondition(source, sentinelAttr));
-
-        // Project: drop the right-side columns to preserve semi-join output semantics
-        List<NamedExpression> leftOutput = new ArrayList<>(semiJoin.left().output());
-        return new Project(source, filter, leftOutput);
+        return semiJoin.buildHashJoinPathPlan(leftSide, deduplicatedData, leftJoinConfig, sentinelAttr, source, rightHadNulls);
     }
 
     private static void releaseSourcePage(AtomicReference<Page> pageHolder) {

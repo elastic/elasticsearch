@@ -10,20 +10,26 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.junit.Before;
 
@@ -48,96 +54,178 @@ public class LogicalPlanOptimizerInSubqueryTests extends AbstractLogicalPlanOpti
     }
 
     // disjunctive IN subqueries
+    //
+    // Disjunctive IN/NOT IN subqueries are rewritten to {@link LeftSemiJoin}s that emit a synthetic
+    // boolean mark attribute referenced from the rewritten WHERE condition. Because the mark
+    // semantics correctly handle SQL three-valued logic for NULLs, scenarios that the previous
+    // UNION ALL rewrite had to reject (FROM subqueries, FORK, nested disjunctive IN) are now allowed.
 
     /**
-     * Verifies that a disjunctive IN subquery inside a FROM subquery (which already creates a UnionAll)
-     * is rejected because it would produce nested UnionAll.
+     * Disjunctive IN subqueries at the top level produce a {@link LeftSemiJoin} per IN subquery
+     * with a {@link Filter} referencing the mark attributes via {@link Or}. The final {@link Project}
+     * strips the synthetic mark column so the apparent output schema is preserved.
      */
-    public void testRejectsDisjunctiveInSubqueryInsideFromSubquery() {
-        var e = expectThrows(VerificationException.class, () -> planInSubquery("""
+    public void testDisjunctiveInSubqueryAtTopLevel() {
+        LogicalPlan plan = planInSubquery("""
+            FROM test
+            | WHERE emp_no IN (FROM test | KEEP emp_no) OR salary > 50000
+            """);
+
+        Project topProject = as(plan, Project.class);
+        Limit limit = as(topProject.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        as(or.right(), GreaterThan.class);
+
+        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
+        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project subqueryProject = as(lsj.right(), Project.class);
+        EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
+        EsRelation main = as(lsj.left(), EsRelation.class);
+        assertEquals("test", main.indexPattern());
+    }
+
+    /**
+     * Disjunctive IN subqueries are now accepted inside FROM subqueries — the {@link LeftSemiJoin}
+     * rewrite does not introduce {@link org.elasticsearch.xpack.esql.plan.logical.UnionAll UnionAll}
+     * so there is no nesting concern.
+     */
+    public void testDisjunctiveInSubqueryInsideFromSubquery() {
+        LogicalPlan plan = planInSubquery("""
             FROM test,
                  (FROM test | WHERE emp_no IN (FROM test | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
-            """));
-        assertThat(e.getMessage(), containsString("Disjunctive (OR) IN subqueries are not supported inside FROM subqueries"));
+            """);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        EsRelation mainRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("test", mainRelation.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        subqueryProject = as(subquery.child(), Project.class);
+        Filter filter = as(subqueryProject.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        as(or.right(), GreaterThan.class);
+        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
+        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        subqueryProject = as(lsj.right(), Project.class);
+        EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
+        subqueryRelation = as(lsj.left(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
     }
 
     /**
-     * Verifies that a disjunctive NOT IN subquery inside a FROM subquery is rejected.
+     * Disjunctive NOT IN subqueries are now accepted inside FROM subqueries (see above).
      */
-    public void testRejectsDisjunctiveNotInSubqueryInsideFromSubquery() {
-        var e = expectThrows(VerificationException.class, () -> planInSubquery("""
+    public void testDisjunctiveNotInSubqueryInsideFromSubquery() {
+        LogicalPlan plan = planInSubquery("""
             FROM test,
                  (FROM test | WHERE emp_no NOT IN (FROM test | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
-            """));
-        assertThat(e.getMessage(), containsString("Disjunctive (OR) IN subqueries are not supported inside FROM subqueries"));
+            """);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        EsRelation mainRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("test", mainRelation.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        Eval eval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        subqueryProject = as(subquery.child(), Project.class);
+        Filter filter = as(subqueryProject.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Not not = as(or.left(), Not.class);
+        as(not.field(), Attribute.class);
+        as(or.right(), GreaterThan.class);
+        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
+        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        subqueryProject = as(lsj.right(), Project.class);
+        EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
+        subqueryRelation = as(lsj.left(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
     }
 
     /**
-     * Verifies that nested disjunctive IN subqueries (OR inside OR) are rejected.
+     * Nested disjunctive IN subqueries (OR inside OR across nesting levels) are now accepted; each
+     * level rewrites to its own {@link LeftSemiJoin}.
      */
-    public void testRejectsNestedDisjunctiveInSubqueries() {
-        var e = expectThrows(VerificationException.class, () -> planInSubquery("""
+    public void testNestedDisjunctiveInSubqueries() {
+        LogicalPlan plan = planInSubquery("""
             FROM test
             | WHERE emp_no IN (
                 FROM test
                 | WHERE salary IN (FROM test | KEEP salary) OR languages > 2
                 | KEEP emp_no
               ) OR salary > 50000
-            """));
-        assertThat(e.getMessage(), containsString("Nested disjunctive (OR) IN subqueries are not supported"));
+            """);
+        Project project = as(plan, Project.class);
+        Limit limit = as(project.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        as(or.right(), GreaterThan.class);
+        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
+        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        EsRelation subqueryRelation = as(lsj.left(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
+        Project subqueryProject = as(lsj.right(), Project.class);
+        filter = as(subqueryProject.child(), Filter.class);
+        or = as(filter.condition(), Or.class);
+        as(or.left(), Attribute.class);
+        as(or.right(), GreaterThan.class);
+        lsj = as(filter.child(), LeftSemiJoin.class);
+        subqueryRelation = as(lsj.left(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
+        subqueryProject = as(lsj.right(), Project.class);
+        subqueryRelation = as(subqueryProject.child(), EsRelation.class);
+        assertEquals("test", subqueryRelation.indexPattern());
     }
 
     /**
-     * Verifies that a disjunctive IN subquery combined with FORK is rejected.
+     * FORK is now compatible with disjunctive IN subqueries — the rewrite no longer emits UnionAll.
      */
-    public void testRejectsDisjunctiveInSubqueryWithFork() {
-        var e = expectThrows(VerificationException.class, () -> planInSubquery("""
-            FROM test
-            | WHERE emp_no IN (FROM test | KEEP emp_no) OR salary > 50000
-            | FORK (WHERE emp_no > 10000) (WHERE emp_no < 10050)
-            """));
-        assertThat(e.getMessage(), containsString("FORK after disjunctive (OR) IN subquery is not supported"));
-    }
-
-    /**
-     * Verifies that a disjunctive IN subquery at the top level (no FROM subquery nesting) works fine.
-     * This should NOT produce nested UnionAll since there's only one level.
-     */
-    public void testDisjunctiveInSubqueryAtTopLevelIsAllowed() {
-        // Disjunct reordering puts salary > 50000 (complexity 0) before emp_no IN (complexity 1)
+    public void testDisjunctiveInSubqueryWithFork() {
         LogicalPlan plan = planInSubquery("""
             FROM test
             | WHERE emp_no IN (FROM test | KEEP emp_no) OR salary > 50000
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no < 10050)
             """);
+        Project project = as(plan, Project.class);
+        Limit limit = as(project.child(), Limit.class);
+        Fork fork = as(limit.child(), Fork.class);
+        assertEquals(2, fork.children().size());
 
-        Limit limit = as(plan, Limit.class);
-        UnionAll unionAll = as(limit.child(), UnionAll.class);
-        assertEquals(2, unionAll.children().size());
-
-        // Branch 1: salary > 50000 → Project -> Filter -> EsRelation
-        Project branch1Project = as(unionAll.children().get(0), Project.class);
-        Filter branch1Filter = as(branch1Project.child(), Filter.class);
-        GreaterThan branch1Gt = as(branch1Filter.condition(), GreaterThan.class);
-        FieldAttribute branch1Salary = as(branch1Gt.left(), FieldAttribute.class);
-        assertEquals("salary", branch1Salary.name());
-        EsRelation branch1Rel = as(branch1Filter.child(), EsRelation.class);
-        assertEquals("test", branch1Rel.indexPattern());
-
-        // Branch 2: NOT(salary > 50000) AND emp_no IN (...) → Project -> SemiJoin
-        Project branch2Project = as(unionAll.children().get(1), Project.class);
-        SemiJoin branch2Semi = as(branch2Project.child(), SemiJoin.class);
-        assertThat(branch2Semi.config().type(), equalTo(JoinTypes.SEMI));
-        assertThat(branch2Semi.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch2Semi.config().rightFields().get(0).name(), equalTo("emp_no"));
-        assertThat(branch2Semi.output(), equalTo(branch2Semi.left().output()));
-        Project branch2SubqueryProject = as(branch2Semi.right(), Project.class);
-        EsRelation branch2SubqueryRel = as(branch2SubqueryProject.child(), EsRelation.class);
-        assertEquals("test", branch2SubqueryRel.indexPattern());
-        Filter branch2Filter = as(branch2Semi.left(), Filter.class);
-        Not not = as(branch2Filter.condition(), Not.class);
-        as(not.field(), GreaterThan.class);
-        EsRelation branch2Rel = as(branch2Filter.child(), EsRelation.class);
-        assertEquals("test", branch2Rel.indexPattern());
+        for (int i = 0; i < fork.children().size(); i++) {
+            Project forkProject = as(fork.children().get(i), Project.class);
+            Eval forkEval = as(forkProject.child(), Eval.class);
+            Limit forkLimit = as(forkEval.child(), Limit.class);
+            Filter forkFilter = as(forkLimit.child(), Filter.class);
+            LeftSemiJoin forkLsj = as(forkFilter.child(), LeftSemiJoin.class);
+            EsRelation relation = as(forkLsj.left(), EsRelation.class);
+            assertEquals("test", relation.indexPattern());
+            Project subqueryProject = as(forkLsj.right(), Project.class);
+            relation = as(subqueryProject.child(), EsRelation.class);
+            assertEquals("test", relation.indexPattern());
+        }
     }
 
     // -- SORT inside IN subquery tests --

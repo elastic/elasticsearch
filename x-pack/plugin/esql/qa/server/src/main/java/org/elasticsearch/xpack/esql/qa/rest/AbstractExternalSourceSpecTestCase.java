@@ -293,12 +293,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
-        if (query.contains(MULTIFILE_SUFFIX)) {
-            // HTTP does not support directory listing, so skip multi-file glob tests
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+            // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
-            // CSV format does not yet support multi-file glob patterns
-            assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
-
         }
 
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
@@ -433,18 +430,39 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /** Suffix that triggers multi-file glob resolution */
     private static final String MULTIFILE_SUFFIX = "_multifile";
+    /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
+    private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
+    /**
+     * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
+     * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
+     * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
+     * warning; under STRICT it still throws.
+     */
+    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
+    private static final String HIVE_SUFFIX = "_hive";
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
-     * @param templateName the template name (e.g., "employees" or "employees_multifile")
+     * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_SUFFIX)) {
+        if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
+            relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
+            // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
+            relativePath = "multifile_ubn/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SUFFIX)) {
+            // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
+            // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
+            // parses the directory names independently)
+            relativePath = "hive-partitioned/**/*." + format;
         } else {
             // Single-file template: employees -> standalone/employees.parquet
             String filename = templateName + "." + format;

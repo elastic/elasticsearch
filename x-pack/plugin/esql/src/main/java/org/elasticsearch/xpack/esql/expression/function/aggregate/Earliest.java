@@ -46,6 +46,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "date_nanos",
             "dense_vector",
             "double",
+            "exponential_histogram",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -75,6 +76,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 "date_nanos",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -141,12 +143,14 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.GEOHASH
                 || dt == DataType.GEOTILE
                 || dt == DataType.GEOHEX
-                || dt == DataType.DENSE_VECTOR,
+                || dt == DataType.DENSE_VECTOR
+                || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             DEFAULT,
             "boolean",
             "date",
             "dense_vector",
+            "exponential_histogram",
             "ip",
             "string",
             "numeric except counter types"

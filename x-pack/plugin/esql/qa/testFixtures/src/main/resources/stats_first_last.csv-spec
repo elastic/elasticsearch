@@ -542,7 +542,7 @@ u3bu             | 4/8/5            | 841f059ffffffff
 # ----------------------------------------------------------------------------------------------------------------------
 
 Test first aggregation on dense_vector type
-required_capability: first_agg_dense_vector
+required_capability: first_agg_extended_types_2
 
 FROM colors
 | WHERE id < 5
@@ -553,3 +553,32 @@ first_rgb:dense_vector
 [128.0, 0.0, 0.0]
 ;
 
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on exponential_histogram type (NULL sort)
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS first_hist = FIRST(responseTime, NULL)
+;
+
+first_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on exponential_histogram type with grouping (NULL sort)
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance IN ("dummy-empty", "dummy-zero_threshold_only")
+| STATS first_hist = FIRST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+first_hist:exponential_histogram                         | instance:keyword
+"{""scale"":0}"                                          | dummy-empty
+"{""scale"":0,""zero"":{""threshold"":2.0E-5}}"          | dummy-zero_threshold_only
+;

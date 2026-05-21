@@ -51,6 +51,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
             List<DataType> extra = List.of(
                 DataType.VERSION,
                 DataType.DENSE_VECTOR,
+                DataType.EXPONENTIAL_HISTOGRAM,
                 DataType.CARTESIAN_POINT,
                 DataType.CARTESIAN_SHAPE,
                 DataType.GEO_POINT,
@@ -124,6 +125,11 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                         standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", effectiveValueType),
                         standardAggregatorNameAllBytesTheSame("", sorts.type())
                     );
+                    // FirstExponentialHistogramByTimestamp predates the AllFirst* naming convention
+                    if (effectiveValueType == DataType.EXPONENTIAL_HISTOGRAM
+                        && (sorts.type() == DataType.LONG || sorts.type() == DataType.DATETIME || sorts.type() == DataType.DATE_NANOS)) {
+                        evaluatorStr = "FirstExponentialHistogramByTimestamp";
+                    }
                 }
 
                 return new TestCaseSupplier.TestCase(

@@ -11,6 +11,7 @@
 | date_nanos | date_nanos |
 | dense_vector {applies_to}`stack: ga 9.5.0` | dense_vector |
 | double | double |
+| exponential_histogram {applies_to}`stack: ga 9.5.0` | exponential_histogram |
 | geo_point {applies_to}`stack: ga 9.5.0` | geo_point |
 | geo_shape {applies_to}`stack: ga 9.5.0` | geo_shape |
 | geohash {applies_to}`stack: ga 9.5.0` | geohash |

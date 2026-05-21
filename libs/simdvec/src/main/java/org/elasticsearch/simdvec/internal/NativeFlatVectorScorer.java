@@ -22,6 +22,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.util.Arrays;
 
 import static org.apache.lucene.util.VectorUtil.normalizeDistanceToUnitInterval;
 import static org.apache.lucene.util.VectorUtil.normalizeToUnitInterval;
@@ -165,27 +166,22 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
     private abstract static class NativeFloatScorer extends AbstractNativeScorer {
         private final FloatVectorValues vectors;
         private final float[][] scratch;
+        private final MemorySegment[] segmentScratch;
 
         NativeFloatScorer(FloatVectorValues vectors) throws IOException {
             super(vectors);
             this.vectors = vectors;
 
-            // check if values actually creates a copy
-            // if it just returns the same instance,
-            // then the arrays it returns don't need to be copied to be accessed concurrently
-            this.scratch = vectors.copy() == vectors ? null : new float[BULK_SIZE][dims];
+            this.scratch = new float[BULK_SIZE][dims];
+            this.segmentScratch = new MemorySegment[BULK_SIZE];
+            Arrays.setAll(segmentScratch, i -> MemorySegment.ofArray(scratch[i]));
         }
 
         @Override
         MemorySegment vectorValueSegment(int ord, int bulkIndex) throws IOException {
-            if (scratch != null) {
-                float[] value = vectors.vectorValue(ord);
-                System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
-                return MemorySegment.ofArray(scratch[bulkIndex]);
-            } else {
-                // each array is unique - just use directly
-                return MemorySegment.ofArray(vectors.vectorValue(ord));
-            }
+            float[] value = vectors.vectorValue(ord);
+            System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
+            return segmentScratch[bulkIndex];
         }
     }
 
@@ -213,27 +209,22 @@ public final class NativeFlatVectorScorer implements FlatVectorsScorer {
     private abstract static class NativeByteScorer extends AbstractNativeScorer {
         private final ByteVectorValues vectors;
         private final byte[][] scratch;
+        private final MemorySegment[] segmentScratch;
 
         NativeByteScorer(ByteVectorValues vectors) throws IOException {
             super(vectors);
             this.vectors = vectors;
 
-            // check if values actually creates a copy
-            // if it just returns the same instance,
-            // then the arrays it returns don't need to be copied to be accessed concurrently
-            this.scratch = vectors.copy() == vectors ? null : new byte[BULK_SIZE][dims];
+            this.scratch = new byte[BULK_SIZE][dims];
+            this.segmentScratch = new MemorySegment[BULK_SIZE];
+            Arrays.setAll(segmentScratch, i -> MemorySegment.ofArray(scratch[i]));
         }
 
         @Override
         MemorySegment vectorValueSegment(int ord, int bulkIndex) throws IOException {
-            if (scratch != null) {
-                byte[] value = vectors.vectorValue(ord);
-                System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
-                return MemorySegment.ofArray(scratch[bulkIndex]);
-            } else {
-                // each array is unique - just use directly
-                return MemorySegment.ofArray(vectors.vectorValue(ord));
-            }
+            byte[] value = vectors.vectorValue(ord);
+            System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
+            return MemorySegment.ofArray(scratch[bulkIndex]);
         }
     }
 

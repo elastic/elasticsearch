@@ -596,3 +596,6 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
   method: testBlockLoaderForFieldInObjectWithCranky {params=Params[syntheticSource=false, preference=STORED, binaryDocValues=false]}
   issue: https://github.com/elastic/elasticsearch/issues/149602
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {params=Params[syntheticSource=false, preference=STORED, binaryDocValues=false]}
+  issue: https://github.com/elastic/elasticsearch/issues/149603

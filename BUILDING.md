@@ -392,6 +392,10 @@ This source build is correct but slow, and every parallel BWC test job repeats i
 When the latest [DRA](https://github.com/elastic/apm-pipeline-library/blob/main/vars/README.md#publishToBuildkiteDRA) snapshot for a BWC branch was built from the **same commit** as the local remote-tracking reference, the build can skip the source compilation entirely and download the pre-built artifact from `artifacts-snapshot.elastic.co` instead.
 Gradle downloads the archive through an Ivy repository and unpacks it with the existing `SymbolicLinkPreservingUntarTransform` / `UnzipTransform` — no custom HTTP or extraction code.
 
+The fast path covers:
+- **Distribution archives** (Linux/Darwin/Windows tar.gz, zip, deb, rpm) — downloaded from the DRA `/downloads/elasticsearch/` path.
+- **JDBC jar** (`x-pack-sql-jdbc`) and **stable API jars** (`elasticsearch-logging`, `elasticsearch-plugin-api`, `elasticsearch-plugin-analysis-api`) — downloaded from the DRA `/maven/` tree using their Maven group-path layout.
+
 The fast path is **opt-in** and does not affect local development builds by default.
 Enable it by passing `-Dtests.bwc.dra.enabled=true`.
 When disabled (the default), `DraSnapshotBuildIdValueSource` returns an empty string immediately with no network activity.
@@ -440,7 +444,7 @@ echo "DRA build ID: $BUILD_ID"
 
 # 2. Get the commit the DRA snapshot was built from
 DRA_COMMIT=$(curl -s "https://artifacts-snapshot.elastic.co/elasticsearch/$BUILD_ID/manifest-9.4.2-SNAPSHOT.json" \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['projects']['elasticsearch']['commit'])")
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['projects']['elasticsearch']['commit_hash'])")
 echo "DRA commit:   $DRA_COMMIT"
 
 # 3. Compare with the local remote-tracking ref
@@ -457,6 +461,10 @@ Once the hashes match, run a real test to confirm the full pipeline works:
 ```bash
 # Build just the distribution artifact (much faster than a full source build)
 ./gradlew :distribution:bwc:minor3:buildBwcLinuxTar -Dtests.bwc.dra.enabled=true
+
+# Build the JDBC or stable API jars from DRA (no git checkout required)
+./gradlew :distribution:bwc:minor3:buildBwcJdbc -Dtests.bwc.dra.enabled=true
+./gradlew :distribution:bwc:minor3:buildBwcLogging -Dtests.bwc.dra.enabled=true
 
 # Or run a BWC test suite part
 ./gradlew v9.4.2#bwcTestPart1 -Dtests.bwc.dra.enabled=true -Dignore.tests.seed

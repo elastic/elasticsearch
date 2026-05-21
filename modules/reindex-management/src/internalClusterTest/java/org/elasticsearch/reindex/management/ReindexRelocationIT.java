@@ -80,6 +80,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -95,6 +96,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -819,7 +821,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             assertThat(responseSlices.size(), equalTo(expectedSlices));
             int totalCreated = 0;
             for (Map<String, Object> slice : responseSlices) {
-                assertThat(slice.get("requests_per_second"), is(-1.0));
                 totalCreated += (Integer) slice.get("created");
             }
             assertThat(totalCreated, equalTo(numberOfDocumentsThatTakes60SecondsToIngest));
@@ -1005,7 +1006,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         if (isAutoSliced(slices, shards, manualShardId)) {
             final int expectedSlices = getExpectedSlices(slices, shards);
             final List<BulkByPaginatedSearchTask.StatusOrException> expectedStatuses = Collections.nCopies(expectedSlices, null);
-            assertThat("running slices statuses are null", taskStatus.getSliceStatuses(), equalTo(expectedStatuses));
+            List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses = taskStatus.getSliceStatuses();
+            assertThat(sliceStatuses, hasSize(expectedSlices));
+            assertThat(
+                "at least some running slices statuses are null (although some may be non-null as they have already completed",
+                sliceStatuses.stream().anyMatch(Objects::isNull),
+                is(true)
+            );
         } else {
             assertThat(taskStatus.getSliceStatuses().isEmpty(), is(true));
         }

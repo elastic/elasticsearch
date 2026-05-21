@@ -76,6 +76,56 @@ public class CsvRowCountMetadataLookupTests extends ESTestCase {
         assertEquals(content.getBytes(StandardCharsets.UTF_8).length, md.statistics().get().sizeInBytes().getAsLong());
     }
 
+    /**
+     * Stream-only compression wrappers (bzip2, zstd-indexed) throw {@code UnsupportedOperationException}
+     * from {@code length()}. {@code metadata()} must fall through to no-stats without propagating —
+     * any thrown exception breaks {@code ExternalSourceResolver.resolveSingleSource} and fails the
+     * whole external-source resolution for the file.
+     */
+    public void testLengthUnsupportedDegradesToNoStats() throws Exception {
+        StorageObject streamOnly = streamOnlyObject("id:integer,n:integer\n1,10\n2,20\n");
+        SourceMetadata md = new CsvFormatReader(blockFactory).metadata(streamOnly);
+        assertFalse("stream-only compression must produce no-stats, not throw", md.statistics().isPresent());
+    }
+
+    /** StorageObject that mirrors a bzip2-wrapped source: stream-only, length() throws {@code UnsupportedOperationException}. */
+    private StorageObject streamOnlyObject(String csvContent) {
+        byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
+        String uniquePath = "memory://" + UUID.randomUUID() + ".csv.bz2";
+        Instant fixedMtime = Instant.now();
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException("Range reads not supported");
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException("Decompressed length is unknown for stream-only compression");
+            }
+
+            @Override
+            public Instant lastModified() {
+                return fixedMtime;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of(uniquePath);
+            }
+        };
+    }
+
     /** Unique path + stable mtime per object — the cache only keys on (path, length), but matching real-file shape. */
     private StorageObject obj(String csvContent) {
         byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);

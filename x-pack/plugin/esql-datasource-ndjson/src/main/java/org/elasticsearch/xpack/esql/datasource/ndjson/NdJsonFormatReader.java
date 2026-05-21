@@ -277,13 +277,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         String location = object.path().toString();
         // Publish sizeInBytes + mtime even on row-count cache miss — see CsvFormatReader.metadata
-        // for the rationale.
+        // for the rationale and the stream-only-compression catch.
         long sizeInBytes;
         long mtimeMillis;
         try {
             sizeInBytes = object.length();
             mtimeMillis = object.lastModified() == null ? 0L : object.lastModified().toEpochMilli();
-        } catch (IOException e) {
+        } catch (IOException | UnsupportedOperationException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
         OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);

@@ -73,6 +73,50 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
         assertEquals(content.getBytes(StandardCharsets.UTF_8).length, md.statistics().get().sizeInBytes().getAsLong());
     }
 
+    /** Stream-only compression (bzip2, zstd-indexed) throws {@code UnsupportedOperationException} from {@code length()}; metadata() must not propagate. */
+    public void testLengthUnsupportedDegradesToNoStats() throws Exception {
+        StorageObject streamOnly = streamOnlyObject("{\"a\":1}\n{\"a\":2}\n");
+        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(streamOnly);
+        assertFalse("stream-only compression must produce no-stats, not throw", md.statistics().isPresent());
+    }
+
+    private StorageObject streamOnlyObject(String ndjson) {
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson.bz2";
+        Instant fixedMtime = Instant.now();
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException("Range reads not supported");
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException("Decompressed length is unknown for stream-only compression");
+            }
+
+            @Override
+            public Instant lastModified() {
+                return fixedMtime;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of(uniquePath);
+            }
+        };
+    }
+
     private StorageObject obj(String ndjson) {
         byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
         String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson";

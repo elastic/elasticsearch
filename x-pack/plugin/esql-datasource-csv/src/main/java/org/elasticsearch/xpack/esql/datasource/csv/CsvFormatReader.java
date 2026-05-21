@@ -449,13 +449,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String location = object.path().toString();
         // Publish sizeInBytes + mtime even on a row-count cache miss: the SchemaCacheEntry caches
         // metadata, and warm queries need both fields to reconstruct the row-count cache key
-        // without a fresh storage call.
+        // without a fresh storage call. Stream-only compression wrappers (bzip2, zstd-indexed, …)
+        // throw UnsupportedOperationException from length(); treat the same as IOException and
+        // fall through to no-stats so planning still runs.
         long sizeInBytes;
         long mtimeMillis;
         try {
             sizeInBytes = object.length();
             mtimeMillis = object.lastModified() == null ? 0L : object.lastModified().toEpochMilli();
-        } catch (IOException e) {
+        } catch (IOException | UnsupportedOperationException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
         OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);

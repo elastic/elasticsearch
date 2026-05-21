@@ -596,3 +596,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
+- class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
+  method: testBackgroundMergeCanRetainDeletedGenerationalFile
+  issue: https://github.com/elastic/elasticsearch/issues/149626

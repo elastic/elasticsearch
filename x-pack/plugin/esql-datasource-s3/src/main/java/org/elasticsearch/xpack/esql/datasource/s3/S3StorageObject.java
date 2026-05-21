@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -178,6 +179,15 @@ public final class S3StorageObject implements StorageObject {
             fetchMetadata();
         }
         return cachedExists;
+    }
+
+    @Override
+    public void abortStream(InputStream stream) throws IOException {
+        if (stream instanceof Abortable abortable) {
+            abortable.abort();
+        } else {
+            stream.close();
+        }
     }
 
     @Override

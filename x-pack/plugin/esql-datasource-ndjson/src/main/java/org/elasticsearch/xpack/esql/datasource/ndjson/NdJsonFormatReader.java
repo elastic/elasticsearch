@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.BufferedInputStream;
+import java.io.Closeable;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
@@ -160,21 +162,28 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // the Pushback wrapper lets the lone-CR path unread its peeked byte so the returned
         // stream starts on the first byte of the next record without allocating a prefix stream.
         PushbackInputStream stream = new PushbackInputStream(new BufferedInputStream(raw, SCAN_BUFFER_SIZE), 1);
-        if (skipFirstLine == false) {
-            return stream;
-        }
-        try {
-            LineScan scan = scanForTerminator(stream);
-            if (scan.peekedByte() != -1) {
-                stream.unread(scan.peekedByte());
-            }
-            return stream;
-        } catch (IOException e) {
+        if (skipFirstLine) {
             try {
-                stream.close();
-            } catch (IOException ignored) {}
-            throw e;
+                LineScan scan = scanForTerminator(stream);
+                if (scan.peekedByte() != -1) {
+                    stream.unread(scan.peekedByte());
+                }
+            } catch (IOException e) {
+                try {
+                    object.abortStream(raw);
+                } catch (IOException ignored) {}
+                throw e;
+            }
         }
+        // Override close() to abort the raw stream rather than drain it: the caller reads
+        // only a schema sample, so providers that drain on close (e.g. S3) would otherwise
+        // block for as long as it takes to consume the remaining object bytes.
+        return new FilterInputStream(stream) {
+            @Override
+            public void close() throws IOException {
+                object.abortStream(raw);
+            }
+        };
     }
 
     /**
@@ -268,11 +277,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        List<Attribute> schema;
-        try (var stream = object.newStream()) {
-            schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+        InputStream stream = object.newStream();
+        // Abort rather than close so S3-style providers don't drain the remaining body to reuse
+        // the connection (the schema sample touches only a small prefix). Wrapping the abort in
+        // a Closeable lets try-with-resources attach any abort-time error as a suppressed
+        // exception on the primary failure rather than replacing it.
+        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+            List<Attribute> schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
         }
-        return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
 
     /**

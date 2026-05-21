@@ -1258,7 +1258,7 @@ cd:long | c:long | language_code:integer
 
 sparklineOnCountDistinct
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1271,7 +1271,7 @@ s:long
 
 sparklineOnCountDistinctOnValues
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1285,7 +1285,7 @@ s:long
 
 sparklineOnSum
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 SET unmapped_fields="nullify"\;
 FROM employees

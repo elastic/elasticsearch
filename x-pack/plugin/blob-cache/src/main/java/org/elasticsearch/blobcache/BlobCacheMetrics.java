@@ -37,7 +37,7 @@ public class BlobCacheMetrics {
     public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
     public static final String BLOB_CACHE_BYPASS_READ_TOTAL = "es.blob_cache.bypass_read.total";
     public static final String BLOB_CACHE_PREFETCH_TOTAL = "es.blob_cache.prefetch.total";
-    public static final String PREFETCH_RESULT_ATTRIBUTE_KEY = "result";
+    public static final String PREFETCH_RESULT_ATTRIBUTE_KEY = "es_prefetch_result";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;

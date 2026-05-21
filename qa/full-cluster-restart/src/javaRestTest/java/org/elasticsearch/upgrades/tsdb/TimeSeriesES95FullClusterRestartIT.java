@@ -519,7 +519,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     private static void requireES95Codec() {
-        assumeTrue("ES95 codec settings are available in 9.5+", oldClusterHasFeature("gte_v9.5.0"));
+        assumeTrue("ES95 codec is not available on the OLD cluster", oldClusterHasFeature("index.time_series_es95_codec"));
     }
 
     @SuppressWarnings("unchecked")

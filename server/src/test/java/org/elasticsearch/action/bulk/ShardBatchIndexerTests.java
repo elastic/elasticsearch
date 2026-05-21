@@ -584,4 +584,9 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             closeShards(shard, replica);
         }
     }
+
+    public void testCancelledPerformBatchIndexOnPrimary() {
+        // TO DO.
+    }
+
 }

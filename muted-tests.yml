@@ -384,9 +384,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecovery
   issue: https://github.com/elastic/elasticsearch/issues/148275
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedBeforeIndexingShardRelocation_AfterHandoff
-  issue: https://github.com/elastic/elasticsearch/issues/149177
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310

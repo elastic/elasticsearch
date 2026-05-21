@@ -246,6 +246,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         var indexNodeB = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
+        // Force the indexing-recovery warming on indexNodeB to block until warming completes, so the recovery thread
+        // cannot race a concurrent fill against the warming task and trip the test's post-warming object-store ban.
+        getSharedBlobCacheWarmingService(indexNodeB).setAwaitWarmingForIndexingRecovery(true);
+
         // wait for INDEXING_EARLY and INDEXING to be completed before blocking access to the latest BCC.
         final var waitForWarmingsCompleted = new CountDownLatch(1);
         final long generationToBlock = findIndexShard(indexName).commitStats().getGeneration();
@@ -1386,6 +1390,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
         private volatile boolean awaitWarmingForSearchRecovery = false;
+        private volatile boolean awaitWarmingForIndexingRecovery = false;
 
         ObservableSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
@@ -1399,6 +1404,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         void setAwaitWarmingForSearchRecovery(boolean await) {
             this.awaitWarmingForSearchRecovery = await;
+        }
+
+        void setAwaitWarmingForIndexingRecovery(boolean await) {
+            this.awaitWarmingForIndexingRecovery = await;
         }
 
         @Override
@@ -1436,6 +1445,41 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     directory,
                     endOffsetsToWarm,
                     resumeRecoveryListener
+                );
+            }
+        }
+
+        @Override
+        public void warmCacheForShardRecoveryOrUnhollowing(
+            Type type,
+            IndexShard indexShard,
+            StatelessCompoundCommit commit,
+            BlobStoreCacheDirectory directory,
+            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            boolean preWarmForIdLookup,
+            ActionListener<Void> listener
+        ) {
+            if (awaitWarmingForIndexingRecovery) {
+                final var latch = new CountDownLatch(1);
+                super.warmCacheForShardRecoveryOrUnhollowing(
+                    type,
+                    indexShard,
+                    commit,
+                    directory,
+                    endOffsetsToWarm,
+                    preWarmForIdLookup,
+                    ActionListener.runBefore(listener, latch::countDown)
+                );
+                safeAwait(latch);
+            } else {
+                super.warmCacheForShardRecoveryOrUnhollowing(
+                    type,
+                    indexShard,
+                    commit,
+                    directory,
+                    endOffsetsToWarm,
+                    preWarmForIdLookup,
+                    listener
                 );
             }
         }

@@ -428,6 +428,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertTrue(MlIndexAndAlias.isAnomaliesStateIndex(".reindexed-v7-ml-state-000001"));
         assertTrue(MlIndexAndAlias.isAnomaliesStateIndex(".reindexed-v8-ml-state-000042"));
         assertFalse(MlIndexAndAlias.isAnomaliesStateIndex(".reindexed-v8-ml-state"));
+        assertFalse(MlIndexAndAlias.isAnomaliesStateIndex("xml-state-000001"));
         assertFalse(MlIndexAndAlias.isAnomaliesStateIndex(".ml-anomalies-shared-000001"));
     }
 

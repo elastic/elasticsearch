@@ -81,15 +81,15 @@ public final class MlIndexAndAlias {
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
     private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
     private static final Predicate<String> IS_ANOMALIES_SHARED_INDEX = Pattern.compile(
-        AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
+        Pattern.quote(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX) + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + "-\\d{6}"
     ).asMatchPredicate();
     private static final Predicate<String> IS_ANOMALIES_STATE_INDEX = Pattern.compile(
         "(?:"
-            + AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX
+            + Pattern.quote(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
             + "|"
-            + AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX
+            + Pattern.quote(AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX)
             + "|"
-            + AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX
+            + Pattern.quote(AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX)
             + ")-\\d{6}"
     ).asMatchPredicate();
     public static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";

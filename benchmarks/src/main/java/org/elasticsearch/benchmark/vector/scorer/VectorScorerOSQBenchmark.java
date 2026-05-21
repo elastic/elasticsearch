@@ -151,7 +151,7 @@ public class VectorScorerOSQBenchmark {
         int sparseOffsetsCount
     ) {}
 
-    private static ES940OSQVectorsScorer.BitEncoding resolvebitEncoding(byte bits, ES940OSQVectorsScorer.BitEncoding bitEncoding) {
+    private static ES940OSQVectorsScorer.BitEncoding resolvedBitEncoding(byte bits, ES940OSQVectorsScorer.BitEncoding bitEncoding) {
         return bits == 4 ? bitEncoding : ES940OSQVectorsScorer.BitEncoding.STRIPED;
     }
 
@@ -177,7 +177,7 @@ public class VectorScorerOSQBenchmark {
         ES940OSQVectorsScorer.BitEncoding bitEncoding,
         VectorSimilarityFunction similarityFunction
     ) {
-        ES940OSQVectorsScorer.BitEncoding resolvedEncoding = resolvebitEncoding(bits, bitEncoding);
+        ES940OSQVectorsScorer.BitEncoding resolvedEncoding = resolvedBitEncoding(bits, bitEncoding);
         int binaryIndexLength = docPackedLength(dims, bits, resolvedEncoding);
 
         final float[] centroid = new float[dims];
@@ -316,7 +316,7 @@ public class VectorScorerOSQBenchmark {
             }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
-        ES940OSQVectorsScorer.BitEncoding resolvedEncoding = resolvebitEncoding(bits, bitEncoding);
+        ES940OSQVectorsScorer.BitEncoding resolvedEncoding = resolvedBitEncoding(bits, bitEncoding);
         this.scorer = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false)
                 .getVectorScorerFactory()

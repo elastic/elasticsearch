@@ -127,6 +127,13 @@ public class SnappyDecompressionCodec implements DecompressionCodec {
         }
 
         @Override
+        public int read(byte[] b) throws IOException {
+            // FilterInputStream.read(byte[]) delegates straight to in.read(b, 0, b.length), bypassing
+            // our overridden read(byte[], int, int). Route it through this.read so the catch applies.
+            return read(b, 0, b.length);
+        }
+
+        @Override
         public int read(byte[] b, int off, int len) throws IOException {
             try {
                 return in.read(b, off, len);

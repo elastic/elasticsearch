@@ -222,7 +222,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder());
-        // always set by AbstractAsyncBulkByScrollAction#prepareSearchRequest
+        // always set by AbstractAsyncBulkByPaginatedSearchAction#prepareSearchRequest
         searchRequest.source().excludeVectors(false);
         String query = "{\"match_all\":{}}";
         HttpEntity entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();

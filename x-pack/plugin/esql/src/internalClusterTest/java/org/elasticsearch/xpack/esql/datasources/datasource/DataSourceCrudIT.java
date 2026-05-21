@@ -139,7 +139,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("secret value must be stored as encrypted byte[] blob", secret.rawValue(), instanceOf(byte[].class));
         byte[] blob = (byte[]) secret.rawValue();
 
-        // E2E round-trip through DataSourceCredentials.decryptInPlace — the seam the connector boundary uses.
+        // E2E round-trip through DataSourceCredentials.decryptInPlace — the connector-boundary decryption step.
         // Proves: PUT encrypts → cluster state holds byte[] blob → projection wraps it as EncryptedSecret
         // → consumer decrypts back to the canary. The EncryptedSecret wrap is exactly what
         // DatasetRewriter.mergeSettings produces for an encrypted secret.

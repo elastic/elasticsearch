@@ -27,8 +27,8 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
     private final DataSourceService dataSourceService;
 
     // Optional Guice injection. When unset (security plugin absent or PEK feature flag off),
-    // putDataSource stores secrets as plaintext and logs a once-per-master-lifetime WARN; the
-    // data-node decryption step still refuses to serve an encrypted blob without a key.
+    // putDataSource stores secrets as plaintext and logs a WARN naming the data source on every
+    // such PUT; the data-node decryption step still refuses to serve an encrypted blob without a key.
     private volatile EncryptionService encryptionService;
 
     @Inject(optional = true)

@@ -66,6 +66,12 @@ public class DataSourceEncryptionTests extends ESTestCase {
         assertEquals(1, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
         assertTrue("secret flag preserved", result.secret());
+        assertEquals(
+            "encryption format is the discriminator readers branch on",
+            DataSourceSetting.EncryptionFormat.V1,
+            result.encryption()
+        );
+        assertTrue("isEncryptedBlob agrees with the format enum", result.isEncryptedBlob());
         assertThat("plaintext String replaced by encrypted byte[] blob", result.rawValue(), instanceOf(byte[].class));
         byte[] blob = (byte[]) result.rawValue();
         EncryptedData ed = decodeBlob(blob);
@@ -96,9 +102,10 @@ public class DataSourceEncryptionTests extends ESTestCase {
         assertNull(result.rawValue());
     }
 
-    public void testAlreadyEncryptedCarrierPassesThrough() {
-        // Defensive: if upstream ever hands us a pre-encrypted carrier (e.g. replay paths), don't
-        // double-encrypt. Forward unchanged.
+    public void testAlreadyEncryptedV1CarrierPassesThrough() {
+        // Defensive: if upstream ever hands us a setting that is already marked V1 (e.g. replay paths
+        // where the cluster state already contains the encrypted carrier), don't double-encrypt.
+        // Forward unchanged with the V1 marker intact.
         AtomicInteger encryptCalls = new AtomicInteger();
         EncryptionService svc = new EncryptionService() {
             @Override
@@ -114,12 +121,17 @@ public class DataSourceEncryptionTests extends ESTestCase {
         };
 
         byte[] preEncryptedBlob = encodeBlob(new EncryptedData("upstream-key", "AKIA_old".getBytes(StandardCharsets.UTF_8)));
-        Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(preEncryptedBlob, true));
+        Map<String, DataSourceSetting> in = Map.of(
+            "secret_access_key",
+            new DataSourceSetting(preEncryptedBlob, true, DataSourceSetting.EncryptionFormat.V1)
+        );
 
         DataSourceSettings out = new DataSourceEncryption(svc).apply("ds-test", new DataSourceSettings(in));
 
-        assertEquals("encrypt() not invoked when value is already a blob", 0, encryptCalls.get());
-        assertSame(preEncryptedBlob, out.get("secret_access_key").rawValue());
+        assertEquals("encrypt() not invoked when the setting is already marked V1", 0, encryptCalls.get());
+        DataSourceSetting result = out.get("secret_access_key");
+        assertEquals("V1 marker preserved by pass-through", DataSourceSetting.EncryptionFormat.V1, result.encryption());
+        assertSame("ciphertext blob forwarded by reference", preEncryptedBlob, result.rawValue());
     }
 
     public void testMixedSettingsEncryptOnlyTheSecrets() {
@@ -142,9 +154,30 @@ public class DataSourceEncryptionTests extends ESTestCase {
         assertEquals("us-east-1", out.get("region").rawValue());
         assertEquals("https://example.test", out.get("endpoint").rawValue());
         assertEquals(7, out.get("max_retries").rawValue());
+        assertEquals(
+            "non-secret region keeps EncryptionFormat.NONE",
+            DataSourceSetting.EncryptionFormat.NONE,
+            out.get("region").encryption()
+        );
+        assertEquals(
+            "non-secret endpoint keeps EncryptionFormat.NONE",
+            DataSourceSetting.EncryptionFormat.NONE,
+            out.get("endpoint").encryption()
+        );
+        assertEquals(
+            "non-secret max_retries keeps EncryptionFormat.NONE",
+            DataSourceSetting.EncryptionFormat.NONE,
+            out.get("max_retries").encryption()
+        );
 
         assertThat(out.get("access_key").rawValue(), instanceOf(byte[].class));
         assertThat(out.get("secret_access_key").rawValue(), instanceOf(byte[].class));
+        assertEquals("encrypted access_key is marked V1", DataSourceSetting.EncryptionFormat.V1, out.get("access_key").encryption());
+        assertEquals(
+            "encrypted secret_access_key is marked V1",
+            DataSourceSetting.EncryptionFormat.V1,
+            out.get("secret_access_key").encryption()
+        );
         assertEquals(ak, new String(decodeBlob((byte[]) out.get("access_key").rawValue()).payload(), StandardCharsets.UTF_8));
         assertEquals(sk, new String(decodeBlob((byte[]) out.get("secret_access_key").rawValue()).payload(), StandardCharsets.UTF_8));
     }

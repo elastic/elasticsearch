@@ -90,6 +90,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
 
         Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
 
+        assertNotSame("decryptInPlace must return a fresh map, never alias its input", input, out);
         assertThat(out.get("region"), equalTo("us-east-1"));
         assertThat(out.get("secret_access_key"), instanceOf(String.class));
         assertThat(out.get("secret_access_key"), equalTo(canary));

@@ -100,6 +100,7 @@ public final class Dataset implements Writeable, ToXContentObject, IndexAbstract
         this.dataSource = new DataSourceReference(in);
         this.resource = in.readString();
         this.description = in.readOptionalString();
+        // readMap returns a mutable HashMap when non-empty; wrap to preserve the class invariant that settings is unmodifiable
         this.settings = Collections.unmodifiableMap(in.readMap(StreamInput::readGenericValue));
     }
 

@@ -77,4 +77,27 @@ public class DataSourceWithoutEncryptionIT extends ESIntegTestCase {
         assertThat("secret value stored as plaintext String when no service is bound", secret.rawValue(), instanceOf(String.class));
         assertEquals("plaintext value preserved verbatim", "AKIA_plaintext", secret.rawValue());
     }
+
+    public void testPutWithoutSecretDoesNotLogWarn() throws Exception {
+        // Mirror of the secret-PUT case: a PUT with no secret-classified settings must NOT log the
+        // plaintext-storage WARN. The operator signal exists only when real credentials hit the disk.
+        final String dsName = "no_encryption_no_secret";
+        MockLog.assertThatLogger(
+            () -> assertAcked(
+                safeGet(
+                    client().execute(
+                        PutDataSourceAction.INSTANCE,
+                        DataSourceCrudIT.putDataSourceRequest(dsName, Map.of("region", "us-east-1"))
+                    )
+                )
+            ),
+            DataSourceEncryption.class,
+            new MockLog.UnseenEventExpectation(
+                "no plaintext-storage WARN when the PUT carries no secret",
+                DataSourceEncryption.class.getCanonicalName(),
+                Level.WARN,
+                "*credentials for data source*are stored as plaintext*"
+            )
+        );
+    }
 }

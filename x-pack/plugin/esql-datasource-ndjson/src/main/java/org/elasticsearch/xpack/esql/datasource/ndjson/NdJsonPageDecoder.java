@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -110,6 +111,11 @@ public class NdJsonPageDecoder implements Closeable {
      */
     @Nullable
     private Block[] lenientScratchRowBlocks;
+
+    /**
+     * Reused for every keyword field; see {@link #toScratchBytesRef(String)}.
+     */
+    private final BytesRef keywordScratch = new BytesRef(BytesRef.EMPTY_BYTES);
 
     NdJsonPageDecoder(
         InputStream input,
@@ -518,6 +524,23 @@ public class NdJsonPageDecoder implements Closeable {
         return false;
     }
 
+    /**
+     * Encode {@code value} as UTF-8 into {@link #keywordScratch}, growing the backing array on demand,
+     * and return the scratch view. Callers must pass the returned {@link BytesRef} straight to a sink
+     * that copies the bytes synchronously (e.g. {@link BytesRefBlock.Builder#appendBytesRef}, which
+     * delegates to {@link org.elasticsearch.common.util.BytesRefArray#append(BytesRef)} and copies
+     * before returning); the next call to this method overwrites the scratch.
+     */
+    private BytesRef toScratchBytesRef(String value) {
+        int maxLen = UnicodeUtil.maxUTF8Length(value.length());
+        if (keywordScratch.bytes.length < maxLen) {
+            keywordScratch.bytes = new byte[maxLen];
+        }
+        keywordScratch.offset = 0;
+        keywordScratch.length = UnicodeUtil.UTF16toUTF8(value, 0, value.length(), keywordScratch.bytes);
+        return keywordScratch;
+    }
+
     @Override
     public void close() throws IOException {
         // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
@@ -743,7 +766,7 @@ public class NdJsonPageDecoder implements Closeable {
                     // Be lenient, this is a catch-all type
                     var str = parser.getValueAsString();
                     if (str != null) {
-                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(new BytesRef(str));
+                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(str));
                     } else {
                         unexpectedValue(blockBuilder, parser, inArray);
                     }

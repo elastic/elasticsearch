@@ -100,11 +100,7 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
             assertThat(1L, Matchers.equalTo(measurement.getLong()));
             assertThat(1L, Matchers.equalTo(measurement.value()));
             assertThat(measurement.attributes(), Matchers.hasEntry(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests"));
-            assertThat(measurement.attributes(), Matchers.hasKey(CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE));
-            assertThat(
-                (String) measurement.attributes().get(CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE),
-                Matchers.not(Matchers.emptyOrNullString())
-            );
+            assertThat(measurement.attributes(), Matchers.not(Matchers.hasKey(CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)));
             assertThat(true, Matchers.equalTo(measurement.isLong()));
             return;
         }

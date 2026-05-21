@@ -87,18 +87,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     /**
-     * Method used to trip the breaker, delegates to the parent to determine whether to trip the breaker or not. The {@code category}
-     * metric attribute is set to {@code fieldName} verbatim; call sites are responsible for keeping that label low-cardinality if they
-     * want the metric to be aggregatable.
+     * Method used to trip the breaker, delegates to the parent to determine whether to trip the breaker or not.
      */
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        this.trippedCountMeter.incrementBy(
-            1L,
-            Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, fieldName)
-        );
+        this.trippedCountMeter.incrementBy(1L, Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name));
         final String message = "["
             + this.name
             + "] Data too large, data for ["

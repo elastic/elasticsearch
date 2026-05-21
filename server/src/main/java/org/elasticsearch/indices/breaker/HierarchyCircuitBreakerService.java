@@ -441,12 +441,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             this.parentTripCount.incrementAndGet();
             this.parentTripCountTotalMetric.incrementBy(
                 1L,
-                Map.of(
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
-                    CircuitBreaker.PARENT,
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    label
-                )
+                Map.of(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
             );
             final String messageString = buildParentTripMessage(
                 newBytesReserved,

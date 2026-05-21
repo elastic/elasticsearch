@@ -13,8 +13,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
@@ -40,6 +43,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -290,6 +294,38 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
 
     public void testCustomDatasetAndNamespace() {
         executeRequest(createWriteRequest("test_metric", 42.0, System.currentTimeMillis(), "myapp", "production"));
+    }
+
+    public void testDataStreamDatasetLabelCharactersAreSanitized() {
+        long now = System.currentTimeMillis();
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("metric_bad_ds_label").build())
+                    .addLabels(RemoteWrite.Label.newBuilder().setName("data_stream_dataset").setValue("bad:name").build())
+                    .addSamples(RemoteWrite.Sample.newBuilder().setValue(1.0).setTimestamp(now).build())
+                    .build()
+            )
+            .build();
+
+        RemoteWriteRequest request = createWriteRequest(writeRequest, "generic", "default");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<BulkResponse>> bulkListenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doNothing().when(client).execute(eq(TransportBulkAction.TYPE), bulkCaptor.capture(), bulkListenerCaptor.capture());
+
+        @SuppressWarnings("unchecked")
+        ActionListener<RemoteWriteResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
+        action.doExecute(null, request, responseListener);
+
+        bulkListenerCaptor.getValue().onResponse(new BulkResponse(new BulkItemResponse[] {}, 0));
+
+        verify(responseListener).onResponse(any());
+        BulkRequest bulk = bulkCaptor.getValue();
+        assertThat(bulk.numberOfActions(), equalTo(1));
+        assertThat(((IndexRequest) bulk.requests().get(0)).index(), equalTo("metrics-bad_name.prometheus-default"));
     }
 
     private void executeRequest(RemoteWriteRequest request) {

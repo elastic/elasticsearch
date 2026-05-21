@@ -194,6 +194,9 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         var valueExpr = result.expression();
         var filter = result.pendingFilter();
 
+        // TODO: Fix selector-free PromQL evaluation to produce values even when no data
+        // See https://github.com/elastic/elasticsearch/issues/149791
+
         if (filter != null) {
             plan = applyLabelFilter(plan, filter, cmd);
         }
@@ -452,7 +455,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.stepAttr(),
             ctx.optimizerContext().configuration()
         );
-        Expression function = scalarFunction.buildEsqlFunction(promqlCtx);
+        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            scalarFunction.functionName(),
+            scalarFunction.source(),
+            null,
+            promqlCtx,
+            List.of()
+        );
 
         return new TranslationResult(currentPlan, function);
     }
@@ -813,7 +822,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // Apply source filter: {@code t >= start - max(w)} AND {@code t <= end}
         if (start.value() != null && end.value() != null) {
             var timestamp = promqlCommand.timestamp();
-            var window = promqlCommand.maxRangeSelectorWindow();
+            var window = promqlCommand.sourceFilterWindow();
             var child = promqlCommand.child();
 
             var lo = new GreaterThanOrEqual(source, timestamp, new Sub(source, start, Literal.timeDuration(source, window), configuration));
@@ -849,6 +858,14 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private static Alias createStepBucketAlias(PromqlCommand p, LogicalOptimizerContext context) {
         var cfg = context.configuration();
         var source = p.source();
+
+        if (p.isInstantQuery()) {
+            Expression stepSize = Literal.timeDuration(source, p.resolveInstantQueryWindow());
+            Expression start = new Sub(p.start().source(), p.start(), stepSize, cfg);
+            var tstep = new TStep(stepSize.source(), stepSize, start, p.end(), p.timestamp(), cfg);
+            return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
+        }
+
         Expression timeBucketSize = p.resolveTimeBucketSize();
         Expression start = p.start().value() != null ? p.start() : Literal.dateTime(source, EPOCH_MIN);
         Expression end = p.end().value() != null ? p.end() : Literal.dateTime(source, EPOCH_MAX);

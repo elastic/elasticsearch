@@ -4,9 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.function.math;
 
-import java.lang.IllegalArgumentException;
-import java.lang.Override;
-import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -23,133 +20,132 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class Atan2Evaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Atan2Evaluator.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Atan2Evaluator.class);
 
-  private final Source source;
-
-  private final ExpressionEvaluator y;
-
-  private final ExpressionEvaluator x;
-
-  private final DriverContext driverContext;
-
-  private Warnings warnings;
-
-  public Atan2Evaluator(Source source, ExpressionEvaluator y, ExpressionEvaluator x,
-      DriverContext driverContext) {
-    this.source = source;
-    this.y = y;
-    this.x = x;
-    this.driverContext = driverContext;
-  }
-
-  @Override
-  public Block eval(Page page) {
-    try (DoubleBlock yBlock = (DoubleBlock) y.eval(page)) {
-      try (DoubleBlock xBlock = (DoubleBlock) x.eval(page)) {
-        DoubleVector yVector = yBlock.asVector();
-        if (yVector == null) {
-          return eval(page.getPositionCount(), yBlock, xBlock);
-        }
-        DoubleVector xVector = xBlock.asVector();
-        if (xVector == null) {
-          return eval(page.getPositionCount(), yBlock, xBlock);
-        }
-        return eval(page.getPositionCount(), yVector, xVector).asBlock();
-      }
-    }
-  }
-
-  @Override
-  public long baseRamBytesUsed() {
-    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += y.baseRamBytesUsed();
-    baseRamBytesUsed += x.baseRamBytesUsed();
-    return baseRamBytesUsed;
-  }
-
-  public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        switch (yBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
-          case 1:
-              break;
-          default:
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-              result.appendNull();
-              continue position;
-        }
-        switch (xBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
-          case 1:
-              break;
-          default:
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-              result.appendNull();
-              continue position;
-        }
-        double y = yBlock.getDouble(yBlock.getFirstValueIndex(p));
-        double x = xBlock.getDouble(xBlock.getFirstValueIndex(p));
-        result.appendDouble(Atan2.process(y, x));
-      }
-      return result.build();
-    }
-  }
-
-  public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double y = yVector.getDouble(p);
-        double x = xVector.getDouble(p);
-        result.appendDouble(p, Atan2.process(y, x));
-      }
-      return result.build();
-    }
-  }
-
-  @Override
-  public String toString() {
-    return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
-  }
-
-  @Override
-  public void close() {
-    Releasables.closeExpectNoException(y, x);
-  }
-
-  private Warnings warnings() {
-    if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
-    }
-    return warnings;
-  }
-
-  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory y;
+    private final ExpressionEvaluator y;
 
-    private final ExpressionEvaluator.Factory x;
+    private final ExpressionEvaluator x;
 
-    public Factory(Source source, ExpressionEvaluator.Factory y, ExpressionEvaluator.Factory x) {
-      this.source = source;
-      this.y = y;
-      this.x = x;
+    private final DriverContext driverContext;
+
+    private Warnings warnings;
+
+    public Atan2Evaluator(Source source, ExpressionEvaluator y, ExpressionEvaluator x, DriverContext driverContext) {
+        this.source = source;
+        this.y = y;
+        this.x = x;
+        this.driverContext = driverContext;
     }
 
     @Override
-    public Atan2Evaluator get(DriverContext context) {
-      return new Atan2Evaluator(source, y.get(context), x.get(context), context);
+    public Block eval(Page page) {
+        try (DoubleBlock yBlock = (DoubleBlock) y.eval(page)) {
+            try (DoubleBlock xBlock = (DoubleBlock) x.eval(page)) {
+                DoubleVector yVector = yBlock.asVector();
+                if (yVector == null) {
+                    return eval(page.getPositionCount(), yBlock, xBlock);
+                }
+                DoubleVector xVector = xBlock.asVector();
+                if (xVector == null) {
+                    return eval(page.getPositionCount(), yBlock, xBlock);
+                }
+                return eval(page.getPositionCount(), yVector, xVector).asBlock();
+            }
+        }
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        baseRamBytesUsed += y.baseRamBytesUsed();
+        baseRamBytesUsed += x.baseRamBytesUsed();
+        return baseRamBytesUsed;
+    }
+
+    public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
+        try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+            position: for (int p = 0; p < positionCount; p++) {
+                switch (yBlock.getValueCount(p)) {
+                    case 0:
+                        result.appendNull();
+                        continue position;
+                    case 1:
+                        break;
+                    default:
+                        warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                        result.appendNull();
+                        continue position;
+                }
+                switch (xBlock.getValueCount(p)) {
+                    case 0:
+                        result.appendNull();
+                        continue position;
+                    case 1:
+                        break;
+                    default:
+                        warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                        result.appendNull();
+                        continue position;
+                }
+                double y = yBlock.getDouble(yBlock.getFirstValueIndex(p));
+                double x = xBlock.getDouble(xBlock.getFirstValueIndex(p));
+                result.appendDouble(Atan2.process(y, x));
+            }
+            return result.build();
+        }
+    }
+
+    public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
+        try (DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+            position: for (int p = 0; p < positionCount; p++) {
+                double y = yVector.getDouble(p);
+                double x = xVector.getDouble(p);
+                result.appendDouble(p, Atan2.process(y, x));
+            }
+            return result.build();
+        }
     }
 
     @Override
     public String toString() {
-      return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
+        return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
     }
-  }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(y, x);
+    }
+
+    private Warnings warnings() {
+        if (warnings == null) {
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+        }
+        return warnings;
+    }
+
+    static class Factory implements ExpressionEvaluator.Factory {
+        private final Source source;
+
+        private final ExpressionEvaluator.Factory y;
+
+        private final ExpressionEvaluator.Factory x;
+
+        public Factory(Source source, ExpressionEvaluator.Factory y, ExpressionEvaluator.Factory x) {
+            this.source = source;
+            this.y = y;
+            this.x = x;
+        }
+
+        @Override
+        public Atan2Evaluator get(DriverContext context) {
+            return new Atan2Evaluator(source, y.get(context), x.get(context), context);
+        }
+
+        @Override
+        public String toString() {
+            return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
+        }
+    }
 }

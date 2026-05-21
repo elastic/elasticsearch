@@ -220,10 +220,12 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
     }
 
     /**
-     * Range comparisons cannot push to the keyed sub-field (the underlying
+     * Single-sided range comparisons cannot push to the keyed sub-field (the underlying
      * {@code KeyedFlattenedFieldType.rangeQuery} requires both bounds), so the plan keeps a
      * {@code FilterOperator} on the data node and the per-row evaluator handles the comparison.
      * The Lucene query degenerates to match-all because no part of the predicate is pushable.
+     * The closed range form (combined {@code >=} and {@code <=}) <em>is</em> pushed; see
+     * {@link #testBetweenPushed}.
      */
     public void testGreaterThanNotPushed() throws IOException {
         assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
@@ -236,6 +238,61 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
             | WHERE field_extract(%s, "%s") > "m"
             | KEEP id
             """, FLATTENED_ROOT, SUBKEY), equalTo("*:*"), ComputeSignature.FILTER_IN_COMPUTE, 1);
+    }
+
+    /**
+     * A closed range over {@code field_extract(root, "key")} (the conjunction of one {@code >=}
+     * and one {@code <=}, equivalent to {@code BETWEEN}) must push to a {@code RangeQuery}
+     * against the keyed sub-field {@code <root>._keyed} and drop the {@code FilterOperator} on
+     * the data node. The Lucene profile should show a single per-key range query with both
+     * bounds prefixed by the key's {@code <key>\0} separator.
+     */
+    public void testBetweenPushed() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        // Three documents with fixed, strictly-ordered host.name values so the [b, y] range
+        // catches exactly the middle doc. Using random strings here would risk collisions
+        // with the bounds and make the expected hit count non-deterministic.
+        indexDocs(List.of("aaa", "mmm", "zzz"));
+
+        runAndAssert(
+            String.format(Locale.ROOT, """
+                FROM test
+                | WHERE field_extract(%s, "%s") >= "b" AND field_extract(%s, "%s") <= "y"
+                | KEEP id
+                """, FLATTENED_ROOT, SUBKEY, FLATTENED_ROOT, SUBKEY),
+            equalTo(expectedRangeQuery("b", true, "y", true)),
+            ComputeSignature.FILTER_IN_QUERY,
+            1
+        );
+    }
+
+    /**
+     * Expected printed form of a closed {@code field_extract} range pushed to the keyed
+     * sub-field. Mirrors {@link #expectedEqualityQuery}'s mode split: STANDARD rewrites the
+     * SVQ wrapper away (SortedSetDocValues lets the per-row singleton check trivialize at
+     * rewrite time), TIME_SERIES and LOGSDB keep the wrapper because BinaryDocValues can't
+     * prove singleton-ness up front. Lucene's {@code TermRangeQuery.toString} renders as
+     * {@code field:[lower TO upper]} for inclusive bounds (and {@code {…}} for exclusive),
+     * with each bound being the raw UTF-8 of the keyed term ({@code <key>\0<value>}).
+     */
+    private String expectedRangeQuery(String lower, boolean includeLower, String upper, boolean includeUpper) {
+        String openBracket = includeLower ? "[" : "{";
+        String closeBracket = includeUpper ? "]" : "}";
+        String inner = KEYED_INTERNAL_FIELD
+            + ":"
+            + openBracket
+            + SUBKEY
+            + KEYED_TERM_SEPARATOR
+            + lower
+            + " TO "
+            + SUBKEY
+            + KEYED_TERM_SEPARATOR
+            + upper
+            + closeBracket;
+        return switch (mode) {
+            case STANDARD -> inner;
+            case TIME_SERIES, LOGSDB -> "#" + inner + " #single_value_match(" + KEYED_INTERNAL_FIELD + ")";
+        };
     }
 
     /**

@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -169,7 +171,8 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         assumeQueryPushdownEnabled();
         // KeyedFlattenedFieldType.rangeQuery requires both bounds. A single-sided range like
         // field_extract(...) > "x" cannot be safely translated, so translatable must say NO and
-        // the per-row evaluator handles it.
+        // the per-row evaluator handles it. The closed range form (BETWEEN) is handled by the
+        // Range expression node; see testRange* below.
         GreaterThan gt = new GreaterThan(
             Source.EMPTY,
             new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
@@ -177,6 +180,145 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         );
 
         assertThat(gt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+    }
+
+    /**
+     * A closed range on {@code field_extract(root, "key")} with both bounds foldable must be
+     * pushed. The underlying mapper's {@code rangeQuery} requires both bounds; this is the
+     * shape we can safely push.
+     */
+    public void testRangeTranslatableYesForClosedRangeOnFieldExtract() {
+        assumeQueryPushdownEnabled();
+        Range range = new Range(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a"),
+            true,
+            Literal.keyword(Source.EMPTY, "node-z"),
+            true,
+            null
+        );
+
+        assertThat(range.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+    }
+
+    /**
+     * If either bound of the range is not foldable, the range cannot be pushed regardless of
+     * what's on the LHS. This guards the same precondition the existing translatable check
+     * applies to {@link FieldAttribute} LHS.
+     */
+    public void testRangeTranslatableNoForFieldExtractWithNonFoldableBound() {
+        assumeQueryPushdownEnabled();
+        // A column reference cannot be folded at plan time so the bound is unknown, which
+        // disqualifies the range from pushdown even though the LHS would otherwise be eligible.
+        Expression nonFoldableUpper = new ReferenceAttribute(Source.EMPTY, "ref_upper", DataType.KEYWORD);
+        Range range = new Range(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a"),
+            true,
+            nonFoldableUpper,
+            true,
+            null
+        );
+
+        assertThat(range.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+    }
+
+    /**
+     * The same {@code FieldExtract}-aware paths must not regress the pre-existing behavior of
+     * range pushdown over a regular indexed-and-doc-valued {@link FieldAttribute} LHS.
+     */
+    public void testRangeTranslatableYesPreservedForFieldAttributeLhs() {
+        // Indexed keyword FieldAttribute: this is the pre-existing pushable LHS.
+        // LucenePushdownPredicates.DEFAULT.isPushableAttribute will accept it because
+        // isAggregatable=true and the keyword data type has an exact match.
+        FieldAttribute keyword = new FieldAttribute(
+            Source.EMPTY,
+            "host.name",
+            new EsField("host.name", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Range range = new Range(
+            Source.EMPTY,
+            keyword,
+            Literal.keyword(Source.EMPTY, "node-a"),
+            true,
+            Literal.keyword(Source.EMPTY, "node-z"),
+            true,
+            null
+        );
+
+        assertThat(range.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+    }
+
+    /**
+     * The translated query must be a {@code RangeQuery} on the synthetic {@code root.key} field
+     * name wrapped in {@code SingleValueQuery}, mirroring how {@code Equals}/{@code NotEquals}/
+     * {@code In} on the same LHS wrap their term queries.
+     */
+    public void testRangeAsQueryProducesSingleValueWrappedRangeQueryAgainstKeyedSubfield() {
+        assumeQueryPushdownEnabled();
+        String keyedName = "resource.attributes.host.name";
+        Range range = new Range(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a"),
+            true,
+            Literal.keyword(Source.EMPTY, "node-z"),
+            true,
+            null
+        );
+
+        Query query = range.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        // SingleValueQuery wrapping is mandatory for the same reason it is on Equals/NotEquals/In: a
+        // multi-valued sub-key would otherwise let any of its values satisfy the range,
+        // which contradicts ES|QL's "multi-value compares to null" rule.
+        assertThat(
+            query,
+            equalTo(
+                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, "node-a", true, "node-z", true, null, null), keyedName, false)
+            )
+        );
+    }
+
+    /**
+     * Inclusive vs exclusive boundary flags on the {@code Range} must survive translation
+     * unchanged. Each combination of {@code includeLower} and {@code includeUpper} should map
+     * one-to-one onto the produced {@code RangeQuery}.
+     */
+    public void testRangeAsQueryPreservesInclusiveExclusiveBounds() {
+        assumeQueryPushdownEnabled();
+        String keyedName = "resource.attributes.host.name";
+        // Walk all four (includeLower, includeUpper) combinations so the assertion catches any
+        // accidental flipping of a flag in the translator.
+        for (boolean includeLower : new boolean[] { true, false }) {
+            for (boolean includeUpper : new boolean[] { true, false }) {
+                Range range = new Range(
+                    Source.EMPTY,
+                    new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+                    Literal.keyword(Source.EMPTY, "node-a"),
+                    includeLower,
+                    Literal.keyword(Source.EMPTY, "node-z"),
+                    includeUpper,
+                    null
+                );
+
+                Query query = range.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+                assertThat(
+                    "for (includeLower=" + includeLower + ", includeUpper=" + includeUpper + ")",
+                    query,
+                    equalTo(
+                        new SingleValueQuery(
+                            new RangeQuery(Source.EMPTY, keyedName, "node-a", includeLower, "node-z", includeUpper, null, null),
+                            keyedName,
+                            false
+                        )
+                    )
+                );
+            }
+        }
     }
 
     public void testInTranslatableYesForFieldExtractOnFlattened() {

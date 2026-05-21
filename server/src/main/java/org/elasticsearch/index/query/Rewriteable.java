@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -117,6 +118,7 @@ public interface Rewriteable<T> {
         ActionListener<T> rewriteResponse,
         int iteration
     ) {
+        Transports.assertNotTransportThread("rewrites are expensive");
         T builder = original;
         try {
             for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder; rewrittenBuilder = builder.rewrite(context)) {

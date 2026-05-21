@@ -555,16 +555,13 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/149350
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testDynamicStringMappingWithoutAutoTextSubfield
-  issue: https://github.com/elastic/elasticsearch/issues/149374
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
   methods:
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zst/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zstd/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zst/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zstd/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149481
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.* [LOCAL]}
@@ -572,3 +569,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
   method: test {csv-spec:external-hive-partitioned.* [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149495
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:flattened.statsByFlattenedAllRows}
+  issue: https://github.com/elastic/elasticsearch/issues/149549

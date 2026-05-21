@@ -1623,7 +1623,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
                         // A plain INT32 with no logical-type annotation is historically "signed"
-                        yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead, logicalType == null || logicalType.isSigned());
+                        yield readInt32WidenedToLongColumn(
+                            cr,
+                            info.maxDefLevel(),
+                            rowsToRead,
+                            logicalType == null || logicalType.isSigned()
+                        );
                     }
                     yield readLongColumn(cr, info.maxDefLevel(), rowsToRead);
                 }

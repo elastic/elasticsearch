@@ -261,7 +261,8 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var primaryAuthHeader =
             "45XtAwAXdHJhbnNmb3JtX2FkbWluX25vX2RhdGEBD3RyYW5zZm9ybV9hZG1pbgoAAAABAA5qYXZhUmVzdFRlc3QtMA5kZWZhdWx0X25hdGl2ZQZuYXRpdmUAAAAA";
         var secondaryAuthHeader =
-            "45XtAwARdHJhbnNmb3JtX2FkbWluXzICD3RyYW5zZm9ybV9hZG1pbhJ0ZXN0X2RhdGFfYWNjZXNzXzIKAAAAAQAOamF2YVJlc3RUZXN0LTAOZGVmYXVsdF9uYXRpdmUGbmF0aXZlAAAAAA==";
+            "45XtAwARdHJhbnNmb3JtX2FkbWluXzICD3RyYW5zZm9ybV9hZG1pbhJ0ZXN0X2RhdGFfYWNjZXNzXzIKAAAAAQAOamF2YVJlc3RUZXN0LTAOZGVmYXVsdF9uYXRpd"
+                + "mUGbmF0aXZlAAAAAA==";
         threadContext.setHeaders(
             Tuple.tuple(
                 Map.of(

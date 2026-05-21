@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
@@ -143,19 +144,15 @@ public class TransformCloudCredentialManager {
         // Detect rekey vs first-mint: load the prior id (if any) before granting. The prior
         // credential itself is revoked later by the deferred-swap path; we only need its id for the
         // audit row here, so we close immediately and let the swap path do the actual revoke.
-        configManager.getTransformCloudCredential(transformId, true, ActionListener.wrap(prior -> {
-            String priorId = prior == null ? null : prior.id();
-            if (prior != null) {
-                prior.close();
-            }
-            // mintAndPersistAfterPriorLoad now owns callerCredential and closes it on both grant paths.
-            mintAndPersistAfterPriorLoad(transformId, callerCredential, priorId, listener);
-        }, priorLoadFailure -> {
-            // Prior-load failed before we handed callerCredential to the grant call - close it here
-            // so the SecureString isn't leaked.
-            callerCredential.close();
-            listener.onFailure(priorLoadFailure);
-        }));
+        configManager.getTransformCloudCredential(
+            transformId,
+            true,
+            ActionListener.releaseAfter(listener.delegateFailureAndWrap((l, prior) -> {
+                String priorId = prior == null ? null : prior.id();
+                Releasables.close(prior);
+                mintAndPersistAfterPriorLoad(transformId, callerCredential, priorId, l);
+            }), callerCredential)
+        );
     }
 
     private void mintAndPersistAfterPriorLoad(
@@ -166,27 +163,27 @@ public class TransformCloudCredentialManager {
     ) {
         logger.debug("[{}] minting internal cloud API key from caller credential", transformId);
 
-        apiKeyService.grantCloudAuthentication(callerCredential, "transform:" + transformId, ActionListener.wrap(grantResult -> {
-            callerCredential.close();
-            var persisted = grantResult.persistedCredential();
-            logger.debug("[{}] granted cloud API key [{}], persisting", transformId, persisted.id());
+        apiKeyService.grantCloudAuthentication(
+            callerCredential,
+            "transform:" + transformId,
+            listener.delegateFailureAndWrap((l, grantResult) -> {
+                var persisted = grantResult.persistedCredential();
+                logger.debug("[{}] granted cloud API key [{}], persisting", transformId, persisted.id());
 
-            configManager.putTransformCloudCredential(transformId, persisted, ActionListener.wrap(success -> {
-                if (priorId != null) {
-                    auditor.info(transformId, "rotated cloud credential, new [" + persisted.id() + "], previous [" + priorId + "]");
-                } else {
-                    auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
-                }
-                persisted.close();
-                listener.onResponse(null);
-            }, persistFailure -> {
-                persisted.close();
-                listener.onFailure(persistFailure);
-            }));
-        }, grantFailure -> {
-            callerCredential.close();
-            listener.onFailure(grantFailure);
-        }));
+                configManager.putTransformCloudCredential(
+                    transformId,
+                    persisted,
+                    ActionListener.releaseAfter(l.delegateFailureAndWrap((ll, success) -> {
+                        if (priorId != null) {
+                            auditor.info(transformId, "rotated cloud credential, new [" + persisted.id() + "], previous [" + priorId + "]");
+                        } else {
+                            auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
+                        }
+                        ll.onResponse(null);
+                    }), persisted)
+                );
+            })
+        );
     }
 
     /**
@@ -208,13 +205,13 @@ public class TransformCloudCredentialManager {
             return;
         }
         String credId = credential.id();
-        apiKeyService.revokeCloudAuthentication(credential, ActionListener.runAfter(ActionListener.wrap(unused -> {
+        apiKeyService.revokeCloudAuthentication(credential, ActionListener.releaseAfter(ActionListener.wrap(unused -> {
             logger.debug("[{}] revoked cloud credential [{}]", transformId, credId);
             auditor.info(transformId, "revoked cloud credential [" + credId + "]");
         }, e -> {
             logger.warn(() -> "[" + transformId + "] failed to revoke cloud credential [" + credId + "]", e);
             auditor.warning(transformId, "failed to revoke cloud credential [" + credId + "]: " + e.getMessage());
-        }), credential::close));
+        }), credential));
     }
 
     /**

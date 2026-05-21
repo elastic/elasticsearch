@@ -744,4 +744,22 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             assertThat(e.getMessage(), containsString("subobjects params are not supported in columnar mode"));
         }
     }
+
+    public void testStrictColumnarModesRejectRuntimeDynamic() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("metrics");
+                {
+                    b.field("dynamic", "runtime");
+                    b.startObject("properties");
+                    b.startObject("time").field("type", "long").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
+        }
+    }
 }

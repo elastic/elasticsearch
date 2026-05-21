@@ -540,6 +540,9 @@ public class ObjectMapper extends Mapper {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else if (value.equalsIgnoreCase("runtime")) {
+                    if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                        throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
+                    }
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");

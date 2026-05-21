@@ -174,6 +174,6 @@ public class BulkStats implements Writeable, ToXContentFragment {
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String AVG_TIME_IN_MILLIS = "avg_time_in_millis";
         static final String AVG_SIZE_IN_BYTES = "avg_size_in_bytes";
-        static final String TOTAL_CANCELLED_OPERATIONS = "total_cancelled_operations";
+        static final String TOTAL_CANCELLED_OPERATIONS = "total_cancelled_items";
     }
 }

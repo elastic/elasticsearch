@@ -309,9 +309,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
   method: testPeriodicWarning
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/147850
 - class: org.elasticsearch.backwards.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/147853
@@ -525,9 +522,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
   method: testOneRepeatedVector
   issue: https://github.com/elastic/elasticsearch/issues/149254
-- class: org.elasticsearch.repositories.SnapshotMetricsIT
-  method: testSnapshotAPMMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/149256
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
   method: testPitRelocationDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/149271
@@ -590,3 +584,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
   method: testStatsWithMultiBucket
   issue: https://github.com/elastic/elasticsearch/issues/149595
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {params=Params[syntheticSource=false, preference=STORED, binaryDocValues=true]}
+  issue: https://github.com/elastic/elasticsearch/issues/149601
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObjectWithCranky {params=Params[syntheticSource=false, preference=STORED, binaryDocValues=false]}
+  issue: https://github.com/elastic/elasticsearch/issues/149602
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {params=Params[syntheticSource=false, preference=STORED, binaryDocValues=false]}
+  issue: https://github.com/elastic/elasticsearch/issues/149603
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObjectWithCranky {params=Params[syntheticSource=false, preference=STORED, binaryDocValues=true]}
+  issue: https://github.com/elastic/elasticsearch/issues/149604

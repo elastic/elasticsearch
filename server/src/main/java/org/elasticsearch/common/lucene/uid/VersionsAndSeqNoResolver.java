@@ -183,7 +183,7 @@ public final class VersionsAndSeqNoResolver {
 
             @Override
             protected int comparePivot(int j) {
-                return Integer.compare(order[pivot], order[j]);
+                return uids[order[pivot]].compareTo(uids[order[j]]);
             }
 
             @Override

@@ -112,13 +112,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    private static Bits sliceBits(Bits bits, SliceAcceptDocs slice) {
-        if (slice == null) {
-            return bits;
-        }
-        return new SliceBits(bits, slice);
-    }
-
     private static DocIdSetIterator sliceIterator(DocIdSetIterator iterator, SliceAcceptDocs slice) {
         if (slice == null) {
             return iterator;
@@ -154,29 +147,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             count++;
         }
         return count;
-    }
-
-    private static final class SliceBits implements Bits {
-        private final Bits bits;
-        private final int startDoc;
-        private final int endDoc;
-
-        private SliceBits(Bits bits, SliceAcceptDocs slice) {
-            this.bits = bits;
-            int maxDoc = bits.length() - 1;
-            this.startDoc = Math.max(0, slice.startDoc());
-            this.endDoc = Math.min(maxDoc, slice.endDoc());
-        }
-
-        @Override
-        public boolean get(int index) {
-            return index >= startDoc && index <= endDoc && bits.get(index);
-        }
-
-        @Override
-        public int length() {
-            return bits.length();
-        }
     }
 
     /** An AcceptDocs that accepts all documents. */
@@ -217,7 +187,6 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final BitSet bitSetRef;
         private final int maxDoc;
         private final int approximateCost;
-        private Bits slicedBits;
         private int sliceCost = -1;
 
         public BitsAcceptDocs(Bits bits, int maxDoc) {
@@ -243,14 +212,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public Bits bits() throws IOException {
-            SliceAcceptDocs slice = sliceAcceptDocsOrNull();
-            if (slice == null) {
-                return bits;
-            }
-            if (slicedBits == null) {
-                slicedBits = sliceBits(bits, slice);
-            }
-            return slicedBits;
+            // no need to wrap it for an slice
+            return bits;
         }
 
         @Override

@@ -40,7 +40,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 
 /**
  * End-to-end correctness check for the {@code EXTERNAL ... | STATS} pipeline against a
@@ -142,13 +141,28 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
                 var profile = response.profile();
                 assertNotNull("profile must be present (request had profile=true)", profile);
                 List<String> driverDescriptions = profile.drivers().stream().map(d -> d.description()).toList();
+                // Empirically the fixture produces one driver per external split plus a single
+                // coordinator driver, with no node-level reduction kicking in for the
+                // external path on this query shape. Assert the kinds exactly (and that no
+                // unexpected driver kind sneaks in) rather than the count: the split count is
+                // a property of the Parquet writer / external splitter, not the bug under test.
+                long dataCount = driverDescriptions.stream().filter("data"::equals).count();
+                long finalCount = driverDescriptions.stream().filter("final"::equals).count();
                 assertThat(
-                    "distributed external path must surface both the data-node and coordinator drivers, got " + driverDescriptions,
-                    driverDescriptions.size(),
-                    greaterThanOrEqualTo(2)
+                    "coordinator must contribute exactly one 'final' driver, got " + driverDescriptions,
+                    finalCount,
+                    equalTo(1L)
                 );
-                assertThat("coordinator 'final' driver missing from profile: " + driverDescriptions, driverDescriptions, hasItem("final"));
-                assertThat("data-node 'data' driver missing from profile: " + driverDescriptions, driverDescriptions, hasItem("data"));
+                assertThat(
+                    "at least one data-node 'data' driver must be present (this is what was lost pre-fix), got " + driverDescriptions,
+                    dataCount,
+                    greaterThanOrEqualTo(1L)
+                );
+                assertThat(
+                    "unexpected driver kinds in profile " + driverDescriptions + " (expected only 'data' and 'final')",
+                    (long) driverDescriptions.size(),
+                    equalTo(dataCount + finalCount)
+                );
             }
         } finally {
             Files.deleteIfExists(parquetFile);

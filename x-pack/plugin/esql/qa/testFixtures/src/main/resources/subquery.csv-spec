@@ -1403,7 +1403,7 @@ subqueryInFromWithRowSubqueryWithFilterInRowSubquery
 required_capability: subquery_in_from_command
 required_capability: subquery_with_row
 
-// Filter inside the ROW subquery is satisfied by the literal so the leg
+// Filter inside the ROW subquery is satisfied by the literal so the branch
 // survives — output identical to `subqueryInFromWithRowSubquery`.
 FROM
     employees,
@@ -1427,7 +1427,7 @@ required_capability: subquery_in_from_command
 required_capability: subquery_with_row
 
 // Filter inside the ROW subquery is unsatisfiable (`languages > 200` against
-// the literal `99`) so the ROW leg is pruned and only the employees leg
+// the literal `99`) so the ROW branch is pruned and only the employees branch
 // contributes rows.
 FROM
     employees,
@@ -1450,7 +1450,7 @@ required_capability: subquery_in_from_command
 required_capability: subquery_with_row
 
 // EVAL inside the ROW subquery folds a constant expression, then the row is
-// merged into the union with the main FROM employees leg.
+// merged into the union with the main FROM employees branch.
 FROM
     employees,
     (ROW emp_no = 99999 | EVAL languages = 5 + 10)
@@ -1497,7 +1497,7 @@ required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 // Two ROW subqueries declaring the same column with conflicting types — the
 // `emp_no` column collapses to UNSUPPORTED, mirroring the existing
-// `subqueryInFromUnionConflictingTypes` test for FROM legs.
+// `subqueryInFromUnionConflictingTypes` test for FROM branches.
 FROM
     (ROW emp_no = 1),
     (ROW emp_no = "abc")

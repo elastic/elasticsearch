@@ -1165,7 +1165,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34,
      *             languages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
      *   |_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
-     *              lan guages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *              languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
      *   | \_Filter[emp_no{f}#8 > 10[INTEGER]]
      *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      *   \_Project[[_meta_field{r}#19, emp_no{r}#4, first_name{r}#20, gender{r}#21, hire_date{r}#22, job{r}#23, job.raw{r}#24,

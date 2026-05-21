@@ -735,10 +735,10 @@ public class NdJsonPageDecoder implements Closeable {
             blockTracker.set(blockIdx);
             if (token == JsonToken.VALUE_NULL) {
                 // Nulls in arrays aren't supported. Furthermore, appendNull will implicitly call endPositionEntry()
-                if (inArray) {
-                    return;
+                if (inArray == false) {
+                    blockBuilder.appendNull();
                 }
-                blockBuilder.appendNull();
+                return;
             }
 
             switch (dataType) {

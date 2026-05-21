@@ -217,6 +217,65 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         }
     }
 
+    def "downloads JDBC jar from DRA snapshot when hash matches"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def shortHash = "abc12345"
+        def buildId = "${bwcVersion}-${shortHash}"
+        def manifestPath = "/elasticsearch/${buildId}/manifest-${bwcVersion}-SNAPSHOT.json"
+        def jdbcArtifactPath = "/elasticsearch/${buildId}/downloads/elasticsearch/" +
+            "x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar"
+
+        def wireMock = new WireMockServer(0)
+        wireMock.start()
+        try {
+            wireMock.stubFor(head(urlEqualTo(manifestPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(manifestPath))
+                .willReturn(aResponse().withStatus(200).withBody("{}")))
+            wireMock.stubFor(head(urlEqualTo(jdbcArtifactPath)).willReturn(aResponse().withStatus(200)))
+            wireMock.stubFor(get(urlEqualTo(jdbcArtifactPath))
+                .willReturn(aResponse().withStatus(200).withBody("fake-jdbc-content".bytes)))
+
+            buildFile << """
+                allprojects { p ->
+                    p.repositories.all { repo ->
+                        if (repo.name.startsWith("dra-bwc-elasticsearch-")) {
+                            repo.setUrl('${wireMock.baseUrl()}')
+                            allowInsecureProtocol = true
+                        }
+                    }
+                }
+            """
+
+            when:
+            def result = gradleRunner(
+                ":distribution:bwc:major1:buildBwcJdbc",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin",
+                "-Dtests.bwc.dra.enabled=true",
+                "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
+                "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+            ).build()
+
+            then: "DRA Copy task succeeds"
+            result.task(":distribution:bwc:major1:buildBwcJdbc").outcome == TaskOutcome.SUCCESS
+
+            and: "no nested Gradle build was triggered"
+            result.output.contains("> Task :x-pack:plugin:sql:jdbc:assemble") == false
+
+            and: "the DRA log message names the snapshot build ID"
+            result.output.contains("DRA snapshot ${buildId}")
+
+            and: "the JDBC jar was created at the expected path"
+            file("cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
+                "x-pack/plugin/sql/jdbc/build/distributions/" +
+                "x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar").exists()
+        } finally {
+            wireMock.stop()
+        }
+    }
+
     def "falls back to local gradle build when DRA is disabled"() {
         when:
         def result = gradleRunner(":distribution:bwc:major1:buildBwcDarwinTar",

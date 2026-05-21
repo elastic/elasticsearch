@@ -233,7 +233,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 draBuildId,
                 distributionProject.gradleClassifier,
                 distributionProject.extension,
-                draBaseUrl
+                draBaseUrl,
+                "",
+                ""
             );
 
             registerBwcDistributionArtifacts(project, distributionProject);
@@ -260,7 +262,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             draBuildId,
             "",
             "jar",
-            draBaseUrl
+            draBaseUrl,
+            "org.elasticsearch.plugin",
+            "x-pack-sql-jdbc"
         );
 
         // for versions before 8.7.0, we do not need to set up stable API bwc
@@ -298,7 +302,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 draBuildId,
                 "",
                 "jar",
-                draBaseUrl
+                draBaseUrl,
+                "",
+                ""
             );
         }
     }
@@ -443,7 +449,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<String> draBuildId,
         String gradleClassifier,
         String extension,
-        Provider<String> draBaseUrl
+        Provider<String> draBaseUrl,
+        String mavenGroup,
+        String mavenModule
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
         boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
@@ -456,7 +464,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         // Evaluate the DRA build ID at configuration time. When tests.bwc.dra.enabled is not set
         // (the default), the ValueSource returns "" immediately with no network activity.
         String buildId = draBuildId.get();
-        boolean useDra = buildId.isEmpty() == false && isDistributionArchive;
+        boolean useDra = buildId.isEmpty() == false && (isDistributionArchive || mavenModule.isEmpty() == false);
 
         if (useDra) {
             createDraBwcTask(
@@ -472,7 +480,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 useNativeExpanded,
                 expectedOutputFile,
                 buildParams,
-                bwcTaskProvider
+                bwcTaskProvider,
+                mavenGroup,
+                mavenModule
             );
         } else {
             // Evaluate tests.bwc.dra.enabled at configuration time so the boolean is captured
@@ -545,8 +555,13 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         boolean useNativeExpanded,
         File expectedOutputFile,
         BuildParameterExtension buildParams,
-        TaskProvider<Task> bwcTaskProvider
+        TaskProvider<Task> bwcTaskProvider,
+        String mavenGroup,
+        String mavenModule
     ) {
+        String effectiveMavenGroup = mavenGroup.isEmpty() ? "org.elasticsearch" : mavenGroup;
+        String effectiveMavenModule = mavenModule.isEmpty() ? "elasticsearch" : mavenModule;
+
         // Configure the DRA Ivy repository for this specific BWC version and build.
         String repoName = "dra-bwc-elasticsearch-" + bwcVersion.get() + "-" + projectName;
         if (project.getRepositories().findByName(repoName) == null) {
@@ -561,7 +576,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     }
                 });
                 repo.metadataSources(s -> s.artifact());
-                repo.content(c -> c.includeVersionByRegex("org.elasticsearch", "elasticsearch", ".*-SNAPSHOT"));
+                repo.content(c -> c.includeVersionByRegex(effectiveMavenGroup, effectiveMavenModule, ".*-SNAPSHOT"));
             });
         }
 
@@ -580,8 +595,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         String versionString = bwcVersion.get() + "-SNAPSHOT";
         String dependencyNotation = gradleClassifier.isEmpty()
-            ? "org.elasticsearch:elasticsearch:" + versionString + "@" + extension
-            : "org.elasticsearch:elasticsearch:" + versionString + ":" + gradleClassifier + "@" + extension;
+            ? effectiveMavenGroup + ":" + effectiveMavenModule + ":" + versionString + "@" + extension
+            : effectiveMavenGroup + ":" + effectiveMavenModule + ":" + versionString + ":" + gradleClassifier + "@" + extension;
         project.getDependencies().add(draConfigName, dependencyNotation);
 
         // Copy task that places the resolved (and optionally unpacked) artifact at the expected path.

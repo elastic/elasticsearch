@@ -212,7 +212,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public Bits bits() throws IOException {
-            // no need to wrap it for an slice
+            // no special handling for slices
             return bits;
         }
 

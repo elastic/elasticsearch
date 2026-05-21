@@ -135,6 +135,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         builder(esqlQuery).stages(stages).searchStats(searchStats).nestedPath(nestedPath).run();
     }
 
+    protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, TransportVersion transportVersion) {
+        builder(esqlQuery).stages(stages).transportVersion(transportVersion).run();
+    }
+
     protected void runGoldenTest(
         String esqlQuery,
         EnumSet<Stage> stages,

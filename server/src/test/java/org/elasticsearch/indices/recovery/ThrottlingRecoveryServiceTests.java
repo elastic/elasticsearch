@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -355,7 +356,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final AtomicInteger peakRunning = new AtomicInteger();
         final AtomicInteger totalTasksEnqueued = new AtomicInteger();
         final AtomicInteger totalTasksFinished = new AtomicInteger();
-        final DynamicTaskLatch taskLatch = new DynamicTaskLatch();
+        final CountDownLatch allFinished = new CountDownLatch(1);
+        final RefCounted taskLatch = AbstractRefCounted.of(allFinished::countDown);
         final int maxNumberOfTasks = 1000;
 
         final RecoveryListener noopUserListener = new RecoveryListener() {
@@ -442,7 +444,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         // taskLatch starts with 1 ref, decremented here
         taskLatch.decRef();
-        taskLatch.safeAwaitClose();
+        safeAwait(allFinished);
         assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
         assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimitCeiling.get()));
         assertThat(running.get(), equalTo(0));
@@ -453,15 +455,15 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         AtomicInteger running,
         AtomicInteger peakRunning,
         AtomicInteger totalTasksFinished,
-        DynamicTaskLatch latch,
+        RefCounted refCounted,
         boolean async,
         ThreadPool threadPool
     ) {
         if (async) {
             threadPool.generic()
-                .execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, latch));
+                .execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted));
         } else {
-            doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, latch);
+            doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted);
         }
     }
 
@@ -470,7 +472,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         AtomicInteger running,
         AtomicInteger peakRunning,
         AtomicInteger totalTasksFinished,
-        DynamicTaskLatch latch
+        RefCounted refCounted
     ) {
         int current = running.incrementAndGet();
         peakRunning.accumulateAndGet(current, Integer::max);
@@ -483,20 +485,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             running.decrementAndGet();
             totalTasksFinished.incrementAndGet();
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            latch.decRef();
-        }
-    }
-
-    private static final class DynamicTaskLatch extends AbstractRefCounted {
-        private final CountDownLatch latch = new CountDownLatch(1);
-
-        @Override
-        protected void closeInternal() {
-            latch.countDown();
-        }
-
-        private void safeAwaitClose() {
-            safeAwait(latch);
+            refCounted.decRef();
         }
     }
 

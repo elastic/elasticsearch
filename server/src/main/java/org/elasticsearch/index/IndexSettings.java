@@ -980,7 +980,7 @@ public final class IndexSettings {
             return Boolean.FALSE.toString();
         }
         IndexMode indexMode = IndexSettings.MODE.get(settings);
-        return Boolean.toString(indexMode.isColumnar());
+        return Boolean.toString(indexMode.isStrictColumnar());
     }, Property.IndexScope, Property.Final);
 
     /**

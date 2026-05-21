@@ -213,7 +213,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     /** Raising the limit should start queued work without waiting for running recoveries to finish. */
-    public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() throws Exception {
+    public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
         final ClusterSettings clusterSettings = newClusterSettings(2);
         final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
         final CountDownLatch firstBatchStarted = new CountDownLatch(2);
@@ -240,7 +240,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * Lowering the limit must not cancel running recoveries, but recoveries should not be started from the pending queue
      * until enough running work finishes that a slot is free under the new limit.
      */
-    public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() throws Exception {
+    public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
         final ClusterSettings clusterSettings = newClusterSettings(3);
         final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
         final CountDownLatch runningEntered = new CountDownLatch(3);
@@ -251,13 +251,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             final int index = i;
-            service.enqueue(noopUserListener, schedulingListener -> {
-                executor.execute(() -> {
-                    runningEntered.countDown();
-                    safeAwait(unblockEachFirstBatch.get(index));
-                    schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                });
-            });
+            service.enqueue(noopUserListener, schedulingListener -> executor.execute(() -> {
+                runningEntered.countDown();
+                safeAwait(unblockEachFirstBatch.get(index));
+                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }));
         }
 
         safeAwait(runningEntered);
@@ -333,7 +331,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         safeAwait(allDone);
         assertThat(completionOrder.size(), equalTo(total));
         for (int i = 0; i < total; i++) {
-            assertThat(completionOrder.get(i), equalTo(Integer.valueOf(i)));
+            assertThat(completionOrder.get(i), equalTo(i));
         }
     }
 

@@ -85,7 +85,6 @@ public final class ThrottlingRecoveryService {
 
     /**
      * Caller must hold {@code this} lock
-     * @param recoveryTask
      */
     private void dispatch(RecoveryTask recoveryTask) {
         running++;

@@ -238,28 +238,35 @@ public final class InferenceQueryUtils {
         var inferenceResultsMap = inferenceInfoRequest.inferenceResultsMap();
         int indexCount = resolvedIndices.getConcreteLocalIndicesMetadata().size();
 
+        final LocalInferenceFieldsInfo localInferenceFieldsInfo;
         if (Boolean.FALSE.equals(queryRewriteContext.getHasAnyLocalInferenceFields())) {
-            localInferenceInfoListener.onResponse(
-                new InferenceInfo(
-                    0,
-                    indexCount,
-                    inferenceResultsMap != null ? inferenceResultsMap : Map.of(),
-                    queryRewriteContext.getMinTransportVersion()
-                )
+            if (inferenceIdOverride == null) {
+                // No inference ID override is set, so no inference will be performed. We can return early.
+                localInferenceInfoListener.onResponse(
+                    new InferenceInfo(
+                        0,
+                        indexCount,
+                        inferenceResultsMap != null ? inferenceResultsMap : Map.of(),
+                        queryRewriteContext.getMinTransportVersion()
+                    )
+                );
+                return;
+            } else {
+                // An inference ID override is set, and we must allow inference to be performed on the query using it
+                localInferenceFieldsInfo = new LocalInferenceFieldsInfo(Map.of(), 0, indexCount);
+            }
+        } else {
+            localInferenceFieldsInfo = getLocalInferenceFields(
+                queryRewriteContext,
+                resolvedIndices,
+                inferenceInfoRequest.fields(),
+                inferenceInfoRequest.resolveWildcards(),
+                inferenceInfoRequest.useDefaultFields()
             );
-            return;
         }
 
-        LocalInferenceFieldsInfo localInferenceFieldsInfo = getLocalInferenceFields(
-            queryRewriteContext,
-            resolvedIndices,
-            inferenceInfoRequest.fields(),
-            inferenceInfoRequest.resolveWildcards(),
-            inferenceInfoRequest.useDefaultFields()
-        );
         assert indexCount == localInferenceFieldsInfo.indexCount();
         int inferenceFieldCount = localInferenceFieldsInfo.inferenceFieldCount();
-
         if ((inferenceFieldCount == 0 && inferenceIdOverride == null) || query == null) {
             // Skip local inference result generation if:
             // - No inference fields were queried and no inference ID override was specified

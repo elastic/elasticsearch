@@ -1095,19 +1095,17 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         );
         final CircuitBreaker request = service.getBreaker(CircuitBreaker.REQUEST);
 
-        expectThrows(CircuitBreakingException.class, () -> request.addEstimateBytesAndMaybeBreak(150L, "wildcard-compiled:my_field"));
+        expectThrows(CircuitBreakingException.class, () -> request.addEstimateBytesAndMaybeBreak(150L, "wildcard"));
         assertCircuitBreakerLimitWarning();
 
-        final long heldForWildcardCompiled = meter.getRecorder()
+        final long heldForWildcard = meter.getRecorder()
             .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
             .stream()
             .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE)))
-            .filter(
-                m -> "wildcard-compiled:my_field".equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE))
-            )
+            .filter(m -> "wildcard".equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)))
             .mapToLong(Measurement::getLong)
             .sum();
-        assertEquals(0L, heldForWildcardCompiled);
+        assertEquals(0L, heldForWildcard);
 
         final long heldUncategorized = meter.getRecorder()
             .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)

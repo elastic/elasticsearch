@@ -35,6 +35,7 @@ import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
@@ -135,8 +136,9 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        int totalDocs = randomIntBetween(20, 100);
-        int batchSize = randomIntBetween(1, 10);
+        // Exceed the default cap so the resumed task's first batch seeds the cache and follow-ups exercise substitution.
+        int totalDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(50, 200);
+        int batchSize = randomIntBetween(500, 2000);
 
         createIndex(sourceIndex);
         indexRandom(true, sourceIndex, totalDocs);
@@ -147,11 +149,12 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         ).actionGet();
         BytesReference pitId = openPitResponse.getPointInTimeId();
 
-        // Manually initiate a pit search to get a pit ID
+        // Force track_total_hits=true so the assertion below sees the accurate total when totalDocs > the default cap.
         SearchRequest firstPitSearch = new SearchRequest().source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
                 .sort(SortBuilders.pitTiebreaker())
                 .size(batchSize)
+                .trackTotalHits(true)
         );
         SearchResponse searchResponse = client().search(firstPitSearch).actionGet();
         Object[] searchAfterValues;

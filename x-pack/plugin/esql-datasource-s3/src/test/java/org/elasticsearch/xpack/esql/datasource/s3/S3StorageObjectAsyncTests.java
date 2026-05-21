@@ -171,6 +171,30 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         assertThat(error.get().getMessage(), containsString("position must be non-negative"));
     }
 
+    public void testReadBytesAsyncLengthExceedsIntMaxFails() throws Exception {
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(0, (long) Integer.MAX_VALUE + 1, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(ByteBuffer buffer) {
+                fail("expected failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                error.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(error.get().getMessage(), containsString("must fit in an int"));
+    }
+
     public void testBothClientsClosedOnProviderClose() throws IOException {
         S3Client syncClient = mock(S3Client.class);
         S3AsyncClient asyncClient = mock(S3AsyncClient.class);

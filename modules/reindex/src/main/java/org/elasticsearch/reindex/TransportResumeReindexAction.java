@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -16,18 +17,23 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportResumeReindexAction extends AbstractResumeBulkByScrollAction<ReindexRequest> {
+
+    private final ReindexMetrics reindexMetrics;
 
     @Inject
     public TransportResumeReindexAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        NodeClient nodeClient
+        NodeClient nodeClient,
+        ReindexMetrics reindexMetrics
     ) {
         super(
             ResumeReindexAction.NAME,
@@ -39,5 +45,12 @@ public class TransportResumeReindexAction extends AbstractResumeBulkByScrollActi
             ReindexAction.INSTANCE,
             nodeClient
         );
+        this.reindexMetrics = reindexMetrics;
+    }
+
+    @Override
+    protected void doExecute(Task task, ResumeBulkByScrollRequest request, ActionListener<ResumeBulkByScrollResponse> listener) {
+        reindexMetrics.recordRelocationStarted();
+        super.doExecute(task, request, listener);
     }
 }

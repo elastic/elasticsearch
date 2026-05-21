@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -47,8 +48,29 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
         final var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
         final var referenceDocs = randomFrom(ReferenceDocs.values());
         assertEquals(expectedBody, ChunkedLoggingStreamTestUtils.getLoggedBody(logger, level, prefix, referenceDocs, () -> {
-            try (var stream = new ChunkedLoggingStream(logger, level, prefix, referenceDocs)) {
-                writeRandomly(stream, bytes);
+            try (var mockLog = MockLog.capture(ChunkedLoggingStreamTests.class)) {
+                if (size > ChunkedLoggingStream.CHUNK_SIZE) {
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "part 001",
+                            ChunkedLoggingStreamTests.class.getCanonicalName(),
+                            level,
+                            prefix + " [part 001]"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "part 002",
+                            ChunkedLoggingStreamTests.class.getCanonicalName(),
+                            level,
+                            prefix + " [part 002]"
+                        )
+                    );
+                }
+                try (var stream = new ChunkedLoggingStream(logger, level, prefix, referenceDocs)) {
+                    writeRandomly(stream, bytes);
+                }
+                mockLog.assertAllExpectationsMatched();
             }
         }));
     }

@@ -11,9 +11,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Logical plan node for external data source relations (e.g., Iceberg table, Parquet file).
@@ -44,7 +48,7 @@ import java.util.Objects;
  * The source-specific metadata is stored in the {@link SourceMetadata} interface, which
  * provides:
  * <ul>
- *   <li>Schema attributes via {@link SourceMetadata#schema()}</li>
+ *   <li>ExternalSchema attributes via {@link SourceMetadata#schema()}</li>
  *   <li>Source type via {@link SourceMetadata#sourceType()}</li>
  *   <li>Configuration via {@link SourceMetadata#config()}</li>
  *   <li>Opaque source metadata via {@link SourceMetadata#sourceMetadata()}</li>
@@ -190,7 +194,28 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        );
+        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema()));
+    }
+
+    /**
+     * Returns the pre-enrichment Unified schema — the data-only view that {@link SchemaReconciliation}
+     * built the per-file {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s against. The
+     * post-enrichment {@code metadata.schema()} includes partition attributes appended by
+     * {@code ExternalSourceResolver#enrichSchemaWithPartitionColumns} and {@code _file.*}
+     * virtual columns appended by {@code enrichSchemaWithFileMetadataColumns}; both are wider
+     * than the per-file mapping. Seeding {@code ExternalSourceExec.unifiedSchema} from the
+     * wider view causes {@code ColumnMapping.pruneToPerFileQuery} to read past
+     * {@code index.length} when the optimizer also prunes the projection.
+     */
+    private List<Attribute> dataOnlyUnifiedSchema() {
+        PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
+        Set<String> partitionNames = partitionInfo != null && partitionInfo.isEmpty() == false
+            ? partitionInfo.partitionColumns().keySet()
+            : Set.of();
+        return metadata.schema()
+            .stream()
+            .filter(a -> a instanceof VirtualAttribute == false && partitionNames.contains(a.name()) == false)
+            .toList();
     }
 
     @Override

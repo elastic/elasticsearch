@@ -73,7 +73,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     /**
      * Backwards-compatible constructor preserving the pre-telemetry-overhaul signature for out-of-tree callers that only have a
-     * trip {@link LongCounter}. 
+     * trip {@link LongCounter}.
      */
     @Deprecated(forRemoval = true)
     public ChildMemoryCircuitBreaker(

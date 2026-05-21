@@ -78,10 +78,14 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         }
 
         void setEmbeddingType(String embeddingType) {
-            if (context == ConfigurationParseContext.REQUEST) {
-                this.embeddingType = CohereEmbeddingType.fromString(embeddingType);
-            } else {
-                this.embeddingType = fromCohereOrDenseVectorEnumValues(embeddingType);
+            try {
+                if (context == ConfigurationParseContext.REQUEST) {
+                    this.embeddingType = CohereEmbeddingType.fromString(embeddingType);
+                } else {
+                    this.embeddingType = fromCohereOrDenseVectorEnumValues(embeddingType);
+                }
+            } catch (IllegalArgumentException e) {
+                throwInvalidEmbeddingType(embeddingType);
             }
         }
 
@@ -154,17 +158,17 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         try {
             return CohereEmbeddingType.fromString(enumString);
         } catch (IllegalArgumentException ae) {
-            try {
-                return CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.fromString(enumString));
-            } catch (IllegalArgumentException iae) {
-                var validValuesAsStrings = CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
-                    .map(value -> value.toString().toLowerCase(Locale.ROOT))
-                    .toArray(String[]::new);
-                throw new IllegalArgumentException(
-                    Strings.format("invalid value [%s]; expected one of %s", enumString, Arrays.toString(validValuesAsStrings))
-                );
-            }
+            return CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.fromString(enumString));
         }
+    }
+
+    private static void throwInvalidEmbeddingType(String enumString) {
+        var validValuesAsStrings = CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
+            .map(value -> value.toString().toLowerCase(Locale.ROOT))
+            .toArray(String[]::new);
+        throw new IllegalArgumentException(
+            Strings.format("invalid value [%s]; expected one of %s", enumString, Arrays.toString(validValuesAsStrings))
+        );
     }
 
     private final CohereCommonServiceSettings commonSettings;

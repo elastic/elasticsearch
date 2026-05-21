@@ -249,7 +249,15 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
             outputFile.getParentFile().mkdirs();
             try {
                 new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT)
-                    .writeValue(outputFile, new TaskStatusReport(taskEntries, tests, cancelled));
+                    .writeValue(
+                        outputFile,
+                        new TaskStatusReport(
+                            taskEntries,
+                            tests,
+                            cancelled,
+                            GcpPreemptionWatchdog.preemptedAt() != null ? GcpPreemptionWatchdog.preemptedAt().toString() : null
+                        )
+                    );
             } catch (IOException e) {
                 LOGGER.warn("Failed to write task status report to {}", outputFile, e);
             }

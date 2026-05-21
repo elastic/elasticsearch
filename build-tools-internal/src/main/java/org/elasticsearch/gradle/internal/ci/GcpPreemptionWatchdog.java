@@ -16,9 +16,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Watches for GCP Spot VM preemption and raises a process-global flag when the VM is
@@ -53,6 +55,7 @@ public final class GcpPreemptionWatchdog {
     private static final Logger LOGGER = Logging.getLogger(GcpPreemptionWatchdog.class);
 
     private static final AtomicBoolean PREEMPTED = new AtomicBoolean(false);
+    private static final AtomicReference<Instant> PREEMPTED_AT = new AtomicReference<>();
     private static final List<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
     private static volatile Thread watchThread;
 
@@ -60,6 +63,11 @@ public final class GcpPreemptionWatchdog {
 
     public static boolean isPreempted() {
         return PREEMPTED.get();
+    }
+
+    /** Returns the instant preemption was detected, or {@code null} if not preempted. */
+    public static Instant preemptedAt() {
+        return PREEMPTED_AT.get();
     }
 
     /**
@@ -171,7 +179,8 @@ public final class GcpPreemptionWatchdog {
 
     private static void signal(String reason) {
         if (PREEMPTED.compareAndSet(false, true)) {
-            LOGGER.lifecycle("[gcp-preemption-watchdog] preemption detected: {}", reason);
+            PREEMPTED_AT.set(Instant.now());
+            LOGGER.lifecycle("[gcp-preemption-watchdog] preemption detected at {}: {}", PREEMPTED_AT.get(), reason);
             for (Runnable listener : LISTENERS) {
                 safelyRun(listener);
             }

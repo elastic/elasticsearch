@@ -3,6 +3,7 @@ export interface TaskStatusReport {
   tasks: TaskEntry[];
   tests: TestEntry[];
   cancelled: boolean;
+  preemptedAt?: string | null;
 }
 
 export interface TaskEntry {

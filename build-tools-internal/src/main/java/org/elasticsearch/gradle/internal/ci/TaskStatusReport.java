@@ -13,12 +13,13 @@ import java.util.List;
 /**
  * Written to {@code .task-status.json} at the end of every build by {@link TaskStatusTrackerPlugin}.
  *
- * @param tasks     every task in the execution graph, sorted by path, with its final outcome
- * @param tests     every individual test method that completed before the build ended,
- *                  sorted by task path then class then method name
- * @param cancelled {@code true} when the build was explicitly cancelled (Ctrl+C or preemption signal)
+ * @param tasks       every task in the execution graph, sorted by path, with its final outcome
+ * @param tests       every individual test method that completed before the build ended,
+ *                    sorted by task path then class then method name
+ * @param cancelled   {@code true} when the build was explicitly cancelled (Ctrl+C or preemption signal)
+ * @param preemptedAt ISO-8601 timestamp of when GCP preemption was detected, or {@code null} if not preempted
  */
-public record TaskStatusReport(List<TaskEntry> tasks, List<TestEntry> tests, boolean cancelled) {
+public record TaskStatusReport(List<TaskEntry> tasks, List<TestEntry> tests, boolean cancelled, String preemptedAt) {
 
     /**
      * @param path    Gradle task path, e.g. {@code :server:test}

@@ -162,6 +162,10 @@ develocity {
 
           if (GcpPreemptionWatchdog.isPreempted()) {
             tag 'PREEMPTED'
+            def preemptedAt = GcpPreemptionWatchdog.preemptedAt()
+            if (preemptedAt != null) {
+              value 'Preemption Time', preemptedAt.toString()
+            }
             try {
               def taskStatusService = gradle.sharedServices.registrations.findByName('taskStatusTracker')?.service?.orNull
               if (taskStatusService?.hadFailuresBeforePreemption()) {

@@ -51,7 +51,7 @@ export function wrapTaskStatus(current: TaskStatusReport, previous: MultiRunTask
  */
 export function mergeRuns(multi: MultiRunTaskStatus): TaskStatusReport {
   if (multi.runs.length === 0) {
-    return { tasks: [], tests: [], cancelled: false };
+    return { tasks: [], tests: [], cancelled: false, preemptedAt: null };
   }
   if (multi.runs.length === 1) {
     return multi.runs[0];
@@ -85,7 +85,7 @@ export function mergeRuns(multi: MultiRunTaskStatus): TaskStatusReport {
     }
   }
 
-  const cancelled = multi.runs[multi.runs.length - 1].cancelled;
+  const lastRun = multi.runs[multi.runs.length - 1];
 
   return {
     tasks: [...taskMap.values()].sort((a, b) => a.path.localeCompare(b.path)),
@@ -95,7 +95,8 @@ export function mergeRuns(multi: MultiRunTaskStatus): TaskStatusReport {
         a.className.localeCompare(b.className) ||
         a.methodName.localeCompare(b.methodName),
     ),
-    cancelled,
+    cancelled: lastRun.cancelled,
+    preemptedAt: lastRun.preemptedAt,
   };
 }
 

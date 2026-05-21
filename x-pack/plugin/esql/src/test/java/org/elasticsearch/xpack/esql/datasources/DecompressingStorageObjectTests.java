@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -24,6 +25,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -128,6 +131,199 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     public void testNullCodecThrows() {
         StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///x"));
         expectThrows(QlIllegalArgumentException.class, () -> new DecompressingStorageObject(rawObject, null));
+    }
+
+    // --- Stream drain prevention through the decompressing wrapper ---
+
+    /**
+     * Regression guard: {@code abortStream} on a {@link DecompressingStorageObject} must route
+     * the abort through to the underlying delegate, not fall back to a draining {@code close()}.
+     * <p>
+     * In production, the delegate is an S3 {@code StorageObject} whose {@code abortStream}
+     * calls {@code ResponseInputStream.abort()} to discard the HTTP connection without draining.
+     * If the decompressing wrapper merely closes the {@code GZIPInputStream} it returned, the
+     * close cascades through {@code GZIPInputStream.close()} to {@code S3ResponseInputStream.
+     * close()} — which drains every remaining compressed byte to reuse the connection pool.
+     * For multi-GB compressed objects (typical for CSV/TSV/NDJSON on S3) that blocks the
+     * search thread for the full object transfer.
+     * <p>
+     * This test wraps a {@link StorageObject} whose raw stream simulates the Apache HttpClient
+     * drain-on-close behaviour, then layers a real gzip decompressor on top via
+     * {@link DecompressingStorageObject}. It opens the decompressed stream, reads a tiny
+     * prefix (mirroring schema inference), and calls {@code decompressing.abortStream(stream)}.
+     * The assertion is that the raw, compressed stream beneath the gzip wrapper is not drained.
+     */
+    public void testAbortStreamDoesNotDrainUnderlyingStream() throws IOException {
+        StringBuilder csv = new StringBuilder();
+        for (int i = 0; i < 200_000; i++) {
+            csv.append("id_").append(i).append(",name_").append(i).append(",value_").append(i * 1.5).append("\n");
+        }
+        byte[] original = csv.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+        assertThat(
+            "compressed payload must be significantly larger than the prefix we read",
+            compressed.length,
+            Matchers.greaterThan(200_000)
+        );
+
+        AtomicLong rawBytesConsumed = new AtomicLong();
+        StorageObject rawObject = drainSimulatingStorageObject(compressed, rawBytesConsumed);
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+
+        InputStream stream = decompressing.newStream();
+        try {
+            byte[] prefix = new byte[4096];
+            int n = stream.read(prefix);
+            assertThat("expected to read some decompressed bytes", n, Matchers.greaterThan(0));
+        } finally {
+            decompressing.abortStream(stream);
+        }
+
+        assertThat(
+            "abortStream must not drain the underlying raw stream; consumed "
+                + rawBytesConsumed.get()
+                + " of "
+                + compressed.length
+                + " raw bytes",
+            rawBytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
+    }
+
+    /**
+     * Regression guard: a normal {@code close()} on the wrapper stream returned by
+     * {@link DecompressingStorageObject#newStream()} must close the underlying raw stream so
+     * its connection is released. The decompressor itself sees an {@code UncloseableInputStream}
+     * over raw (to keep {@code abortStream} from triggering the connection-pool drain on
+     * partial reads), so without a close-time override on the wrapper the raw stream would
+     * leak.
+     * <p>
+     * The simulated raw stream tracks whether {@code close()} was called; after fully reading
+     * the decompressed payload, the assertion is that the raw close fired exactly once.
+     */
+    public void testCloseAfterFullReadReleasesUnderlyingStream() throws IOException {
+        byte[] original = "id,name\n1,a\n2,b\n3,c\n".getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+
+        AtomicLong rawBytesConsumed = new AtomicLong();
+        AtomicBoolean rawClosed = new AtomicBoolean(false);
+        StorageObject rawObject = drainSimulatingStorageObject(compressed, rawBytesConsumed, rawClosed, new AtomicBoolean(false));
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+
+        try (InputStream stream = decompressing.newStream()) {
+            byte[] decompressed = stream.readAllBytes();
+            assertArrayEquals(original, decompressed);
+        }
+
+        assertTrue("raw stream must be closed after the wrapper is closed (otherwise connection leaks)", rawClosed.get());
+    }
+
+    /**
+     * Creates a {@link StorageObject} whose stream simulates the Apache HttpClient drain on
+     * {@code close()}, and whose {@code abortStream} override flips an {@code aborted} flag
+     * that suppresses the drain — mirroring what {@code S3StorageObject.abortStream} does
+     * by calling {@code ResponseInputStream.abort()} instead of {@code close()}.
+     */
+    private static StorageObject drainSimulatingStorageObject(byte[] bytes, AtomicLong bytesConsumed) {
+        return drainSimulatingStorageObject(bytes, bytesConsumed, new AtomicBoolean(false), new AtomicBoolean(false));
+    }
+
+    /**
+     * Overload that also exposes {@code closed} (was {@code close()} ever called on the raw
+     * stream) and {@code aborted} (did the storage object's {@code abortStream} fire). Used
+     * by tests that need to distinguish "raw stream released via close" from "raw stream
+     * released via abort".
+     */
+    private static StorageObject drainSimulatingStorageObject(
+        byte[] bytes,
+        AtomicLong bytesConsumed,
+        AtomicBoolean closed,
+        AtomicBoolean aborted
+    ) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return drainTrackingStream(new ByteArrayInputStream(bytes), bytesConsumed, aborted, closed);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int from = (int) position;
+                int to = (int) Math.min(position + length, bytes.length);
+                return drainTrackingStream(new ByteArrayInputStream(bytes, from, to - from), bytesConsumed, aborted, closed);
+            }
+
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                aborted.set(true);
+                stream.close();
+            }
+
+            @Override
+            public long length() {
+                return bytes.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("file:///data.csv.gz");
+            }
+        };
+    }
+
+    /**
+     * Wraps {@code delegate} so that {@code close()} drains the remaining bytes (simulating
+     * Apache HttpClient's {@code ContentLengthInputStream.close()}), unless {@code aborted}
+     * was set via the storage object's {@code abortStream}. Bytes read normally and bytes
+     * drained on close are both counted in {@code bytesConsumed}. The {@code closed} flag is
+     * set whenever {@code close()} fires, regardless of the abort path.
+     */
+    private static InputStream drainTrackingStream(
+        ByteArrayInputStream delegate,
+        AtomicLong bytesConsumed,
+        AtomicBoolean aborted,
+        AtomicBoolean closed
+    ) {
+        return new InputStream() {
+            @Override
+            public int read() {
+                int b = delegate.read();
+                if (b >= 0) bytesConsumed.incrementAndGet();
+                return b;
+            }
+
+            @Override
+            public int read(byte[] buf, int off, int len) {
+                int n = delegate.read(buf, off, len);
+                if (n > 0) bytesConsumed.addAndGet(n);
+                return n;
+            }
+
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                if (aborted.get()) {
+                    return;
+                }
+                byte[] drain = new byte[8192];
+                int n;
+                while ((n = delegate.read(drain)) != -1) {
+                    bytesConsumed.addAndGet(n);
+                }
+            }
+        };
     }
 
     private static byte[] gzip(byte[] input) throws IOException {

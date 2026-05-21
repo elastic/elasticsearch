@@ -16,6 +16,8 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,18 +38,16 @@ import static org.hamcrest.Matchers.not;
 
 public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
-    private TestThreadPool threadPool;
+    private static TestThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool(getTestName());
+    @BeforeClass
+    public static void init() throws Exception {
+        threadPool = new TestThreadPool(ThrottlingRecoveryServiceTests.class.getSimpleName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @AfterClass
+    public static void close() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     /** Work starts on {@link org.elasticsearch.threadpool.ThreadPool#generic()}, not on the enqueueing thread. */

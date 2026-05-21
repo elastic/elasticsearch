@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageDatasourcePrivileges.DatasourcePermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
@@ -79,7 +79,7 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
     }
 
     private static Role roleWithDatasourceRead(String name) {
-        ConfigurableClusterPrivileges.ManageDatasourcePrivileges privilege = new ConfigurableClusterPrivileges.ManageDatasourcePrivileges(
+        ConfigurableClusterPrivileges.DatasourcePrivileges privilege = new ConfigurableClusterPrivileges.DatasourcePrivileges(
             List.of(new DatasourcePermissionGroup(new String[] { name }, new String[] { "read" }))
         );
         return Role.builder(new RestrictedIndices(Automatons.EMPTY)).cluster(Set.of(), List.of(privilege)).build();

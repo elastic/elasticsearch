@@ -56,8 +56,8 @@ public class RoleDescriptorsIntersectionTests extends ESTestCase {
                 ),
                 new NamedWriteableRegistry.Entry(
                     ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.ManageDatasourcePrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.ManageDatasourcePrivileges::createFrom
+                    ConfigurableClusterPrivileges.DatasourcePrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.DatasourcePrivileges::createFrom
                 )
             )
         );

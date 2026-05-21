@@ -34,6 +34,7 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
             && EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(requestInfo.getAction())
             && dsi.dataSourceClusterActionName().equals(requestInfo.getAction()) == false) {
             Role role = maybeGetRBACEngineRole(authorizationInfo);
+            // Custom AuthorizationEngine implementations do not use RBAC Role; datasource policy is enforced there instead.
             if (role == null) {
                 return SubscribableListener.nullSuccess();
             }

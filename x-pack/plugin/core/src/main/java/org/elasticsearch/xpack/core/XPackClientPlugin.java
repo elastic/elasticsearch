@@ -189,8 +189,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 ),
                 new NamedWriteableRegistry.Entry(
                     ConfigurableClusterPrivilege.class,
-                    ConfigurableClusterPrivileges.ManageDatasourcePrivileges.WRITEABLE_NAME,
-                    ConfigurableClusterPrivileges.ManageDatasourcePrivileges::createFrom
+                    ConfigurableClusterPrivileges.DatasourcePrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.DatasourcePrivileges::createFrom
                 ),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),

@@ -356,6 +356,14 @@ ds_read_datasource:
       - names: [ "other_*" ]
         privileges: [ "create" ]
 
+ds_read_metadata_datasource:
+  cluster: []
+  indices: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "read_metadata" ]
+
 ds_manage_datasource:
   cluster: []
   indices: []
@@ -381,6 +389,17 @@ ds_dataset_create:
 # create_dataset on target indices only; no global.data_source — PUT dataset must fail on authorize_datasource before put_dataset.
 ds_dataset_create_no_datasource:
   cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'create_dataset' ]
+
+# create_dataset on indices; read_metadata (not read) on datasource — PUT dataset must fail authorize_datasource.
+ds_dataset_create_read_metadata_datasource:
+  cluster: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "read_metadata" ]
   indices:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'create_dataset' ]

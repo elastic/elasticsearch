@@ -104,7 +104,7 @@ public final class ConfigurableClusterPrivileges {
             if (category == Category.DATASOURCE) {
                 builder.startArray(category.field.getPreferredName());
                 for (ConfigurableClusterPrivilege privilege : privileges) {
-                    if (privilege instanceof ManageDatasourcePrivileges mds) {
+                    if (privilege instanceof DatasourcePrivileges mds) {
                         mds.toXContentArrayElements(builder, params);
                     }
                 }
@@ -160,7 +160,7 @@ public final class ConfigurableClusterPrivileges {
                 }
             } else if (Category.DATASOURCE.field.match(parser.currentName(), parser.getDeprecationHandler())) {
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-                ManageDatasourcePrivileges datasourcePrivileges = ManageDatasourcePrivileges.parseArray(parser);
+                DatasourcePrivileges datasourcePrivileges = DatasourcePrivileges.parseArray(parser);
                 if (datasourcePrivileges != null) {
                     privileges.add(datasourcePrivileges);
                 }
@@ -414,9 +414,9 @@ public final class ConfigurableClusterPrivileges {
     /**
      * Configurable cluster privileges for ES|QL datasource operations under {@code global.data_source} in role definitions.
      */
-    public static class ManageDatasourcePrivileges implements ConfigurableClusterPrivilege {
+    public static class DatasourcePrivileges implements ConfigurableClusterPrivilege {
 
-        public static final String WRITEABLE_NAME = "manage-datasource-privileges";
+        public static final String WRITEABLE_NAME = "datasource-privileges";
 
         public static final String PRIVILEGE_CREATE = "create";
         public static final String PRIVILEGE_DELETE = "delete";
@@ -436,7 +436,7 @@ public final class ConfigurableClusterPrivileges {
         private final List<CompiledDatasourcePermissionGroup> compiledGroups;
         private final Predicate<TransportRequest> requestPredicate;
 
-        public ManageDatasourcePrivileges(List<DatasourcePermissionGroup> groups) {
+        public DatasourcePrivileges(List<DatasourcePermissionGroup> groups) {
             if (groups == null) {
                 throw new IllegalArgumentException("datasource privileges require a non-null group list");
             }
@@ -500,7 +500,7 @@ public final class ConfigurableClusterPrivileges {
                 return privs.contains(PRIVILEGE_CREATE);
             }
             if (EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
-                return privs.contains(PRIVILEGE_READ_METADATA) || privs.contains(PRIVILEGE_READ);
+                return privs.contains(PRIVILEGE_READ_METADATA);
             }
             if (EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
                 return privs.contains(PRIVILEGE_DELETE);
@@ -512,7 +512,7 @@ public final class ConfigurableClusterPrivileges {
         }
 
         @Nullable
-        public static ManageDatasourcePrivileges parseArray(XContentParser parser) throws IOException {
+        public static DatasourcePrivileges parseArray(XContentParser parser) throws IOException {
             List<DatasourcePermissionGroup> groups = new ArrayList<>();
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -537,9 +537,13 @@ public final class ConfigurableClusterPrivileges {
             if (groups.isEmpty()) {
                 return null;
             }
-            return new ManageDatasourcePrivileges(groups);
+            return new DatasourcePrivileges(groups);
         }
 
+        /**
+         * Writes permission group objects for {@link ConfigurableClusterPrivileges#toXContent}; the caller opens the
+         * {@code global.data_source} array.
+         */
         public void toXContentArrayElements(XContentBuilder builder, ToXContent.Params params) throws IOException {
             for (DatasourcePermissionGroup g : groups) {
                 builder.startObject();
@@ -564,15 +568,14 @@ public final class ConfigurableClusterPrivileges {
             out.writeCollection(groups);
         }
 
-        public static ManageDatasourcePrivileges createFrom(StreamInput in) throws IOException {
-            return new ManageDatasourcePrivileges(in.readCollectionAsList(DatasourcePermissionGroup::createFrom));
+        public static DatasourcePrivileges createFrom(StreamInput in) throws IOException {
+            return new DatasourcePrivileges(in.readCollectionAsList(DatasourcePermissionGroup::createFrom));
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startArray();
             toXContentArrayElements(builder, params);
-            return builder.endArray();
+            return builder;
         }
 
         @Override
@@ -593,7 +596,7 @@ public final class ConfigurableClusterPrivileges {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ManageDatasourcePrivileges that = (ManageDatasourcePrivileges) o;
+            DatasourcePrivileges that = (DatasourcePrivileges) o;
             return groups.equals(that.groups);
         }
 

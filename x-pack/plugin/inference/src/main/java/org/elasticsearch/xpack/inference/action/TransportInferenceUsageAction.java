@@ -101,7 +101,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             mapInferenceFieldsByIndexServiceAndTask(indicesMetadata, endpoints);
         Map<String, ModelStats> endpointStats = new TreeMap<>();
         addStatsByServiceAndTask(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
-        addStatsForDefaultModelsCompatibleWithSemanticText(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
+        addStatsForDefaultModels(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
         return new InferenceFeatureSetUsage(endpointStats.values());
     }
 
@@ -212,12 +212,11 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     }
 
     /**
-     * Adds stats for default models that are compatible with semantic_text.
-     * In particular, default models are considered models that are associated with default inference
+     * Adds stats for default models. In particular, default models are considered models that are associated with default inference
      * endpoints as per the {@code ModelRegistry}. The service name for default model stats is "_{service}_{modelId}".
      * Each of those stats contains usage for all endpoints that use that model, including non-default endpoints.
      */
-    private void addStatsForDefaultModelsCompatibleWithSemanticText(
+    private void addStatsForDefaultModels(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         List<ModelConfigurations> endpoints,
         Map<String, ModelStats> endpointStats
@@ -225,8 +224,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         Map<String, String> endpointIdToModelId = endpoints.stream()
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
             .collect(Collectors.toMap(ModelConfigurations::getInferenceEntityId, e -> stripLinuxSuffix(e.getServiceSettings().modelId())));
-        Map<DefaultModelStatsKey, Long> defaultModelsToEndpointCount =
-            createStatsKeysWithEndpointCountsForDefaultModelsCompatibleWithSemanticText(endpoints);
+        Map<DefaultModelStatsKey, Long> defaultModelsToEndpointCount = createStatsKeysWithEndpointCountsForDefaultModels(endpoints);
         for (Map.Entry<DefaultModelStatsKey, Long> defaultModelStatsKeyToEndpointCount : defaultModelsToEndpointCount.entrySet()) {
             DefaultModelStatsKey statKey = defaultModelStatsKeyToEndpointCount.getKey();
             Map<String, List<InferenceFieldMetadata>> fieldsByIndex = inferenceFieldsByIndexServiceAndTask.getOrDefault(
@@ -247,9 +245,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         }
     }
 
-    private Map<DefaultModelStatsKey, Long> createStatsKeysWithEndpointCountsForDefaultModelsCompatibleWithSemanticText(
-        List<ModelConfigurations> endpoints
-    ) {
+    private Map<DefaultModelStatsKey, Long> createStatsKeysWithEndpointCountsForDefaultModels(List<ModelConfigurations> endpoints) {
         // We consider models to be default if they are associated with a default inference endpoint.
         // Note that endpoints could have a null model id, in which case we don't consider them default as this
         // may only happen for external services.

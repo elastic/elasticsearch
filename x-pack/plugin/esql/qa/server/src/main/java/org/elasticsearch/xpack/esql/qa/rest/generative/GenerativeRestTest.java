@@ -453,7 +453,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isApproximationUnsupportedAggregationInSubqueryBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1103,6 +1104,28 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             && LOOKUP_JOIN_COMMAND_PATTERN.matcher(query).find()
             && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
             && ABSENT_TO_STRING_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_EXEC_PATTERN = Pattern.compile(
+        ".*Plan \\[AggregateExec\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * {@code AggregateExec[...]} (physical plan) drops an {@code INLINE STATS} input reference
+     * when a subquery sits in {@code FROM} and the {@code INLINE STATS} output is unread by a
+     * downstream {@code STATS}. Distinct from {@link #isAggregateAbsentToStringSubqueryLookupJoinBug}
+     * (which is on the logical {@code Aggregate} and gated on {@code absent(to_string(...))} +
+     * {@code LOOKUP JOIN} + {@code MV_EXPAND}); only the "subquery in {@code FROM}" precondition
+     * is shared. See <a href="https://github.com/elastic/elasticsearch/issues/149589">#149589</a>.
+     */
+    static boolean isInlineStatsSubqueryAggregateExecBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return OPTIMIZED_INCORRECTLY_AGGREGATE_EXEC_PATTERN.matcher(errorMessage).matches()
+            && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
     }
 
     /**

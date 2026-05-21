@@ -158,6 +158,10 @@ public class SnapshotShardContextHelper {
         @Nullable BooleanSupplier isShardRelocated // null if relocation not supported or the commit is acquired on a different node
     ) {
         maybeEnsureNotAborted(snapshotStatus); // check this first to avoid acquiring a ref when aborted even if refs are available
+        // Also avoid acquiring a ref if shard is already relocated
+        if (isShardRelocated != null && isShardRelocated.getAsBoolean()) {
+            return NOOP_RELEASABLE;
+        }
         if (snapshotIndexCommit.tryIncRef()) {
             return Releasables.releaseOnce(snapshotIndexCommit::decRef);
         } else {

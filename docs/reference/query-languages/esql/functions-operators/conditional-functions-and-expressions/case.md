@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `CASE` function [esql-case]
 
-:::{include} ../../_snippets/functions/layout/case.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/case.md
 :::

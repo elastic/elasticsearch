@@ -157,33 +157,33 @@ public class ColumnarSourceIT extends ESIntegTestCase {
         var indicesService = internalCluster().getInstance(IndicesService.class, primaryNodeName);
         var indexService = indicesService.indexServiceSafe(clusterState.metadata().getProject().index("test").getIndex());
         var indexShard = indexService.getShard(0);
-        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexService.getIndexSettings());
 
-        return collectIgnoredSourceFieldNames(indexShard, format);
+        assert IgnoredSourceFieldMapper.ignoredSourceFormat(
+            indexService.getIndexSettings()
+        ) == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
+
+        return collectIgnoredSourceFieldNames(indexShard);
     }
 
-    private Set<String> collectIgnoredSourceFieldNames(IndexShard shard, IgnoredSourceFieldMapper.IgnoredSourceFormat format)
-        throws IOException {
+    private Set<String> collectIgnoredSourceFieldNames(IndexShard shard) throws IOException {
         Set<String> fieldNames = new HashSet<>();
         try (var searcher = shard.acquireSearcher("test_verify")) {
             var reader = searcher.getDirectoryReader();
             for (LeafReaderContext ctx : reader.leaves()) {
                 var leafReader = ctx.reader();
-                MultiValuedSortedBinaryDocValues docValues = null;
-                if (format == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
-                    docValues = MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME);
-                }
-                var liveDocs = leafReader.getLiveDocs();
+                var docValues = MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME);
                 for (int docId = 0; docId < leafReader.maxDoc(); docId++) {
-                    if (liveDocs != null && liveDocs.get(docId) == false) {
-                        continue;
-                    }
                     Map<String, List<Object>> storedFieldsMap = new HashMap<>();
                     var storedDoc = leafReader.storedFields().document(docId);
                     for (var field : storedDoc.getFields(IgnoredSourceFieldMapper.NAME)) {
                         storedFieldsMap.computeIfAbsent(IgnoredSourceFieldMapper.NAME, k -> new ArrayList<>()).add(field.binaryValue());
                     }
-                    var ignoredFields = format.loadIgnoredFields(null, storedFieldsMap, docId, docValues);
+                    var ignoredFields = IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE.loadIgnoredFields(
+                        null,
+                        storedFieldsMap,
+                        docId,
+                        docValues
+                    );
                     for (var entry : ignoredFields.entrySet()) {
                         for (var nv : entry.getValue()) {
                             fieldNames.add(nv.name());

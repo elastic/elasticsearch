@@ -226,17 +226,14 @@ public class NdJsonPageDecoder implements Closeable {
         );
 
         List<Attribute> fullSchema = attributes;
-        // Four projection cases:
-        // - null : caller has no projection info (e.g. metadata path); materialize every attribute.
+        // Three projection cases:
+        // - null  : caller has no projection info (e.g. metadata path); materialize every attribute.
         // - empty : optimizer pruned every column (COUNT(*) and similar); produce row-count-only Pages.
-        // - sentinel : ProjectAwayColumns inserts a single synthetic "<all-fields-projected>" attribute
-        // when all real columns are pruned; treat it the same as empty so the decoder
-        // takes the row-count-only fast path instead of walking every JSON field.
         // - other : project the listed columns in the requested order, with NULL for missing names.
         List<Attribute> projectedAttributes;
         if (projectedColumns == null) {
             projectedAttributes = attributes;
-        } else if (projectedColumns.isEmpty() || isAllFieldsProjectedSentinel(projectedColumns)) {
+        } else if (projectedColumns.isEmpty()) {
             projectedAttributes = List.of();
         } else {
             // Build the lookup map once: O(N) here vs. O(N*M) for a per-projection nested scan,
@@ -547,17 +544,6 @@ public class NdJsonPageDecoder implements Closeable {
             idx++;
         }
         return root;
-    }
-
-    /**
-     * {@code ProjectAwayColumns} (in the ES|QL planner) inserts a synthetic
-     * {@code "<all-fields-projected>"} attribute when every real column is pruned (e.g. COUNT(*)).
-     * Detect that sentinel here so the decoder can take its existing row-count-only fast path
-     * without the planner layer needing to special-case the NDJSON format.
-     */
-    private static boolean isAllFieldsProjectedSentinel(List<String> projectedColumns) {
-        // ProjectAwayColumns.ALL_FIELDS_PROJECTED can't be imported because of cyclic module dependency
-        return projectedColumns.size() == 1 && "<all-fields-projected>".equals(projectedColumns.get(0));
     }
 
     /**

@@ -101,17 +101,42 @@ tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
 
 // Generate multifile CSV fixtures by splitting employees.csv into 3 parts (analogous to
 // the Parquet 3-way split in esql-datasource-parquet/qa/build.gradle). This enables the
-// shared external-multifile.csv-spec tests to run for CSV format.
+// shared external-multifile.csv-spec tests to run for CSV format. The split preserves raw
+// line content (no parsing) so multi-value bracket syntax and typed headers stay intact.
 def multifileSplitDir = file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_split")
 def multifileEmployeesCsv = testFixturesProject.file('src/main/resources/data/employees.csv')
-tasks.register('generateMultifileCsvSplit_employees', JavaExec) {
-  dependsOn serverProject.tasks.named('compileCsvSplitFixtureGeneratorJava')
+def multifileSplitParts = 3
+tasks.register('generateMultifileCsvSplit_employees') {
   dependsOn testFixturesProject.tasks.named('processResources')
-  classpath = serverProject.configurations.csvSplitFixtureGenerator + serverProject.sourceSets.csvSplitFixtureGenerator.output
-  mainClass = 'org.elasticsearch.xpack.esql.datasources.CsvSplitFixtureGenerator'
-  args = [multifileEmployeesCsv.path, multifileSplitDir.path, '3']
   inputs.file(multifileEmployeesCsv)
   outputs.dir(multifileSplitDir)
+  doLast {
+    def lines = multifileEmployeesCsv.readLines('UTF-8')
+    if (lines.isEmpty()) {
+      throw new GradleException("Source CSV is empty: ${multifileEmployeesCsv}")
+    }
+    def header = lines[0]
+    def data = lines.subList(1, lines.size())
+    int total = data.size()
+    int partSize = ((total + multifileSplitParts - 1).intdiv(multifileSplitParts))
+    multifileSplitDir.mkdirs()
+    def baseName = multifileEmployeesCsv.name.replaceFirst(/\.csv$/, '')
+    for (int part = 0; part < multifileSplitParts; part++) {
+      int from = part * partSize
+      int to = Math.min(from + partSize, total)
+      if (from >= total) {
+        break
+      }
+      def fileName = String.format(Locale.ROOT, "%s_%02d.csv", baseName, part)
+      def out = new File(multifileSplitDir, fileName)
+      out.withWriter('UTF-8') { w ->
+        w.writeLine(header)
+        for (int i = from; i < to; i++) {
+          w.writeLine(data[i])
+        }
+      }
+    }
+  }
 }
 
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.

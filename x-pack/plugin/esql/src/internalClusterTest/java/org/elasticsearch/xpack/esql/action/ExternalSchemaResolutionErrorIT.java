@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
@@ -22,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -39,18 +40,9 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
 
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
         return plugins;
@@ -68,18 +60,7 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
             StandardCharsets.UTF_8
         );
 
-        String glob = StoragePath.fileUri(dir) + "/*.csv";
-        String query = "EXTERNAL \""
-            + glob
-            + "\" WITH {\"schema_resolution\": \"strict\", \"header_row\": true}"
-            + " | STATS count = COUNT(*)";
-
-        var ex = expectThrows(Exception.class, () -> {
-            try (var response = run(syncEsqlQueryRequest(query))) {
-                // should not reach here
-            }
-        });
-        assertThat(ex.getMessage(), containsString("strict"));
+        assertStrictSchemaMismatch(dir, true);
     }
 
     public void testStrictOnDivergentCsvHeaderless() throws Exception {
@@ -90,18 +71,7 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
         Files.writeString(dir.resolve("a.csv"), "abc,1\nxyz,2\n", StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("b.csv"), "10,10\n20,20\n30,30\n", StandardCharsets.UTF_8);
 
-        String glob = StoragePath.fileUri(dir) + "/*.csv";
-        String query = "EXTERNAL \""
-            + glob
-            + "\" WITH {\"schema_resolution\": \"strict\", \"header_row\": false}"
-            + " | STATS count = COUNT(*)";
-
-        var ex = expectThrows(Exception.class, () -> {
-            try (var response = run(syncEsqlQueryRequest(query))) {
-                // should not reach here
-            }
-        });
-        assertThat(ex.getMessage(), containsString("strict"));
+        assertStrictSchemaMismatch(dir, false);
     }
 
     public void testStrictOnCsvTypeDrift() throws Exception {
@@ -112,17 +82,32 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
         Files.writeString(dir.resolve("a.csv"), "id,col,note\n1,123,alpha\n2,456,gamma\n", StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("b.csv"), "id,col,note\n4,abc,beta\n5,def,epsilon\n", StandardCharsets.UTF_8);
 
+        assertStrictSchemaMismatch(dir, true);
+    }
+
+    /**
+     * Runs {@code EXTERNAL "<dir>/*.csv" WITH {"schema_resolution":"strict", "header_row":<headerRow>} | STATS …}
+     * and asserts the request fails with an {@link ElasticsearchException} (the action framework wraps the
+     * server-side {@code IllegalArgumentException} from {@code SchemaReconciliation#validateStrictMatch})
+     * whose message identifies a schema mismatch and points at the {@code union_by_name} escape hatch.
+     * Pairing those two keywords keeps the assertion specific to the strict-resolution path so a future
+     * unrelated regression in the EXTERNAL pipeline cannot satisfy it with an exception that merely echoes
+     * the query text (which contains the literal "strict").
+     */
+    private void assertStrictSchemaMismatch(Path dir, boolean headerRow) {
         String glob = StoragePath.fileUri(dir) + "/*.csv";
         String query = "EXTERNAL \""
             + glob
-            + "\" WITH {\"schema_resolution\": \"strict\", \"header_row\": true}"
+            + "\" WITH {\"schema_resolution\": \"strict\", \"header_row\": "
+            + headerRow
+            + "}"
             + " | STATS count = COUNT(*)";
 
-        var ex = expectThrows(Exception.class, () -> {
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             try (var response = run(syncEsqlQueryRequest(query))) {
                 // should not reach here
             }
         });
-        assertThat(ex.getMessage(), containsString("strict"));
+        assertThat(ex.getMessage(), allOf(containsString("Schema mismatch"), containsString("union_by_name")));
     }
 }

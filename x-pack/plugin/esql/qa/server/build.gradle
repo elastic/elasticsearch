@@ -20,8 +20,6 @@ configurations {
   ndjsonFixtureGenerator
   // TsvFixtureGenerator: CSV → TSV for external-format QA (no Hadoop).
   tsvFixtureGenerator
-  // CsvSplitFixtureGenerator: splits a CSV into N parts for multifile tests (no Hadoop).
-  csvSplitFixtureGenerator
 }
 
 sourceSets {
@@ -36,9 +34,6 @@ sourceSets {
   }
   tsvFixtureGenerator {
     compileClasspath += configurations.tsvFixtureGenerator
-  }
-  csvSplitFixtureGenerator {
-    compileClasspath += configurations.csvSplitFixtureGenerator
   }
 }
 
@@ -102,6 +97,4 @@ dependencies {
 
   tsvFixtureGenerator project(':libs:core')
   tsvFixtureGenerator project(xpackModule('esql-datasource-csv'))
-
-  csvSplitFixtureGenerator project(':libs:core')
 }

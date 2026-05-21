@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SPARKLINE` function [esql-sparkline]
 
-:::{include} ../../_snippets/functions/layout/sparkline.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sparkline.md
 :::

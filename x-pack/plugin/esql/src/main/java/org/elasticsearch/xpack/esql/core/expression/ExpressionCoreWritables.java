@@ -44,7 +44,13 @@ public class ExpressionCoreWritables {
     }
 
     public static List<NamedWriteableRegistry.Entry> attributes() {
-        return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY, TemporalityAttribute.ENTRY);
+        return List.of(
+            ExternalMetadataAttribute.ENTRY,
+            FieldAttribute.ENTRY,
+            MetadataAttribute.ENTRY,
+            ReferenceAttribute.ENTRY,
+            TemporalityAttribute.ENTRY
+        );
     }
 
     public static List<NamedWriteableRegistry.Entry> mapExpressions() {

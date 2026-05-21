@@ -803,6 +803,29 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
     }
 
+    public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeDisableDocValueSkipper() throws IOException {
+        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
+            .build();
+        // logsdb_columnar disables indexing by default, but @timestamp can be explicitly re-enabled.
+        // Since USE_DOC_VALUES_SKIPPER defaults to true for logsdb_columnar, the field gets doc values skippers.
+        final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
+            b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            b.field("type", "date");
+            b.endObject();
+        }));
+
+        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
+            .mappers()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.fieldType().hasDocValues());
+        assertTrue(timestampMapper.fieldType().indexType().hasPoints());
+        assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
+    }
+
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeNoTimestampMapping() throws IOException {
         assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()

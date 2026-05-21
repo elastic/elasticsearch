@@ -429,7 +429,8 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
             }
-            return IndexType.points(index.get(), docValuesParameters.get().enabled());
+            boolean isIndexed = index.get() || (indexSettings.getMode().isStrictColumnar() && indexSettings.useDocValuesSkipper() == false);
+            return IndexType.points(isIndexed, docValuesParameters.get().enabled());
         }
 
         @Override

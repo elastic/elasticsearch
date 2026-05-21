@@ -303,6 +303,7 @@ m:long | v:null | cluster:keyword | time_bucket:datetime
 
 sumNull
 required_capability: ts_command_v0
+required_capability: fix_sum_of_null_optimization
 
 TS k8s
 | EVAL y = null

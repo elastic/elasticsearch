@@ -335,12 +335,17 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
     }
 
-    public void testSecretSettingsForwardedAsEncryptedByteBlob() {
-        // Encrypted secrets (master-side encrypt step produced the byte[] blob) pass through
-        // mergeSettings as the same byte[] reference — the decrypt seam at the connector boundary
-        // (DataSourceCredentials.decryptInPlace) materialises plaintext just before the SDK call.
+    public void testSecretSettingsForwardedAsEncryptedSecretWrapper() {
+        // Encrypted secrets (the master-side encryption step produced the byte[] ciphertext blob and
+        // marked the setting with EncryptionFormat.V1) pass through mergeSettings wrapped in an
+        // EncryptedSecret carrier. The decryption step at the connector boundary
+        // (DataSourceCredentials.decryptInPlace) recognizes the wrapper and materialises plaintext
+        // just before the SDK call.
         byte[] blob = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting(blob, true)));
+        DataSource parent = dataSource(
+            "s3_parent",
+            Map.of("access_key", new DataSourceSetting(blob, true, DataSourceSetting.EncryptionFormat.V1))
+        );
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
@@ -348,8 +353,8 @@ public class DatasetRewriterTests extends ESTestCase {
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         Object accessKey = out.config().get("access_key");
-        assertThat(accessKey, instanceOf(byte[].class));
-        assertSame("blob travels through mergeSettings as the same byte[] reference", blob, accessKey);
+        assertThat("encrypted secret is wrapped in EncryptedSecret on the live config map", accessKey, instanceOf(EncryptedSecret.class));
+        assertSame("ciphertext blob is forwarded by reference inside the wrapper", blob, ((EncryptedSecret) accessKey).blob());
     }
 
     public void testFastPathSkipsResolverWhenNoPatternCouldMatchDataset() {

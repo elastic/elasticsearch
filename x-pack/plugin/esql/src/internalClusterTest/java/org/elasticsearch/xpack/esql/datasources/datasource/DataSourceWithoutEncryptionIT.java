@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
 
 import java.util.Collection;
 import java.util.List;
@@ -27,7 +29,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * is bound on the node — the producer-side path that lets ES|QL data sources work on dev clusters / laptops
  * where {@code xpack.security} isn't enabled. Cluster runs without {@link TestEncryptionServicePlugin}, so
  * the encryption holder stays null and secret PUTs land in cluster state as plaintext Strings (not encrypted
- * byte[] blobs). The single per-node-lifetime warning is logged on the first such PUT.
+ * byte[] blobs). A {@code WARN} naming the data source fires on every PUT that carries at least one secret
+ * (so the operator can see exactly which credentials hit the disk in clear text, every time).
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, minNumDataNodes = 1)
 public class DataSourceWithoutEncryptionIT extends ESIntegTestCase {
@@ -42,11 +45,24 @@ public class DataSourceWithoutEncryptionIT extends ESIntegTestCase {
 
     public void testPutWithSecretStoresPlaintext() throws Exception {
         final String dsName = "no_encryption_secret";
-        assertAcked(
-            client().execute(
-                PutDataSourceAction.INSTANCE,
-                DataSourceCrudIT.putDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIA_plaintext"))
-            ).get()
+        // The WARN naming the data source must fire on every PUT carrying a secret when no
+        // EncryptionService is bound — operators rely on it as the per-PUT plaintext-storage signal.
+        MockLog.assertThatLogger(
+            () -> assertAcked(
+                safeGet(
+                    client().execute(
+                        PutDataSourceAction.INSTANCE,
+                        DataSourceCrudIT.putDataSourceRequest(dsName, Map.of("region", "us-east-1", "secret_access_key", "AKIA_plaintext"))
+                    )
+                )
+            ),
+            DataSourceEncryption.class,
+            new MockLog.SeenEventExpectation(
+                "plaintext-storage WARN naming the data source",
+                DataSourceEncryption.class.getCanonicalName(),
+                Level.WARN,
+                "credentials for data source [" + dsName + "] are stored as plaintext because no encryption service is available"
+            )
         );
 
         GetDataSourceAction.Response resp = client().execute(

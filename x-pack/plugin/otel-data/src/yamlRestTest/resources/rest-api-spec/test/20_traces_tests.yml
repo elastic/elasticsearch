@@ -115,7 +115,7 @@ Conflicting attribute types:
           - create: {}
           - "@timestamp": 2024-10-05T01:00:00
             attributes:
-              http.response.status_code: 200
+              http.response.status_code: 201
   - is_false: errors
   - do:
       search:
@@ -125,7 +125,7 @@ Conflicting attribute types:
           "sort" : [ "@timestamp" ]
   - length: { hits.hits: 2 }
   - match: { hits.hits.0.fields.attributes\.http\.response\.status_code: [200] }
-  - match: { hits.hits.1.fields.attributes\.http\.response\.status_code: [200] }
+  - match: { hits.hits.1.fields.attributes\.http\.response\.status_code: [201] }
 ---
 "resource.attributes.host.name @timestamp should be used as sort fields":
   - do:

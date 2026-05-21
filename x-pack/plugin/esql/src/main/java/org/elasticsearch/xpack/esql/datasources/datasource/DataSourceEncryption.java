@@ -91,8 +91,9 @@ public final class DataSourceEncryption {
 
     /**
      * Encrypt one plaintext into a freshly-built ciphertext-carrying setting. The intermediate
-     * UTF-8 byte buffer is zeroed in {@code finally} so the plaintext does not linger in JVM
-     * memory beyond this method.
+     * UTF-8 byte buffer is zeroed in {@code finally} so this method's own byte-array copy does not
+     * linger; the original plaintext String reference still lives in the caller's settings until
+     * the cluster-state task completes (narrowing that lifetime is Phase 2).
      */
     private DataSourceSetting encryptOne(String key, String plaintext) {
         byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);

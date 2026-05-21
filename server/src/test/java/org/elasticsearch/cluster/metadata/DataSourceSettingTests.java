@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -201,5 +202,16 @@ public class DataSourceSettingTests extends ESTestCase {
         setting.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         return new DataSourceSetting(in);
+    }
+
+    public void testEncryptionFormatWireOrdinals() {
+        // StreamOutput.writeEnum encodes by ordinal — pin the ordinal-to-name mapping so a refactor
+        // that reorders the constants fails loudly here rather than silently corrupting cluster-state
+        // wire shape. Required by StreamOutput.writeEnum's contract.
+        EnumSerializationTestUtils.assertEnumSerialization(
+            DataSourceSetting.EncryptionFormat.class,
+            DataSourceSetting.EncryptionFormat.NONE,
+            DataSourceSetting.EncryptionFormat.V1
+        );
     }
 }

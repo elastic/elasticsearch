@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 
+import java.util.Arrays;
+
 /**
  * Marks an encrypted secret as it travels in the transient connector-config {@code Map<String, Object>}
  * from the coordinator to the data-node decryption step.
@@ -27,5 +29,18 @@ public record EncryptedSecret(byte[] blob) {
     @Override
     public String toString() {
         return "EncryptedSecret[" + DataSourceSetting.MASK_SENTINEL + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        // byte[]'s default equals is identity, which would make two EncryptedSecrets wrapping the
+        // same ciphertext compare unequal — a footgun for any future caller that puts these in
+        // collections or compares them. Match on content instead.
+        return o instanceof EncryptedSecret other && Arrays.equals(blob, other.blob);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(blob);
     }
 }

@@ -50,11 +50,20 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
 
     /** Whether {@link #rawValue()} is plaintext ({@code NONE}) or an encrypted carrier blob ({@code V1}). */
     public enum EncryptionFormat {
+        // DO NOT REORDER — writeTo serializes by ordinal; reordering breaks the cluster-state wire format.
+        // DataSourceSettingTests#testEncryptionFormatWireOrdinals pins this; any new constant must be appended.
         NONE,
         V1;
 
         static EncryptionFormat fromString(String s) {
-            return s == null ? NONE : valueOf(s.toUpperCase(Locale.ROOT));
+            if (s == null) {
+                return NONE;
+            }
+            try {
+                return valueOf(s.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("unknown data source encryption format [" + s + "]", e);
+            }
         }
 
         String wireName() {

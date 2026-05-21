@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149307
+summary: Extend FIRST to support more field types
+type: enhancement

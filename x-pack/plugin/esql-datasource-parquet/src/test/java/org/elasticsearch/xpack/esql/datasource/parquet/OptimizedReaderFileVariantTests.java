@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
-import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -186,7 +185,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
                 .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(codecFactoryFor(codec))
+                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
                 .withType(schema)
                 .withCompressionCodec(codec)
                 .withWriterVersion(writerVersion)
@@ -283,19 +282,6 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    /**
-     * Returns the codec factory used to write parquet files for this variant. Production code
-     * supplies a compressor for every codec except legacy Hadoop-framed {@code LZ4}, which is
-     * intentionally read-only; the test-only {@link LegacyLz4HadoopFramedCodecFactory} provides
-     * the writer side for that codec.
-     */
-    private static CompressionCodecFactory codecFactoryFor(CompressionCodecName codec) {
-        if (codec == CompressionCodecName.LZ4) {
-            return new LegacyLz4HadoopFramedCodecFactory();
-        }
-        return new PlainCompressionCodecFactory();
     }
 
     private StorageObject createStorageObject(byte[] data) {

@@ -41,6 +41,14 @@ import java.io.IOException;
  * multi-sub-block inputs; that path is exercised directly in
  * {@link PlainCompressionCodecFactoryTests} by hand-crafted frame bytes rather than through this
  * helper.
+ *
+ * <p>The tests deliberately avoid checking in a binary {@code .parquet} fixture. A static fixture
+ * would be opaque on failure, awkward to extend across the V1/V2 × nullable × layout matrix, and
+ * brittle to maintain. The framing here is a direct line-for-line transcription of Hadoop's
+ * {@code BlockCompressorStream.compress} (BE int32 outer length + BE int32 sub-block length + raw
+ * LZ4 block), and the BE encoding is independently re-verified in
+ * {@link PlainCompressionCodecFactoryTests} via two other writers — {@code ByteBuffer.putInt} and
+ * hand-typed byte literals — that all decode correctly through the same production decompressor.
  */
 final class LegacyLz4HadoopFramedCodecFactory implements CompressionCodecFactory {
 
@@ -50,6 +58,15 @@ final class LegacyLz4HadoopFramedCodecFactory implements CompressionCodecFactory
     LegacyLz4HadoopFramedCodecFactory() {
         this.delegate = new PlainCompressionCodecFactory();
         this.legacyLz4Compressor = new HadoopFramedLz4Compressor();
+    }
+
+    /**
+     * Returns the codec factory that parquet writers should use to produce a fixture for the
+     * given {@code codec}. Centralizes the “LZ4 needs the test compressor, everything else uses
+     * production” decision so the parameterized test classes do not each carry their own copy.
+     */
+    static CompressionCodecFactory forCodec(CompressionCodecName codec) {
+        return codec == CompressionCodecName.LZ4 ? new LegacyLz4HadoopFramedCodecFactory() : new PlainCompressionCodecFactory();
     }
 
     @Override

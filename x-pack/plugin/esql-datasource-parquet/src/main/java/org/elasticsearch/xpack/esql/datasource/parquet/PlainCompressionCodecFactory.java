@@ -375,7 +375,12 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
                     if (outerUncompressedLen <= 0) {
                         throw new IOException("Hadoop-framed LZ4: invalid outer uncompressed length " + outerUncompressedLen);
                     }
-                    if (outWritten + outerUncompressedLen > decompressedSize) {
+                    // Compare against remaining space rather than adding to outWritten, so a crafted
+                    // outerUncompressedLen near Integer.MAX_VALUE cannot wrap the sum to a negative
+                    // value and bypass the bounds check. The loop guard guarantees
+                    // outWritten < decompressedSize, so (decompressedSize - outWritten) is a
+                    // non-negative int.
+                    if (outerUncompressedLen > decompressedSize - outWritten) {
                         throw new IOException(
                             "Hadoop-framed LZ4: outer length "
                                 + outerUncompressedLen
@@ -456,7 +461,8 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
                 if (outerUncompressedLen <= 0) {
                     throw new IOException("Hadoop-framed LZ4: invalid outer uncompressed length " + outerUncompressedLen);
                 }
-                if (outWritten + outerUncompressedLen > outCapacity) {
+                // See the ByteBuffer overload — same overflow-safe rearrangement.
+                if (outerUncompressedLen > outCapacity - outWritten) {
                     throw new IOException(
                         "Hadoop-framed LZ4: outer length "
                             + outerUncompressedLen

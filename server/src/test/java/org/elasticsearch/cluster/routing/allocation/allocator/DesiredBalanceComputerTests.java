@@ -2114,6 +2114,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testComputationEarlyReturnForNewPrimaryAndReplicaAssignments() {
         var desiredBalanceComputer = createDesiredBalanceComputer(
             new BalancedShardsAllocator(),
+            // Force the DesiredBalanceComputer#compute() method to return early after any newly created shard assignment, removing the
+            // small grace period to try to finish computation.
             Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "0s").build()
         );
         var clusterState = createInitialClusterState(4, 4, 3);

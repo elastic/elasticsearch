@@ -99,7 +99,7 @@ public class DatasetService {
             throw new IllegalStateException("no validator registered for data source type [" + parent.type() + "]");
         }
         final Map<String, Object> validatedSettings = validator.validateDataset(
-            parent.settings(),
+            parent.settings().asMap(),
             request.resource(),
             request.rawSettings()
         );

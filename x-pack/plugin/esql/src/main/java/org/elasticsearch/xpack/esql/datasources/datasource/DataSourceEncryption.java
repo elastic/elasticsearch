@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.datasource;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.cluster.metadata.DataSourceSettings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -40,7 +41,7 @@ import java.util.Map;
  * </ul>
  *
  * <p>The constructor accepts a {@code null} service so callers don't have to guard at construction
- * time; the {@link #apply(String, Map)} method does the right thing in both cases.
+ * time; the {@link #apply(String, DataSourceSettings)} method does the right thing in both cases.
  */
 public final class DataSourceEncryption {
 
@@ -54,15 +55,15 @@ public final class DataSourceEncryption {
     }
 
     /**
-     * Apply the encryption step to {@code settings}. Returns the input map unchanged when no
-     * encryption service is bound; otherwise returns a new map with every plaintext secret
-     * replaced by its ciphertext carrier. When no service is bound and at least one real secret
-     * is being persisted, logs a {@code WARN} naming {@code dataSourceName} so the operator can
-     * see exactly which credentials are stored as plaintext.
+     * Apply the encryption step to {@code settings}. Returns the input unchanged when no
+     * encryption service is bound; otherwise returns a new {@link DataSourceSettings} with every
+     * plaintext secret replaced by its ciphertext carrier. When no service is bound and the input
+     * holds at least one real secret, logs a {@code WARN} naming {@code dataSourceName} so the
+     * operator can see exactly which credentials are stored as plaintext.
      */
-    public Map<String, DataSourceSetting> apply(String dataSourceName, Map<String, DataSourceSetting> settings) {
+    public DataSourceSettings apply(String dataSourceName, DataSourceSettings settings) {
         if (service == null) {
-            if (containsRealSecret(settings)) {
+            if (settings.hasSecrets()) {
                 logger.warn(
                     "credentials for data source [{}] are stored as plaintext because no encryption service is available",
                     dataSourceName
@@ -71,7 +72,7 @@ public final class DataSourceEncryption {
             return settings;
         }
         Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
-        for (var entry : settings.entrySet()) {
+        for (var entry : settings) {
             String key = entry.getKey();
             DataSourceSetting setting = entry.getValue();
             if (needsEncryption(setting)) {
@@ -80,22 +81,12 @@ public final class DataSourceEncryption {
                 result.put(key, setting);
             }
         }
-        return result;
+        return new DataSourceSettings(result);
     }
 
     /** Only fresh plaintext String secrets need encrypting; non-secrets, null, and existing ciphertext byte[] pass through. */
     private static boolean needsEncryption(DataSourceSetting setting) {
         return setting.secret() && setting.rawValue() instanceof String;
-    }
-
-    /** True if any setting is a secret with an actual plaintext value attached. */
-    private static boolean containsRealSecret(Map<String, DataSourceSetting> settings) {
-        for (var setting : settings.values()) {
-            if (setting.secret() && setting.rawValue() != null) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

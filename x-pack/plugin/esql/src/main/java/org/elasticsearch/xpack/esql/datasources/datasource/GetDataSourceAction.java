@@ -96,7 +96,7 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
                 if (ds.description() != null) {
                     builder.field("description", ds.description());
                 }
-                builder.field("settings", ds.toPresentationMap());
+                builder.field("settings", ds.settings().toPresentationMap());
                 builder.endObject();
             }
             builder.endArray();

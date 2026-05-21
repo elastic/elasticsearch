@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.cluster.metadata.DataSourceSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
 import org.elasticsearch.xpack.core.crypto.EncryptionService;
@@ -34,7 +35,7 @@ public class DataSourceEncryptionTests extends ESTestCase {
         in.put("max_retries", new DataSourceSetting(7, false));
         in.put("use_path_style", new DataSourceSetting(true, false));
 
-        Map<String, DataSourceSetting> out = new DataSourceEncryption(never).apply("ds-test", in);
+        DataSourceSettings out = new DataSourceEncryption(never).apply("ds-test", new DataSourceSettings(in));
 
         assertEquals(in.size(), out.size());
         for (var e : in.entrySet()) {
@@ -60,7 +61,7 @@ public class DataSourceEncryptionTests extends ESTestCase {
         String canary = "AKIA_canary_" + randomAlphaOfLength(8);
         Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(canary, true));
 
-        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).apply("ds-test", in);
+        DataSourceSettings out = new DataSourceEncryption(svc).apply("ds-test", new DataSourceSettings(in));
 
         assertEquals(1, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
@@ -87,7 +88,7 @@ public class DataSourceEncryptionTests extends ESTestCase {
         };
 
         Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(null, true));
-        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).apply("ds-test", in);
+        DataSourceSettings out = new DataSourceEncryption(svc).apply("ds-test", new DataSourceSettings(in));
 
         assertEquals("encrypt() not invoked for null secret", 0, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
@@ -115,7 +116,7 @@ public class DataSourceEncryptionTests extends ESTestCase {
         byte[] preEncryptedBlob = encodeBlob(new EncryptedData("upstream-key", "AKIA_old".getBytes(StandardCharsets.UTF_8)));
         Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(preEncryptedBlob, true));
 
-        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).apply("ds-test", in);
+        DataSourceSettings out = new DataSourceEncryption(svc).apply("ds-test", new DataSourceSettings(in));
 
         assertEquals("encrypt() not invoked when value is already a blob", 0, encryptCalls.get());
         assertSame(preEncryptedBlob, out.get("secret_access_key").rawValue());
@@ -134,7 +135,7 @@ public class DataSourceEncryptionTests extends ESTestCase {
         in.put("secret_access_key", new DataSourceSetting(sk, true));
         in.put("max_retries", new DataSourceSetting(7, false));
 
-        Map<String, DataSourceSetting> out = new DataSourceEncryption(svc).apply("ds-test", in);
+        DataSourceSettings out = new DataSourceEncryption(svc).apply("ds-test", new DataSourceSettings(in));
 
         assertEquals("encrypt() called once per secret with a String value", 2, encryptCalls.get());
 

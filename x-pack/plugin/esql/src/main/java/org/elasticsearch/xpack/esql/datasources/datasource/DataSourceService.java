@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.cluster.metadata.DataSourceSettings;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -113,7 +114,7 @@ public class DataSourceService {
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
-                Map<String, DataSourceSetting> stored = encryption.apply(validated.name(), validated.settings());
+                DataSourceSettings stored = encryption.apply(validated.name(), validated.settings());
                 final DataSource dataSource = new DataSource(validated.name(), validated.type(), validated.description(), stored);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(dataSource.name(), dataSource);

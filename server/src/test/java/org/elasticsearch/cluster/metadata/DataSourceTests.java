@@ -79,7 +79,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         );
     }
 
-    private static Map<String, DataSourceSetting> randomSettings() {
+    private static DataSourceSettings randomSettings() {
         int count = randomIntBetween(0, 4);
         Map<String, DataSourceSetting> settings = new HashMap<>(count);
         for (int i = 0; i < count; i++) {
@@ -87,7 +87,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
             Object value = secret ? randomAlphaOfLength(8) : randomFrom(randomAlphaOfLength(8), randomInt(), randomBoolean());
             settings.put(randomAlphaOfLength(6).toLowerCase(Locale.ROOT), new DataSourceSetting(value, secret));
         }
-        return settings;
+        return new DataSourceSettings(settings);
     }
 
     public void testWriteableRoundTripExplicit() throws IOException {
@@ -118,7 +118,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
             Map.of("access_key", new DataSourceSetting("AKIA123", true), "region", new DataSourceSetting("us-east-1", false))
         );
 
-        Map<String, Object> masked = dataSource.toPresentationMap();
+        Map<String, Object> masked = dataSource.settings().toPresentationMap();
         assertEquals("::es_redacted::", masked.get("access_key"));
         assertEquals("us-east-1", masked.get("region"));
     }
@@ -132,7 +132,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
         settings.put("present_secret", new DataSourceSetting("AKIA", true));
         var dataSource = new DataSource("my-s3", "s3", null, settings);
 
-        Map<String, Object> masked = dataSource.toPresentationMap();
+        Map<String, Object> masked = dataSource.settings().toPresentationMap();
         assertTrue(masked.containsKey("optional_secret"));
         assertEquals("::es_redacted::", masked.get("optional_secret"));
         assertTrue(masked.containsKey("optional_region"));
@@ -165,7 +165,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
     }
 
     public void testRequiresSettings() {
-        expectThrows(NullPointerException.class, () -> new DataSource("test", "s3", null, null));
+        expectThrows(NullPointerException.class, () -> new DataSource("test", "s3", null, (Map<String, DataSourceSetting>) null));
     }
 
     public void testToStringMasksSecretsAndIncludesPlaintext() {

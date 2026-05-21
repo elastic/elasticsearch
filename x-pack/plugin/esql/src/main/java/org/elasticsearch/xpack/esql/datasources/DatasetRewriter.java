@@ -241,7 +241,7 @@ public final class DatasetRewriter {
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
-        for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
+        for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
             DataSourceSetting s = e.getValue();
             Object projected;
             if (s.secret() == false) {

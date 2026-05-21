@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -60,20 +59,24 @@ public final class DataSource implements Writeable, ToXContentObject {
     private final String name;
     private final String type;
     private final String description;
-    private final Map<String, DataSourceSetting> settings;
+    private final DataSourceSettings settings;
 
     public DataSource(String name, String type, @Nullable String description, Map<String, DataSourceSetting> settings) {
+        this(name, type, description, new DataSourceSettings(Objects.requireNonNull(settings, "settings must not be null")));
+    }
+
+    public DataSource(String name, String type, @Nullable String description, DataSourceSettings settings) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.type = Objects.requireNonNull(type, "type must not be null");
         this.description = description;
-        this.settings = Collections.unmodifiableMap(Objects.requireNonNull(settings, "settings must not be null"));
+        this.settings = Objects.requireNonNull(settings, "settings must not be null");
     }
 
     public DataSource(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
         this.description = in.readOptionalString();
-        this.settings = Collections.unmodifiableMap(in.readMap(DataSourceSetting::new));
+        this.settings = new DataSourceSettings(in);
     }
 
     @Override
@@ -81,7 +84,7 @@ public final class DataSource implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(type);
         out.writeOptionalString(description);
-        out.writeMap(settings, StreamOutput::writeWriteable);
+        settings.writeTo(out);
     }
 
     public String name() {
@@ -96,17 +99,8 @@ public final class DataSource implements Writeable, ToXContentObject {
         return description;
     }
 
-    public Map<String, DataSourceSetting> settings() {
+    public DataSourceSettings settings() {
         return settings;
-    }
-
-    /** Settings with secrets masked. Safe for REST responses. */
-    public Map<String, Object> toPresentationMap() {
-        Map<String, Object> result = new HashMap<>();
-        for (var entry : settings.entrySet()) {
-            result.put(entry.getKey(), entry.getValue().presentationValue());
-        }
-        return Collections.unmodifiableMap(result);
     }
 
     public static DataSource fromXContent(XContentParser parser) throws IOException {
@@ -116,8 +110,9 @@ public final class DataSource implements Writeable, ToXContentObject {
     /**
      * Emits the in-memory plaintext representation, including secret values as-is. Used for cluster-state
      * persistence (GATEWAY context only) and is not reached from the API or SNAPSHOT contexts because
-     * {@link DataSourceMetadata#context()} excludes both. Callers producing REST responses should route through
-     * {@link #toPresentationMap()}. See {@link DataSourceSetting} for the encryption-boundary contract.
+     * {@link DataSourceMetadata#context()} excludes both. Callers producing REST responses should route
+     * through {@link DataSourceSettings#toPresentationMap()}. See {@link DataSourceSetting} for the
+     * encryption-boundary contract.
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -128,7 +123,7 @@ public final class DataSource implements Writeable, ToXContentObject {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.startObject(SETTINGS.getPreferredName());
-        for (var entry : settings.entrySet()) {
+        for (var entry : settings) {
             builder.field(entry.getKey());
             entry.getValue().toXContent(builder, params);
         }
@@ -155,7 +150,7 @@ public final class DataSource implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        // Uses toPresentationMap() so secret values appear as "::es_redacted::" rather than their raw form.
+        // Uses settings.toPresentationMap() so secret values appear as "::es_redacted::" rather than their raw form.
         return "DataSource{name='"
             + name
             + "', type='"
@@ -163,7 +158,7 @@ public final class DataSource implements Writeable, ToXContentObject {
             + "', description='"
             + description
             + "', settings="
-            + toPresentationMap()
+            + settings.toPresentationMap()
             + "}";
     }
 }

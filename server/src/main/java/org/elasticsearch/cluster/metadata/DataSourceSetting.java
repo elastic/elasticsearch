@@ -110,8 +110,6 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     public DataSourceSetting(StreamInput in) throws IOException {
-        // The enclosing DataSourceMetadata custom is gated on its own transport version, so any peer
-        // exchanging these objects already understands this field; it is written unconditionally.
         this(in.readGenericValue(), in.readBoolean(), in.readEnum(EncryptionFormat.class));
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matcher;
@@ -44,8 +45,13 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
     private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
     private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
+
+    private static final TestTlsCertificate TEST_TLS_CERTIFICATE = TestTlsCertificate.generate("localhost");
+    private static final TestTrustStore TEST_TRUST_STORE = new TestTrustStore(TEST_TLS_CERTIFICATE::getPemCertificateStream);
+
     private static final AzureHttpFixture fixture = new AzureHttpFixture(
         USE_HTTPS_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
+        TEST_TLS_CERTIFICATE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
@@ -66,10 +72,6 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         }
         return AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE;
     }
-
-    private static final TestTrustStore trustStore = new TestTrustStore(
-        () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
-    );
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
@@ -98,12 +100,11 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
                 ? Map.of("AZURE_FEDERATED_TOKEN_FILE", "${ES_PATH_CONF}/storage-azure/azure-federated-token")
                 : Map.of()
         )
-        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_HTTPS_FIXTURE)
-        .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_HTTPS_FIXTURE)
+        .apply(builder -> TEST_TRUST_STORE.apply(builder, true))
         .build();
 
     @ClassRule(order = 1)
-    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(TEST_TRUST_STORE).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

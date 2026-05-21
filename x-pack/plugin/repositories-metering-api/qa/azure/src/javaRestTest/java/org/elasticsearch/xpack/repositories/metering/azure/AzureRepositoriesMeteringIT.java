@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.xpack.repositories.metering.AbstractRepositoriesMeteringAPIRestTestCase;
 import org.junit.ClassRule;
@@ -32,18 +33,18 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
     private static final String AZURE_TEST_KEY = System.getProperty("test.azure.key");
     private static final String AZURE_TEST_SASTOKEN = System.getProperty("test.azure.sas_token");
 
+    private static final TestTlsCertificate TEST_TLS_CERTIFICATE = TestTlsCertificate.generate("localhost");
+    private static final TestTrustStore TEST_TRUST_STORE = new TestTrustStore(TEST_TLS_CERTIFICATE::getPemCertificateStream);
+
     private static AzureHttpFixture fixture = new AzureHttpFixture(
         USE_HTTPS_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
+        TEST_TLS_CERTIFICATE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         System.getProperty("test.azure.tenant_id"),
         System.getProperty("test.azure.client_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT),
         MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
-    );
-
-    private static TestTrustStore trustStore = new TestTrustStore(
-        () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
     );
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -65,12 +66,11 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
             () -> "ignored;DefaultEndpointsProtocol=https;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
-        .systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString(), s -> USE_HTTPS_FIXTURE)
-        .systemProperty("javax.net.ssl.trustStoreType", () -> "jks", s -> USE_HTTPS_FIXTURE)
+        .apply(builder -> TEST_TRUST_STORE.apply(builder, true))
         .build();
 
     @ClassRule(order = 1)
-    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(TEST_TRUST_STORE).around(cluster);
 
     @Override
     protected String repositoryType() {

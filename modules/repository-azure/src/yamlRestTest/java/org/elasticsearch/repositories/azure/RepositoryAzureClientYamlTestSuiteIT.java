@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -39,8 +40,12 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
     private static final String AZURE_TEST_TENANT_ID = System.getProperty("test.azure.tenant_id");
     private static final String AZURE_TEST_CLIENT_ID = System.getProperty("test.azure.client_id");
 
+    private static final TestTlsCertificate TEST_TLS_CERTIFICATE = TestTlsCertificate.generate("localhost");
+    private static final TestTrustStore TEST_TRUST_STORE = new TestTrustStore(TEST_TLS_CERTIFICATE::getPemCertificateStream);
+
     private static final AzureHttpFixture fixture = new AzureHttpFixture(
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
+        TEST_TLS_CERTIFICATE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
@@ -59,10 +64,6 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         }
         return AzureHttpFixture.MANAGED_IDENTITY_BEARER_TOKEN_PREDICATE;
     }
-
-    private static TestTrustStore trustStore = new TestTrustStore(
-        () -> AzureHttpFixture.class.getResourceAsStream("azure-http-fixture.pem")
-    );
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
@@ -98,11 +99,11 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
                 : Map.of()
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
-        .apply(builder -> trustStore.apply(builder, USE_FIXTURE))
+        .apply(builder -> TEST_TRUST_STORE.apply(builder, USE_FIXTURE))
         .build();
 
     @ClassRule(order = 1)
-    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(TEST_TRUST_STORE).around(cluster);
 
     public RepositoryAzureClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

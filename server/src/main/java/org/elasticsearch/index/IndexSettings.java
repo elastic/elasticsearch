@@ -978,8 +978,7 @@ public final class IndexSettings {
     public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es95_codec.enabled",
         false,
-        Property.IndexScope,
-        Property.Final
+        Property.IndexScope
     );
 
     /**

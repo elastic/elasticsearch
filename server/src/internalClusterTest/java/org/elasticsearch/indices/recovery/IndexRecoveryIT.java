@@ -69,6 +69,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -132,6 +133,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
@@ -147,7 +150,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
-import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
@@ -454,7 +456,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         updateClusterSettings(
-            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
         logger.info("--> create index on node: {}", nodeA);
         createIndex(
@@ -2109,7 +2112,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     public void testSourceNodeQueuesRecoveriesPastConcurrencyLimit() throws Exception {
         internalCluster().startMasterOnlyNode();
         final int sourceConcurrentRecoveryLimit = 1;
-        final String sourceNode = internalCluster().startDataOnlyNode(
+        final var sourceNode = internalCluster().startDataOnlyNode(
             Settings.builder()
                 .put(
                     PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
@@ -2118,19 +2121,19 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .build()
         );
         final int numShards = sourceConcurrentRecoveryLimit + 1;
-        final String indexName = "test-source-queue";
-        createIndex(indexName, indexSettings(numShards, 0).put("index.routing.allocation.require._name", sourceNode).build());
+        final var indexName = "test-queued";
+        createIndex(indexName, indexSettings(numShards, 0).build());
+
         // Ensure committed segments exist, so FILE_CHUNK actions are issued
-        final List<IndexRequestBuilder> docs = new ArrayList<>();
-        for (int i = 0; i < scaledRandomIntBetween(50, 200); i++) {
-            docs.add(prepareIndex(indexName).setSource("field", "value"));
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
         }
-        indexRandom(true, docs);
         flush(indexName);
         ensureGreen(indexName);
 
         // Stall the recovery and keeps its source slot occupied.
-        final CountDownLatch fileChunkLatch = new CountDownLatch(1);
+        final var fileChunkLatch = new CountDownLatch(1);
         MockTransportService.getInstance(sourceNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 safeAwait(fileChunkLatch);
@@ -2138,12 +2141,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        internalCluster().startDataOnlyNodes(numShards);
+        internalCluster().startDataOnlyNode();
         assertAcked(
-            indicesAdmin().prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).putNull("index.routing.allocation.require._name")
-                )
+            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
         assertBusy(() -> {
@@ -2161,6 +2161,165 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         fileChunkLatch.countDown();
         ensureGreen(indexName);
+    }
+
+    public void testQueuedRecoveryCancelledWhenTargetNodeLeaves() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final var sourceNode = internalCluster().startDataOnlyNode(
+            Settings.builder()
+                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
+        );
+        final int numShards = 3;
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(numShards, 0).build());
+
+        // Ensure committed segments exist, so FILE_CHUNK actions are issued
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        // Stall the recovery and keeps its source slot occupied.
+        final var fileChunkLatch = new CountDownLatch(1);
+        MockTransportService.getInstance(sourceNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                safeAwait(fileChunkLatch);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Unthrottle the master + keep the primaries on source node
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10))
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                        .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 3)
+                )
+        );
+
+        // Balancing should do the trick
+        final var targetNodes = internalCluster().startDataOnlyNodes(2);
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
+                )
+        );
+        assertBusy(() -> {
+            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+                .get()
+                .getNodes()
+                .getFirst()
+                .getIndices()
+                .getRecoveryStats();
+            assertThat("expected two queued recovery requests", recoveryStats.currentAsSourceQueued(), equalTo(2));
+            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
+        });
+
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10))
+                .setPersistentSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                )
+        );
+        internalCluster().stopNode(targetNodes.get(1));
+
+        assertBusy(() -> {
+            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+                .get()
+                .getNodes()
+                .getFirst()
+                .getIndices()
+                .getRecoveryStats();
+            assertThat("expected cancelled queued recovery after node left", recoveryStats.currentAsSourceQueued(), lessThan(2));
+            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
+        });
+
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10))
+                .setPersistentSettings(
+                    Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
+                )
+        );
+        fileChunkLatch.countDown();
+        ensureGreen(indexName);
+    }
+
+    public void testQueuedRecoveryCancelledWhenSourceShardClosed() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final var sourceNode = internalCluster().startDataOnlyNode(
+            Settings.builder()
+                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
+        );
+        final int numShards = 2;
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(numShards, 0).build());
+
+        // Ensure committed segments exist, so FILE_CHUNK actions are issued
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexName);
+        }
+        flush(indexName);
+        ensureGreen(indexName);
+
+        // Stall the recovery and keeps its source slot occupied.
+        final var fileChunkLatch = new CountDownLatch(1);
+        final Set<Integer> shardsThatStartedRecovery = ConcurrentHashMap.newKeySet();
+        MockTransportService.getInstance(sourceNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                if (request instanceof RecoveryFileChunkRequest fileChunkRequest) {
+                    shardsThatStartedRecovery.add(fileChunkRequest.shardId().id());
+                }
+                safeAwait(fileChunkLatch);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        internalCluster().startDataOnlyNodes(1);
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        assertBusy(() -> {
+            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+                .get()
+                .getNodes()
+                .getFirst()
+                .getIndices()
+                .getRecoveryStats();
+            assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
+            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
+        });
+
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+        assertBusy(() -> {
+            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+                .get()
+                .getNodes()
+                .getFirst()
+                .getIndices()
+                .getRecoveryStats();
+            assertThat("expected no more queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(0));
+        });
+
+        fileChunkLatch.countDown();
+        assertThat(shardsThatStartedRecovery, hasSize(1));
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

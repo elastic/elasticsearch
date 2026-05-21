@@ -1,6 +1,6 @@
 ### Subtract `-` [esql-sub]
 
-:::{image} ../../../images/operators/sub.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/sub.svg
 :alt: Embedded
 :class: text-center
 :::
@@ -9,5 +9,5 @@ Subtract one number from another. If either field is [multivalued](/reference/qu
 
 
 
-:::{include} ../types/sub.md
+:::{include} ../../generated/x-pack-esql/operators/types/sub.md
 :::

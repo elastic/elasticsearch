@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.Dictionary;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.xpack.esql.core.util.Check;
 
 import java.nio.ByteBuffer;
@@ -207,7 +208,7 @@ final class DictionaryValueDecoder {
             int byteLen = numGroups * bitWidth;
             Check.isTrue(in.remaining() >= byteLen, "Truncated bit-packed dictionary index data");
             if (packedBytes == null || packedBytes.length < byteLen) {
-                packedBytes = new byte[byteLen];
+                packedBytes = UninitializedArrays.newByteArray(byteLen);
             }
             in.get(packedBytes, 0, byteLen);
             packedByteOffset = 0;

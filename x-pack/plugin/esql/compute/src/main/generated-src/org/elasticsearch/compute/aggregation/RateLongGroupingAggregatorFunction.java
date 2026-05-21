@@ -9,7 +9,7 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.TimSorter;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -830,14 +830,6 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
     }
 
-    /**
-     * Temporary buffer for usage when sorting interval in {@link ReducedState#combineIntervals()}.
-     * This is non-static, because multiple aggregators could be active at the same time.
-     * However, we never use it concurrently within an aggregator, so we can use a shared buffer across {@link ReducedState}s.
-     * The size is based on ArrayUtils.timSort, which uses a tmp area of input.length/64, so 256 should be plenty here.
-     */
-    private final int[] INTERVAL_SORT_TMP_AREA = new int[256];
-
     final class ReducedState {
         private static final int[] EMPTY_INTERVALS = new int[0];
         long samples;
@@ -924,15 +916,25 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
 
         private void sortIntervals() {
-            new TimSorter(INTERVAL_SORT_TMP_AREA.length) {
+            new IntroSorter() {
 
-                private int compareIntervals(int intervalA, int intervalB) {
-                    return Long.compare(intervalBuffer.lastTs(intervalB), intervalBuffer.lastTs(intervalA)); // want most recent first
+                long pivotTs;
+
+                @Override
+                protected void setPivot(int i) {
+                    pivotTs = intervalBuffer.lastTs(intervals[i]);
+                }
+
+                @Override
+                protected int comparePivot(int j) {
+                    // want most recent first
+                    return Long.compare(intervalBuffer.lastTs(intervals[j]), pivotTs);
                 }
 
                 @Override
                 protected int compare(int i, int j) {
-                    return compareIntervals(intervals[i], intervals[j]);
+                    // want most recent first
+                    return Long.compare(intervalBuffer.lastTs(intervals[j]), intervalBuffer.lastTs(intervals[i]));
                 }
 
                 @Override
@@ -942,25 +944,6 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                     intervals[j] = tmp;
                 }
 
-                @Override
-                protected void copy(int src, int dest) {
-                    intervals[dest] = intervals[src];
-                }
-
-                @Override
-                protected void save(int start, int len) {
-                    System.arraycopy(intervals, start, INTERVAL_SORT_TMP_AREA, 0, len);
-                }
-
-                @Override
-                protected void restore(int src, int dest) {
-                    intervals[dest] = INTERVAL_SORT_TMP_AREA[src];
-                }
-
-                @Override
-                protected int compareSaved(int i, int j) {
-                    return compareIntervals(intervals[i], INTERVAL_SORT_TMP_AREA[j]);
-                }
             }.sort(0, intervals.length);
         }
 

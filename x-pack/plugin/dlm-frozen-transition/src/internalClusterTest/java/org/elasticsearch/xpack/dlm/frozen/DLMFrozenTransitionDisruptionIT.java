@@ -424,9 +424,14 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         );
         triggerRollover();
 
+        // The second backing index (created by triggerRollover) will also become a candidate
+        // after the concurrent rollover creates a third backing index.
+        String secondBackingIndex = backingIndexNames().get(1);
+
         assertTrue("ForceMerge request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
 
         String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        String expectedFrozenIndexName2 = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + secondBackingIndex;
         assertBusy(() -> {
             var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
@@ -434,13 +439,18 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                 .metadata()
                 .getProject(Metadata.DEFAULT_PROJECT_ID);
             assertThat(
-                "Frozen index should exist despite concurrent rollover",
+                "Frozen index should exist for first candidate despite concurrent rollover",
                 projectMetadata.index(expectedFrozenIndexName),
+                notNullValue()
+            );
+            assertThat(
+                "Frozen index should exist for second candidate after concurrent rollover",
+                projectMetadata.index(expectedFrozenIndexName2),
                 notNullValue()
             );
         }, 120, TimeUnit.SECONDS);
 
-        logger.info("--> concurrent rollover during transition handled gracefully");
+        logger.info("--> concurrent rollover during transition handled gracefully, both indices converted to frozen");
     }
 
     /**

@@ -47,8 +47,10 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -67,14 +69,18 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -840,13 +846,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
                 @Override
                 public void onClusterServiceClose() {
-                    observerError.set(
-                        new ElasticsearchException(
-                            "Cluster service closed while waiting for DLM snapshot [{}] for index [{}]",
-                            snapshotName,
-                            indexName
-                        )
-                    );
+                    observerError.set(new NodeClosedException(clusterService.localNode()));
                     latch.countDown();
                 }
 
@@ -995,6 +995,31 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             depth++;
         }
         return current;
+    }
+
+    /**
+     * Returns {@code true} if the exception indicates a transient master-failover condition from which the DLM service
+     * will naturally recover on the next scheduler tick once a new master is elected.
+     * Such exceptions must not be recorded in the error store, as they are not indicative of a bug or a
+     * misconfiguration.
+     */
+    static boolean isTransientMasterFailoverException(Throwable t) {
+        Throwable unwrapped = ExceptionsHelper.unwrap(
+            t,
+            NotMasterException.class,
+            FailedToCommitClusterStateException.class,
+            NodeClosedException.class,
+            MasterNotDiscoveredException.class,
+            ConnectTransportException.class,
+            SnapshotException.class
+        );
+
+        if (unwrapped != null) {
+            return unwrapped instanceof SnapshotException == false
+                || (unwrapped.getMessage() != null && unwrapped.getMessage().endsWith("no longer master"));
+        }
+
+        return false;
     }
 
     /**

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145191
+summary: Add file metadata virtual columns for external sources
+type: enhancement

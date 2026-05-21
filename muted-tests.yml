@@ -486,9 +486,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardMovedAway
   issue: https://github.com/elastic/elasticsearch/issues/149083
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/149130
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149126
+- class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
+  method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/149127
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
@@ -555,16 +558,13 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/149350
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testDynamicStringMappingWithoutAutoTextSubfield
-  issue: https://github.com/elastic/elasticsearch/issues/149374
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
   methods:
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zst/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zstd/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz/LOCAL]}
-    - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz2/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zst/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.zstd/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.bz/LOCAL]}
+  - test {csv-spec:csv-headerless.multiFileHeaderlessReadSchemaPreventsTypeDrift [csv.gz/LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149481
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.* [LOCAL]}
@@ -572,3 +572,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
   method: test {csv-spec:external-hive-partitioned.* [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149495
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:flattened.statsByFlattenedAllRows}
+  issue: https://github.com/elastic/elasticsearch/issues/149549
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search/30_limits/Request with negative from value in body}
+  issue: https://github.com/elastic/elasticsearch/issues/149556
+- class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
+  method: testLimitsFileCount
+  issue: https://github.com/elastic/elasticsearch/issues/149557

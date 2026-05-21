@@ -73,9 +73,17 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
      * any in-flight {@code runDownloader()} has returned), the DELETE runs against an idle index — no auto-create
      * race from a straggler bulk and therefore no shard left in {@code [starting shard]} state for
      * {@code InternalTestCluster#assertAfterTest} to time out on.
+     * <p>
+     * Guards against an empty cluster: if {@code assumeTrue} in the test body caused the test to be skipped before
+     * any nodes were started, there is nothing to clean up and attempting to do so would throw
+     * {@code AssertionError: Unable to get client, no node found}, which would turn the skip into a
+     * {@code TestCouldNotBeSkippedException}.
      */
     @After
     public void cleanUp() throws Exception {
+        if (internalCluster().size() == 0) {
+            return;
+        }
         updateClusterSettings(Settings.builder().putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey()));
         assertBusy(
             () -> assertFalse(

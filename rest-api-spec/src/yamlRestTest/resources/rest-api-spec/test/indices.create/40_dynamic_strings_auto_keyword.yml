@@ -27,6 +27,10 @@ setup:
   - match: { test_dynamic_strings_default.defaults.index.mapping.dynamic_strings.auto_text: "true" }
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_dynamic_strings_default
 
@@ -55,6 +59,10 @@ setup:
         index: test_dynamic_strings_no_text
 
   - match: { test_dynamic_strings_no_text.settings.index.mapping.dynamic_strings.auto_text: "false" }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:
@@ -88,6 +96,10 @@ setup:
   - match: { test_dynamic_strings.settings.index.mapping.dynamic_strings.auto_text: "true" }
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_dynamic_strings
 
@@ -112,6 +124,10 @@ setup:
         index: test_dynamic_strings
 
   - match: { test_dynamic_strings.settings.index.mapping.dynamic_strings.auto_text: "false" }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:

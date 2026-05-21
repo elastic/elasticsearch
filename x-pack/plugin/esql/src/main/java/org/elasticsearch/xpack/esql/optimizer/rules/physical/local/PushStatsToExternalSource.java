@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Pushes ungrouped aggregate functions (COUNT, MIN, MAX) to external sources when the
@@ -109,6 +112,17 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         Expression filterForClassification = filterCondition;
         if (filterCondition != null && aliasReplacedBy.isEmpty() == false) {
             filterForClassification = filterCondition.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+        }
+
+        // SplitFilterClassifier reasons from file-level stats and treats columns physically absent from
+        // the file as "all null" (columnNullCount == rowCount). Partition columns live in the directory
+        // path, not the payload, so they are absent from every file's stats and would misclassify
+        // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
+        // normal scan path evaluates the partition predicate against the VirtualColumnInjector's
+        // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
+        Set<String> partitionColumnNames = partitionColumnNames(externalExec);
+        if (filterForClassification != null && referencesAnyColumn(filterForClassification, partitionColumnNames)) {
+            return aggregateExec;
         }
 
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats;
@@ -233,5 +247,24 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             blocks[i] = PushAggregatesToExternalSource.buildBlock(blockFactory, values.get(i), dataTypes.get(i));
         }
         return blocks;
+    }
+
+    private static Set<String> partitionColumnNames(ExternalSourceExec externalExec) {
+        FileList fileList = externalExec.fileList();
+        if (fileList == null) {
+            return Set.of();
+        }
+        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
+        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
+            return Set.of();
+        }
+        return partitionMetadata.partitionColumns().keySet();
+    }
+
+    private static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {
+        if (columnNames.isEmpty()) {
+            return false;
+        }
+        return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 }

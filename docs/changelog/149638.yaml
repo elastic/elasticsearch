@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 149638
+summary: Making enterprise ip location modified date consistent with non-enterprise
+type: bug

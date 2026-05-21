@@ -15,11 +15,11 @@ import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
+import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;

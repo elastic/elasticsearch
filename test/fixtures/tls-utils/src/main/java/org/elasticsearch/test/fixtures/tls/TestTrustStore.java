@@ -7,9 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test;
+package org.elasticsearch.test.fixtures.tls;
 
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;

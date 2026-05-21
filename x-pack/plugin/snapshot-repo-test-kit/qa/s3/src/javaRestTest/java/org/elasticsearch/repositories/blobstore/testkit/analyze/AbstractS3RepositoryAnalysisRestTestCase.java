@@ -18,11 +18,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.test.TestTrustStore;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
+import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 
 import java.util.function.Supplier;
 

@@ -857,10 +857,57 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(0, result.remainder().size());
     }
 
+    // --- Virtual column tests ---
+    // Virtual columns (engine-synthesized _file.* via ExternalMetadataAttribute / VirtualAttribute,
+    // ES document metadata via MetadataAttribute) have no parquet column to read, so every
+    // predicate over them must stay non-pushable regardless of the structural shape.
+
+    public void testEqualsOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.size", DataType.LONG);
+        Expression filter = new Equals(Source.EMPTY, virtual, longLit(123L), null);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testRangeOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.modified", DataType.DATETIME);
+        Expression filter = new Range(Source.EMPTY, virtual, datetimeLit(1L), true, datetimeLit(100L), false, ZoneOffset.UTC);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testInOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression filter = new In(Source.EMPTY, virtual, List.of(keywordLit("a.parquet"), keywordLit("b.parquet")));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testIsNullOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.path", DataType.KEYWORD);
+        Expression filter = new IsNull(Source.EMPTY, virtual);
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testStartsWithOnVirtualAttributeIsNotPushed() {
+        Attribute virtual = virtualAttr("_file.path", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, virtual, keywordLit("/data/"));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
+    public void testWildcardLikeOnVirtualAttributeIsNotPushed() {
+        // The original symptom of #149393: virtual-column LIKE accepted as YES → FilterExec
+        // dropped → predicate silently never fires. Stay NO so FilterExec keeps evaluating it.
+        Attribute virtual = virtualAttr("_file.name", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, virtual, new WildcardPattern("*.parquet"));
+        assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
+    }
+
     // --- helpers ---
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
+    }
+
+    private static Attribute virtualAttr(String name, DataType type) {
+        return new org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute(Source.EMPTY, name, type);
     }
 
     private static Literal intLit(int value) {

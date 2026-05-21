@@ -252,13 +252,14 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
+        new TestDataset("flattened_many"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V6),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V7),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 

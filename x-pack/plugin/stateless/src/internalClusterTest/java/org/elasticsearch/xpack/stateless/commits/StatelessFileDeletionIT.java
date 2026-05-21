@@ -144,7 +144,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1064,7 +1063,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         if (excludeOrStop) {
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToExclude), indexName);
             if (randomBoolean()) {
-                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToExclude))));
+                internalCluster().awaitNodeVacated(indexName, nodeToExclude);
             }
         } else {
             internalCluster().stopNode(nodeToExclude);
@@ -1090,7 +1089,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         logger.info("--> excluding {}", indexNodeA);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
 
         logger.info("--> deleting index");
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());

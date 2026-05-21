@@ -36,6 +36,33 @@ cost:double | step:datetime
 42.25       | 2024-05-10T00:03:00.000Z
 ;
 
+max_over_time_of_double_no_grouping_promql_expanded
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(max_over_time(network.cost[1m])))
+| SORT step;
+
+cost:double | step:datetime
+33.25       | 2024-05-10T00:08:00.000Z
+50.125      | 2024-05-10T00:09:00.000Z
+83.125      | 2024-05-10T00:10:00.000Z
+;
+
+max_over_time_of_double_no_grouping_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(max_over_time(network.cost[1m])))
+| TS_COLLAPSE;
+
+cost:double          | step:datetime
+[33.25, 50.125, 83.125] | [2024-05-10T00:08:00.000Z, 2024-05-10T00:09:00.000Z, 2024-05-10T00:10:00.000Z]
+;
+
 max_over_time_of_ip
 required_capability: ts_command_v0
 TS k8s | STATS ip = max(max_over_time(client.ip)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;

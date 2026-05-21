@@ -123,6 +123,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             MappedFieldType.FieldExtractPreference.STORED
         )) {
             for (IndexMode indexMode : IndexMode.values()) {
+                // TODO: Support COLUMNAR and LOGSDB_COLUMNAR modes in BWC tests
+                // These modes are currently skipped to avoid "No enum constant" errors in mixed-version clusters
+                // where older nodes don't have these enum values yet.
+                if (indexMode.isStrictColumnar()) {
+                    continue;
+                }
                 args.add(new Object[] { extractPreference, indexMode });
             }
         }

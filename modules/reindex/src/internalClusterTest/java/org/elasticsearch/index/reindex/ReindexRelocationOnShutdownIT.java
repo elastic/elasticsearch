@@ -31,6 +31,7 @@ import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -91,7 +92,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * Creates a 3 node cluster with a master node, data node and coordinating node (that will hold the reindexing request).
      * By shutting down the coordination node, the reindexing task is forced to relocate to the data node. Since the data node is not
      * shutting down, then pit relocation is guaranteed to succeed. We then assert that the destination index eventually contains
-     * all documents.
+     * all documents and that the relocated task's reported {@code Status#total} equals the source doc count.
      */
     public void testReindexTaskRelocatesOnNodeShutdown() throws Exception {
         assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
@@ -108,17 +109,13 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        // Keep the doc size small so the task finishes quickly
-        final int numDocs = randomIntBetween(10, 40);
-        createIndex(SOURCE);
-        indexRandom(
-            true,
-            false,
-            true,
-            IntStream.range(0, numDocs)
-                .mapToObj(i -> prepareIndex(SOURCE).setId(String.valueOf(i)).setSource("n", i))
-                .collect(Collectors.toList())
+        // Exceed the default cap so Status#total accuracy across relocation is meaningfully exercised.
+        final int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(
+            1,
+            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
         );
+        createIndex(SOURCE);
+        indexRandom(true, SOURCE, numDocs);
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
         // Randomly make the source index read only
@@ -133,8 +130,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(0.000001f);
-        // This is the batch size of how many documents to return per search.
-        request.getSearchRequest().source().size(1);
+        request.getSearchRequest().source().size(1000);
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -183,6 +179,11 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setTimeout(TimeValue.timeValueSeconds(60))
             .get();
         assertTrue("relocated reindex should complete", relocatedTaskFinished.getTask().isCompleted());
+
+        final Map<String, Object> responseMap = relocatedTaskFinished.getTask().getResponseAsMap();
+        final var reportedTotal = (Integer) responseMap.get(BulkByPaginatedSearchTask.Status.TOTAL_FIELD);
+        assertNotNull("relocated reindex response must include Status#total", reportedTotal);
+        assertEquals("relocated reindex Status#total must equal numDocs across the relocation boundary", numDocs, reportedTotal.intValue());
 
         // Asserts that the reindexing task is relocated to another node and succeeds
         assertBusy(() -> {

@@ -46,9 +46,9 @@ import java.util.function.Supplier;
 public class CircuitBreakerMetrics {
     public static final CircuitBreakerMetrics NOOP = new CircuitBreakerMetrics(TelemetryProvider.NOOP);
     public static final String ES_BREAKER_TRIP_COUNT_TOTAL = "es.breaker.trip.total";
-    public static final String ES_BREAKER_MEMORY_HELD = "es.breaker.memory.held";
-    public static final String ES_BREAKER_MEMORY_LIMIT = "es.breaker.memory.limit";
-    public static final String ES_BREAKER_MEMORY_ESTIMATED = "es.breaker.memory.estimated";
+    public static final String ES_BREAKER_MEMORY_HELD = "es.breaker.memory.held.usage";
+    public static final String ES_BREAKER_MEMORY_LIMIT = "es.breaker.memory.limit.size";
+    public static final String ES_BREAKER_MEMORY_ESTIMATED = "es.breaker.memory.estimated.usage";
 
     private final MeterRegistry meterRegistry;
     private final LongCounter tripCount;

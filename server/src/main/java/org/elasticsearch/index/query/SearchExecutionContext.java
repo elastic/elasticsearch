@@ -847,7 +847,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Release all accumulated query construction memory back to the circuit breaker.
      * <p>
      * Each label's accumulated bytes are released via the category-aware
-     * {@link CircuitBreaker#addWithoutBreaking(long, String)} so the {@code es.breaker.memory.held} per-category gauge nets to zero
+     * {@link CircuitBreaker#addWithoutBreaking(long, String)} so the {@code es.breaker.memory.held.usage} per-category gauge nets to zero
      * across the request lifetime.
      */
     public void releaseQueryConstructionMemory() {

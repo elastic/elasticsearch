@@ -188,7 +188,7 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
                  * deallocations will go directly to the underlying breaker.
                  *
                  * The release reuses the same label that was used for the admit on construction so that
-                 * the per-category es.breaker.memory.held gauge stays balanced (admit and release cancel
+                 * the per-category es.breaker.memory.held.usage gauge stays balanced (admit and release cancel
                  * out under category="preallocate[<label>]").
                  */
                 next.addWithoutBreaking(-preallocated, preallocateLabel);

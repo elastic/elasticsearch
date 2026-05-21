@@ -39,17 +39,19 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
         file("cloned/build/checkout/settings.gradle").exists()
     }
 
-    def "git tasks are skipped and writeDraRefspec writes the short hash when DRA build ID is configured"() {
+    def "git checkout is skipped when DRA build ID is configured and no checkout is needed"() {
         given:
         buildFile << """
             plugins.getPlugin(org.elasticsearch.gradle.internal.InternalBwcGitPlugin)
                 .configureDraBuildId(project.providers.provider { "7.9.1-abc12345" })
         """
         when:
-        def result = gradleRunner("writeDraRefspec", '--stacktrace').build()
+        // Run a task that depends on git tasks so we can verify they are skipped
+        def result = gradleRunner("checkoutBwcBranch", '--stacktrace', "-DtestRemoteRepo=" + remoteGitRepo, "-Dbwc.remote=origin").build()
         then:
-        result.task(":writeDraRefspec").outcome == TaskOutcome.SUCCESS
-        file("cloned/build/refspec").text == "abc12345"
+        result.task(":createClone").outcome == TaskOutcome.SKIPPED
+        result.task(":fetchLatest").outcome == TaskOutcome.SKIPPED
+        result.task(":checkoutBwcBranch").outcome == TaskOutcome.SKIPPED
     }
 
     def "git checkout is skipped when DRA build ID is configured"() {
@@ -71,15 +73,10 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
         result.task(":checkoutBwcBranch").outcome == TaskOutcome.SKIPPED
     }
 
-    def "writeDraRefspec is skipped and git tasks run when no DRA build ID is configured"() {
+    def "git tasks run when no DRA build ID is configured"() {
         when:
-        def result = gradleRunner(
-            "writeDraRefspec",
-            "createClone",
-            '--stacktrace'
-        ).build()
+        def result = gradleRunner("createClone", '--stacktrace').build()
         then:
-        result.task(":writeDraRefspec").outcome == TaskOutcome.SKIPPED
         result.task(":createClone").outcome == TaskOutcome.SUCCESS
     }
 

@@ -49,6 +49,8 @@ fi
 
 export GCP_PREEMPTION_EXIT_CODE=47
 
+source .buildkite/scripts/setup_node.sh
+
 vault_with_retry() {
   local attempt delays=(1 5 10)
   for attempt in 0 1 2 3; do

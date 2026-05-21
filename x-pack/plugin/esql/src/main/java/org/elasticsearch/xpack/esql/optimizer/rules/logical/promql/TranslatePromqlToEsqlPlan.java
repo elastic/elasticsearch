@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
@@ -193,6 +194,24 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         var plan = result.plan();
         var valueExpr = result.expression();
         var filter = result.pendingFilter();
+
+        // Selector-free instant query (e.g. result=(time())) where the value is
+        // a pure function of T and always return exactly one row at T.
+        //
+        // The normal path would create a {@code TimeSeriesAggregate} and return 0 rows when the index is empty.
+        // Hence, we bypass the normal path and reutn exactly one row.
+        if (cmd.isInstantQuery() && cmd.promqlPlan().collect(Selector.class).isEmpty()) {// expr substitutes any reference to stepAttr (the
+                                                                                         // TStep-computed attribute) with the literal
+            // PromQL functions receive eval time via `stepAttr` so it must be resolved.
+            var expr = valueExpr.transformUp(Attribute.class, attr -> attr.id().equals(ctx.stepAttr().id()) ? cmd.end() : attr);
+            return new Row(
+                cmd.source(),
+                List.of(
+                    new Alias(cmd.source(), cmd.valueColumnName(), new ToDouble(cmd.source(), expr), cmd.valueId()),
+                    new Alias(cmd.source(), cmd.stepColumnName(), cmd.end(), cmd.stepId())
+                )
+            );
+        }
 
         if (filter != null) {
             plan = applyLabelFilter(plan, filter, cmd);
@@ -811,7 +830,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // Apply source filter: {@code t >= start - max(w)} AND {@code t <= end}
         if (start.value() != null && end.value() != null) {
             var timestamp = promqlCommand.timestamp();
-            var window = promqlCommand.maxRangeSelectorWindow();
+            var window = promqlCommand.sourceFilterWindow();
             var child = promqlCommand.child();
 
             var lo = new GreaterThanOrEqual(source, timestamp, new Sub(source, start, Literal.timeDuration(source, window), configuration));
@@ -847,9 +866,16 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private static Alias createStepBucketAlias(PromqlCommand p, Configuration cfg) {
         var source = p.source();
 
+        if (p.isInstantQuery()) {
+            Expression stepSize = Literal.timeDuration(source, p.resolveInstantQueryWindow());
+            Expression start = new Sub(p.start().source(), p.start(), stepSize, cfg);
+            var tstep = new TStep(stepSize.source(), stepSize, start, p.end(), p.timestamp(), cfg);
+            return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
+        }
+
         Expression timeBucketSize = p.resolveTimeBucketSize();
-        Expression start = p.start().value() != null ? p.start() : Literal.dateTime(source, EPOCH_MIN);
-        Expression end = p.end().value() != null ? p.end() : Literal.dateTime(source, EPOCH_MAX);
+        Expression start = p.start().value() != null ? p.start() : Literal.dateTime(p.source(), EPOCH_MIN);
+        Expression end = p.end().value() != null ? p.end() : Literal.dateTime(p.source(), EPOCH_MAX);
         var tstep = new TStep(timeBucketSize.source(), timeBucketSize, start, end, p.timestamp(), cfg);
         return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
     }

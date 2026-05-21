@@ -159,7 +159,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(currentAsSource(), currentAsTarget(), currentAsSourceQueued(), throttleTime());
+        return Objects.hash(currentAsSource(), currentAsSourceQueued(), currentAsTarget(), throttleTime());
     }
 
     @Override

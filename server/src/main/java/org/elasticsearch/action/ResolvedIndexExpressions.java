@@ -95,7 +95,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, remoteExpressions));
         }
 
-        public void clearAllLocalExpressions() {
+        public void setAllLocalExpressionsToNone() {
             for (int i = 0; i < expressions.size(); i++) {
                 ResolvedIndexExpression current = expressions.get(i);
                 if (current.localExpressions() != LocalExpressions.NONE) {

@@ -139,7 +139,11 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        assumeFalse("No approximation tests", testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName()));
+        assumeFalse(
+            "No approximation tests",
+            testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
+                || testCase.requiredCapabilitiesLocalCluster.contains(APPROXIMATION_V7.capabilityName())
+        );
         assumeFalse(
             "Approximation casts integer SUM to double, preventing long overflow",
             testCase.requiredCapabilities.contains(FIX_SUM_AGG_LONG_OVERFLOW.capabilityName())

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -18,6 +19,7 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DelayableWriteableTests extends ESTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
@@ -163,6 +165,34 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<Example> d = DelayableWriteable.referencing(e).asSerialized(Example::new, writableRegistry());
         assertTrue(d.isSerialized());
         assertSame(d, d.asSerialized(Example::new, writableRegistry()));
+    }
+
+    /**
+     * {@link DelayableWriteable#compressToBytes} must report pre-compression size via {@link StreamOutput#position()}
+     * on the compressor, and a smaller on-the-wire blob.
+     */
+    public void testCompressToBytes() throws IOException {
+        Example e = new Example("a".repeat(1024));
+        TransportVersion version = TransportVersionUtils.randomVersionSupporting(DelayableWriteable.DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE);
+
+        // Verify the helper returns compressed bytes and the pre-compression size.
+        DelayableWriteable.CompressedBytes compressed = DelayableWriteable.compressToBytes(e, version);
+
+        long expectedUncompressed;
+        try (CountingStreamOutput counting = new CountingStreamOutput()) {
+            counting.setTransportVersion(version);
+            e.writeTo(counting);
+            expectedUncompressed = counting.position();
+        }
+        assertThat(compressed.uncompressedSize(), equalTo(expectedUncompressed));
+        assertThat((long) compressed.bytes().length(), lessThan(compressed.uncompressedSize()));
+
+        try (
+            StreamInput in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(compressed.bytes().streamInput())
+        ) {
+            in.setTransportVersion(version);
+            assertThat(new Example(in), equalTo(e));
+        }
     }
 
     public void testGetUncompressedSerializedSizeReferencing() throws IOException {

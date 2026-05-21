@@ -44,7 +44,7 @@ import java.util.Map;
 public abstract class DelayableWriteable<T extends Writeable> implements Writeable, Releasable {
 
     private static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = TransportVersion.fromName("compress_delayable_writeable");
-    private static final TransportVersion DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE = TransportVersion.fromName(
+    static final TransportVersion DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE = TransportVersion.fromName(
         "delayable_writeable_uncompressed_size"
     );
 
@@ -142,16 +142,10 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public void writeTo(StreamOutput out) throws IOException {
             final TransportVersion version = out.getTransportVersion();
             if (version.supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
-                final long uncompressedSize = DelayableWriteable.getUncompressedSerializedSize(reference);
-                final BytesStreamOutput tmp = new BytesStreamOutput();
-                try (var compressor = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(tmp)) {
-                    compressor.setTransportVersion(version);
-                    reference.writeTo(compressor);
-                }
-                final var bytes = tmp.bytes();
-                out.writeInt(bytes.length());
-                out.writeVLong(uncompressedSize);
-                bytes.writeTo(out);
+                final CompressedBytes compressed = compressToBytes(reference, version);
+                out.writeInt(compressed.bytes().length());
+                out.writeVLong(compressed.uncompressedSize());
+                compressed.bytes().writeTo(out);
             } else if (version.supports(COMPRESS_DELAYABLE_WRITEABLE)) {
                 out.writeWithSizePrefix(reference);
             } else {
@@ -167,21 +161,18 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
-            final long uncompressedSize = DelayableWriteable.getUncompressedSerializedSize(reference);
-            BytesStreamOutput buffer = new BytesStreamOutput();
-            try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(buffer)) {
-                out.setTransportVersion(TransportVersion.current());
-                reference.writeTo(out);
+            try {
+                final CompressedBytes compressed = compressToBytes(reference, TransportVersion.current());
+                return new Serialized<>(
+                    reader,
+                    TransportVersion.current(),
+                    registry,
+                    ReleasableBytesReference.wrap(compressed.bytes()),
+                    compressed.uncompressedSize()
+                );
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            return new Serialized<>(
-                reader,
-                TransportVersion.current(),
-                registry,
-                ReleasableBytesReference.wrap(buffer.bytes()),
-                uncompressedSize
-            );
         }
 
         @Override
@@ -320,6 +311,23 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
 
     }
+
+    /**
+     * Compresses {@code ref} to a buffer and returns the compressed bytes together with the uncompressed serialized
+     * size ({@link StreamOutput#position()} on the compressor, which counts bytes before compression).
+     */
+    static CompressedBytes compressToBytes(Writeable ref, TransportVersion version) throws IOException {
+        final BytesStreamOutput tmp = new BytesStreamOutput();
+        long uncompressedSize;
+        try (StreamOutput compressor = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(tmp)) {
+            compressor.setTransportVersion(version);
+            ref.writeTo(compressor);
+            uncompressedSize = compressor.position();
+        }
+        return new CompressedBytes(tmp.bytes(), uncompressedSize);
+    }
+
+    record CompressedBytes(BytesReference bytes, long uncompressedSize) {}
 
     /**
      * Returns the uncompressed serialized size in bytes of the provided {@link Writeable}, i.e. the byte count it

@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,12 +37,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class ThrottlingRecoveryServiceTests extends ESTestCase {
-
     private static TestThreadPool threadPool;
+    private static Executor executor;
 
     @BeforeClass
     public static void init() throws Exception {
         threadPool = new TestThreadPool(ThrottlingRecoveryServiceTests.class.getSimpleName());
+        executor = threadPool.generic();
     }
 
     @AfterClass
@@ -52,7 +53,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /** Work starts on {@link org.elasticsearch.threadpool.ThreadPool#generic()}, not on the enqueueing thread. */
     public void testSynchronousTaskRunsOutsideEnqueueingThread() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, newClusterSettings(between(2, 4)));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(between(2, 4)));
         Thread caller = Thread.currentThread();
         AtomicReference<Thread> executionThread = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
@@ -84,7 +85,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * so the user listener observes completion before the consumer runnable returns.
      */
     public void testSynchronousTaskNotifiesUserListenerBeforeConsumerReturns() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, newClusterSettings(1));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch done = new CountDownLatch(1);
         RecoveryListener userListener = new RecoveryListener() {
@@ -116,7 +117,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * runnable must only invoke {@link RecoveryListener#onRecoveryDone} after the consumer body has finished.
      */
     public void testAsynchronousTaskCompletesOnlyAfterConsumerReturns() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, newClusterSettings(1));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch proceedNested = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(1);
@@ -137,7 +138,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
         service.enqueue(userListener, schedulingListener -> {
-            threadPool.generic().execute(() -> {
+            executor.execute(() -> {
                 safeAwait(proceedNested);
                 assertTrue(consumerReturned.get());
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -154,7 +155,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      */
     public void testMaxConcurrencyBoundWithAsynchronousTerminalCallback() throws Exception {
         final int maxConcurrentRecoveries = between(2, 5);
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, newClusterSettings(maxConcurrentRecoveries));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(maxConcurrentRecoveries));
         AtomicInteger running = new AtomicInteger();
         AtomicInteger peakConcurrent = new AtomicInteger();
         CountDownLatch maxConcurrentReached = new CountDownLatch(maxConcurrentRecoveries);
@@ -183,7 +184,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             peakConcurrent.accumulateAndGet(current, Integer::max);
             maxConcurrentReached.countDown();
             safeAwait(unblock);
-            threadPool.generic().execute(() -> {
+            executor.execute(() -> {
                 try {
                     schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                 } finally {
@@ -215,7 +216,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /** Raising the limit should start queued work without waiting for running recoveries to finish. */
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() throws Exception {
         final ClusterSettings clusterSettings = newClusterSettings(2);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, clusterSettings);
+        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
         final CountDownLatch firstBatchStarted = new CountDownLatch(2);
         final CountDownLatch secondBatchStarted = new CountDownLatch(4);
         final CountDownLatch unblockAll = new CountDownLatch(1);
@@ -242,7 +243,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      */
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() throws Exception {
         final ClusterSettings clusterSettings = newClusterSettings(3);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, clusterSettings);
+        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
         final CountDownLatch runningEntered = new CountDownLatch(3);
         final List<CountDownLatch> unblockEachFirstBatch = List.of(new CountDownLatch(1), new CountDownLatch(1), new CountDownLatch(1));
         final AtomicBoolean[] pendingStarted = new AtomicBoolean[] { new AtomicBoolean(), new AtomicBoolean(), new AtomicBoolean() };
@@ -252,7 +253,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         for (int i = 0; i < 3; i++) {
             final int index = i;
             service.enqueue(noopUserListener, schedulingListener -> {
-                threadPool.generic().execute(() -> {
+                executor.execute(() -> {
                     runningEntered.countDown();
                     safeAwait(unblockEachFirstBatch.get(index));
                     schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -301,7 +302,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /** With one slot, synchronous completions preserve enqueue order. */
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, newClusterSettings(1));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(1));
         int total = between(10, 20);
         List<Integer> completionOrder = new CopyOnWriteArrayList<>();
         CountDownLatch allDone = new CountDownLatch(total);
@@ -352,7 +353,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final AtomicInteger peakLimitCeiling = new AtomicInteger(initialMaxConcurrentRecoveries);
         final int highContentionBurstSizeMin = between(1, initialMaxConcurrentRecoveries);
         final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, initialMaxConcurrentRecoveries * 2);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(threadPool, clusterSettings);
+        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
         final AtomicInteger running = new AtomicInteger();
         final AtomicInteger peakRunning = new AtomicInteger();
         final AtomicInteger totalTasksEnqueued = new AtomicInteger();
@@ -402,7 +403,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                     peakRunning,
                                     totalTasksFinished,
                                     taskLatch,
-                                    random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
+                                    random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
                                 )
                             );
                         }
@@ -419,7 +420,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                     peakRunning,
                                     totalTasksFinished,
                                     taskLatch,
-                                    random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
+                                    random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
                                 )
                             );
                         }
@@ -449,11 +450,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         AtomicInteger peakRunning,
         AtomicInteger totalTasksFinished,
         RefCounted refCounted,
-        ExecutorService executorService
+        Executor executor
     ) {
-        executorService.execute(
-            () -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted)
-        );
+        executor.execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted));
     }
 
     private static void doRunStressInboundRecoveryTask(

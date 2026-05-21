@@ -15,6 +15,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 /**
@@ -40,7 +41,7 @@ public final class ThrottlingRecoveryService {
         Setting.Property.NodeScope
     );
 
-    private final ThreadPool threadPool;
+    private final Executor executor;
     private volatile int maxConcurrentRecoveries;
 
     private final Queue<RecoveryTask> pending = new ArrayDeque<>();
@@ -48,8 +49,8 @@ public final class ThrottlingRecoveryService {
     /** In-flight tasks: dispatched to {@link ThreadPool#generic()} and not yet completed ({@link #closeAndMaybeDispatch()} not run). */
     private int running;
 
-    public ThrottlingRecoveryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
-        this.threadPool = threadPool;
+    public ThrottlingRecoveryService(Executor executor, ClusterSettings clusterSettings) {
+        this.executor = executor;
         clusterSettings.initializeAndWatch(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }
 
@@ -88,7 +89,7 @@ public final class ThrottlingRecoveryService {
      */
     private void dispatch(RecoveryTask recoveryTask) {
         running++;
-        threadPool.generic().execute(() -> recoveryTask.task.accept(recoveryTask.recoveryListener));
+        executor.execute(() -> recoveryTask.task.accept(recoveryTask.recoveryListener));
     }
 
     /**

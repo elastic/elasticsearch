@@ -259,6 +259,9 @@ setup:
 
 ---
 "store: true is rejected in columnar mode":
+  - requires:
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
+      reason: "Storing fields is not allowed in strict columnar index modes"
   - do:
       catch: bad_request
       indices.create:
@@ -279,6 +282,9 @@ setup:
 
 ---
 "store: true is rejected in logsdb_columnar mode":
+  - requires:
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
+      reason: "Storing fields is not allowed in strict columnar index modes"
   - do:
       catch: bad_request
       indices.create:

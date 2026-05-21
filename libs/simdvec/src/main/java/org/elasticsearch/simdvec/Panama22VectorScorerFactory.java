@@ -32,6 +32,11 @@ final class Panama22VectorScorerFactory implements VectorScorerFactory {
     private static final VectorScorerFactory FALLBACK = new DefaultVectorScorerFactory();
 
     @Override
+    public boolean usesNative() {
+        return false;
+    }
+
+    @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
@@ -54,7 +59,9 @@ final class Panama22VectorScorerFactory implements VectorScorerFactory {
         ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS
-            && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
+            && ((queryBits == 1 && indexBits == 1)
+                || (queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4))
+                || (queryBits == 7 && indexBits == 7))) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {

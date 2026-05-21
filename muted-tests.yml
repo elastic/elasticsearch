@@ -309,9 +309,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
   method: testPeriodicWarning
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/147850
 - class: org.elasticsearch.backwards.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/147853

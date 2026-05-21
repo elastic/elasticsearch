@@ -12,9 +12,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -106,12 +108,38 @@ public final class KeywordToFlattenedTransformer {
     private KeywordToFlattenedTransformer() {}
 
     /**
+     * One {@code keyword} field declaration that this helper intentionally left untouched, with
+     * the reason for the skip. Skips fall into two categories:
+     * <ul>
+     *   <li>{@link SkipReason#INCOMPATIBLE_PARAMETER}: the field declares one of the parameters
+     *       in {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED}; {@link #parameter} carries the
+     *       offending parameter name.</li>
+     *   <li>{@link SkipReason#CALLER_EXCLUDED_PATH}: the field's dotted path appeared in the
+     *       caller-supplied {@code excludedPaths} set passed to
+     *       {@link #transformMapping(String, Set)}; {@link #parameter} is {@code null}.</li>
+     * </ul>
+     * Callers (typically the test variant's logger) inventory these so the set of "fields where
+     * {@code field_extract} is never exercised" is visible in run output rather than implicit.
+     */
+    public record SkippedField(String fieldPath, SkipReason reason, String parameter) {}
+
+    /** Why {@link #transformMapping(String, Set)} left a {@code keyword} field declaration unchanged. */
+    public enum SkipReason {
+        /** Field declared a parameter in {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED}. */
+        INCOMPATIBLE_PARAMETER,
+        /** Field's dotted path was in the caller-supplied {@code excludedPaths} set. */
+        CALLER_EXCLUDED_PATH
+    }
+
+    /**
      * Result of {@link #transformMapping(String)}.
      *
      * @param transformedMapping the rewritten mapping JSON, or the original input when no keyword fields were found
      * @param keywordFieldPaths  the dotted paths of every field whose type was rewritten from keyword to flattened
+     * @param skippedFields      every {@code keyword} field declaration that was intentionally left untouched, in
+     *                           declaration order, with the reason for the skip
      */
-    public record MappingResult(String transformedMapping, Set<String> keywordFieldPaths) {}
+    public record MappingResult(String transformedMapping, Set<String> keywordFieldPaths, List<SkippedField> skippedFields) {}
 
     /**
      * Convenience overload that excludes no paths. Equivalent to
@@ -140,18 +168,19 @@ public final class KeywordToFlattenedTransformer {
     public static MappingResult transformMapping(String originalMapping, Set<String> excludedPaths) throws IOException {
         JsonNode root = MAPPER.readTree(originalMapping);
         if (root.isObject() == false) {
-            return new MappingResult(originalMapping, Collections.emptySet());
+            return new MappingResult(originalMapping, Collections.emptySet(), List.of());
         }
         JsonNode properties = root.path("properties");
         if (properties.isObject() == false) {
-            return new MappingResult(originalMapping, Collections.emptySet());
+            return new MappingResult(originalMapping, Collections.emptySet(), List.of());
         }
         Set<String> paths = new HashSet<>();
-        rewriteKeywords((ObjectNode) properties, "", paths, excludedPaths);
+        List<SkippedField> skipped = new ArrayList<>();
+        rewriteKeywords((ObjectNode) properties, "", paths, excludedPaths, skipped);
         if (paths.isEmpty()) {
-            return new MappingResult(originalMapping, Collections.emptySet());
+            return new MappingResult(originalMapping, Collections.emptySet(), List.copyOf(skipped));
         }
-        return new MappingResult(MAPPER.writeValueAsString(root), paths);
+        return new MappingResult(MAPPER.writeValueAsString(root), paths, List.copyOf(skipped));
     }
 
     /**
@@ -248,7 +277,13 @@ public final class KeywordToFlattenedTransformer {
         }
     }
 
-    private static void rewriteKeywords(ObjectNode propertiesNode, String prefix, Set<String> paths, Set<String> excludedPaths) {
+    private static void rewriteKeywords(
+        ObjectNode propertiesNode,
+        String prefix,
+        Set<String> paths,
+        Set<String> excludedPaths,
+        List<SkippedField> skipped
+    ) {
         Iterator<Map.Entry<String, JsonNode>> it = propertiesNode.fields();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> entry = it.next();
@@ -260,36 +295,43 @@ public final class KeywordToFlattenedTransformer {
             String fullPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
 
             JsonNode typeNode = fieldObj.get("type");
-            if (typeNode != null
-                && typeNode.isTextual()
-                && KEYWORD_TYPE.equals(typeNode.asText())
-                && hasIncompatibleParameter(fieldObj) == false
-                && excludedPaths.contains(fullPath) == false) {
-                fieldObj.put("type", FLATTENED_TYPE);
-                paths.add(fullPath);
+            if (typeNode != null && typeNode.isTextual() && KEYWORD_TYPE.equals(typeNode.asText())) {
+                String incompatibleParam = findIncompatibleParameter(fieldObj);
+                if (incompatibleParam != null) {
+                    skipped.add(new SkippedField(fullPath, SkipReason.INCOMPATIBLE_PARAMETER, incompatibleParam));
+                } else if (excludedPaths.contains(fullPath)) {
+                    skipped.add(new SkippedField(fullPath, SkipReason.CALLER_EXCLUDED_PATH, null));
+                } else {
+                    fieldObj.put("type", FLATTENED_TYPE);
+                    paths.add(fullPath);
+                }
             }
             JsonNode nested = fieldObj.path("properties");
             if (nested.isObject()) {
-                rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths);
+                rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths, skipped);
             }
             // Multi-fields under "fields" are intentionally skipped here; if a keyword parent has
             // a "fields" block we already refuse to rewrite the parent itself via
-            // hasIncompatibleParameter, which keeps the multi-field children consistent with their
+            // findIncompatibleParameter, which keeps the multi-field children consistent with their
             // (still scalar) parent source.
         }
     }
 
     /**
-     * Returns {@code true} if {@code fieldObj} declares any parameter that makes the
-     * keyword&rarr;flattened rewrite unsafe. See {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED} and
-     * the class-level Javadoc for the full rationale per parameter.
+     * Returns the name of the first parameter on {@code fieldObj} that makes the
+     * keyword&rarr;flattened rewrite unsafe, or {@code null} if {@code fieldObj} declares none of
+     * them. See {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED} and the class-level Javadoc for the
+     * full rationale per parameter. The order in which the set is iterated is unspecified, so the
+     * returned parameter is "one of" the offending parameters &mdash; sufficient to identify the
+     * declared mapping feature for logging while keeping the test variant deterministic enough to
+     * grep against (the field path, not the parameter, is the stable identifier of a skip).
      */
-    private static boolean hasIncompatibleParameter(ObjectNode fieldObj) {
+    private static String findIncompatibleParameter(ObjectNode fieldObj) {
         for (String param : PARAMS_INCOMPATIBLE_WITH_FLATTENED) {
             if (fieldObj.has(param)) {
-                return true;
+                return param;
             }
         }
-        return false;
+        return null;
     }
 }

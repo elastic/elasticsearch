@@ -19,12 +19,15 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Integration test that runs the {@link CsvIT} csv-spec corpus against indices where every field
@@ -46,6 +49,31 @@ import java.util.Set;
  * {@code -Dtests.run_keyword_flattened_variant.log_queries=true}. The short
  * {@code keyword→flattened: launched; rewrote field references [...]} marker is always emitted so
  * that the per-test rewrite is correlatable from logs even when query logging is off.
+ *
+ * <h2>Decision-transparency log lines</h2>
+ * Every place the variant declines to convert or wrap a keyword field is reported in the run log
+ * with a stable {@code keyword→flattened:} prefix so the user can {@code grep} an inventory of
+ * "where {@code field_extract} was not exercised, and why" without re-reading the rewriter source.
+ * Three categories are emitted:
+ * <ul>
+ *   <li>{@code skip-convert; dataset=&lt;X&gt;; field=&lt;Y&gt;; reason=...} &mdash; once at startup
+ *       per keyword field that this variant will never convert to {@code flattened}. Two reasons
+ *       are produced: {@code reason=enrich-policy match_field for [policy]} for fields that must
+ *       remain {@code keyword} in the source dataset of an enrich policy, and
+ *       {@code reason=keyword carries [param]} for fields whose declaration uses a parameter in
+ *       {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}.</li>
+ *   <li>{@code scope-excluded; field=&lt;X&gt;; reason=keyword in {...} but non-keyword in {...}} &mdash;
+ *       per launched query (and per recursive subquery), once per field whose cross-dataset path
+ *       intersection eliminates it from the rewrite scope. The two dataset sets identify which
+ *       indices contributed each side of the conflict.</li>
+ *   <li>{@code skip-wrap; site=&lt;SITE&gt;; field=&lt;X&gt;; reason=...} &mdash; per launched query,
+ *       once per distinct {@code (site, field)} pair the rewriter's
+ *       {@link EsqlQueryKeywordFieldRewriter.SkipSite} machinery declined to wrap. Sites cover
+ *       grammar slots that accept only an attribute (e.g. {@code MV_EXPAND}, {@code ENRICH ON})
+ *       and the LHS of the match operator {@code :}. These positions are still exercised at the
+ *       runtime layer (the bare attribute reaches the engine on a {@code flattened} column), but
+ *       {@code field_extract} itself is not tested there.</li>
+ * </ul>
  *
  * <p>Known limitations:</p>
  * <ul>
@@ -152,21 +180,34 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private final Map<String, Set<String>> nonKeywordPathsByDatasetIndexName;
 
         KeywordToFlattenedStrategy() {
-            this.protectedKeywordPathsByEnrichSourceIndex = computeProtectedKeywordPathsByEnrichSourceIndex();
+            EnrichExclusionResult enrichResult = computeEnrichMatchFieldExclusions();
+            this.protectedKeywordPathsByEnrichSourceIndex = enrichResult.byIndex();
             DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByEnrichSourceIndex);
             this.keywordPathsByDatasetIndexName = datasetPaths.keywordPathsByDatasetIndexName();
             this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
+            // C-class transparency: emit one INFO line for every keyword field that this variant will
+            // intentionally never convert. The user can grep for "skip-convert" to inventory the
+            // permanent blind spots of the test variant. Both sources are emitted here:
+            // * enrich-policy match_fields: the policy reindex into .enrich-* requires keyword,
+            // and converting the source field would poison the test resource loader.
+            // * mapping-denylist hits: keyword fields declaring TSDB / multi-fields / copy_to /
+            // runtime-script parameters that are incompatible with flattened.
+            logEnrichMatchFieldExclusions(enrichResult.exclusions());
+            logMappingDenylistHits(datasetPaths.skippedFieldsByDataset());
         }
 
         /**
-         * Bundles the two per-dataset path maps that {@link #computeDatasetPaths} produces in a
-         * single mapping pass: one entry per declared field is classified as either
-         * keyword-being-rewritten or not, so a single walk of the mapping populates both maps
-         * deterministically.
+         * Bundles the per-dataset path maps that {@link #computeDatasetPaths} produces in a single
+         * mapping pass: one entry per declared field is classified as either keyword-being-rewritten
+         * or not, so a single walk of the mapping populates both maps deterministically. The
+         * {@link #skippedFieldsByDataset} map carries the {@link KeywordToFlattenedTransformer}'s
+         * own report of every keyword field it left untouched (with reasons), so the strategy can
+         * forward those decisions to the logger without re-reading the mapping.
          */
         private record DatasetPathsResult(
             Map<String, Set<String>> keywordPathsByDatasetIndexName,
-            Map<String, Set<String>> nonKeywordPathsByDatasetIndexName
+            Map<String, Set<String>> nonKeywordPathsByDatasetIndexName,
+            Map<String, List<KeywordToFlattenedTransformer.SkippedField>> skippedFieldsByDataset
         ) {}
 
         /**
@@ -184,6 +225,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          *       minus the keyword paths above). This includes both true non-keyword leaves (long,
          *       ip, text, geo_point, &hellip;) and keyword-typed leaves that the transformer
          *       denylist or the enrich-policy exclusion left intact.</li>
+         *   <li>For each dataset, the {@link KeywordToFlattenedTransformer.SkippedField} entries
+         *       describing every keyword field declaration that was intentionally not converted.
+         *       Forwarded to the strategy's startup logger so the test variant's permanent blind
+         *       spots are visible in the run output.</li>
          * </ul>
          * The transformed mapping itself is discarded here; the per-index transformation still
          * runs through {@link #transformMapping(CsvTestsDataLoader.TestDataset, String)} when
@@ -192,6 +237,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private static DatasetPathsResult computeDatasetPaths(Map<String, Set<String>> protectedByIndex) {
             Map<String, Set<String>> keywordMap = new HashMap<>();
             Map<String, Set<String>> nonKeywordMap = new HashMap<>();
+            Map<String, List<KeywordToFlattenedTransformer.SkippedField>> skippedMap = new HashMap<>();
             for (CsvTestsDataLoader.TestDataset dataset : CsvTestsDataLoader.CSV_DATASET.values()) {
                 if (dataset.mappingFileName() == null) {
                     continue;
@@ -206,38 +252,70 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                     nonKeywordPaths.removeAll(keywordPaths);
                     keywordMap.put(dataset.indexName(), keywordPaths);
                     nonKeywordMap.put(dataset.indexName(), Set.copyOf(nonKeywordPaths));
+                    if (result.skippedFields().isEmpty() == false) {
+                        skippedMap.put(dataset.indexName(), result.skippedFields());
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException("failed to read mapping for dataset [" + dataset.indexName() + "]", e);
                 }
             }
-            return new DatasetPathsResult(Map.copyOf(keywordMap), Map.copyOf(nonKeywordMap));
+            return new DatasetPathsResult(Map.copyOf(keywordMap), Map.copyOf(nonKeywordMap), Map.copyOf(skippedMap));
         }
 
         /**
-         * Builds the protected-path map by reading every entry in
-         * {@link CsvTestsDataLoader#ENRICH_POLICIES} and recording each policy's {@code match_field}
-         * under its source index name (the {@code index} field of the
-         * {@link CsvTestsDataLoader.EnrichConfig}). Policy type ({@code match}, {@code geo_match},
-         * {@code range}) is irrelevant here: adding a non-keyword path to the exclusion set is a
-         * no-op because {@link KeywordToFlattenedTransformer} only ever rewrites declared
-         * {@code keyword} fields, so we accept all policies and let the transformer ignore the
-         * paths it would not have touched.
+         * One enrich policy that contributes a {@code match_field} to the per-source-index
+         * exclusion set, with enough metadata for the startup logger to attribute each exclusion
+         * to its policy. Used only as a logging carrier; the actual exclusion check inside the
+         * transformer goes through the by-index map.
+         *
+         * @param policyName  the enrich policy name as declared in
+         *                    {@link CsvTestsDataLoader#ENRICH_POLICIES}
+         * @param sourceIndex the {@code index} field of the policy &mdash; the dataset whose
+         *                    mapping the transformer will skip the {@code match_field} in
+         * @param matchField  the field path that must remain {@code keyword} in the source dataset
          */
-        private static Map<String, Set<String>> computeProtectedKeywordPathsByEnrichSourceIndex() {
+        private record EnrichMatchFieldExclusion(String policyName, String sourceIndex, String matchField) {}
+
+        /**
+         * Bundles the by-source-index protected-paths map (used at runtime by the transformer)
+         * with the per-policy exclusion list (used at startup by the logger). Both views are
+         * populated by a single walk over {@link CsvTestsDataLoader#ENRICH_POLICIES} so the test
+         * variant cannot drift between "what we tell the transformer to keep as keyword" and
+         * "what we report to the user as kept".
+         */
+        private record EnrichExclusionResult(Map<String, Set<String>> byIndex, List<EnrichMatchFieldExclusion> exclusions) {}
+
+        /**
+         * Reads every entry in {@link CsvTestsDataLoader#ENRICH_POLICIES}, parses out each
+         * policy's {@code match_field}, and returns both
+         * <ol>
+         *   <li>a by-source-index map (the value passed to
+         *       {@link KeywordToFlattenedTransformer#transformMapping(String, Set)}), and</li>
+         *   <li>a per-policy list (used by the startup logger to attribute each exclusion to its
+         *       policy by name).</li>
+         * </ol>
+         * Policy type ({@code match}, {@code geo_match}, {@code range}) is irrelevant here:
+         * adding a non-keyword path to the by-index set is a no-op inside the transformer because
+         * it only ever rewrites declared {@code keyword} fields, so all policies are accepted and
+         * the transformer ignores the paths it would not have touched.
+         */
+        private static EnrichExclusionResult computeEnrichMatchFieldExclusions() {
             ObjectMapper jsonMapper = new ObjectMapper();
-            Map<String, Set<String>> exclusions = new HashMap<>();
+            Map<String, Set<String>> exclusionsByIndex = new HashMap<>();
+            List<EnrichMatchFieldExclusion> perPolicy = new ArrayList<>();
             for (CsvTestsDataLoader.EnrichConfig policy : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
                 String matchField = readMatchFieldFromPolicy(jsonMapper, policy);
                 if (matchField == null) {
                     continue;
                 }
-                exclusions.computeIfAbsent(policy.index(), k -> new HashSet<>()).add(matchField);
+                exclusionsByIndex.computeIfAbsent(policy.index(), k -> new HashSet<>()).add(matchField);
+                perPolicy.add(new EnrichMatchFieldExclusion(policy.policyName(), policy.index(), matchField));
             }
             Map<String, Set<String>> immutable = new HashMap<>();
-            for (Map.Entry<String, Set<String>> entry : exclusions.entrySet()) {
+            for (Map.Entry<String, Set<String>> entry : exclusionsByIndex.entrySet()) {
                 immutable.put(entry.getKey(), Set.copyOf(entry.getValue()));
             }
-            return Map.copyOf(immutable);
+            return new EnrichExclusionResult(Map.copyOf(immutable), List.copyOf(perPolicy));
         }
 
         /**
@@ -311,10 +389,107 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // INFO produces thousands of multi-line blocks &mdash; useful when analyzing a specific run, but
             // noisy enough to bury the rest of the test output when always on.
             logger.info("keyword→flattened: launched; rewrote field references {}", result.rewrittenFieldNames());
+            // B-class transparency: emit one INFO line per intentionally-skipped wrap site so the
+            // user can grep for "skip-wrap" and inventory exactly which positions in this query
+            // the rewriter declined to wrap, and why. Aggregated by (site, field) so a body that
+            // mentions the same field twice surfaces a single line.
+            logRewriterSkipEvents(result.skipEvents());
             if (Boolean.getBoolean(LOG_REWRITTEN_QUERIES_PROPERTY)) {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
             return result.rewrittenQuery();
+        }
+
+        /**
+         * Emits one INFO line per distinct {@code (site, field)} pair in {@code events}, sorted by
+         * {@code site} then {@code field} so the output is deterministic across runs (the
+         * rewriter's iteration order is otherwise dependent on the in-scope set's iteration
+         * order). Each line carries the site, the field name, and a reason string short enough
+         * that a {@code grep "site=MV_EXPAND_ARG"} or
+         * {@code grep "site=MATCH_OPERATOR_LHS"} produces a usable inventory.
+         */
+        private static void logRewriterSkipEvents(List<EsqlQueryKeywordFieldRewriter.SkipEvent> events) {
+            if (events.isEmpty()) {
+                return;
+            }
+            Map<EsqlQueryKeywordFieldRewriter.SkipSite, Set<String>> bySite = new TreeMap<>();
+            for (EsqlQueryKeywordFieldRewriter.SkipEvent event : events) {
+                bySite.computeIfAbsent(event.site(), k -> new TreeSet<>()).add(event.field());
+            }
+            for (Map.Entry<EsqlQueryKeywordFieldRewriter.SkipSite, Set<String>> entry : bySite.entrySet()) {
+                String reason = skipSiteReason(entry.getKey());
+                for (String field : entry.getValue()) {
+                    logger.info("keyword→flattened: skip-wrap; site={}; field={}; reason={}", entry.getKey(), field, reason);
+                }
+            }
+        }
+
+        /**
+         * Human-readable reason string for each {@link EsqlQueryKeywordFieldRewriter.SkipSite}.
+         * Kept as a centralised mapping (rather than as a field on {@code SkipEvent}) so the
+         * reason text can evolve with the test variant's documentation without changing the
+         * rewriter's API surface.
+         */
+        private static String skipSiteReason(EsqlQueryKeywordFieldRewriter.SkipSite site) {
+            return switch (site) {
+                case MV_EXPAND_ARG -> "MV_EXPAND grammar slot accepts only an attribute, not an expression";
+                case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
+                case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
+            };
+        }
+
+        /**
+         * Emits one INFO line per enrich policy whose {@code match_field} this variant keeps as
+         * {@code keyword} in the policy's source dataset. The user can grep for
+         * {@code skip-convert} to inventory every field the test variant will never exercise with
+         * {@code field_extract}, and grep for {@code reason=enrich} to narrow down to this
+         * subset.
+         */
+        private static void logEnrichMatchFieldExclusions(List<EnrichMatchFieldExclusion> exclusions) {
+            List<EnrichMatchFieldExclusion> sorted = new ArrayList<>(exclusions);
+            sorted.sort(
+                Comparator.comparing(EnrichMatchFieldExclusion::sourceIndex)
+                    .thenComparing(EnrichMatchFieldExclusion::matchField)
+                    .thenComparing(EnrichMatchFieldExclusion::policyName)
+            );
+            for (EnrichMatchFieldExclusion exclusion : sorted) {
+                logger.info(
+                    "keyword→flattened: skip-convert; dataset={}; field={}; reason=enrich-policy match_field for [{}]",
+                    exclusion.sourceIndex(),
+                    exclusion.matchField(),
+                    exclusion.policyName()
+                );
+            }
+        }
+
+        /**
+         * Emits one INFO line per keyword field declaration that
+         * {@link KeywordToFlattenedTransformer} left untouched because the field declared a
+         * {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}
+         * parameter. The {@link KeywordToFlattenedTransformer.SkipReason#CALLER_EXCLUDED_PATH}
+         * subset is intentionally not logged from here: those are the enrich-policy exclusions
+         * already reported by {@link #logEnrichMatchFieldExclusions} (with the policy name as
+         * extra context), so re-emitting them under {@code reason=keyword carries [...]} would
+         * double-count. Output is sorted by {@code (dataset, field)} for deterministic grep.
+         */
+        private static void logMappingDenylistHits(Map<String, List<KeywordToFlattenedTransformer.SkippedField>> skippedByDataset) {
+            List<String> datasets = new ArrayList<>(skippedByDataset.keySet());
+            datasets.sort(Comparator.naturalOrder());
+            for (String dataset : datasets) {
+                List<KeywordToFlattenedTransformer.SkippedField> skipped = new ArrayList<>(skippedByDataset.get(dataset));
+                skipped.sort(Comparator.comparing(KeywordToFlattenedTransformer.SkippedField::fieldPath));
+                for (KeywordToFlattenedTransformer.SkippedField field : skipped) {
+                    if (field.reason() != KeywordToFlattenedTransformer.SkipReason.INCOMPATIBLE_PARAMETER) {
+                        continue;
+                    }
+                    logger.info(
+                        "keyword→flattened: skip-convert; dataset={}; field={}; reason=keyword carries [{}]",
+                        dataset,
+                        field.fieldPath(),
+                        field.parameter()
+                    );
+                }
+            }
         }
 
         /**
@@ -403,14 +578,65 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 query,
                 CsvTestsDataLoader.CSV_DATASET
             );
+            // Track per-dataset classification of every path so that, if the cross-dataset
+            // intersection eliminates a field from the rewrite scope, the strategy can also log
+            // which datasets contributed the conflict. Without this attribution the user sees an
+            // exclusion but cannot tell whether it came from one specific dataset (a clear
+            // mapping difference) or several (a scattered keyword/non-keyword mix).
             Set<String> keywordCandidates = new HashSet<>();
             Set<String> nonKeywordExclusions = new HashSet<>();
+            Map<String, Set<String>> keywordContributorsByField = new HashMap<>();
+            Map<String, Set<String>> nonKeywordContributorsByField = new HashMap<>();
             for (CsvTestsDataLoader.TestDataset d : datasets) {
-                keywordCandidates.addAll(keywordPathsByDatasetIndexName.getOrDefault(d.indexName(), Set.of()));
-                nonKeywordExclusions.addAll(nonKeywordPathsByDatasetIndexName.getOrDefault(d.indexName(), Set.of()));
+                Set<String> kw = keywordPathsByDatasetIndexName.getOrDefault(d.indexName(), Set.of());
+                Set<String> nonKw = nonKeywordPathsByDatasetIndexName.getOrDefault(d.indexName(), Set.of());
+                keywordCandidates.addAll(kw);
+                nonKeywordExclusions.addAll(nonKw);
+                for (String f : kw) {
+                    keywordContributorsByField.computeIfAbsent(f, k -> new TreeSet<>()).add(d.indexName());
+                }
+                for (String f : nonKw) {
+                    nonKeywordContributorsByField.computeIfAbsent(f, k -> new TreeSet<>()).add(d.indexName());
+                }
+            }
+            // The fields actually subtracted by the cross-dataset intersection are exactly the
+            // keyword candidates that also appear as non-keyword in some referenced dataset. We
+            // log one INFO line per such field with the conflicting datasets so the user can
+            // grep for "scope-excluded" and see exactly which queries lost which coverage.
+            Set<String> excluded = new TreeSet<>();
+            for (String f : keywordCandidates) {
+                if (nonKeywordExclusions.contains(f)) {
+                    excluded.add(f);
+                }
             }
             keywordCandidates.removeAll(nonKeywordExclusions);
+            logScopeExclusions(excluded, keywordContributorsByField, nonKeywordContributorsByField);
             return keywordCandidates;
+        }
+
+        /**
+         * Emits one INFO line per field excluded from the rewrite scope by cross-dataset
+         * intersection, naming the datasets that contributed each side of the conflict. The
+         * resolver runs once per top-level query and once per recursively rewritten subquery; the
+         * resulting volume is bounded by (queries) &times; (subquery depth) &times; (excluded
+         * fields per query) and in practice produces a handful of lines per conflicted query.
+         */
+        private static void logScopeExclusions(
+            Set<String> excludedFields,
+            Map<String, Set<String>> keywordContributors,
+            Map<String, Set<String>> nonKeywordContributors
+        ) {
+            for (String field : excludedFields) {
+                Set<String> kwContributors = keywordContributors.getOrDefault(field, Set.of());
+                Set<String> nonKwContributors = nonKeywordContributors.getOrDefault(field, Set.of());
+                logger.info(
+                    "keyword→flattened: scope-excluded; field={}; "
+                        + "reason=keyword in {} but non-keyword (or denylisted/enrich-protected) in {}",
+                    field,
+                    kwContributors,
+                    nonKwContributors
+                );
+            }
         }
     }
 }

@@ -175,13 +175,42 @@ public final class EsqlQueryKeywordFieldRewriter {
     }
 
     /**
+     * Identifies a syntactic site at which the rewriter declined to wrap an in-scope keyword
+     * reference in {@code field_extract(...)}. Each variant corresponds to a grammar slot or
+     * operator position whose ES|QL syntax accepts only an attribute reference, not an arbitrary
+     * expression; wrapping there would surface as a parser error rather than as a useful
+     * {@code field_extract} finding. Used by callers (typically the test variant's logger) to
+     * inventory exactly which positions were left unwrapped and why, so that the missing
+     * coverage is visible in run output instead of being silently absorbed.
+     */
+    public enum SkipSite {
+        /** Body of an {@code MV_EXPAND <field>} command. */
+        MV_EXPAND_ARG,
+        /** Body of an {@code ENRICH <policy> [ON <field>] [WITH ...]} command (any sub-position). */
+        ENRICH_BODY,
+        /** Identifier on the left-hand side of a single-colon match operator ({@code field : "value"}). */
+        MATCH_OPERATOR_LHS
+    }
+
+    /**
+     * One occurrence of an in-scope keyword field that the rewriter intentionally did not wrap.
+     *
+     * @param site   the syntactic context that forced the skip; see {@link SkipSite}
+     * @param field  the field name that was left unwrapped
+     */
+    public record SkipEvent(SkipSite site, String field) {}
+
+    /**
      * Result of {@link #rewrite(String, Set, String)}.
      *
      * @param rewrittenQuery       the rewritten query string, or the original query if no field references were rewritten
      * @param modified             {@code true} iff at least one keyword field reference was rewritten
      * @param rewrittenFieldNames  the set of keyword field names that were actually wrapped at least once
+     * @param skipEvents           every in-scope keyword reference that was left unwrapped, in
+     *                             pipeline order, including events emitted from recursive
+     *                             rewrites of parenthesised sub-pipelines
      */
-    public record RewriteResult(String rewrittenQuery, boolean modified, Set<String> rewrittenFieldNames) {}
+    public record RewriteResult(String rewrittenQuery, boolean modified, Set<String> rewrittenFieldNames, List<SkipEvent> skipEvents) {}
 
     /** Character class used in lookarounds to detect identifier boundaries. */
     private static final String IDENTIFIER_BOUNDARY_CLASS = "[a-zA-Z0-9_.]";
@@ -348,7 +377,7 @@ public final class EsqlQueryKeywordFieldRewriter {
     ) {
         Set<String> initialScope = scopeResolver.resolveScope(query);
         if (initialScope.isEmpty()) {
-            return new RewriteResult(query, false, Set.of());
+            return new RewriteResult(query, false, Set.of(), List.of());
         }
         return new PipelineWalker(query, initialScope, scopeResolver, wrapperSubKey, expectedColumnOrder, applyTailEndRecovery).walk();
     }
@@ -373,6 +402,7 @@ public final class EsqlQueryKeywordFieldRewriter {
         private final boolean applyTailEndRecovery;
         private final StringBuilder out = new StringBuilder();
         private final Set<String> rewrittenNames = new HashSet<>();
+        private final List<SkipEvent> skipEvents = new ArrayList<>();
         private Set<String> scope;
 
         PipelineWalker(
@@ -399,7 +429,7 @@ public final class EsqlQueryKeywordFieldRewriter {
                 appendTailEndRecovery();
             }
             String result = out.toString();
-            return new RewriteResult(result, result.equals(query) == false, Set.copyOf(rewrittenNames));
+            return new RewriteResult(result, result.equals(query) == false, Set.copyOf(rewrittenNames), List.copyOf(skipEvents));
         }
 
         /**
@@ -490,31 +520,32 @@ public final class EsqlQueryKeywordFieldRewriter {
                 return;
             }
             if (cmd.equals("EVAL")) {
-                out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames));
+                out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
                 scope = updateScopeForEvalCommand(segment, pos, scope);
                 return;
             }
             if (STATS_REPLACE_COMMANDS.contains(cmd)) {
                 String preprocessed = preprocessStatsByAliasing(segment, pos, scope);
-                out.append(rewriteFieldRefs(preprocessed, scope, wrapperSubKey, rewrittenNames));
+                out.append(rewriteFieldRefs(preprocessed, scope, wrapperSubKey, rewrittenNames, skipEvents));
                 scope = new HashSet<>();
                 return;
             }
             if (STATS_PRESERVE_COMMANDS.contains(cmd)) {
                 String preprocessed = preprocessStatsByAliasing(segment, pos, scope);
-                out.append(rewriteFieldRefs(preprocessed, scope, wrapperSubKey, rewrittenNames));
+                out.append(rewriteFieldRefs(preprocessed, scope, wrapperSubKey, rewrittenNames, skipEvents));
                 return;
             }
             if (DISSECT_GROK_COMMANDS.contains(cmd)) {
-                out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames));
+                out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
                 scope = updateScopeForDissectOrGrokCommand(cmd, segment, pos, scope);
                 return;
             }
             if (NAME_ONLY_BODY_COMMANDS.contains(cmd)) {
                 out.append(segment);
+                recordNameOnlyBodySkips(cmd, segment, pos, scope, skipEvents);
                 return;
             }
-            out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames));
+            out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
         }
 
         /**
@@ -571,6 +602,7 @@ public final class EsqlQueryKeywordFieldRewriter {
                     // tail-end EVAL conflicts with the outer FROM's sibling-index branches.
                     RewriteResult inner = rewriteInternal(innerText, scopeResolver, wrapperSubKey, List.of(), false);
                     rewrittenNames.addAll(inner.rewrittenFieldNames());
+                    skipEvents.addAll(inner.skipEvents());
                     result.append('(').append(inner.rewrittenQuery()).append(')');
                 } else {
                     result.append(segment, i, closing + 1);
@@ -970,16 +1002,33 @@ public final class EsqlQueryKeywordFieldRewriter {
      * Rewrites every standalone occurrence of a name in {@code scope} within {@code segment} as
      * {@code field_extract(name, "wrapperSubKey")}, skipping string literals, line comments, the
      * LHS of any assignment, and the LHS of any match-operator ({@code :}) comparison. Field
-     * names actually wrapped are added to {@code rewrittenSink}.
+     * names actually wrapped are added to {@code rewrittenSink}; in-scope identifiers that fell
+     * inside a match-operator LHS protection range &mdash; and so were intentionally not wrapped
+     * &mdash; are reported via {@code skipSink} as {@link SkipSite#MATCH_OPERATOR_LHS} events so
+     * the caller can inventory them.
+     * <p>
+     * The other two protection categories (string/comment ranges and assignment LHS ranges) are
+     * not reported as skip events because their occurrences are not field references in the
+     * first place: an identifier inside a string literal is part of the literal text, and an
+     * identifier on the LHS of {@code name = expr} is being defined, not read. Only the
+     * match-operator LHS represents a reference whose position the rewriter would otherwise have
+     * wrapped but cannot.
      */
-    private static String rewriteFieldRefs(String segment, Set<String> scope, String wrapperSubKey, Set<String> rewrittenSink) {
+    private static String rewriteFieldRefs(
+        String segment,
+        Set<String> scope,
+        String wrapperSubKey,
+        Set<String> rewrittenSink,
+        List<SkipEvent> skipSink
+    ) {
         if (scope.isEmpty()) {
             return segment;
         }
-        List<int[]> protectedRanges = new ArrayList<>();
-        addStringAndCommentRanges(segment, protectedRanges);
-        addAssignmentTargetRanges(segment, protectedRanges);
-        addMatchOperatorLhsRanges(segment, protectedRanges);
+        List<int[]> nonReferenceRanges = new ArrayList<>();
+        addStringAndCommentRanges(segment, nonReferenceRanges);
+        addAssignmentTargetRanges(segment, nonReferenceRanges);
+        List<int[]> matchOperatorLhsRanges = new ArrayList<>();
+        addMatchOperatorLhsRanges(segment, matchOperatorLhsRanges);
 
         record CandidateMatch(int start, int end, String field) {}
         List<CandidateMatch> matches = new ArrayList<>();
@@ -990,9 +1039,14 @@ public final class EsqlQueryKeywordFieldRewriter {
             );
             Matcher m = p.matcher(segment);
             while (m.find()) {
-                if (overlapsAnyRange(m.start(), m.end(), protectedRanges) == false) {
-                    matches.add(new CandidateMatch(m.start(), m.end(), field));
+                if (overlapsAnyRange(m.start(), m.end(), nonReferenceRanges)) {
+                    continue;
                 }
+                if (overlapsAnyRange(m.start(), m.end(), matchOperatorLhsRanges)) {
+                    skipSink.add(new SkipEvent(SkipSite.MATCH_OPERATOR_LHS, field));
+                    continue;
+                }
+                matches.add(new CandidateMatch(m.start(), m.end(), field));
             }
         }
         if (matches.isEmpty()) {
@@ -1007,6 +1061,38 @@ public final class EsqlQueryKeywordFieldRewriter {
             rewrittenSink.add(m.field());
         }
         return result.toString();
+    }
+
+    /**
+     * Records one {@link SkipEvent} per in-scope identifier appearing inside the body of a
+     * {@code MV_EXPAND} or {@code ENRICH} command. Both grammar slots accept only attribute
+     * references (no expressions), so the rewriter passes the body through unchanged; this
+     * method makes the resulting "we did not wrap field X here" decisions visible to callers.
+     * String literals and line comments inside the body are masked first so an identifier that
+     * happens to appear inside one of them does not falsely trigger a skip event.
+     */
+    private static void recordNameOnlyBodySkips(
+        String cmd,
+        String segment,
+        CommandPosition pos,
+        Set<String> scope,
+        List<SkipEvent> skipSink
+    ) {
+        if (scope.isEmpty()) {
+            return;
+        }
+        SkipSite site = cmd.equals("MV_EXPAND") ? SkipSite.MV_EXPAND_ARG : SkipSite.ENRICH_BODY;
+        String body = segment.substring(pos.bodyStart());
+        String masked = maskStringsAndComments(body);
+        for (String field : scope) {
+            Pattern p = Pattern.compile(
+                "(?<!" + IDENTIFIER_BOUNDARY_CLASS + ")" + Pattern.quote(field) + "(?!" + IDENTIFIER_BOUNDARY_CLASS + ")"
+            );
+            Matcher m = p.matcher(masked);
+            while (m.find()) {
+                skipSink.add(new SkipEvent(site, field));
+            }
+        }
     }
 
     /**

@@ -2752,7 +2752,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
 
         /**
          * Support query approximation with INLINE STATS

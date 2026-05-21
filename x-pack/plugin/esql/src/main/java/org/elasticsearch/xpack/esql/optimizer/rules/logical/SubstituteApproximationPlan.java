@@ -25,7 +25,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
         if (QuerySettings.APPROXIMATION.get(context.configuration().resolvedSettings()) == null) {
             // Approximation is not enabled
             return logicalPlan;
-        } else if (ApproximationVerifier.verifyPlan(logicalPlan) == null) {
+        } else if (ApproximationVerifier.verifyPlan(logicalPlan, context.minimumVersion()) == null) {
             // Plan is not suitable for approximation
             return logicalPlan;
         } else {

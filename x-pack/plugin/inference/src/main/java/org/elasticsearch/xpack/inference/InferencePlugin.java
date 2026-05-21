@@ -454,15 +454,16 @@ public class InferencePlugin extends Plugin
                 services.featureService()
             )
         );
-        components.add(
-            new OAuth2TokenCache(
-                services.clusterService(),
-                settings,
-                services.featureService(),
-                services.projectResolver(),
-                services.client()
-            )
+        var oAuth2TokenCache = new OAuth2TokenCache(
+            services.clusterService(),
+            settings,
+            services.featureService(),
+            services.projectResolver(),
+            services.client()
         );
+        oAuth2TokenCache.init();
+        components.add(oAuth2TokenCache);
+
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
         return components;

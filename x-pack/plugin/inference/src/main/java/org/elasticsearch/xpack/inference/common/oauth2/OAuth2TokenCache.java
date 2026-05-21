@@ -7,19 +7,20 @@
 
 package org.elasticsearch.xpack.inference.common.oauth2;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.BroadcastMessageAction;
 import org.elasticsearch.xpack.inference.common.DiagnosticsCache;
@@ -34,8 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * A node-local cache for OAuth2 bearer tokens, keyed by {@link InferenceIdAndProject}.
  *
- * <p>On a cache miss, callers supply an {@link OAuth2TokenSupplier} that fetches a fresh token
- * from the IdP. Concurrent callers for the same key are coalesced: only one fetch is in-flight
+ * <p>Callers supply an {@link OAuth2TokenSupplier} that fetches a fresh token
+ * from the Identity Provider (IdP) on cache miss. Concurrent callers for the same key are coalesced: only one fetch is in-flight
  * at a time, and all waiters receive the result together.
  *
  * <p>Tokens are checked against their {@code expiresAt} on every read with a 60-second skew
@@ -44,15 +45,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>Cluster-wide invalidation is handled by {@link ClearOAuth2TokenCacheAction}, which broadcasts
  * to every node so that secret or scope rotation takes effect before the natural token TTL.
- * Failed fetches are not negatively cached — a misconfigured endpoint will keep hitting the IdP
- * on every request, which is an acceptable trade-off for v1.
  *
  * <p>Tokens are kept only in heap memory and are never persisted. Each node fetches its own
  * tokens independently.
  */
 public class OAuth2TokenCache implements DiagnosticsCache {
-
-    private static final Logger logger = LogManager.getLogger(OAuth2TokenCache.class);
 
     /**
      * 60-second buffer subtracted from a token's {@code expiresAt} when deciding whether a
@@ -61,12 +58,14 @@ public class OAuth2TokenCache implements DiagnosticsCache {
      */
     static final Duration EXPIRY_SKEW = Duration.ofSeconds(60);
 
-    private static final Setting<Boolean> OAUTH2_TOKEN_CACHE_ENABLED = Setting.boolSetting(
+    static final Setting<Boolean> OAUTH2_TOKEN_CACHE_ENABLED = Setting.boolSetting(
         "xpack.inference.oauth2.token_cache.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    private static final Logger logger = LogManager.getLogger(OAuth2TokenCache.class);
 
     /**
      * Weight here means the maximum number of tokens to cache.
@@ -127,9 +126,11 @@ public class OAuth2TokenCache implements DiagnosticsCache {
             .setExpireAfterWrite(OAUTH2_TOKEN_CACHE_EXPIRY.get(settings))
             .build();
         this.cacheEnabledViaSetting = OAUTH2_TOKEN_CACHE_ENABLED.get(settings);
+    }
 
+    public void init() {
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(OAUTH2_TOKEN_CACHE_ENABLED, enabled -> this.cacheEnabledViaSetting = enabled);
+            .addSettingsUpdateConsumer(OAUTH2_TOKEN_CACHE_ENABLED, enabled -> cacheEnabledViaSetting = enabled);
     }
 
     /**
@@ -191,10 +192,10 @@ public class OAuth2TokenCache implements DiagnosticsCache {
             ClearOAuth2TokenCacheAction.INSTANCE,
             BroadcastMessageAction.request(new ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage(key), null),
             ActionListener.wrap(ack -> {
-                logger.debug("Successfully invalidated OAuth2 token cache for [{}].", key::inferenceEntityId);
+                logger.debug("Successfully invalidated OAuth2 token cache for [{}].", key.inferenceEntityId());
                 listener.onResponse(null);
             }, e -> {
-                logger.atWarn().withThrowable(e).log("Failed to invalidate OAuth2 token cache for [{}].", key.inferenceEntityId());
+                logger.warn(Strings.format("Failed to invalidate OAuth2 token cache for [%s].", key.inferenceEntityId()), e);
                 listener.onFailure(e);
             })
         );

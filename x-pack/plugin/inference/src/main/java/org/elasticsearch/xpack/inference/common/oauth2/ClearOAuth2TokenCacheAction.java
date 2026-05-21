@@ -25,9 +25,8 @@ import java.io.IOException;
  * Broadcasts a cache-invalidation event for a single {@link InferenceIdAndProject} key to every
  * node in the cluster. Each node removes the matching entry from its local {@link OAuth2TokenCache}.
  *
- * <p>Unlike {@code ClearInferenceEndpointCacheAction}, this action uses the lightweight
- * {@link BroadcastMessageAction} pattern (fire-and-forget transport) rather than cluster-state
- * diffs.
+ * <p>This action uses the {@link BroadcastMessageAction} pattern (fire-and-forget transport) to tell other nodes to clear their cache.
+ * This is what {@link org.elasticsearch.xpack.inference.services.elastic.ccm.CCMCache.ClearCCMCacheAction} does as well.
  *
  * <p>The message carries the full {@link InferenceIdAndProject} key because per-endpoint
  * invalidation must target a specific {@code (inferenceId, projectId)} pair.

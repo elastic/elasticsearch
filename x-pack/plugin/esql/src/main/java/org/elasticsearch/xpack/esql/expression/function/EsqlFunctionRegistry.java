@@ -349,9 +349,11 @@ public class EsqlFunctionRegistry {
          * registered via SPI in ESQL's classloader. And, when testing, this will load
          * functions registered via SPI in ESQL's tests.
          */
+        Set<Class<? extends FunctionPlugin>> spiRegistered = new HashSet<>();
         SPIClassIterator<FunctionPlugin> it = SPIClassIterator.get(FunctionPlugin.class, EsqlFunctionRegistry.class.getClassLoader());
         while (it.hasNext()) {
             Class<? extends FunctionPlugin> pluginClass = it.next();
+            spiRegistered.add(pluginClass);
             try {
                 FunctionDefinition[] pluginFunctions = pluginClass.getConstructor().newInstance().functions();
                 register(pluginFunctions);
@@ -361,8 +363,21 @@ public class EsqlFunctionRegistry {
             }
         }
 
-        // Register functions from plugins passed explicitly (e.g. via ExtensionLoader).
+        /*
+         * Register functions from plugins passed explicitly (e.g. via ExtensionLoader).
+         * In production, the SPI and ExtensionLoader classloaders are separate so there
+         * is no overlap. If a plugin was already registered by the SPI scan above, that
+         * means both mechanisms found the same implementation, which is a configuration
+         * error — callers must not pass plugins that are also on the SPI classpath.
+         */
         for (FunctionPlugin plugin : plugins) {
+            if (spiRegistered.contains(plugin.getClass())) {
+                throw new IllegalStateException(
+                    "FunctionPlugin ["
+                        + plugin.getClass().getName()
+                        + "] was already registered via SPI; do not pass it again via ExtensionLoader"
+                );
+            }
             FunctionDefinition[] pluginFunctions = plugin.functions();
             register(pluginFunctions);
             buildDataTypesForStringLiteralConversion(pluginFunctions);

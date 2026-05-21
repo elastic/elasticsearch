@@ -160,6 +160,7 @@ develocity {
             )
           }
 
+          def failedBeforePreemption = false
           if (GcpPreemptionWatchdog.isPreempted()) {
             tag 'PREEMPTED'
             def preemptedAt = GcpPreemptionWatchdog.preemptedAt()
@@ -170,11 +171,17 @@ develocity {
               def taskStatusService = gradle.sharedServices.registrations.findByName('taskStatusTracker')?.service?.orNull
               if (taskStatusService?.hadFailuresBeforePreemption()) {
                 tag 'FAILED_BEFORE_PREEMPTION'
+                failedBeforePreemption = true
               }
             } catch (Exception e) {
               logger.warn("Could not check for pre-preemption failures", e)
             }
           }
+
+          // A build is a "real" failure if Gradle reported failures AND either
+          // the build was not preempted or there were genuine failures before
+          // preemption cancelled the remaining work.
+          def isRealFailure = result.failures && (!GcpPreemptionWatchdog.isPreempted() || failedBeforePreemption)
 
           buildScanPublished { scan ->
 
@@ -196,10 +203,10 @@ develocity {
               // See: https://buildkite.com/docs/agent/v3/cli-annotate
               def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
                 0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
-              def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+              def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : GcpPreemptionWatchdog.isPreempted() ? 'preempted' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
               // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
               runBuildkiteAgent(
-                ['annotate', '--context', result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', result.failures ? 'error' : 'info'],
+                ['annotate', '--context', isRealFailure ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', isRealFailure ? 'error' : 'info'],
                 "adding build annotation",
                 { it.write(body) }
               )

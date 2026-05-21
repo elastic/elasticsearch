@@ -371,13 +371,14 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
             || indexMode == IndexMode.COLUMNAR
             || indexMode == IndexMode.VECTORDB_DOCUMENT) {
             boolean nanosTimestampResolution = randomBoolean();
+            boolean allowStore = indexMode.isStrictColumnar() == false && randomBoolean();
             if (nanosTimestampResolution) {
                 return createDocumentMapper(mapping(b -> {
                     b.startObject("@timestamp")
                         .field("type", "date_nanos")
                         .field("format", "epoch_millis")
                         .field("doc_values", randomBoolean())
-                        .field("store", randomBoolean())
+                        .field("store", allowStore)
                         .endObject();
                 }), indexMode);
             } else {
@@ -386,7 +387,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                         .field("type", "date")
                         .field("format", "epoch_millis")
                         .field("doc_values", randomBoolean())
-                        .field("store", randomBoolean())
+                        .field("store", allowStore)
                         .endObject();
                 }), indexMode);
             }

@@ -208,3 +208,20 @@ ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (
 ua.name:keyword  | ua.version:keyword | ua.os.name:keyword
 Custom Chrome    | 33.0.1750.149      | Mac OS X
 ;
+
+
+sortBeforeUserAgentAndStats
+required_capability: user_agent_command
+required_capability: fix_compound_output_eval_sort_agnostic
+
+ROW a = 1, name_str = "a b"
+| RENAME a AS id_int
+| SORT id_int
+| MV_EXPAND name_str
+| USER_AGENT ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| STATS c = count(*) BY ua.name
+;
+
+c:long | ua.name:keyword
+1      | Chrome
+;

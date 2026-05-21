@@ -89,7 +89,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     assertEquals(task.getId(), request.getParentTask().getId());
                     assertEquals(localNodeId, request.getParentTask().getNodeId());
                     counter.incrementAndGet();
-                    var response = SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY);
+                    var response = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
                     try {
                         listener.onResponse(response);
                     } finally {

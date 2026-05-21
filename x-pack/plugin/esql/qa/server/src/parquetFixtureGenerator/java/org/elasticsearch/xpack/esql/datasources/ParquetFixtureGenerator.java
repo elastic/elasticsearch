@@ -25,15 +25,29 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Build-time generator for Parquet fixture files. Converts CSV to Parquet.
  * <p>
- * Single-file mode: {@code <source-csv> <output.parquet>}
+ * Single-file mode: {@code <source-csv> <output.parquet> [codec]}
  * <br>
- * Split mode:       {@code <source-csv> <output-dir> <num-parts>} — writes
+ * Split mode:       {@code <source-csv> <output-dir> <num-parts> [codec]} — writes
  * {@code <basename>_00.parquet}, {@code <basename>_01.parquet}, … into the directory.
+ * <br>
+ * Hive-by mode: {@code <source-csv> <output-dir> --hive-by <source-column> <partition-column-name>} —
+ * groups rows by the value of {@code source-column} into Hive-style partition directories
+ * {@code <output-dir>/<partition-column-name>=<value>/<basename>.parquet}. Rows where the source column
+ * is null go into {@code <partition-column-name>=__HIVE_DEFAULT_PARTITION__}, matching how Hive encodes
+ * null partitions on disk. The partition column name is intentionally distinct
+ * from the source column so the source column can stay in the parquet payload without colliding with the
+ * virtual partition column injected by the reader.
+ * <p>
+ * The optional {@code codec} argument selects the Parquet internal compression codec
+ * (e.g. {@code SNAPPY}, {@code GZIP}, {@code ZSTD}, {@code LZ4_RAW}).
+ * When omitted, {@code UNCOMPRESSED} is used.
  * <p>
  * Uses {@link CsvFixtureParser} for bracket-aware CSV parsing with correct multi-value handling.
  */
@@ -41,22 +55,35 @@ public final class ParquetFixtureGenerator {
 
     private ParquetFixtureGenerator() {}
 
+    private static final String HIVE_BY_FLAG = "--hive-by";
+
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length == 2) {
+        if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            String sourceColumn = args[3];
+            String partitionColumn = args[4];
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            generateHivePartitionedByColumn(sourcePath, outputDir, sourceColumn, partitionColumn, CompressionCodecName.UNCOMPRESSED);
+        } else if (args.length == 2 || (args.length == 3 && isCodecName(args[2]))) {
             Path sourcePath = Path.of(args[0]);
             Path outputPath = Path.of(args[1]);
+            CompressionCodecName codec = args.length == 3 ? CompressionCodecName.valueOf(args[2]) : CompressionCodecName.UNCOMPRESSED;
             if (Files.exists(sourcePath) == false) {
                 throw new IOException("Source CSV not found: " + sourcePath);
             }
             Files.createDirectories(outputPath.getParent());
-            byte[] parquetBytes = generateFromCsv(sourcePath, 0, Integer.MAX_VALUE);
+            byte[] parquetBytes = generateFromCsv(sourcePath, 0, Integer.MAX_VALUE, codec);
             Files.write(outputPath, parquetBytes);
-            System.out.println("Generated Parquet fixture: " + outputPath);
-        } else if (args.length == 3) {
+            System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
+        } else if (args.length == 3 || args.length == 4) {
             Path sourcePath = Path.of(args[0]);
             Path outputDir = Path.of(args[1]);
             int numParts = Integer.parseInt(args[2]);
+            CompressionCodecName codec = args.length == 4 ? CompressionCodecName.valueOf(args[3]) : CompressionCodecName.UNCOMPRESSED;
             if (Files.exists(sourcePath) == false) {
                 throw new IOException("Source CSV not found: " + sourcePath);
             }
@@ -70,22 +97,93 @@ public final class ParquetFixtureGenerator {
                 int to = Math.min(from + partSize, total);
                 String fileName = String.format(java.util.Locale.ROOT, "%s_%02d.parquet", baseName, part);
                 Path outputPath = outputDir.resolve(fileName);
-                byte[] parquetBytes = generateFromRows(result, from, to);
+                byte[] parquetBytes = generateFromRows(result, from, to, codec);
                 Files.write(outputPath, parquetBytes);
-                System.out.println("Generated Parquet fixture: " + outputPath);
+                System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
             }
         } else {
-            System.err.println("Usage: ParquetFixtureGenerator <source-csv> <output.parquet>");
-            System.err.println("       ParquetFixtureGenerator <source-csv> <output-dir> <num-parts>");
+            System.err.println("Usage: ParquetFixtureGenerator <source-csv> <output.parquet> [codec]");
+            System.err.println("       ParquetFixtureGenerator <source-csv> <output-dir> <num-parts> [codec]");
+            System.err.println(
+                "       ParquetFixtureGenerator <source-csv> <output-dir> --hive-by <source-column> <partition-column-name>"
+            );
+            System.err.println("Codecs: UNCOMPRESSED (default), SNAPPY, GZIP, ZSTD, LZ4_RAW");
             System.exit(1);
         }
     }
 
-    private static byte[] generateFromCsv(Path sourcePath, int from, int to) throws IOException {
-        return generateFromRows(CsvFixtureParser.parseCsvFile(sourcePath), from, to);
+    /**
+     * Writes one Parquet file per distinct value of {@code sourceColumn} into Hive-style partition
+     * directories named after {@code partitionColumn}. Rows where the source column is null go into the
+     * literal Hive sentinel directory {@code <partitionColumn>=__HIVE_DEFAULT_PARTITION__}. The source
+     * column is preserved in the parquet payload so the fixture can also be queried on the data column
+     * itself; the partition column name is deliberately distinct to avoid colliding with that payload.
+     */
+    @SuppressForbidden(reason = "Gradle JavaExec task generator writes progress to System.out")
+    private static void generateHivePartitionedByColumn(
+        Path sourcePath,
+        Path outputDir,
+        String sourceColumn,
+        String partitionColumn,
+        CompressionCodecName codec
+    ) throws IOException {
+        CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
+        int sourceColIdx = -1;
+        for (int i = 0; i < result.schema().size(); i++) {
+            if (result.schema().get(i).name().equals(sourceColumn)) {
+                sourceColIdx = i;
+                break;
+            }
+        }
+        if (sourceColIdx < 0) {
+            throw new IOException("Source column not found in CSV: " + sourceColumn);
+        }
+
+        String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+        // LinkedHashMap so the on-disk layout iterates buckets in a deterministic order.
+        Map<String, List<Object[]>> buckets = new LinkedHashMap<>();
+        for (Object[] row : result.rows()) {
+            Object cell = sourceColIdx < row.length ? row[sourceColIdx] : null;
+            String bucket = cell == null ? "__HIVE_DEFAULT_PARTITION__" : cell.toString();
+            buckets.computeIfAbsent(bucket, k -> new ArrayList<>()).add(row);
+        }
+
+        Files.createDirectories(outputDir);
+        for (Map.Entry<String, List<Object[]>> e : buckets.entrySet()) {
+            Path partitionDir = outputDir.resolve(partitionColumn + "=" + e.getKey());
+            Files.createDirectories(partitionDir);
+            Path outputPath = partitionDir.resolve(baseName + ".parquet");
+            byte[] bytes = generateFromRows(
+                new CsvFixtureParser.CsvFixtureResult(result.schema(), e.getValue()),
+                0,
+                e.getValue().size(),
+                codec
+            );
+            Files.write(outputPath, bytes);
+            System.out.println("Generated Hive partition (" + codec + "): " + outputPath + " (" + e.getValue().size() + " rows)");
+        }
     }
 
-    private static byte[] generateFromRows(CsvFixtureParser.CsvFixtureResult result, int from, int to) throws IOException {
+    /**
+     * Returns true when the string is one of the supported Parquet compression codec names.
+     * Used to disambiguate the 3-arg form (single-file + codec) from the 3-arg split form
+     * (split mode with num-parts).
+     */
+    private static boolean isCodecName(String s) {
+        for (CompressionCodecName c : CompressionCodecName.values()) {
+            if (c.name().equals(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static byte[] generateFromCsv(Path sourcePath, int from, int to, CompressionCodecName codec) throws IOException {
+        return generateFromRows(CsvFixtureParser.parseCsvFile(sourcePath), from, to, codec);
+    }
+
+    private static byte[] generateFromRows(CsvFixtureParser.CsvFixtureResult result, int from, int to, CompressionCodecName codec)
+        throws IOException {
         List<CsvFixtureParser.ColumnSpec> columns = result.schema();
         List<Object[]> rows = result.rows().subList(from, Math.min(to, result.rows().size()));
 
@@ -104,12 +202,7 @@ public final class ParquetFixtureGenerator {
         OutputFile outputFile = createOutputFile(baos);
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
 
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .build()
-        ) {
+        try (ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile).withType(schema).withCompressionCodec(codec).build()) {
             for (Object[] row : rows) {
                 Group g = factory.newGroup();
                 for (int i = 0; i < columns.size(); i++) {

@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
@@ -75,6 +76,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToString.class)
         .unaryConfig(ToString::new)
+        .capabilities("flattened")
         .name("to_string", "to_str");
 
     private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
@@ -86,6 +88,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
         Map.entry(TEXT, (source, fieldEval) -> fieldEval),
+        Map.entry(FLATTENED, (source, fieldEval) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
@@ -143,7 +146,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "unsigned_long",
                 "version",
                 "date_range",
-                "exponential_histogram" },
+                "exponential_histogram",
+                "flattened" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v,
         Configuration configuration

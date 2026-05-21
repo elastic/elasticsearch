@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -142,6 +144,18 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             return this;
         }
         return new ParquetRsFormatReader(blockFactory, pushedExpressions, serializeConfig(config));
+    }
+
+    @Override
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+        // ParquetRs forwards the entire config map to the native side as JSON, so every input
+        // key is "claimed" from the validator's perspective. Treating an unknown key as recognised
+        // here matches the historical permissive behaviour; tightening validation belongs in a
+        // dedicated parquet-rs change once the native side exposes a RECOGNIZED_KEYS set.
+        if (config == null || config.isEmpty()) {
+            return Configured.empty(this);
+        }
+        return new Configured<>(withConfig(config), config.keySet());
     }
 
     /**
@@ -556,12 +570,25 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         try (ArrowSchema ffiSchema = ArrowSchema.allocateNew(allocator)) {
             ParquetRsBridge.getSchemaFFI(path, configJson, ffiSchema.memoryAddress());
             Schema arrowSchema = Data.importSchema(allocator, ffiSchema, null);
-            List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
-            for (Field field : arrowSchema.getFields()) {
-                attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), ArrowToEsql.dataTypeForField(field)));
-            }
-            return attributes;
+            return arrowSchemaToAttributes(arrowSchema);
         }
+    }
+
+    /**
+     * Convert an Arrow schema into ES|QL attributes, honoring Arrow's field-level nullability flag. Defaulting to
+     * non-nullable (as the 3-arg {@link ReferenceAttribute} constructor does) would mislead planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) into dropping legitimate
+     * null rows for nullable Arrow fields.
+     */
+    static List<Attribute> arrowSchemaToAttributes(Schema arrowSchema) {
+        List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
+        for (Field field : arrowSchema.getFields()) {
+            Nullability nullability = field.isNullable() ? Nullability.TRUE : Nullability.FALSE;
+            attributes.add(
+                new ReferenceAttribute(Source.EMPTY, null, field.getName(), ArrowToEsql.dataTypeForField(field), nullability, null, false)
+            );
+        }
+        return attributes;
     }
 
     @Override

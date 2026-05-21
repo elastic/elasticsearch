@@ -246,6 +246,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexSettings indexSettings;
         private final boolean storeIgnoredFieldsInBinaryDocValues;
 
+        private String offsetsFieldName;
+
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
                 name,
@@ -480,14 +482,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
 
-            String offsetsFieldName = getOffsetsFieldName(
+            this.offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
                 docValuesParameters().enabled(),
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD,
+                indexSettings.getMode().isColumnar(),
+                docValuesParameters().multiValue()
             );
             return new KeywordFieldMapper(
                 leafName(),
@@ -544,9 +548,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {
+            IndexMode mode = indexSettings.getMode();
             return docValuesParameters.getValue().enabled()
                 && indexSettings.useDocValuesSkipperForHostName()
-                && IndexMode.LOGSDB.equals(indexSettings.getMode())
+                && (IndexMode.LOGSDB.equals(mode) || IndexMode.LOGSDB_COLUMNAR.equals(mode))
                 && HOST_NAME.equals(fullFieldName)
                 && indexSortConfigByHostName(indexSettings.getIndexSortConfig());
         }
@@ -579,6 +584,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean usesBinaryDocValuesForIgnoredFields;
         private final DocValuesParameter.Values docValuesParams;
         private final IndexVersion indexVersion;
+        private final boolean readInArrayOrder;
 
         public KeywordFieldType(
             String name,
@@ -611,6 +617,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.usesBinaryDocValuesForIgnoredFields = builder.storeIgnoredFieldsInBinaryDocValues;
             this.docValuesParams = builder.docValuesParameters();
             this.indexVersion = builder.indexSettings.getIndexVersionCreated();
+            this.readInArrayOrder = builder.offsetsFieldName != null
+                && builder.docValuesParameters().multiValue()
+                && builder.indexSettings.getMode().isColumnar();
         }
 
         public KeywordFieldType(String name) {
@@ -639,6 +648,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.usesBinaryDocValuesForIgnoredFields = false;
             this.docValuesParams = null;
             this.indexVersion = IndexVersion.current();
+            this.readInArrayOrder = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -661,6 +671,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.usesBinaryDocValuesForIgnoredFields = false;
             this.docValuesParams = null;
             this.indexVersion = IndexVersion.current();
+            this.readInArrayOrder = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -683,6 +694,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.usesBinaryDocValuesForIgnoredFields = false;
             this.docValuesParams = null;
             this.indexVersion = IndexVersion.current();
+            this.readInArrayOrder = false;
         }
 
         public boolean usesBinaryDocValues() {
@@ -923,10 +935,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                         if (docValuesParams != null && docValuesParams.multiValue() == false) {
                             return new BytesRefsFromBinaryBlockLoader(name());
                         } else {
-                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
+                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), readInArrayOrder);
                         }
                     } else {
-                        return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                        return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
                 }
                 return switch (cfg.function()) {
@@ -1407,13 +1419,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
+        if (shouldRecordOffset(context)) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
+    }
+
+    private boolean shouldRecordOffset(DocumentParserContext context) {
+        return offsetsFieldName != null && context.isImmediateParentAnArray()
+        // canAddIgnoreField is for source_keep_mode
+            && (context.canAddIgnoredField() || (docValuesParameters.multiValue() && indexSettings.getMode().isColumnar()));
     }
 
     @Override

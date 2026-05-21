@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 147428
+pr: 148722
+summary: Reserve CB memory for automaton construction
+type: enhancement

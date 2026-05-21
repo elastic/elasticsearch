@@ -82,7 +82,7 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
-        if (TransformMetadata.upgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(clusterState)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot schedule any Transform while the Transform feature is upgrading.",

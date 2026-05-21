@@ -18,7 +18,6 @@ import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
-import java.util.Random;
 
 @TestLogging(
     reason = "Noisy logging",
@@ -26,7 +25,6 @@ import java.util.Random;
 )
 public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
 
-    private static final int REPETITIONS = 10;
     private final float deltaPercent = 0.1f;
     private final int dims;
     private final byte bits;
@@ -49,126 +47,94 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testSingle() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var seed = randomLong();
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
 
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
+        float[] expected = null;
+        for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
+            VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
+            bench.implementation = impl;
+            bench.dims = dims;
+            bench.bits = bits;
+            bench.directoryType = directoryType;
+            bench.int4Encoding = int4Encoding;
+            bench.similarityFunction = similarityFunction;
+            bench.setup(data);
 
-            float[] expected = null;
-            for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
-                VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
-                bench.implementation = impl;
-                bench.dims = dims;
-                bench.bits = bits;
-                bench.directoryType = directoryType;
-                bench.int4Encoding = int4Encoding;
-                bench.similarityFunction = similarityFunction;
-                bench.setup(data);
-
-                try {
-                    float[] result = bench.controlScoreIndividual();
-                    // just check against the first one - they should all be identical to each other
-                    if (expected == null) {
-                        expected = result;
-                        continue;
-                    }
-                    assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
-                } finally {
-                    bench.teardown();
-                    IOUtils.rm(bench.tempDir);
+            try {
+                float[] result = bench.controlScoreIndividual();
+                // just check against the first one - they should all be identical to each other
+                if (expected == null) {
+                    expected = result;
+                    continue;
                 }
+                assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
+            } finally {
+                bench.teardown();
+                IOUtils.rm(bench.tempDir);
             }
         }
     }
 
     public void testBulk() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var seed = randomLong();
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
 
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
+        float[] expected = null;
+        for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
+            VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
+            bench.implementation = impl;
+            bench.dims = dims;
+            bench.bits = bits;
+            bench.directoryType = directoryType;
+            bench.int4Encoding = int4Encoding;
+            bench.similarityFunction = similarityFunction;
+            bench.setup(data);
 
-            float[] expected = null;
-            for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
-                VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
-                bench.implementation = impl;
-                bench.dims = dims;
-                bench.bits = bits;
-                bench.directoryType = directoryType;
-                bench.int4Encoding = int4Encoding;
-                bench.similarityFunction = similarityFunction;
-                bench.setup(data);
-
-                try {
-                    float[] result = bench.scoreBulk();
-                    // just check against the first one - they should all be identical to each other
-                    if (expected == null) {
-                        expected = result;
-                        continue;
-                    }
-                    assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
-                } finally {
-                    bench.teardown();
-                    IOUtils.rm(bench.tempDir);
+            try {
+                float[] result = bench.scoreBulk();
+                // just check against the first one - they should all be identical to each other
+                if (expected == null) {
+                    expected = result;
+                    continue;
                 }
+                assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
+            } finally {
+                bench.teardown();
+                IOUtils.rm(bench.tempDir);
             }
         }
     }
 
     public void testFilteredOne() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(
-                new Random(randomLong()),
-                dims,
-                bits,
-                int4Encoding,
-                similarityFunction
-            );
-            runFilteredBenchmarks(
-                data,
-                VectorScorerOSQBenchmark::controlScoreBulkFilteredOne,
-                VectorScorerOSQBenchmark::scoreIndividualFilteredOne,
-                VectorScorerOSQBenchmark.SINGLE_OFFSET,
-                1
-            );
-        }
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        runFilteredBenchmarks(
+            data,
+            VectorScorerOSQBenchmark::controlScoreBulkFilteredOne,
+            VectorScorerOSQBenchmark::scoreIndividualFilteredOne,
+            VectorScorerOSQBenchmark.SINGLE_OFFSET,
+            1
+        );
     }
 
     public void testFilteredDense() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(
-                new Random(randomLong()),
-                dims,
-                bits,
-                int4Encoding,
-                similarityFunction
-            );
-            runFilteredBenchmarks(
-                data,
-                VectorScorerOSQBenchmark::scoreBulkFilteredDense,
-                VectorScorerOSQBenchmark::controlScoreIndividualFilteredDense,
-                data.denseOffsets(),
-                data.denseOffsetsCount()
-            );
-        }
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        runFilteredBenchmarks(
+            data,
+            VectorScorerOSQBenchmark::scoreBulkFilteredDense,
+            VectorScorerOSQBenchmark::controlScoreIndividualFilteredDense,
+            data.denseOffsets(),
+            data.denseOffsetsCount()
+        );
     }
 
     public void testFilteredSparse() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(
-                new Random(randomLong()),
-                dims,
-                bits,
-                int4Encoding,
-                similarityFunction
-            );
-            runFilteredBenchmarks(
-                data,
-                VectorScorerOSQBenchmark::scoreBulkFilteredSparse,
-                VectorScorerOSQBenchmark::controlScoreIndividualFilteredSparse,
-                data.sparseOffsets(),
-                data.sparseOffsetsCount()
-            );
-        }
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        runFilteredBenchmarks(
+            data,
+            VectorScorerOSQBenchmark::scoreBulkFilteredSparse,
+            VectorScorerOSQBenchmark::controlScoreIndividualFilteredSparse,
+            data.sparseOffsets(),
+            data.sparseOffsetsCount()
+        );
     }
 
     /**

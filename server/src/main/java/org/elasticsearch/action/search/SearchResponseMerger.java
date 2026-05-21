@@ -124,7 +124,7 @@ public final class SearchResponseMerger implements Releasable {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
-            return SearchResponse.empty(searchTimeProvider::buildTookInMillis, clusters);
+            return SearchResponse.emptyResponseBuilder().tookInMillis(searchTimeProvider.buildTookInMillis()).clusters(clusters).build();
         }
         int totalShards = 0;
         int skippedShards = 0;

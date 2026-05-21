@@ -390,7 +390,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }
         };
 
-        for (IndexMode indexMode : IndexMode.values()) {
+        for (IndexMode indexMode : IndexMode.availableModes()) {
             MapperService mapperService = initMapperService.apply(indexMode);
             assertMapperService.accept(mapperService);
         }

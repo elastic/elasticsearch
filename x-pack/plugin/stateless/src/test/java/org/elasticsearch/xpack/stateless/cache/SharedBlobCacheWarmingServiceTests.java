@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -1276,10 +1277,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(readEnd - readStart)), readStart)
                         );
                     }
-                    // The region immediately after the header should NOT be cached, but we must skip the footer region.
+                    // The region immediately after the header should NOT be cached, but we must skip
+                    // any region covered by the footer (which may start one region before the file's last region
+                    // when the 16-byte Lucene footer straddles a region boundary).
                     int firstUncachedRegion = lastHeaderRegion + 1;
-                    int footerRegion = node.sharedCacheService.getEndingRegion(loc.offset() + loc.fileLength());
-                    if (firstUncachedRegion < footerRegion) {
+                    // footer occupies [fileLength - footerLength, fileLength); use its start region as the guard
+                    int footerStartRegion = node.sharedCacheService.getRegion(loc.offset() + loc.fileLength() - CodecUtil.footerLength());
+                    if (firstUncachedRegion < footerStartRegion) {
                         long uncachedRegionStart = (long) firstUncachedRegion * regionSize;
                         assertFalse(
                             fileName + " region " + firstUncachedRegion + " (after header) should NOT be cached",

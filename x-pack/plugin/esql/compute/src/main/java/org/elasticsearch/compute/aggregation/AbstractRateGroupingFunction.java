@@ -11,11 +11,15 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.Arrays;
 
@@ -416,4 +420,95 @@ class AbstractRateGroupingFunction {
             }
         }
     }
+
+    /**
+     * Append-only paged buffer for {@link ExponentialHistogram} values backed by {@link ExponentialHistogramBlock} pages.
+     * Pages are built lazily via a block builder and finalized when full or when a read is requested.
+     */
+    static final class ExponentialHistogramBuffer extends BufferedArray {
+
+        private final BlockFactory factory;
+        private ExponentialHistogramBlock[] pages;
+        private ExponentialHistogramBlock.Builder activeBuilder;
+
+        ExponentialHistogramBuffer(BlockFactory factory, long initialCapacity) {
+            super(factory.breaker(), initialCapacity, 0);
+            this.factory = factory;
+            pages = new ExponentialHistogramBlock[numPages];
+        }
+
+        ExponentialHistogram get(long index, ExponentialHistogramScratch scratch) {
+            buildCurrentPage();
+            return pages[pageIndex(index)].getExponentialHistogram(indexInPage(index), scratch);
+        }
+
+        void append(ExponentialHistogram value) {
+            initBuilderForNextPosition();
+            activeBuilder.append(value);
+            size++;
+            if (size % PAGE_SIZE == 0) {
+                buildCurrentPage();
+            }
+        }
+
+        void appendRange(ExponentialHistogramBlock src, int from, int count) {
+            assert assertSingleValued(src, from, count);
+            int freeSlotsOnCurrentPage = PAGE_SIZE - indexInPage(size);
+            int pos = from;
+            int remainingCount = count;
+            while (remainingCount >= freeSlotsOnCurrentPage) {
+                initBuilderForNextPosition();
+                activeBuilder.copyFrom(src, pos, pos + freeSlotsOnCurrentPage);
+                size += freeSlotsOnCurrentPage;
+                pos += freeSlotsOnCurrentPage;
+                remainingCount -= freeSlotsOnCurrentPage;
+                freeSlotsOnCurrentPage = PAGE_SIZE;
+                buildCurrentPage();
+            }
+
+            if (remainingCount > 0) {
+                initBuilderForNextPosition();
+                activeBuilder.copyFrom(src, pos, pos + remainingCount);
+                size += remainingCount;
+            }
+        }
+
+        private boolean assertSingleValued(ExponentialHistogramBlock src, int from, int count) {
+            for (int i = from; i < from + count; i++) {
+                assert src.isNull(i) == false : "Tried to append null value to ExponentialHistogramBuffer";
+                assert src.getValueCount(i) == 1 : "Tried to append multi-value to ExponentialHistogramBuffer";
+            }
+            return true;
+        }
+
+        private void initBuilderForNextPosition() {
+            if (activeBuilder == null) {
+                assert size % PAGE_SIZE == 0 : "Cannot append after reading";
+                activeBuilder = factory.newExponentialHistogramBlockBuilder(PAGE_SIZE);
+            }
+        }
+
+        private void buildCurrentPage() {
+            if (activeBuilder != null) {
+                int pageIdx = pageIndex(size - 1);
+                if (pageIdx >= pages.length) {
+                    pages = Arrays.copyOf(pages, pageIdx * 2);
+                }
+                assert pages[pageIdx] == null;
+                pages[pageIdx] = activeBuilder.build();
+                activeBuilder = null;
+            }
+        }
+
+        void ensureCapacity(long minCapacity) {
+            // Pages are allocated on demand automatically via the block builder
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(activeBuilder);
+            Releasables.close(pages);
+        }
+    }
+
 }

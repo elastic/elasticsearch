@@ -7,7 +7,6 @@ keyword synthetic source:
             index.mode: columnar
             index.mapping.source.mode: synthetic
           mappings:
-            subobjects: false
             properties:
               kwd:
                 type: keyword
@@ -50,7 +49,6 @@ keyword stored source:
             index.mode: columnar
             index.mapping.source.mode: columnar_stored
           mappings:
-            subobjects: false
             properties:
               kwd:
                 type: keyword

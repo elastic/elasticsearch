@@ -36,6 +36,7 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ExpressionWritables.getNamedWriteables());
+        // Includes entries for all functions discovered via SPI (e.g. from function plugin sub-projects on the test classpath).
         entries.addAll(EsqlTestUtils.TEST_FUNCTION_REGISTRY.writeables());
         return new NamedWriteableRegistry(entries);
     }

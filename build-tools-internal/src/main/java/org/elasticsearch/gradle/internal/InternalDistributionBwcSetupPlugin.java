@@ -289,6 +289,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 null
             );
 
+            String stableMavenModule = "elasticsearch-" + stableApiProject.getName();
+            String stableMavenGroup = stableApiProject.getName().startsWith("plugin-") ? "org.elasticsearch.plugin" : "org.elasticsearch";
             createBuildBwcTask(
                 bwcSetupExtension,
                 buildParams,
@@ -303,8 +305,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 "",
                 "jar",
                 draBaseUrl,
-                "",
-                ""
+                stableMavenGroup,
+                stableMavenModule
             );
         }
     }
@@ -574,13 +576,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                         // using the standard Maven group-path layout rather than the flat
                         // /downloads/elasticsearch/ path used for distribution archives.
                         String groupPath = effectiveMavenGroup.replace(".", "/");
-                        p.artifact(
-                            "/elasticsearch/"
-                                + buildId
-                                + "/maven/"
-                                + groupPath
-                                + "/[module]/[revision]/[module]-[revision].[ext]"
-                        );
+                        p.artifact("/elasticsearch/" + buildId + "/maven/" + groupPath + "/[module]/[revision]/[module]-[revision].[ext]");
                     } else if (gradleClassifier.isEmpty()) {
                         p.artifact("/elasticsearch/" + buildId + "/downloads/elasticsearch/[module]-[revision].[ext]");
                     } else {

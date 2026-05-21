@@ -162,7 +162,7 @@ name_length:double                                                              
 
 // Make sure that the non-time series aggs don't choke on null.
 withCountDistinctNull
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 FROM employees
 | EVAL y = null
@@ -175,7 +175,7 @@ s:long                                                           | cd:long
 ;
 
 withCountDistinctNullFromRow
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
 | STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"), cd = COUNT_DISTINCT(y)
@@ -186,7 +186,7 @@ s:long | cd:long
 ;
 
 withValuesNull
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
 | STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
@@ -198,7 +198,7 @@ s:long | v:null
 ;
 
 withSumNull
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
 | STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
@@ -210,7 +210,7 @@ s:long | sm:null
 ;
 
 withTopNull
-required_capability: fn_sparkline
+required_capability: fn_sparkline_null_alongside
 
 ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
 | STATS s = SPARKLINE(COUNT(*), hire_date, 5, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),

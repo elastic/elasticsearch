@@ -989,10 +989,10 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             CircuitBreaker.IN_FLIGHT_REQUESTS
         );
         final Set<String> limitTypes = limits.stream()
-            .map(m -> (String) m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE))
+            .map(m -> (String) m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
             .collect(Collectors.toSet());
         final Set<String> estimateTypes = estimates.stream()
-            .map(m -> (String) m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE))
+            .map(m -> (String) m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE))
             .collect(Collectors.toSet());
 
         assertEquals(expectedTypes, limitTypes);
@@ -1038,7 +1038,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             Long.valueOf(70L),
             heldByAttrs.get(
                 Map.of(
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
                     "wildcard-compiled"
@@ -1049,7 +1049,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             Long.valueOf(50L),
             heldByAttrs.get(
                 Map.of(
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
                     "regexp"
@@ -1060,7 +1060,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             Long.valueOf(-7L),
             heldByAttrs.get(
                 Map.of(
-                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
                     ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE
@@ -1101,7 +1101,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final long heldForWildcard = meter.getRecorder()
             .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
             .stream()
-            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE)))
+            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
             .filter(m -> "wildcard".equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)))
             .mapToLong(Measurement::getLong)
             .sum();
@@ -1110,7 +1110,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final long heldUncategorized = meter.getRecorder()
             .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
             .stream()
-            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE)))
+            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
             .filter(
                 m -> ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE.equals(
                     m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE)

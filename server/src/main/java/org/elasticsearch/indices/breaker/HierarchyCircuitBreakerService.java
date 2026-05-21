@@ -273,9 +273,19 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private Collection<LongWithAttributes> collectMemoryLimits() {
         List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
         for (CircuitBreaker breaker : this.breakers.values()) {
-            out.add(new LongWithAttributes(breaker.getLimit(), Map.of("type", breaker.getName())));
+            out.add(
+                new LongWithAttributes(
+                    breaker.getLimit(),
+                    Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())
+                )
+            );
         }
-        out.add(new LongWithAttributes(this.parentSettings.getLimit(), Map.of("type", CircuitBreaker.PARENT)));
+        out.add(
+            new LongWithAttributes(
+                this.parentSettings.getLimit(),
+                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            )
+        );
         return out;
     }
 
@@ -283,9 +293,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         List<LongWithAttributes> out = new ArrayList<>(this.breakers.size() + 1);
         for (CircuitBreaker breaker : this.breakers.values()) {
             long estimated = (long) (breaker.getUsed() * breaker.getOverhead());
-            out.add(new LongWithAttributes(estimated, Map.of("type", breaker.getName())));
+            out.add(new LongWithAttributes(estimated, Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, breaker.getName())));
         }
-        out.add(new LongWithAttributes(memoryUsed(0L).totalUsage, Map.of("type", CircuitBreaker.PARENT)));
+        out.add(
+            new LongWithAttributes(
+                memoryUsed(0L).totalUsage,
+                Map.of(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE, CircuitBreaker.PARENT)
+            )
+        );
         return out;
     }
 

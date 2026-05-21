@@ -139,13 +139,13 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
         }
 
         final Map<String, Object> preallocateAttrs = Map.of(
-            ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
+            ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
             CircuitBreaker.REQUEST,
             ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
             "preallocate[test]"
         );
         final Map<String, Object> uncategorizedAttrs = Map.of(
-            ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
+            ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
             CircuitBreaker.REQUEST,
             ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
             ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE

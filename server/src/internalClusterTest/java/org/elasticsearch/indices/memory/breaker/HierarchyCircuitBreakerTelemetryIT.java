@@ -32,6 +32,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE;
 import static org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE;
 import static org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING;
@@ -136,7 +137,7 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
     }
 
     private static Set<String> typesIn(List<Measurement> measurements) {
-        return measurements.stream().map(m -> (String) m.attributes().get(CIRCUIT_BREAKER_TYPE_ATTRIBUTE)).collect(Collectors.toSet());
+        return measurements.stream().map(m -> (String) m.attributes().get(BREAKER_METRIC_TYPE_ATTRIBUTE)).collect(Collectors.toSet());
     }
 
     private static TestTelemetryPlugin telemetryPlugin(String nodeName) {

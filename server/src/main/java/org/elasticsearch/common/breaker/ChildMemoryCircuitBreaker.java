@@ -39,7 +39,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final LongUpDownCounter memoryHeldMeter;
 
     public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
-    public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "category";
+
+
+    public static final String BREAKER_METRIC_TYPE_ATTRIBUTE = "es_breaker_type";
+
+
+    public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "es_breaker_category";
+
     public static final String UNCATEGORIZED_RELEASE = "uncategorized";
 
     /**
@@ -152,7 +158,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             throw e;
         }
         if (bytes > 0) {
-            this.memoryHeldMeter.add(bytes, Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
+            this.memoryHeldMeter.add(bytes, Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
         }
         assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
     }
@@ -229,18 +235,18 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         adjustUsedBytes(bytes);
         this.memoryHeldMeter.add(
             bytes,
-            Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, UNCATEGORIZED_RELEASE)
+            Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, UNCATEGORIZED_RELEASE)
         );
     }
 
     /**
      * Category-aware variant of {@link #addWithoutBreaking(long)} - records the delta on {@code es.breaker.memory.held.usage} under
-     * {@code category=label}, so that an admit / release pair sharing the same label cancels out on the per-category gauge.
+     * {@code es_breaker_category=label}, so that an admit / release pair sharing the same label cancels out on the per-category gauge.
      */
     @Override
     public void addWithoutBreaking(long bytes, String label) {
         adjustUsedBytes(bytes);
-        this.memoryHeldMeter.add(bytes, Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
+        this.memoryHeldMeter.add(bytes, Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
     }
 
     private void adjustUsedBytes(long bytes) {

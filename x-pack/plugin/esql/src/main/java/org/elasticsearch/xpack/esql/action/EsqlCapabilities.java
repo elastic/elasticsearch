@@ -2093,9 +2093,9 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
 
         /**
-         * PromQL uses TSTEP instead of TBUCKET.
+         * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
-        FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+        FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356

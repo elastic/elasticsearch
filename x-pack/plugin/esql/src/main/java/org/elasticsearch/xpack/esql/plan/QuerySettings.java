@@ -83,7 +83,7 @@ public class QuerySettings {
         An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried. When querying
         multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some indices but not others.
 
-        Unmapped fields are different from [runtime fields](/reference/elasticsearch/mapping-reference/runtime-fields.md). Runtime fields \
+        Unmapped fields are different from [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md). Runtime fields \
         are computed fields defined in the index mapping that {{esql}} treats like regular mapped fields. You cannot define new runtime \
         fields at search time in {{esql}}, but you can use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to \
         create computed columns instead.
